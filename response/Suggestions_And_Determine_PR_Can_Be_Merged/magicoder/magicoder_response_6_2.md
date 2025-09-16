@@ -1,0 +1,11 @@
+- Verdict: Do Not Merge
+- Reasoning:
+  - The PR introduces significant complexity and potential for issues.
+  - The code lacks proper documentation and the tests are not comprehensive or provide adequate feedback.
+  - The code is high in complexity and may be difficult to understand and maintain.
+  - The code does not properly signal exceptions, leading to the assumption that the exceptions will never be signaled. This could cause issues if the exceptions are not handled properly.
+- Action Items:
+  - Document the code thoroughly, including examples and use cases.
+  - Ensure that the tests are comprehensive and provide adequate feedback.
+  - Review the code and make necessary changes to reduce complexity.
+  - Ensure that exceptions are properly signaled and handled.
