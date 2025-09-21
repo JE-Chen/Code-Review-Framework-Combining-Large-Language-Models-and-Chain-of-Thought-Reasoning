@@ -1,11 +1,22 @@
-Recommend Merge
+The PR seems to be addressing several issues:
+1. Signaling of IOExceptions when file modifications are detected.
+2. Signaling of retryable exceptions when file modifications are detected.
+3. Detection of file modifications between retries/splits.
 
-This PR is of sufficient quality to be merged. It addresses the issues of file modification detection, exception propagation, and file size tracking. It also contains a test case to cover the behavior.
+The solution seems to be well-thought out and covers all three issues. The code is well-structured and has clear intentions and boundaries.
 
-However, there is one issue with the cognitive complexity. It is acceptable to have some complexity in a method, especially if it is necessary to ensure correctness or maintainability. In this case, the cognitive complexity is too high for the method. It might be beneficial to refactor the method or split it into smaller methods to reduce the complexity.
+However, the following issues might be present in the PR:
 
-The JUnit test classes and methods should have default package visibility. This ensures that the tests can be run by other developers without needing to know the package structure.
+1. Cognitive complexity: The cognitive complexity of the `subscribe` method is 21, which is above the recommended limit of 15. The complexity of the method indicates that there may be some complex logic within it. 
 
-The use of "Thread.sleep()" in the test is discouraged. It should be used sparingly and should be avoided if possible. In this case, it is used to wait for the file modification to be detected, which could be improved by using a more reliable mechanism.
+2. Test visibility: The JUnit test classes and methods should have default package visibility, as per the SonarQube rule `JUnit5 test classes and methods should have default package visibility`. 
 
-The PR contains a changelog entry for the change, so it is ready to be included in the next release.
+3. Usage of Thread.sleep: The use of Thread.sleep in tests is discouraged and should be avoided. Instead, use the `TimeUnit.SECONDS.sleep` method or use a `Condition` to wait for a certain condition to occur.
+
+Given these points, the PR could be considered for merging, but with some minor adjustments:
+
+1. The cognitive complexity could be reduced if the method is refactored to make it more readable and understandable.
+2. The test classes and methods should be made visible.
+3. The usage of Thread.sleep should be replaced with a more suitable method to avoid potential issues.
+
+This PR could be considered of sufficient quality, but would need to be reviewed and possibly adjusted based on the feedback received.

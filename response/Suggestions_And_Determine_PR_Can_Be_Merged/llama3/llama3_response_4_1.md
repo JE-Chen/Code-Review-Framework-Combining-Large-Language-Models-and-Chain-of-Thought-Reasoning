@@ -1,68 +1,26 @@
-Conclusion: 
-Recommend Merge
+**Conclusion:** Recommend Merge
 
-The changes introduced in this PR address a critical issue where file modifications during a request were not being propagated correctly, leading to unexpected behavior. The changes are well-documented, and the code modifications are clear and concise. The addition of new tests covers the behavior and ensures that the changes do not introduce any regressions.
+The PR addresses three related issues with `FileAsyncRequestBody`:
 
-Improvement Suggestions:
+1. Exceptions signaled when file modification are detected are not propagated.
+2. Exceptions are IOExceptions which are retryable.
+3. File modifications between retry attempt or different parts (from split) are not detected.
 
-1.  **Cognitive Complexity Reduction**: The method `validateFileUnchangedAndSignalErrors()` has a high cognitive complexity score of 21. To reduce this score, consider breaking down the method into smaller, more manageable parts. This will improve the maintainability of the code.
+The changes made in this PR are significant and address the issues mentioned above. The code is well-documented, and the test cases cover the new behavior.
 
-    ```java
-private boolean validateFileUnchanged() {
-    try {
-        long sizeAtEnd = Files.size(path);
-        if (sizeAtStart!= sizeAtEnd) {
-            return false;
-        }
-    } catch (NoSuchFileException e) {
-        return false;
-    } catch (IOException e) {
-        return false;
-    }
-    return true;
-}
+However, there are some issues that need to be addressed before merging the PR:
 
-private void signalFileModificationError() {
-    signalOnError(SdkClientException.create("File size changed after reading started. Initial size: "
-            + sizeAtStart + ". Current size: " + sizeAtEnd));
-}
+**Improvement Suggestions:**
 
-private void signalFileDeletedError() {
-    signalOnError(SdkClientException.create("Unable to check file status after read. Was the file deleted"));
-}
+1. **Refactor `validateFileUnchangedAndSignalErrors` method**: The method has a high Cognitive Complexity (21) which is above the allowed threshold (15). Refactoring this method to reduce its complexity will improve maintainability.
+2. **Remove `public` modifier from test class**: The test class `FileAsyncRequestBodyTest` has a `public` modifier which is not necessary. Removing this modifier will improve maintainability.
+3. **Avoid using `Thread.sleep()` in tests**: The use of `Thread.sleep()` in tests can lead to flaky tests. Consider using a more reliable approach to wait for the file modification.
+4. **Consider adding more test cases**: While the test cases cover some scenarios, it's essential to add more test cases to ensure that the new behavior is thoroughly tested.
 
-private void signalFileModificationTimeError() {
-    signalOnError(SdkClientException.create("File last-modified time changed after reading started. "
-            + "Initial modification time: " + modifiedTimeAtStart + ". Current modification time: " + modifiedTimeAtEnd));
-}
+**Additional suggestions:**
 
-private void validateFileUnchangedAndSignalErrors() {
-    if (!validateFileUnchanged()) {
-        signalFileModificationError();
-        return;
-    }
-    if (remainingBytes.get() > 0) {
-        signalFileModificationError();
-        return;
-    }
-    FileTime modifiedTimeAtEnd = Files.getLastModifiedTime(path);
-    if (modifiedTimeAtStart.compareTo(modifiedTimeAtEnd)!= 0) {
-        signalFileModificationTimeError();
-        return;
-    }
-}
-```
+1. **Consider adding a documentation update**: The PR introduces new behavior and exceptions. Consider updating the documentation to reflect these changes.
+2. **Consider adding a Javadoc comment to `FileAsyncRequestBody`**: The class has several new methods and fields. Consider adding a Javadoc comment to explain the purpose of these new additions.
+3. **Consider adding a test for `FileAsyncRequestBodySplitHelper`**: The `FileAsyncRequestBodySplitHelper` class is used in the `split` method. Consider adding a test to ensure that this method works correctly.
 
-2.  **Remove Unused `public` Modifier**: The test class `FileAsyncRequestBodyTest` has a `public` modifier, which is not necessary in JUnit5. Remove this modifier to improve maintainability.
-
-3.  **Avoid Using `Thread.sleep()`**: The test `changingFile_fileGetsTouched_failsBecauseUpdatedModificationTime()` uses `Thread.sleep()` to wait for a second before changing the file. This is not recommended in tests, as it can lead to flaky tests. Consider using a more reliable approach, such as using a `CountDownLatch` or a `CompletableFuture`.
-
-4.  **Code Comments**: While the code is well-documented, consider adding more comments to explain the purpose of each method and the logic behind it. This will improve code readability and maintainability.
-
-5.  **Code Formatting**: The code formatting is consistent, but consider using a more consistent spacing between lines and blocks. This will improve code readability.
-
-6.  **Test Coverage**: The test coverage is high, but consider adding more tests to cover edge cases and unexpected scenarios.
-
-7.  **Security**: The code does not introduce any security vulnerabilities, but consider using a more secure approach to handle file modifications and deletions.
-
-Overall, the changes introduced in this PR are well-documented, and the code modifications are clear and concise. However, there are some areas for improvement, such as reducing cognitive complexity, removing unused modifiers, and avoiding the use of `Thread.sleep()`.
+Overall, the PR is well-written, and the changes are significant. However, addressing the issues mentioned above will improve the quality of the code and ensure that it is maintainable.

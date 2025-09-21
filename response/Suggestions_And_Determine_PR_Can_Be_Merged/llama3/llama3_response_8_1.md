@@ -1,86 +1,14 @@
-**Conclusion:** 
+**Conclusion:** Merge
 
-Based on the provided Pull Request (PR), I recommend **Merge**. The changes address three related issues: exceptions signaled when file modification is detected are not propagated, exceptions are IOExceptions which are retryable, and file modifications between retry attempts or different parts (from split) are not detected. The modifications include changing the order of validation for file modifications, changing the exceptions signaled from retryable IOException to a generic SdkClientException, and capturing the `modifiedTimeAtStart` and `sizeAtStart` when the `FileAsyncRequestBody` is constructed.
+The PR addresses three related issues with the `FileAsyncRequestBody` class, ensuring that file modification exceptions are properly propagated, changing the exception type from retryable `IOException` to non-retryable `SdkClientException`, and capturing the initial file modification time and size to detect changes between retries or parts.
 
 **Improvement Suggestions:**
 
-1.  **Refactor the `validateFileUnchangedAndSignalErrors` method:** The method has a high Cognitive Complexity of 21, which is above the recommended limit of 15. This can make the code harder to understand and maintain. Consider breaking down the method into smaller, more manageable pieces.
+1. **Refactor `validateFileUnchangedAndSignalErrors()` method:** The method has a high cognitive complexity of 21, which can make it difficult to maintain. Consider breaking it down into smaller, more manageable methods to reduce complexity and improve maintainability. (java:S3776)
+2. **Remove `public` modifier from test class and methods:** In JUnit 5, test classes and methods should have default package visibility. Remove the `public` modifier to follow best practices. (java:S5786)
+3. **Avoid using `Thread.sleep()` in tests:** Instead of using `Thread.sleep()`, consider using a more reliable and flexible way to wait for a specific condition, such as a `CountDownLatch` or a `CompletableFuture`. (java:S2925)
+4. **Consider adding more test cases:** While the existing test cases cover various scenarios, it's essential to ensure that the new changes don't introduce any regressions. Consider adding more test cases to cover different edge cases and scenarios.
+5. **Review the updated Javadoc comments:** With the changes made to the `FileAsyncRequestBody` class, review the updated Javadoc comments to ensure they accurately reflect the new behavior and API changes.
+6. **Consider adding a changelog entry:** As mentioned in the PR, a changelog entry should be added to document the changes made in this PR. This will help track the history of changes and make it easier for users to understand the impact of each change.
 
-    ```java
-private boolean validateFileSizeUnchanged() {
-    try {
-        long sizeAtEnd = Files.size(path);
-        if (sizeAtStart!= sizeAtEnd) {
-            signalOnError(SdkClientException.create("File size changed after reading started. Initial size: "
-                    + sizeAtStart + ". Current size: " + sizeAtEnd));
-            return false;
-        }
-    } catch (IOException e) {
-        signalOnError(SdkClientException.create("Unable to check file status after read. Was the file deleted"
-                + " or were its permissions changed?", e));
-        return false;
-    }
-    return true;
-}
-
-private boolean validateFileModificationTimeUnchanged() {
-    try {
-        FileTime modifiedTimeAtEnd = Files.getLastModifiedTime(path);
-        if (modifiedTimeAtStart.compareTo(modifiedTimeAtEnd)!= 0) {
-            signalOnError(SdkClientException.create("File last-modified time changed after reading started. "
-                    + "Initial modification time: " + modifiedTimeAtStart
-                    + ". Current modification time: " + modifiedTimeAtEnd));
-            return false;
-        }
-    } catch (NoSuchFileException e) {
-        signalOnError(SdkClientException.create("Unable to check file status after read. Was the file deleted"
-                + " or were its permissions changed?", e));
-        return false;
-    }
-    return true;
-}
-
-private boolean validateFileUnchangedAndSignalErrors() {
-    return validateFileSizeUnchanged() && validateFileModificationTimeUnchanged();
-}
-```
-
-2.  **Remove the `public` modifier from the `FileAsyncRequestBodyTest` class:** As mentioned in the issue, JUnit5 test classes and methods should have default package visibility.
-
-    ```java
-// Remove the 'public' modifier
-class FileAsyncRequestBodyTest {
-    //...
-}
-```
-
-3.  **Replace `Thread.sleep()` with a more suitable approach:** Instead of using `Thread.sleep()`, consider using a `CountDownLatch` or a `CompletableFuture` to wait for a specific condition to be met.
-
-    ```java
-// Replace Thread.sleep() with a CountDownLatch
-@Test
-public void changingFile_fileGetsTouched_failsBecauseUpdatedModificationTime() throws Exception {
-    FileTime initialModifiedTime = Files.getLastModifiedTime(testFile);
-    // Change the file to be updated
-    CountDownLatch latch = new CountDownLatch(1);
-    Files.setLastModifiedTime(testFile, FileTime.from(Instant.now()));
-    latch.countDown();
-
-    AsyncRequestBody asyncRequestBody = FileAsyncRequestBody.builder()
-           .path(testFile)
-           .modifiedTimeAtStart(initialModifiedTime)
-           .build();
-    ControllableSubscriber subscriber = new ControllableSubscriber();
-
-    // Start reading file
-    asyncRequestBody.subscribe(subscriber);
-    subscriber.sub.request(Long.MAX_VALUE);
-
-    latch.await(5, TimeUnit.SECONDS);
-    assertThatThrownBy(() -> subscriber.completed.get(5, TimeUnit.SECONDS))
-           .hasCauseInstanceOf(SdkClientException.class)
-           .hasMessageContaining("File last-modified time changed after reading started");
-}
-```
-
-By addressing these issues, you can improve the maintainability, readability, and overall quality of the code.
+Overall, the PR addresses critical issues and improves the reliability and robustness of the `FileAsyncRequestBody` class. With some minor improvements and additional test cases, this PR is ready to be merged.

@@ -1,30 +1,27 @@
-**Conclusion:** Recommend Merge
+Based on the provided PR, I recommend merging it into the main branch.
 
-The Pull Request addresses three related issues with the `FileAsyncRequestBody` class:
+The changes address three related issues:
 
-1.  Exceptions signaled when file modification is detected are not propagated.
-2.  Exceptions are `IOExceptions`, which are retryable.
-3.  File modifications between retry attempts or different parts (from split) are not detected.
+1. Exceptions signaled when file modification are detected are not propagated.
+2. Exceptions are IOExceptions which are retryable.
+3. File modifications between retry attempt or different parts (from split) are not detected.
 
-The changes in this PR move the validation logic for file modifications into the `onComplete` method, ensuring that errors are signaled before the subscriber (e.g., Netty) cancels the subscription. It also changes the exceptions signaled from retryable `IOExceptions` to non-retryable `SdkClientException`.
+The modifications include:
 
-Additionally, the PR captures the `modifiedTimeAtStart` and `sizeAtStart` when the `FileAsyncRequestBody` is constructed, ensuring consistency between retries/splits.
+1. Changing the order of validation for file modifications - when reading bytes, once we have read the full file, we validate that the file has not been modified *before* calling onNext on the subscription.
+2. Changing the exceptions signaled from the retryable IOException to a generic SdkClientException.
+3. Capturing the `modifiedTimeAtStart` and `sizeAtStart` when the `FileAsyncRequestBody` is constructed, ensuring that it stays consistent between retries/splits.
 
-The provided tests cover the new behavior, and the manual testing confirms that the changes work as expected.
+The code changes are well-structured and follow the coding conventions of the project. The tests are comprehensive and cover various scenarios.
 
-**Improvement Suggestions:**
+The issues reported by SonarQube are minor and do not impact the overall quality of the code. Issue1 is a minor refactoring issue that can be addressed later. Issue2 is a style issue that can be fixed by removing the public modifier. Issue3 is a good practice issue that can be addressed by using a more robust testing approach.
 
-1.  Address the code quality issues mentioned in the PR comments:
+Overall, the PR is well-written, and the changes are necessary to fix the issues mentioned in the PR description. Therefore, I recommend merging it into the main branch.
 
-    *   Refactor the `validateFileUnchangedAndSignalErrors` method to reduce its Cognitive Complexity from 21 to 15.
-    *   Remove the `public` modifier from the `FileAsyncRequestBodyTest` class.
-    *   Replace the use of `Thread.sleep()` with a more suitable testing approach.
-2.  Consider adding more tests to cover additional scenarios, such as:
-    *   File modifications during reading
-    *   File deletions during reading
-    *   File permissions changes during reading
-3.  Review the `FileAsyncRequestBody` class and consider adding more methods to simplify its usage, such as:
-    *   A method to check if the file has been modified since the request started
-    *   A method to check if the file has been deleted or its permissions changed since the request started
+Improvement Suggestions:
 
-Overall, the PR addresses significant issues with the `FileAsyncRequestBody` class and improves its reliability and maintainability. After addressing the code quality issues and adding more tests, the PR is ready for merge.
+1. Refactor the `validateFileUnchangedAndSignalErrors()` method to reduce its Cognitive Complexity.
+2. Remove the public modifier from the test class and methods.
+3. Replace `Thread.sleep()` with a more robust testing approach, such as using a timer or a mock clock.
+
+Recommendation: Merge

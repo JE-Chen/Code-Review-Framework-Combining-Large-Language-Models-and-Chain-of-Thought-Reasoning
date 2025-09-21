@@ -1,86 +1,106 @@
-**Conclusion**
-Recommend Merge
+Conclusion: Recommend Merge
 
 The PR addresses three related issues with the `FileAsyncRequestBody` class:
 
-1. Exceptions signaled when file modification are detected are not propagated.
-2. Exceptions are IOExceptions which are retryable.
-3. File modifications between retry attempt or different parts (from split) are not detected.
+1.  Exceptions signaled when file modifications are detected are not propagated.
+2.  Exceptions are IOExceptions which are retryable.
+3.  File modifications between retry attempts or different parts (from split) are not detected.
 
-The modifications made in this PR are correct and address all the issues mentioned above.
+The modifications in this PR resolve these issues by:
 
-**Improvement Suggestions**
+*   Moving the validation logic into the `onComplete` method during read, ensuring that errors are signaled before the subscriber cancels the subscription.
+*   Changing the exceptions signaled from the retryable IOException to a generic SdkClientException.
+*   Capturing the `modifiedTimeAtStart` and `sizeAtStart` when the `FileAsyncRequestBody` is constructed, ensuring that it stays consistent between retries/splits.
 
-1.  **Issue1:** The method `validateFileUnchangedAndSignalErrors()` has a high Cognitive Complexity of 21, which is above the recommended limit of 15. To improve this, the method can be refactored to reduce its complexity. For example, it can be broken down into smaller methods, each with a specific responsibility.
+The tests cover the behavior of the `FileAsyncRequestBody` class under various scenarios, including file modifications during reading. The tests are comprehensive and cover different edge cases.
+
+Improvement Suggestions:
+
+1.  **Refactor the `validateFileUnchangedAndSignalErrors` method**: The method has a high cognitive complexity (21), which can make it difficult to maintain. Consider breaking it down into smaller methods to reduce the complexity.
 
     ```java
-private boolean validateFileSizeUnchanged() {
+private boolean validateFileUnchangedAndSignalErrors() {
+    try {
+        //...
+    } catch (IOException e) {
+        //...
+    }
+    //...
+}
+```
+
+    ```java
+private boolean validateFileSize() {
     try {
         long sizeAtEnd = Files.size(path);
         if (sizeAtStart!= sizeAtEnd) {
-            signalOnError(SdkClientException.create("File size changed after reading started. Initial size: "
-                    + sizeAtStart + ". Current size: " + sizeAtEnd));
+            //...
             return false;
         }
-    } catch (NoSuchFileException e) {
-        signalOnError(SdkClientException.create("Unable to check file status after read. Was the file deleted"
-                + " or were its permissions changed?", e));
-        return false;
     } catch (IOException e) {
-        signalOnError(SdkClientException.create("Unable to check file status after read.", e));
+        //...
         return false;
     }
     return true;
 }
 
-private boolean validateFileModificationTimeUnchanged() {
+private boolean validateFileModificationTime() {
     try {
         FileTime modifiedTimeAtEnd = Files.getLastModifiedTime(path);
         if (modifiedTimeAtStart.compareTo(modifiedTimeAtEnd)!= 0) {
-            signalOnError(SdkClientException.create("File last-modified time changed after reading started. "
-                    + "Initial modification time: " + modifiedTimeAtStart
-                    + ". Current modification time: " + modifiedTimeAtEnd));
+            //...
             return false;
         }
     } catch (IOException e) {
-        signalOnError(SdkClientException.create("Unable to check file status after read.", e));
+        //...
         return false;
     }
     return true;
 }
 
+private boolean validateFileStatus() {
+    try {
+        Files.size(path);
+        Files.getLastModifiedTime(path);
+        return true;
+    } catch (IOException e) {
+        //...
+        return false;
+    }
+}
+
 private boolean validateFileUnchangedAndSignalErrors() {
-    return validateFileSizeUnchanged() && validateFileModificationTimeUnchanged();
+    return validateFileSize() && validateFileModificationTime() && validateFileStatus();
 }
 ```
 
-2.  **Issue2:** The `public` modifier is not needed for test classes and methods. It can be removed to improve code readability.
-
-3.  **Issue3:** The use of `Thread.sleep()` is discouraged in tests. Instead, a `CountDownLatch` or `CompletableFuture` can be used to wait for a specific condition to be met.
+2.  **Remove the `public` modifier from the test class**: The test class should have default package visibility, as specified by the JUnit 5 documentation.
 
     ```java
-@Test
-public void changingFile_fileGetsTouched_failsBecauseUpdatedModificationTime() throws Exception {
-    FileTime initialModifiedTime = Files.getLastModifiedTime(testFile);
-    // Change the file to be updated
-    CountDownLatch latch = new CountDownLatch(1);
-    Files.setLastModifiedTime(testFile, FileTime.from(Instant.now()));
-    latch.await();
-
-    AsyncRequestBody asyncRequestBody = FileAsyncRequestBody.builder()
-           .path(testFile)
-           .modifiedTimeAtStart(initialModifiedTime)
-           .build();
-    ControllableSubscriber subscriber = new ControllableSubscriber();
-
-    // Start reading file
-    asyncRequestBody.subscribe(subscriber);
-    subscriber.sub.request(Long.MAX_VALUE);
-
-    assertThatThrownBy(() -> subscriber.completed.get(5, TimeUnit.SECONDS))
-           .hasCauseInstanceOf(SdkClientException.class)
-           .hasMessageContaining("File last-modified time changed after reading started");
+// Remove the public modifier
+class FileAsyncRequestBodyTest {
+    //...
 }
 ```
 
-Overall, the PR is well-written, and the modifications made are correct. However, some minor improvements can be made to improve code maintainability and readability.
+3.  **Avoid using `Thread.sleep()` in tests**: Instead, use a more reliable way to wait for the file to be updated. You can use a `CountDownLatch` or a `CompletableFuture` to wait for the file to be updated.
+
+    ```java
+CountDownLatch latch = new CountDownLatch(1);
+Files.setLastModifiedTime(testFile, FileTime.from(Instant.now()));
+latch.await();
+```
+
+    ```java
+CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+    // Update the file
+    Files.setLastModifiedTime(testFile, FileTime.from(Instant.now()));
+});
+future.get();
+```
+
+4.  **Improve test coverage**: The current test coverage is 81.58%, which is below the required threshold of 80.0%. Consider adding more tests to cover different edge cases and scenarios.
+
+5.  **Fix security hotspots**: The current code has no security hotspots, but it's essential to ensure that the code is secure and follows best practices. Consider using a security testing tool to identify potential security vulnerabilities.
+
+By addressing these improvement suggestions, you can further improve the quality and maintainability of the code.
