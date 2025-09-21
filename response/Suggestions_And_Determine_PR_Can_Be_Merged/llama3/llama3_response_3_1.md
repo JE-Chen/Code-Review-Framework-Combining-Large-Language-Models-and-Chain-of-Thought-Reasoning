@@ -1,129 +1,33 @@
-Conclusion
-----------
+**Conclusion**
+Recommend Merge
 
-Based on the provided PR, I recommend merging it into the main branch. The changes address three related issues:
+The pull request addresses three related issues with the FileAsyncRequestBody class:
 
-1. Exceptions signaled when file modification are detected are not propagated.
-2. Exceptions are IOExceptions which are retryable.
-3. File modifications between retry attempt or different parts (from split) are not detected.
+1.  Exceptions signaled when file modifications are detected are not propagated.
+2.  Exceptions are IOExceptions which are retryable.
+3.  File modifications between retry attempts or different parts (from split) are not detected.
 
-The modifications include:
+The changes made in this pull request correctly address these issues by:
 
-* Changing the order of validation for file modifications when reading bytes, ensuring that the error is signaled before the subscriber (e.g., Netty) calls cancel.
-* Changing the exceptions signaled from the retryable IOException to a generic SdkClientException.
-* Capturing the `modifiedTimeAtStart` and `sizeAtStart` when the `FileAsyncRequestBody` is constructed, ensuring that it stays consistent between retries/splits.
+*   Moving the validation logic for file modifications into the onComplete method during read, ensuring that errors are signaled before the subscriber (e.g., Netty) calls cancel.
+*   Changing the exceptions signaled from the retryable IOException to a generic SdkClientException.
+*   Capturing the modified time and file size when the FileAsyncRequestBody is constructed, ensuring that it stays consistent between retries/splits.
 
-The testing section shows that new tests have been added to cover the behavior, and manual testing has been performed to verify the changes.
+The changes also include new tests to cover the behavior, which have passed.
 
-Improvement Suggestions
-------------------------
+**Improvement Suggestions**
 
-1.  **Cognitive Complexity**: The `validateFileUnchangedAndSignalErrors()` method has a Cognitive Complexity of 21, which is above the recommended limit of 15. To reduce the complexity, consider breaking the method into smaller, more focused methods, each with a lower Cognitive Complexity.
+1.  **Refactor the validateFileUnchangedAndSignalErrors method**:
+    *   The method has a high cognitive complexity (21), which can make it difficult to understand and maintain. Consider breaking it down into smaller, more manageable methods.
+    *   This will improve the maintainability of the code and make it easier to modify or extend in the future.
+2.  **Remove the public modifier from test classes and methods**:
+    *   The public modifier is not necessary for test classes and methods, as they are not intended for external use.
+    *   This will improve the maintainability of the test code and make it easier to understand.
+3.  **Replace Thread.sleep() with a more suitable synchronization mechanism**:
+    *   Thread.sleep() is not recommended in tests, as it can lead to flaky tests and make them more difficult to debug.
+    *   Consider using a more suitable synchronization mechanism, such as a CountDownLatch or a Semaphore, to synchronize the test threads.
+4.  **Consider adding more test cases**:
+    *   While the existing tests cover some scenarios, it's always a good idea to add more test cases to ensure that the code is thoroughly tested.
+    *   Consider adding test cases for other scenarios, such as when the file is modified during a split operation or when the file is deleted or renamed.
 
-    ```java
-// Before
-private boolean validateFileUnchangedAndSignalErrors() {
-    try {
-        long sizeAtEnd = Files.size(path);
-        if (sizeAtStart!= sizeAtEnd) {
-            signalOnError(SdkClientException.create("File size changed after reading started. Initial size: "
-                    + sizeAtStart + ". Current size: " + sizeAtEnd));
-            return false;
-        }
-
-        //...
-    } catch (IOException e) {
-        signalOnError(SdkClientException.create("Unable to check file status after read.", e));
-        return false;
-    }
-    return true;
-}
-
-// After
-private boolean validateFileSize() {
-    try {
-        long sizeAtEnd = Files.size(path);
-        if (sizeAtStart!= sizeAtEnd) {
-            signalOnError(SdkClientException.create("File size changed after reading started. Initial size: "
-                    + sizeAtStart + ". Current size: " + sizeAtEnd));
-            return false;
-        }
-    } catch (IOException e) {
-        signalOnError(SdkClientException.create("Unable to check file status after read.", e));
-        return false;
-    }
-    return true;
-}
-
-private boolean validateFileModificationTime() {
-    try {
-        FileTime modifiedTimeAtEnd = Files.getLastModifiedTime(path);
-        if (modifiedTimeAtStart.compareTo(modifiedTimeAtEnd)!= 0) {
-            signalOnError(SdkClientException.create("File last-modified time changed after reading started. "
-                    + "Initial modification time: " + modifiedTimeAtStart + ". Current modification time: "
-                    + modifiedTimeAtEnd));
-            return false;
-        }
-    } catch (IOException e) {
-        signalOnError(SdkClientException.create("Unable to check file status after read.", e));
-        return false;
-    }
-    return true;
-}
-
-//...
-
-private boolean validateFileUnchangedAndSignalErrors() {
-    if (!validateFileSize() ||!validateFileModificationTime()) {
-        return false;
-    }
-    return true;
-}
-```
-
-2.  **JUnit5 Test Class Visibility**: The `FileAsyncRequestBodyTest` class has a visibility modifier of `public`, which is not necessary. Consider removing the `public` modifier to follow the JUnit5 convention.
-
-    ```java
-// Before
-public class FileAsyncRequestBodyTest {
-    //...
-}
-
-// After
-class FileAsyncRequestBodyTest {
-    //...
-}
-```
-
-3.  **Thread.sleep() Usage**: The `FileAsyncRequestBodyTest` class uses `Thread.sleep()` in several test methods. Consider replacing it with a more reliable and efficient way to wait for the file to be updated, such as using a `CountDownLatch` or a `CompletableFuture`.
-
-    ```java
-// Before
-@Test
-public void changingFile_fileGetsTouched_failsBecauseUpdatedModificationTime() throws Exception {
-    //...
-    Thread.sleep(1_000); // Wait for 1 second so that we are definitely in a different second than when the file was created
-    Files.setLastModifiedTime(testFile, FileTime.from(Instant.now()));
-    //...
-}
-
-// After
-@Test
-public void changingFile_fileGetsTouched_failsBecauseUpdatedModificationTime() throws Exception {
-    //...
-    CountDownLatch latch = new CountDownLatch(1);
-    ExecutorService executor = Executors.newSingleThreadExecutor();
-    executor.submit(() -> {
-        try {
-            Thread.sleep(1_000); // Wait for 1 second
-            Files.setLastModifiedTime(testFile, FileTime.from(Instant.now()));
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } finally {
-            latch.countDown();
-        }
-    });
-    latch.await();
-    //...
-}
-```
+By addressing these issues and suggestions, the code will be more maintainable, efficient, and robust, making it easier to extend and modify in the future.

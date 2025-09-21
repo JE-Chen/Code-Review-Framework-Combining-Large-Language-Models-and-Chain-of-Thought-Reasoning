@@ -1,13 +1,25 @@
-Merge. 
+Merge Feasibility: Not Mergeable
 
-The PR fixes bugs and improves the functionality of the AWS SDK for Java. The tests and checks suggest that the code is working as expected and the changes are substantial. Moreover, the PR introduces a significant number of improvements.
+Reason Summary: The PR introduces changes to the codebase that could lead to potential merge conflicts, side effects, or contract violations.
 
-However, as you mentioned, there are still some improvements that could be made. For instance, the code has some complex logic that could potentially lead to unexpected behavior or issues. These issues could be addressed by adding more tests to cover more edge cases and potential issues.
+Detailed Analysis:
 
-The cognitive complexity of the code could be reduced by simplifying the logic or refactoring the code.
+1. The PR modifies the `FileAsyncRequestBody` class, which handles file reading. However, it introduces a new exception `SdkClientException`. This could potentially lead to a merge conflict or a side effect if the `SdkClientException` is not handled correctly elsewhere in the codebase.
 
-Documentation comments for the `FileAsyncRequestBody` class can be added if they're not already present.
+2. The PR also introduces a new validation process before calling `onNext`. This could potentially lead to a merge conflict if the validation logic is not correctly implemented or if the validation logic is not aligned with the current logic of the codebase.
 
-The class name `FileAsyncRequestBody` could be renamed to `FileAsyncRequest` to make it more descriptive.
+3. The PR also modifies the file modification time and size at the start of the request. These changes could potentially lead to a merge conflict or a side effect if the changes are not correctly handled elsewhere in the codebase.
 
-In terms of the output format, it's important to provide the verdict, reasoning, and action items. The verdict should be "Merge" if all the checks have passed and the changes are substantial. The reasoning should cover each of the categories and the action items should list specific, actionable changes needed if not ready to merge.
+4. The PR also introduces new tests, but they are not in the default package visibility. This could potentially lead to a merge conflict if the tests are not correctly handled elsewhere in the codebase.
+
+Risk Assessment: High
+
+Recommendations:
+
+1. Review the PR with a senior developer to ensure the changes align with the existing codebase and the logic of the application.
+
+2. Ensure that the changes do not introduce any conflicts or side effects with the existing codebase.
+
+3. Ensure that the changes do not violate any contracts or specifications of the application.
+
+4. Ensure that the tests are correctly handled and that they are aligned with the changes.

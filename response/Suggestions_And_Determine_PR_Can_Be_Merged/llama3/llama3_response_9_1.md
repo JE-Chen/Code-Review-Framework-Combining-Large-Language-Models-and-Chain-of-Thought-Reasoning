@@ -1,33 +1,67 @@
-[Conclusion]
-Recommend Merge
+**Conclusion:** Merge
 
 The PR addresses three related issues with the `FileAsyncRequestBody` class:
 
-1.  Exceptions signaled when file modifications are detected are not propagated.
-2.  Exceptions are `IOExceptions` which are retryable.
+1.  Exceptions signaled when file modification is detected are not propagated.
+2.  Exceptions are IOExceptions, which are retryable.
 3.  File modifications between retry attempts or different parts (from split) are not detected.
 
-The modifications made in this PR include:
+The changes made to the code are:
 
-1.  Changing the order of validation for file modifications when reading bytes to ensure that the error is signaled before the subscriber (e.g., Netty) calls cancel.
-2.  Changing the exceptions signaled from the retryable `IOException` to a generic `SdkClientException`.
-3.  Capturing the `modifiedTimeAtStart` and `sizeAtStart` when the `FileAsyncRequestBody` is constructed, ensuring that it stays consistent between retries/splits.
+*   The validation logic for file modifications is moved to `onComplete` during read, ensuring that errors are signaled before the subscriber (e.g., Netty) calls cancel.
+*   The exceptions signaled from the retryable IOException are changed to a generic SdkClientException, which is not retryable.
+*   The `modifiedTimeAtStart` and `sizeAtStart` are captured when the `FileAsyncRequestBody` is constructed, ensuring consistency between retries/splits.
 
-The tests added cover the behavior of the changes made in this PR. The manual testing of behavior shows that the PR correctly throws exceptions when the file is modified during the request.
+The PR includes new tests to cover the behavior and manual testing of the changes.
 
-However, there are some issues that need to be addressed before merging this PR:
+**Improvement Suggestions:**
 
-1.  Issue 1: Refactor the `signalOnError` method in `FileAsyncRequestBody` to reduce its Cognitive Complexity from 21 to the 15 allowed.
-2.  Issue 2: Remove the `public` modifier from the `FileAsyncRequestBodyTest` class in `FileAsyncRequestBodyTest.java`.
-3.  Issue 3: Remove the use of `Thread.sleep()` in the tests in `FileAsyncRequestBodyTest.java`.
+1.  **Refactor `validateFileUnchangedAndSignalErrors()` method**: The method has a high cognitive complexity (21) and should be refactored to reduce it to 15 or less. This will improve the maintainability of the code.
 
-Once these issues are addressed, the PR can be safely merged.
+    ```java
+private boolean validateFileUnchangedAndSignalErrors() {
+    //... existing code...
+    if (sizeAtStart!= sizeAtEnd) {
+        signalOnError(SdkClientException.create("File size changed after reading started. Initial size: " + sizeAtStart + ". Current size: " + sizeAtEnd));
+        return false;
+    }
+    if (remainingBytes.get() > 0) {
+        signalOnError(SdkClientException.create("Fewer bytes were read than were expected, was the file modified after reading started?"));
+        return false;
+    }
+    if (modifiedTimeAtStart.compareTo(modifiedTimeAtEnd)!= 0) {
+        signalOnError(SdkClientException.create("File last-modified time changed after reading started. Initial modification time: " + modifiedTimeAtStart + ". Current modification time: " + modifiedTimeAtEnd));
+        return false;
+    }
+    return true;
+}
+```
 
-[Improvement Suggestions]
+    You can break down the method into smaller, more manageable parts, each with a specific responsibility.
 
-1.  Refactor the `signalOnError` method in `FileAsyncRequestBody` to reduce its Cognitive Complexity from 21 to the 15 allowed.
-2.  Remove the `public` modifier from the `FileAsyncRequestBodyTest` class in `FileAsyncRequestBodyTest.java`.
-3.  Remove the use of `Thread.sleep()` in the tests in `FileAsyncRequestBodyTest.java`.
-4.  Consider adding more test cases to cover different scenarios, such as when the file is modified during the request in a way that affects the file size or modification time.
-5.  Consider adding a check to ensure that the `modifiedTimeAtStart` and `sizeAtStart` are not null before using them in the `signalOnError` method.
-6.  Consider adding a doc comment to explain the purpose of the `modifiedTimeAtStart` and `sizeAtStart` fields in the `FileAsyncRequestBody` class.
+2.  **Remove unnecessary `public` modifier in test class**: The test class `FileAsyncRequestBodyTest` has unnecessary `public` visibility. Remove it to follow the default package visibility rule for JUnit5 test classes and methods.
+
+    ```java
+// Remove the public modifier
+class FileAsyncRequestBodyTest {
+    //... existing code...
+}
+```
+
+3.  **Replace `Thread.sleep()` with a more reliable way to wait**: In the test `preset_modifiedTime_failsBecauseUpdatedModificationTime()`, the `Thread.sleep()` method is used to wait for a specific time. Replace it with a more reliable way to wait, such as using a `CountDownLatch` or a `ScheduledExecutorService`.
+
+    ```java
+// Replace Thread.sleep() with a ScheduledExecutorService
+ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+CountDownLatch latch = new CountDownLatch(1);
+
+//... existing code...
+
+// Wait for 1 second
+executor.schedule(() -> latch.countDown(), 1, TimeUnit.SECONDS);
+latch.await();
+```
+
+    This will make the test more reliable and easier to maintain.
+
+By addressing these issues and making the suggested improvements, the PR will be more robust and maintainable.
