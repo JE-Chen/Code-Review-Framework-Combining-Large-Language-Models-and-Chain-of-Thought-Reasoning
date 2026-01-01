@@ -1,3 +1,5 @@
+import datetime
+
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 import os
@@ -6,16 +8,13 @@ from codes.util.memory import get_max_memory
 
 def load_qwen3_model():
 
-    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+    os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
 
     model_name = "Qwen/Qwen3-30B-A3B-Thinking-2507"
 
-    llm_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_use_double_quant=True,
-        bnb_4bit_compute_dtype=torch.float16
-    )
+    # llm_config = BitsAndBytesConfig(
+    #     load_in_4bit=True,
+    # )
 
     # === 一次載入模型與 tokenizer ===
     print("Loading tokenizer...")
@@ -27,9 +26,9 @@ def load_qwen3_model():
         model_name,
         device_map="auto",
         max_memory=max_memory if max_memory else None,
-        quantization_config=llm_config,
+        # quantization_config=llm_config,
     )
-
+    print(datetime.datetime.now(), "Model loaded")
     return model, tokenizer
 
 def qwen3_ask(system_prompt: str, prompt: str, model, tokenizer, max_new_tokens: int = 16784):
@@ -57,5 +56,6 @@ def qwen3_ask(system_prompt: str, prompt: str, model, tokenizer, max_new_tokens:
 
     thinking_content = tokenizer.decode(output_ids[:index], skip_special_tokens=True).strip("\n")
     content = tokenizer.decode(output_ids[index:], skip_special_tokens=True).strip("\n")
+    print(datetime.datetime.now(), "Generate done")
     return content, thinking_content
 

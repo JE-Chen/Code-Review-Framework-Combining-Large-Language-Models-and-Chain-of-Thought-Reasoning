@@ -14,7 +14,7 @@ gen_tokenizer, gen_model = load_qwen3_model()
 prompt = f"根據以下規則回答問題：\n{retrieved_docs}\n\n問題：{query}\n回答："
 
 # 呼叫生成模型，產生回答
-result = qwen3_ask("", prompt, gen_tokenizer, gen_model, max_new_tokens=16384)[0]
+result = qwen3_ask("", prompt, gen_tokenizer, gen_model, max_new_tokens=32768)[0]
 
 if filter_by_threshold:
     print("符合閾值的文件：")

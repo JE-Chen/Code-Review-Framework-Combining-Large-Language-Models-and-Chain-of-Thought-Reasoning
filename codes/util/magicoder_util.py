@@ -1,3 +1,4 @@
+import datetime
 import os
 import re
 
@@ -8,7 +9,7 @@ from codes.util.memory import get_max_memory
 
 
 def load_magicoder_model():
-    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+    os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
     # === 模型與 tokenizer 只載一次 ===
     model_id = "ise-uiuc/Magicoder-S-DS-6.7B"
     print("Loading tokenizer...")
@@ -32,7 +33,7 @@ def load_magicoder_model():
         device = torch.device(first_dev)
     else:
         device = torch.device("cpu")
-
+    print(datetime.datetime.now(), "Model loaded")
     return model, tokenizer, device
 
 
@@ -52,4 +53,5 @@ def magicoder_ask(prompt: str, model, tokenizer, device):
     match = re.search(r"@@ Response\s*(.*)", result_text, re.DOTALL)
     if match:
         result_text = match.group(1).strip()
+    print(datetime.datetime.now(), "Generate done")
     return result_text
