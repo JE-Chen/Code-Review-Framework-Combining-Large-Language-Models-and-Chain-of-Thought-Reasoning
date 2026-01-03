@@ -12,9 +12,12 @@ def load_qwen3_model():
 
     model_name = "Qwen/Qwen3-30B-A3B-Thinking-2507"
 
-    # llm_config = BitsAndBytesConfig(
-    #     load_in_4bit=True,
-    # )
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.bfloat16,  # bf16 compute if supported
+    )
 
     # === 一次載入模型與 tokenizer ===
     print("Loading tokenizer...")
@@ -26,7 +29,7 @@ def load_qwen3_model():
         model_name,
         device_map="auto",
         max_memory=max_memory if max_memory else None,
-        # quantization_config=llm_config,
+        quantization_config=bnb_config,
     )
     print(datetime.datetime.now(), "Model loaded")
     return model, tokenizer

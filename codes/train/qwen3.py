@@ -90,7 +90,7 @@ model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
     device_map="auto",
     trust_remote_code=True,
-    quantization_config=bnb_config,  # quantization belongs here
+    quantization_config=bnb_config,
 )
 
 
