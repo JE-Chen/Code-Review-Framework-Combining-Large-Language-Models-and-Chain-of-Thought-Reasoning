@@ -11,6 +11,7 @@ from codes.with_vector_database.utils.rules import rule_docs
 emb_model = AutoModel.from_pretrained("Qwen/Qwen3-Embedding-4B", trust_remote_code=True)
 emb_tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-Embedding-4B", trust_remote_code=True)
 
+
 def get_embedding(text: str) -> np.ndarray:
     inputs = emb_tokenizer(text, return_tensors="pt")
     with torch.no_grad():
@@ -20,41 +21,29 @@ def get_embedding(text: str) -> np.ndarray:
     faiss.normalize_L2(emb.reshape(1, -1))
     return emb
 
-def search_docs(query: str, filter_by_threshold: bool = False, k: int = 15) -> tuple[list[Any], list[Any]] | tuple[list[Any], None]:
-    # 先算出 embedding 的維度
-    distance = get_embedding("test").shape[0]
+# 初始化階段 (只做一次)
+init_distance = get_embedding("test").shape[0]
+cpu_index = faiss.IndexFlatIP(init_distance)
+res = faiss.StandardGpuResources()
+gpu_index = faiss.index_cpu_to_gpu(res, 0, cpu_index)
 
-    # 建立 CPU IndexFlatIP（內積）
-    cpu_index = faiss.IndexFlatIP(distance)
+doc_embeddings = [get_embedding(d) for d in rule_docs]
+doc_embeddings = np.array(doc_embeddings).astype("float32")
+faiss.normalize_L2(doc_embeddings)
+gpu_index.add(doc_embeddings)
 
-    # 把 Index 搬到 GPU
-    res = faiss.StandardGpuResources()  # 建立 GPU 資源
-    gpu_index = faiss.index_cpu_to_gpu(res, 0, cpu_index)  # 0 代表使用第一張 GPU
-
-    # 對每個文件算 embedding
-    doc_embeddings = [get_embedding(d) for d in rule_docs]
-    doc_embeddings = np.array(doc_embeddings).astype("float32")
-    faiss.normalize_L2(doc_embeddings)  # 再次確保所有文件向量正規化
-    gpu_index.add(doc_embeddings)
-
-    q_emb = get_embedding(query).reshape(1, -1)
+# 查詢階段 (每次查詢只做這段)
+def search_docs(query: str, filter_by_threshold: bool = False, k: int = 15):
+    q_emb = get_embedding(query).reshape(1, -1).astype("float32")
     faiss.normalize_L2(q_emb)
-
-    # 搜尋前 K 筆（在 GPU 上）
     distance, indices = gpu_index.search(q_emb, k=k)
 
     if filter_by_threshold:
-        # 相似度閾值
         threshold = 0.7
-        filtered_results = []
-        for index, score in zip(indices[0], distance[0]):
-            if score >= threshold:  # 內積 = cosine，相似度越大越好
-                filtered_results.append({"doc": rule_docs[indices], "score": score})
-
-        retrieved_docs = [r["doc"] for r in filtered_results]
-        return retrieved_docs, filtered_results
+        filtered_results = [
+            {"doc": rule_docs[idx], "score": score}
+            for idx, score in zip(indices[0], distance[0]) if score >= threshold
+        ]
+        return [r["doc"] for r in filtered_results], filtered_results
     else:
-        retrieved_docs = []
-        for index in indices[0]:
-            retrieved_docs.append(rule_docs[index])
-        return retrieved_docs, None
+        return [rule_docs[idx] for idx in indices[0]], None

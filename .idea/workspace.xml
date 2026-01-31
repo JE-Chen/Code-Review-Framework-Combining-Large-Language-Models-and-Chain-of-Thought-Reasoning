@@ -1,0 +1,393 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="c7802227-67ad-4e04-beaf-4bd7338f9cbd" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.idea/deployment.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/discord.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/codes/run/CoT/code_smell_detector.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/codes/run/CoT/first_code_review.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/codes/run/CoT/first_summary_prompt.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/codes/run/CoT/global_rule.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/codes/run/CoT/judge.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/codes/run/CoT/linter.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/codes/run/CoT/total_summary.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/codes/run/Skills/code_explainer.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/codes/run/Skills/code_review.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/codes/run/ask_functions.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/codes/run/cot.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/codes/run/skills.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/ChatGPT/1.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/ChatGPT/2.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/ChatGPT/3.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/ChatGPT/4.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/ChatGPT/5.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/ChatGPT/6.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/Copilot/1.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/Copilot/2.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/Copilot/3.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/Copilot/4.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/Copilot/5.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/Copilot/6.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/1.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/10.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/11.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/12.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/13.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/14.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/2.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/3.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/4.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/5.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/6.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/7.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/8.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/9.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/1.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/10.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/11.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/12.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/13.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/14.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/2.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/3.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/4.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/5.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/6.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/7.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/8.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/9.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/dev_requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/LLM_Research.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/LLM_Research.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/train/data.jsonl" beforeDir="false" afterPath="$PROJECT_DIR$/codes/train/data.jsonl" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/train/llama3_lora_test.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/train/llama3_lora_test.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/train/qwen3_lora_test.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/train/qwen3_lora_test.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/util/prompt_define.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/util/prompt_define.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/with_vector_database/utils/faiss_util.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/with_vector_database/utils/faiss_util.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/with_vector_database/utils/rules.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/with_vector_database/utils/rules.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Stub" />
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;JE-Chen&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/JE-Chen/LLM_Research.git&quot;,
+    &quot;accountId&quot;: &quot;a99e3205-1b0b-4362-b014-5d2163fb0c3a&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 5
+}</component>
+  <component name="ProjectId" id="32N86F3NmbNxKWWf3FSMndWcxSu" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python.1 (1).executor": "Run",
+    "Python.1.executor": "Run",
+    "Python.10 (1).executor": "Run",
+    "Python.10.executor": "Run",
+    "Python.11 (1).executor": "Run",
+    "Python.11.executor": "Run",
+    "Python.12 (1).executor": "Run",
+    "Python.12.executor": "Run",
+    "Python.13 (1).executor": "Run",
+    "Python.13.executor": "Run",
+    "Python.14 (1).executor": "Run",
+    "Python.14.executor": "Run",
+    "Python.2 (1).executor": "Run",
+    "Python.2.executor": "Run",
+    "Python.3.executor": "Run",
+    "Python.4 (1).executor": "Run",
+    "Python.4.executor": "Run",
+    "Python.7 (1).executor": "Run",
+    "Python.7.executor": "Run",
+    "Python.9.executor": "Run",
+    "Python.cot.executor": "Run",
+    "Python.test.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "ai.playground.ignore.import.keys.banner.in.settings": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "main",
+    "ignore.virus.scanning.warn.message": "true",
+    "junie.onboarding.icon.badge.shown": "true",
+    "last_opened_file_path": "C:/CodeWorkspace/Python/LLM_Research/datas/Prompts/Skills",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable",
+    "to.speed.mode.migration.done": "true",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\CodeWorkspace\Python\LLM_Research\datas\Prompts\Skills" />
+      <recent name="C:\CodeWorkspace\Python\LLM_Research\datas\Prompts\CoT" />
+      <recent name="C:\CodeWorkspace\Python\LLM_Research" />
+      <recent name="C:\CodeWorkspace\Python\LLM_Research\Architecture\v2" />
+      <recent name="C:\CodeWorkspace\Python\LLM_Research\response\Structured Code Review Prompt (Ignore unrelated issues)\qwen3" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\CodeWorkspace\Python\LLM_Research\codes\run" />
+      <recent name="C:\CodeWorkspace\Python\LLM_Research\datas\code-to-detect\code_diff\Python" />
+      <recent name="C:\CodeWorkspace\Python\LLM_Research\datas\code-to-detect\only_code\Python" />
+      <recent name="C:\CodeWorkspace\Python\LLM_Research\datas\code-to-detect\only_code" />
+      <recent name="C:\CodeWorkspace\Python\LLM_Research\datas\code-to-detect\copilot" />
+    </key>
+  </component>
+  <component name="RunManager" selected="Python.cot">
+    <configuration name="13 (1)" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="LLM_Research" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="RUN_TOOL" value="" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/datas/code-to-detect/ChatGPT/13.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="13" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="LLM_Research" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="RUN_TOOL" value="" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/datas/code-to-detect/copilot/13.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="14 (1)" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="LLM_Research" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="RUN_TOOL" value="" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/datas/code-to-detect/copilot/14.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="14" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="LLM_Research" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="RUN_TOOL" value="" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/datas/code-to-detect/ChatGPT/14.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="cot" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="LLM_Research" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/codes/run" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="RUN_TOOL" value="" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/codes/run/cot.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Python.cot" />
+        <item itemvalue="Python.14 (1)" />
+        <item itemvalue="Python.14" />
+        <item itemvalue="Python.13 (1)" />
+        <item itemvalue="Python.13" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-9b0f141eb926-JavaScript-PY-253.30387.127" />
+        <option value="bundled-python-sdk-3944b0c99280-6d6dccd035ac-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-253.30387.127" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="c7802227-67ad-4e04-beaf-4bd7338f9cbd" name="Changes" comment="" />
+      <created>1757249493247</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1757249493247</updated>
+      <workItem from="1757249494319" duration="7657000" />
+      <workItem from="1757266794739" duration="1198000" />
+      <workItem from="1757320560253" duration="419000" />
+      <workItem from="1757321018745" duration="13737000" />
+      <workItem from="1757703407172" duration="14508000" />
+      <workItem from="1757951037094" duration="5793000" />
+      <workItem from="1758164331467" duration="1892000" />
+      <workItem from="1758207548415" duration="4919000" />
+      <workItem from="1758388079905" duration="18845000" />
+      <workItem from="1758762574158" duration="144000" />
+      <workItem from="1758875429746" duration="17429000" />
+      <workItem from="1759137222937" duration="796000" />
+      <workItem from="1759375847329" duration="1083000" />
+      <workItem from="1762786317741" duration="16359000" />
+      <workItem from="1763247249858" duration="1628000" />
+      <workItem from="1763250028236" duration="3172000" />
+      <workItem from="1763539031813" duration="1197000" />
+      <workItem from="1763689246081" duration="2834000" />
+      <workItem from="1764547722663" duration="19000" />
+      <workItem from="1764601367630" duration="605000" />
+      <workItem from="1764745695074" duration="1270000" />
+      <workItem from="1764882872938" duration="374000" />
+      <workItem from="1766420640794" duration="1788000" />
+      <workItem from="1766433871324" duration="673000" />
+      <workItem from="1766483534698" duration="273000" />
+      <workItem from="1766559619874" duration="16987000" />
+      <workItem from="1767009539825" duration="880000" />
+      <workItem from="1767011982455" duration="140000" />
+      <workItem from="1767043305568" duration="5594000" />
+      <workItem from="1767157151190" duration="2989000" />
+      <workItem from="1767160183700" duration="2077000" />
+      <workItem from="1767174493820" duration="631000" />
+      <workItem from="1767175146429" duration="6334000" />
+      <workItem from="1767290198372" duration="5862000" />
+      <workItem from="1767624573563" duration="3181000" />
+      <workItem from="1767681809229" duration="76000" />
+      <workItem from="1768066301694" duration="1323000" />
+      <workItem from="1768075028441" duration="9000" />
+      <workItem from="1768289202568" duration="2140000" />
+      <workItem from="1768379507460" duration="596000" />
+      <workItem from="1768496713248" duration="3164000" />
+      <workItem from="1769029715039" duration="320000" />
+      <workItem from="1769064127778" duration="3544000" />
+      <workItem from="1769164697010" duration="39627000" />
+      <workItem from="1769635161687" duration="7283000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/LLM_Research$7.coverage" NAME="7 Coverage Results" MODIFIED="1769166931958" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$2__1_.coverage" NAME="2 (1) Coverage Results" MODIFIED="1769112319970" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
+    <SUITE FILE_PATH="coverage/LLM_Research$4__1_.coverage" NAME="4 (1) Coverage Results" MODIFIED="1769166247319" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$13.coverage" NAME="13 Coverage Results" MODIFIED="1769181277670" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$4.coverage" NAME="4 Coverage Results" MODIFIED="1769165322542" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
+    <SUITE FILE_PATH="coverage/LLM_Research$cot.coverage" NAME="cot Coverage Results" MODIFIED="1769680057481" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
+    <SUITE FILE_PATH="coverage/LLM_Research$10.coverage" NAME="10 Coverage Results" MODIFIED="1769167153181" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$9.coverage" NAME="9 Coverage Results" MODIFIED="1769167092184" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$14.coverage" NAME="14 Coverage Results" MODIFIED="1769238940122" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
+    <SUITE FILE_PATH="coverage/LLM_Research$1__1_.coverage" NAME="1 (1) Coverage Results" MODIFIED="1769112140469" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$1.coverage" NAME="1 Coverage Results" MODIFIED="1769112134568" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
+    <SUITE FILE_PATH="coverage/LLM_Research$11__1_.coverage" NAME="11 (1) Coverage Results" MODIFIED="1769168203995" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
+    <SUITE FILE_PATH="coverage/LLM_Research$10__1_.coverage" NAME="10 (1) Coverage Results" MODIFIED="1769167490876" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
+    <SUITE FILE_PATH="coverage/LLM_Research$12__1_.coverage" NAME="12 (1) Coverage Results" MODIFIED="1769180959096" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$2.coverage" NAME="2 Coverage Results" MODIFIED="1769165943321" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$14__1_.coverage" NAME="14 (1) Coverage Results" MODIFIED="1769238949019" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$11.coverage" NAME="11 Coverage Results" MODIFIED="1769168139483" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$13__1_.coverage" NAME="13 (1) Coverage Results" MODIFIED="1769181299843" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
+    <SUITE FILE_PATH="coverage/LLM_Research$test.coverage" NAME="test Coverage Results" MODIFIED="1769065438705" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect" />
+    <SUITE FILE_PATH="coverage/LLM_Research$12.coverage" NAME="12 Coverage Results" MODIFIED="1769180863859" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
+    <SUITE FILE_PATH="coverage/LLM_Research$7__1_.coverage" NAME="7 (1) Coverage Results" MODIFIED="1769166926727" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
+    <SUITE FILE_PATH="coverage/LLM_Research$3.coverage" NAME="3 Coverage Results" MODIFIED="1769165939160" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+  </component>
+</project>
