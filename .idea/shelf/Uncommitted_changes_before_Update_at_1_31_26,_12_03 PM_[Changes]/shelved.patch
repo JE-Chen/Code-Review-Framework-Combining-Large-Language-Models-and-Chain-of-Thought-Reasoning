@@ -1,0 +1,493 @@
+Index: .idea/modules.xml
+===================================================================
+diff --git a/.idea/modules.xml b/.idea/modules.xml
+deleted file mode 100644
+--- a/.idea/modules.xml	(revision 688f5023a2401b605188553c222c38582ddc3ed7)
++++ /dev/null	(revision 688f5023a2401b605188553c222c38582ddc3ed7)
+@@ -1,8 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<project version="4">
+-  <component name="ProjectModuleManager">
+-    <modules>
+-      <module fileurl="file://$PROJECT_DIR$/.idea/LLM_Research.iml" filepath="$PROJECT_DIR$/.idea/LLM_Research.iml" />
+-    </modules>
+-  </component>
+-</project>
+\ No newline at end of file
+Index: .idea/vcs.xml
+===================================================================
+diff --git a/.idea/vcs.xml b/.idea/vcs.xml
+deleted file mode 100644
+--- a/.idea/vcs.xml	(revision 688f5023a2401b605188553c222c38582ddc3ed7)
++++ /dev/null	(revision 688f5023a2401b605188553c222c38582ddc3ed7)
+@@ -1,6 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<project version="4">
+-  <component name="VcsDirectoryMappings">
+-    <mapping directory="" vcs="Git" />
+-  </component>
+-</project>
+\ No newline at end of file
+Index: .idea/inspectionProfiles/profiles_settings.xml
+===================================================================
+diff --git a/.idea/inspectionProfiles/profiles_settings.xml b/.idea/inspectionProfiles/profiles_settings.xml
+deleted file mode 100644
+--- a/.idea/inspectionProfiles/profiles_settings.xml	(revision 688f5023a2401b605188553c222c38582ddc3ed7)
++++ /dev/null	(revision 688f5023a2401b605188553c222c38582ddc3ed7)
+@@ -1,6 +0,0 @@
+-<component name="InspectionProjectProfileManager">
+-  <settings>
+-    <option name="USE_PROJECT_PROFILE" value="false" />
+-    <version value="1.0" />
+-  </settings>
+-</component>
+\ No newline at end of file
+Index: codes/train/qwen3-training-time.md
+===================================================================
+diff --git a/codes/train/qwen3-training-time.md b/codes/train/qwen3-training-time.md
+deleted file mode 100644
+--- a/codes/train/qwen3-training-time.md	(revision 688f5023a2401b605188553c222c38582ddc3ed7)
++++ /dev/null	(revision 688f5023a2401b605188553c222c38582ddc3ed7)
+@@ -1,16 +0,0 @@
+-```
+-/home/nknul40s/miniconda3/envs/LLM_Research/bin/python /home/nknul40s/LLM_Research/codes/train/qwen3.py 
+-Loading checkpoint shards: 100%|██████████| 16/16 [00:19<00:00,  1.19s/it]
+-2026-01-02 10:38:34.837095 Model loaded
+-trainable params: 3,375,366,144 || all params: 33,907,488,768 || trainable%: 9.9546
+-The tokenizer has new PAD/BOS/EOS tokens that differ from the model config and generation config. The model config and generation config were aligned accordingly, being updated with the tokenizer's values. Updated tokens: {'bos_token_id': None, 'pad_token_id': 151643}.
+-  0%|          | 0/30 [00:00<?, ?it/s]`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`.
+- 33%|███▎      | 10/30 [1:39:18<2:52:43, 518.16s/it]{'loss': 1.8744, 'grad_norm': 1.0627000331878662, 'learning_rate': 0.00016473862847818277, 'epoch': 1.0}
+- 67%|██████▋   | 20/30 [3:18:33<1:27:13, 523.37s/it]{'loss': 0.739, 'grad_norm': 1.7368723154067993, 'learning_rate': 6.298618446600856e-05, 'epoch': 2.0}
+-100%|██████████| 30/30 [4:58:32<00:00, 526.32s/it]{'loss': 0.4805, 'grad_norm': 0.6403655409812927, 'learning_rate': 5.862042845640403e-07, 'epoch': 3.0}
+-{'train_runtime': 17943.535, 'train_samples_per_second': 0.101, 'train_steps_per_second': 0.002, 'train_loss': 1.0313124020894369, 'epoch': 3.0}
+-100%|██████████| 30/30 [4:59:03<00:00, 598.11s/it]
+-2026-01-02 15:38:47.059683 Training complete
+-
+-Process finished with exit code 0
+-```
+\ No newline at end of file
+Index: codes/training_QLoRa/qwen3-training-time.md
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/codes/training_QLoRa/qwen3-training-time.md b/codes/training_QLoRa/qwen3-training-time.md
+new file mode 100644
+--- /dev/null	(date 1767526531191)
++++ b/codes/training_QLoRa/qwen3-training-time.md	(date 1767526531191)
+@@ -0,0 +1,72 @@
++```
++## Param
++
++SEQ_LEN = int(os.environ.get("SEQ_LEN", 768))
++MICRO_BATCH_SIZE = int(os.environ.get("MICRO_BATCH_SIZE", 1))
++GRADIENT_ACCUMULATION_STEPS = int(os.environ.get("GA_STEPS", 64))
++NUM_EPOCHS = float(os.environ.get("NUM_EPOCHS", 3))
++LEARNING_RATE = float(os.environ.get("LR", 2e-4))
++WARMUP_RATIO = float(os.environ.get("WARMUP_RATIO", 0.03))
++WEIGHT_DECAY = float(os.environ.get("WEIGHT_DECAY", 0.0))
++
++LORA_R = int(os.environ.get("LORA_R", 64))
++LORA_ALPHA = int(os.environ.get("LORA_ALPHA", 128))
++LORA_DROPOUT = float(os.environ.get("LORA_DROPOUT", 0.05))
++TARGET_MODULES = os.environ.get(
++    "TARGET_MODULES",
++    "q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj"
++).split(",")
++
++## Training time
++
++Loading checkpoint shards: 100%|██████████| 16/16 [00:19<00:00,  1.19s/it]
++2026-01-02 10:38:34.837095 Model loaded
++trainable params: 3,375,366,144 || all params: 33,907,488,768 || trainable%: 9.9546
++The tokenizer has new PAD/BOS/EOS tokens that differ from the model config and generation config. The model config and generation config were aligned accordingly, being updated with the tokenizer's values. Updated tokens: {'bos_token_id': None, 'pad_token_id': 151643}.
++  0%|          | 0/30 [00:00<?, ?it/s]`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`.
++ 33%|███▎      | 10/30 [1:39:18<2:52:43, 518.16s/it]{'loss': 1.8744, 'grad_norm': 1.0627000331878662, 'learning_rate': 0.00016473862847818277, 'epoch': 1.0}
++ 67%|██████▋   | 20/30 [3:18:33<1:27:13, 523.37s/it]{'loss': 0.739, 'grad_norm': 1.7368723154067993, 'learning_rate': 6.298618446600856e-05, 'epoch': 2.0}
++100%|██████████| 30/30 [4:58:32<00:00, 526.32s/it]{'loss': 0.4805, 'grad_norm': 0.6403655409812927, 'learning_rate': 5.862042845640403e-07, 'epoch': 3.0}
++{'train_runtime': 17943.535, 'train_samples_per_second': 0.101, 'train_steps_per_second': 0.002, 'train_loss': 1.0313124020894369, 'epoch': 3.0}
++100%|██████████| 30/30 [4:59:03<00:00, 598.11s/it]
++2026-01-02 15:38:47.059683 Training complete
++
++Process finished with exit code 0
++```
++
++```
++
++## Param
++
++SEQ_LEN = int(os.environ.get("SEQ_LEN", 1024))
++MICRO_BATCH_SIZE = int(os.environ.get("MICRO_BATCH_SIZE", 1))
++GRADIENT_ACCUMULATION_STEPS = int(os.environ.get("GA_STEPS", 64))
++NUM_EPOCHS = float(os.environ.get("NUM_EPOCHS", 5))
++LEARNING_RATE = float(os.environ.get("LR", 2e-4))
++WARMUP_RATIO = float(os.environ.get("WARMUP_RATIO", 0.03))
++WEIGHT_DECAY = float(os.environ.get("WEIGHT_DECAY", 0.0))
++
++LORA_R = int(os.environ.get("LORA_R", 64))
++LORA_ALPHA = int(os.environ.get("LORA_ALPHA", 128))
++LORA_DROPOUT = float(os.environ.get("LORA_DROPOUT", 0.05))
++TARGET_MODULES = os.environ.get(
++    "TARGET_MODULES",
++    "q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj"
++).split(",")
++
++## Trainging time
++Loading checkpoint shards: 100%|██████████| 16/16 [00:19<00:00,  1.20s/it]
++2026-01-03 22:32:28.072188 Model loaded
++trainable params: 3,375,366,144 || all params: 33,907,488,768 || trainable%: 9.9546
++The tokenizer has new PAD/BOS/EOS tokens that differ from the model config and generation config. The model config and generation config were aligned accordingly, being updated with the tokenizer's values. Updated tokens: {'bos_token_id': None, 'pad_token_id': 151643}.
++  0%|          | 0/50 [00:00<?, ?it/s]`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`.
++ 20%|██        | 10/50 [1:38:23<5:42:55, 514.40s/it]{'loss': 1.9546, 'grad_norm': 1.0367727279663086, 'learning_rate': 0.00018968727415326884, 'epoch': 1.0}
++ 40%|████      | 20/50 [3:16:37<4:19:17, 518.60s/it]{'loss': 0.7542, 'grad_norm': 0.7318072319030762, 'learning_rate': 0.00014422886902190014, 'epoch': 2.0}
++ 60%|██████    | 30/50 [4:55:42<2:53:49, 521.46s/it]{'loss': 0.4141, 'grad_norm': 0.6421137452125549, 'learning_rate': 8.049096779838719e-05, 'epoch': 3.0}
++ 80%|████████  | 40/50 [6:35:06<1:27:08, 522.86s/it]{'loss': 0.2741, 'grad_norm': 0.4523806571960449, 'learning_rate': 2.4816019252102273e-05, 'epoch': 4.0}
++100%|██████████| 50/50 [8:15:07<00:00, 528.03s/it]{'loss': 0.2256, 'grad_norm': 0.4224364459514618, 'learning_rate': 2.141076761396521e-07, 'epoch': 5.0}
++{'train_runtime': 29734.9299, 'train_samples_per_second': 0.102, 'train_steps_per_second': 0.002, 'train_loss': 0.7245015907287597, 'epoch': 5.0}
++100%|██████████| 50/50 [8:15:34<00:00, 594.69s/it]
++2026-01-04 06:49:09.464663 Training complete
++
++```
+\ No newline at end of file
+Index: .idea/misc.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<project version=\"4\">\n  <component name=\"Black\">\n    <option name=\"sdkName\" value=\"LLM_Research\" />\n  </component>\n  <component name=\"ProjectRootManager\" version=\"2\" project-jdk-name=\"LLM_Research\" project-jdk-type=\"Python SDK\" />\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/misc.xml b/.idea/misc.xml
+--- a/.idea/misc.xml	(revision 688f5023a2401b605188553c222c38582ddc3ed7)
++++ b/.idea/misc.xml	(date 1767678474660)
+@@ -3,5 +3,4 @@
+   <component name="Black">
+     <option name="sdkName" value="LLM_Research" />
+   </component>
+-  <component name="ProjectRootManager" version="2" project-jdk-name="LLM_Research" project-jdk-type="Python SDK" />
+ </project>
+\ No newline at end of file
+Index: requirements.txt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>transformers\ntorch\naccelerate\nbitsandbytes\npeft\ndatasets\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/requirements.txt b/requirements.txt
+--- a/requirements.txt	(revision 688f5023a2401b605188553c222c38582ddc3ed7)
++++ b/requirements.txt	(date 1767769420226)
+@@ -4,3 +4,6 @@
+ bitsandbytes
+ peft
+ datasets
++pydantic
++fastapi
++uvicorn
+Index: codes/with_vector_database/qwen3/qwen3.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/codes/with_vector_database/qwen3/qwen3.py b/codes/models_with_vector_database/qwen3/qwen3.py
+rename from codes/with_vector_database/qwen3/qwen3.py
+rename to codes/models_with_vector_database/qwen3/qwen3.py
+--- a/codes/with_vector_database/qwen3/qwen3.py	(revision 688f5023a2401b605188553c222c38582ddc3ed7)
++++ b/codes/models_with_vector_database/qwen3/qwen3.py	(date 1767771544241)
+@@ -1,5 +1,5 @@
+ from codes.util.qwen3_util import load_qwen3_model, qwen3_ask
+-from codes.with_vector_database.utils.faiss_util import search_docs
++from codes.models_with_vector_database.utils.faiss_util import search_docs
+ 
+ # 查詢問題
+ query = "審核 API 要用甚麼規則?"
+Index: codes/with_vector_database/utils/faiss_util.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/codes/with_vector_database/utils/faiss_util.py b/codes/models_with_vector_database/utils/faiss_util.py
+rename from codes/with_vector_database/utils/faiss_util.py
+rename to codes/models_with_vector_database/utils/faiss_util.py
+--- a/codes/with_vector_database/utils/faiss_util.py	(revision 688f5023a2401b605188553c222c38582ddc3ed7)
++++ b/codes/models_with_vector_database/utils/faiss_util.py	(date 1767771554292)
+@@ -5,7 +5,7 @@
+ import torch
+ from transformers import AutoTokenizer, AutoModel
+ 
+-from codes.with_vector_database.utils.rules import rule_docs
++from codes.models_with_vector_database.utils.rules import rule_docs
+ 
+ # 載入 Qwen 的 embedding 模型與 tokenizer
+ emb_model = AutoModel.from_pretrained("Qwen/Qwen3-Embedding-4B", trust_remote_code=True)
+Index: codes/train/qwen3_lora_test.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/codes/train/qwen3_lora_test.py b/codes/training_QLoRa/qwen3_lora_test.py
+rename from codes/train/qwen3_lora_test.py
+rename to codes/training_QLoRa/qwen3_lora_test.py
+--- a/codes/train/qwen3_lora_test.py	(revision 688f5023a2401b605188553c222c38582ddc3ed7)
++++ b/codes/training_QLoRa/qwen3_lora_test.py	(date 1767527602457)
+@@ -65,7 +65,11 @@
+ 
+ thinking_content = tokenizer.decode(output_ids[:index], skip_special_tokens=True).strip("\n")
+ content = tokenizer.decode(output_ids[index:], skip_special_tokens=True).strip("\n")
+-print(datetime.datetime.now(), "Generate done")
+ 
+ print(thinking_content)
++
++print("\n" * 3, "-" * 15)
++
+ print(content)
++
++print(datetime.datetime.now(), "Generate done")
+Index: codes/with_vector_database/utils/rules.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/codes/with_vector_database/utils/rules.py b/codes/models_with_vector_database/utils/rules.py
+rename from codes/with_vector_database/utils/rules.py
+rename to codes/models_with_vector_database/utils/rules.py
+--- a/codes/with_vector_database/utils/rules.py	(revision 688f5023a2401b605188553c222c38582ddc3ed7)
++++ b/codes/models_with_vector_database/utils/rules.py	(date 1767771678909)
+@@ -1,52 +1,27 @@
+ rule_docs = [
+-    "規則一：資料攝取必須涵蓋源碼（按檔案、模組、函式、類別）、測試檔、README、設計文件、API 規格與變更日誌；每個片段需附帶檔名、路徑、語言、框架版本、commit hash、作者、時間、依賴清單等中繼資料，確保可追溯。",
+-    "規則二：程式碼切分以函式/類別為最小單位；若檔案過長，按模組與語意邊界（import、public API、註解分隔）再細分。避免逐行切分造成語意斷裂，並保留鄰近上下文（前後 1-2 個節點）以維持可讀性。",
+-    "規則三：文件與 README/設計文稿按小節（標題層級）切分；每個 chunk 專注單一概念，避免跨章節混雜，以提升檢索精度。",
+-    "規則四：為每個 chunk 建立擴充中繼資料：語言（Python/JS 等）、框架（Django、React 等）、版本、測試覆蓋率標記、風險標記（安全/效能/可維護性）、路徑、符號表（函式/類別/API 名稱）、依賴樹。",
+-    "規則五：向量化使用具程式碼語義的 embedding（如 code 專用模型）；自然語言文件則用文本專用 embedding。禁止混用模型向量空間；以模型類型分別建索引。",
+-    "規則六：建立混合檢索索引：同時配置向量索引與關鍵字/符號索引（函式名、API、錯誤訊息、規範），並綁定語言與框架欄位以便語言/框架過濾。",
+-    "規則七：檢索預設採用『混合檢索+重排序』：先以語義向量 top-50，再用 BM25/符號命中與語言/框架一致性過濾，最後用 Cross-Encoder/重排序模型取 top-8。",
+-    "規則八：查詢規範化：將審查目標轉為可檢索的子查詢（語言、框架、檔名/符號、錯誤訊息、疑慮類型：安全/效能/風格/測試性）並套用必要過濾器（語言、版本、路徑前綴）。",
+-    "規則九：對比檢索（diff-aware）：若提供 diff，優先檢索相鄰程式碼片段、受影響模組、相關測試、相依 API；並加入相同符號歷史變更與 PR 討論摘要。",
+-    "規則十：去重與覆蓋控制：移除重複或近似片段（相似度閾值 0.92），保留跨來源互補內容；避免相同檔案多段落重疊過多（重疊比 > 0.5 時壓縮）。",
+-    "規則十一：上下文長度管理：控制總 token（例如 6-8K）並分配配額：核心片段 60%、設計/規範 25%、測試/CI 15%；如超限，保留最高權重與最近變更的內容。",
+-    "規則十二：語言與框架一致性檢查：對 Python 專案禁引入其他語言範例；框架版本不匹配（例如 Django 2.x vs 4.x）時標註風險並降權。",
+-    "規則十三：安全優先檢索：若查詢涉及輸入/輸出、序列化、SQL、模板渲染、檔案/網路操作，優先檢索安全指南、既有安全審查案例與測試。",
+-    "規則十四：生成必須引用：所有建議需以『片段引用』形式附帶檔名、行範圍或符號名稱、commit/PR 編號；沒有足夠引用時，明確標註不確定並給出調查步驟。",
+-    "規則十五：回覆結構固定三段：1) 問題定位（簡短具體）、2) 引用依據（列出檢索到的片段與要點）、3) 可執行改進（最小修補與範例）。",
+-    "規則十六：禁止幻覺：不得虛構 API、類別、測試或規範；若檢索未命中，提出『需要補充的檔案/範圍/符號』清單，並提供安全的推理邊界。",
+-    "規則十七：審查面向覆蓋：每次輸出至少涵蓋正確性、可維護性、效能、測試性、安全性；若與場景不相干，須註明『不適用』而非省略。",
+-    "規則十八：建議等級與風險：為每項建議標示等級（必修/高/中/低）與影響面（功能、效能、安全、可讀性），並附上修補成本估計（低/中/高）。",
+-    "規則十九：最小可行修補（MFR）：優先提出不破壞介面的最小改動；若需要破壞性改動，提供相容遷移步驟與回滾方案。",
+-    "規則二十：測試導向：每個建議附上最小單元/整合測試案例雛形（測試名稱、前置條件、斷言重點、覆蓋風險），並指出現有測試需更新之處。",
+-    "規則二十一：CI/CD 對齊：若建議涉及品質門檻（lint、型別檢查、測試覆蓋率、SAST），提供對應 pipeline 片段或設定鍵值，並對版本差異給出替代方案。",
+-    "規則二十二：風格與一致性：遵循專案現有 formatter/linter 規範；若規範缺失，引用社群準則（PEP8、ESLint 標準風格）並以低風險方式引入。",
+-    "規則二十三：靜態分析互補：當檢索到型別/語法警示或常見 code smell（死碼、重複邏輯、過深巢狀），將建議與靜態分析規則交叉引用並提供修補樣例。",
+-    "規則二十四：效能敏感路徑：對熱路徑或大資料處理，提供度量導向建議（時間/記憶體複雜度、profiling 提示）與可回溯基準測試建議。",
+-    "規則二十五：安全具體性：對輸入驗證、序列化、SQL、模板、檔案 I/O、網路呼叫，列舉具體漏洞類型（注入、XSS、RCE、路徑穿越）與對策（參數化、編碼、白名單、最小權限）。",
+-    "規則二十六：依賴與版本管理：對第三方套件建議需檢查版本相容性與已知 CVE；提出安全升級或鎖版策略並附上風險說明。",
+-    "規則二十七：跨檔案一致性：對重複邏輯與共用工具，建議抽取至共用模組；提供重構路徑與影響清單（受影響檔案/符號）。",
+-    "規則二十八：多檢索回合上限：最多兩回合拓展檢索（根據初次結果的符號與依賴）；每回合都要記錄新增來源與權重變化，避免無限擴散。",
+-    "規則二十九：權重策略：按『與查詢語義相似度、語言/框架匹配度、變更新近度、來源權威性（專案文件>外部）、安全風險信號』綜合排序。",
+-    "規則三十：新近性與分支：優先檢索當前分支最新 commit；若主幹與分支有衝突，清楚標註差異與合併風險。",
+-    "規則三十一：引用格式統一：檔名:行號範圍（或符號名） + commit/PR；多來源時以『來源優先級』排序，專案內文檔第一，外部資源第二。",
+-    "規則三十二：錯誤與不確定性處理：當依據不足或互相矛盾，明確列出衝突點與需要驗證的實驗/測試，避免武斷結論。",
+-    "規則三十三：輸出簡潔性：每項建議限制在 5-8 句內，避免贅述；複雜重構另開『重構提案』小節並給最小 PoC。",
+-    "規則三十四：隱私與合規：不得在輸出中外洩敏感資訊（金鑰、憑證、個資）；若檔案含敏感內容，僅提出處理建議（環境變數、密鑰管理）而不抄錄原文。",
+-    "規則三十五：國際化與在地化：若專案有 i18n，審查字串處理與格式化；避免硬編碼語言資源，推薦使用翻譯字典與佈景配置。",
+-    "規則三十六：錯誤訊息可檢索性：遇到 stack trace/錯誤碼，優先檢索對應符號與版本特定議題，再提供修補步驟與驗證方式。",
+-    "規則三十七：學習與評估閉環：每次審查生成『可驗證檢查清單』與『觀測指標』（測試通過、lint 乾淨、性能閾值），便於下次迭代自動比較。",
+-    "規則三十八：提示工程防禦：在系統提示中強化『不可臆測、必須引用、優先最小修補』的指令；將查詢重寫為包含關鍵符號與風險類型的結構化提示。",
+-    "規則三十九：錯誤案例學習：維護『常見缺陷到修補模式』的知識庫（例如 N+1 查詢、非同步競態、資源洩漏），在檢索命中時優先回傳成熟修補範例。",
+-    "規則四十：可移植性與相容性：針對 OS/架構差異（Windows/Linux、ARM/x86）提出條件分支與抽象層；避免硬編碼路徑或平台特有呼叫。",
+-    "規則四十一：文件同步：若建議涉及行為改動，要求更新 README/API 規格與範例，保持文件與代碼一致。",
+-    "規則四十二：審查輸出驗證：在輸出後自檢：是否有引用、是否與語言/框架相符、是否可測試、是否避免幻覺；任一不符則回退並標註需補檔案。",
+-    "規則四十三：回覆範式化模板：提供固定欄位（問題、引用、改進、測試、CI、風險、成本、備註）以利機器/人類後續處理。",
+-    "規則四十四：邊界與責任聲明：對外部依賴或不明規範，明確指出超出審查範圍的部分並給出取得資訊的途徑（需檢索的文件名稱與位置）。",
+-    "規則四十五：失敗安全：若檢索完全失敗或上下文不足，僅輸出調查計畫與需要的檔案列表，不提供具體修補建議以避免誤導。",
+-    "規則四十六：效能與成本控制：限制每次檢索來源數與重排序規模；對重度檢索場景啟用分段審查（先核心檔，再擴展模組），降低延遲與成本。",
+-    "規則四十七：多語言專案策略：按照語言分池索引與檢索；跨語言呼叫（如 Python 呼叫 C++）時檢索介面邊界與 FFI 安全建議。",
+-    "規則四十八：一致的度量與報告：為每次審查產生分數卡（正確性、引用完整性、適用性、可測試性），便於長期追蹤與迭代。",
+-    "規則四十九：變更風險預估：對改動涉及資料模型、交易邏輯或安全機制時提高警戒等級，要求預先演練與回滾手冊。",
+-    "規則五十：人機協作：支持審查者覆核與回饋；當人工標註與自動建議衝突，優先人工結論並將差異納入後續權重調整。"
++    "PEP8 recommends using 4 spaces per indentation level and avoiding tabs.",
++    "PEP8 suggests limiting all lines to a maximum of 79 characters.",
++    "PEP8 advises breaking long lines using Python’s implied line continuation inside parentheses, brackets, and braces.",
++    "PEP8 recommends imports to be on separate lines and grouped in the order: standard library, third-party, local application.",
++    "PEP8 discourages wildcard imports (from module import *).",
++    "PEP8 suggests placing imports at the top of the file.",
++    "PEP8 recommends using blank lines to separate functions, classes, and blocks of code inside functions.",
++    "PEP8 advises using spaces around operators and after commas, but not directly inside parentheses, brackets, or braces.",
++    "PEP8 discourages extra whitespace before commas, semicolons, or colons.",
++    "PEP8 recommends avoiding multiple statements on the same line.",
++    "PEP8 suggests using a single space after the # symbol in inline comments.",
++    "PEP8 advises that block comments should be indented to the same level as the code they describe.",
++    "PEP8 recommends using docstrings to describe all public modules, functions, classes, and methods.",
++    "PEP8 suggests naming classes using CapWords convention (CamelCase).",
++    "PEP8 recommends naming functions and variables in lowercase with words separated by underscores.",
++    "PEP8 advises constants to be written in all uppercase letters with underscores separating words.",
++    "PEP8 suggests using self for instance methods and cls for class methods as the first argument.",
++    "PEP8 recommends avoiding ambiguous names like l, O, or I for variables.",
++    "PEP8 advises breaking long expressions before binary operators, placing the operator at the beginning of the new line.",
++    "PEP8 suggests using explicit is not None checks instead of equality comparisons to None.",
++    "PEP8 recommends using isinstance() instead of type() for type comparisons.",
++    "PEP8 advises exception names should end with Error.",
++    "PEP8 recommends using try/except for exception handling, not catching overly broad exceptions.",
++    "PEP8 suggests using with statements for resource management (e.g., file handling).",
++    "PEP8 advises keeping code visually consistent and readable, prioritizing clarity over cleverness."
+ ]
+\ No newline at end of file
+Index: codes/with_vector_database/llama3/llama3.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/codes/with_vector_database/llama3/llama3.py b/codes/models_with_vector_database/llama3/llama3.py
+rename from codes/with_vector_database/llama3/llama3.py
+rename to codes/models_with_vector_database/llama3/llama3.py
+--- a/codes/with_vector_database/llama3/llama3.py	(revision 688f5023a2401b605188553c222c38582ddc3ed7)
++++ b/codes/models_with_vector_database/llama3/llama3.py	(date 1767771544246)
+@@ -1,5 +1,5 @@
+ from codes.util.llama3_util import load_llama3_model, llama3_ask
+-from codes.with_vector_database.utils.faiss_util import search_docs
++from codes.models_with_vector_database.utils.faiss_util import search_docs
+ 
+ # 查詢問題
+ query = "審核 API 要用甚麼規則?"
+Index: codes/with_vector_database/magicoder/magicoder.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/codes/with_vector_database/magicoder/magicoder.py b/codes/models_with_vector_database/magicoder/magicoder.py
+rename from codes/with_vector_database/magicoder/magicoder.py
+rename to codes/models_with_vector_database/magicoder/magicoder.py
+--- a/codes/with_vector_database/magicoder/magicoder.py	(revision 688f5023a2401b605188553c222c38582ddc3ed7)
++++ b/codes/models_with_vector_database/magicoder/magicoder.py	(date 1767771544248)
+@@ -1,5 +1,5 @@
+ from codes.util.magicoder_util import magicoder_ask, load_magicoder_model
+-from codes.with_vector_database.utils.faiss_util import search_docs
++from codes.models_with_vector_database.utils.faiss_util import search_docs
+ 
+ # 查詢問題
+ query = "審核 API 要用甚麼規則?"
+Index: .idea/LLM_Research.iml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<module type=\"PYTHON_MODULE\" version=\"4\">\n  <component name=\"NewModuleRootManager\">\n    <content url=\"file://$MODULE_DIR$\" />\n    <orderEntry type=\"jdk\" jdkName=\"LLM_Research\" jdkType=\"Python SDK\" />\n    <orderEntry type=\"sourceFolder\" forTests=\"false\" />\n  </component>\n  <component name=\"PyDocumentationSettings\">\n    <option name=\"format\" value=\"PLAIN\" />\n    <option name=\"myDocStringFormat\" value=\"Plain\" />\n  </component>\n</module>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/LLM_Research.iml b/.idea/LLM_Research.iml
+--- a/.idea/LLM_Research.iml	(revision 688f5023a2401b605188553c222c38582ddc3ed7)
++++ b/.idea/LLM_Research.iml	(date 1767769162347)
+@@ -1,7 +1,6 @@
+ <?xml version="1.0" encoding="UTF-8"?>
+ <module type="PYTHON_MODULE" version="4">
+   <component name="NewModuleRootManager">
+-    <content url="file://$MODULE_DIR$" />
+     <orderEntry type="jdk" jdkName="LLM_Research" jdkType="Python SDK" />
+     <orderEntry type="sourceFolder" forTests="false" />
+   </component>
+Index: codes/qwen3_api/qwen3_with_fast_api.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/codes/qwen3_api/qwen3_with_fast_api.py b/codes/qwen3_api/qwen3_with_fast_api.py
+new file mode 100644
+--- /dev/null	(date 1767772014856)
++++ b/codes/qwen3_api/qwen3_with_fast_api.py	(date 1767772014856)
+@@ -0,0 +1,44 @@
++from fastapi import FastAPI
++from pydantic import BaseModel
++from typing import List, Dict, Any, Union
++import uvicorn
++
++from codes.util.qwen3_util import load_qwen3_model, qwen3_ask
++from codes.models_with_vector_database.utils.faiss_util import search_docs
++
++app = FastAPI()
++
++# 載入模型（伺服器啟動時就載入一次）
++gen_tokenizer, gen_model = load_qwen3_model()
++
++# --- Request/Response Schema ---
++class AskRequest(BaseModel):
++    prompt: str
++    filter_by_threshold: bool = True
++    max_new_tokens: int = 16384
++
++class GenResponse(BaseModel):
++    result: str
++    retrieved_docs: List[Dict[str, Any]]
++    filtered_results: Union[List[Dict[str, Any]], None]
++
++# --- API Endpoints ---
++@app.post("/qwen3_ask", response_model=GenResponse)
++def qwen3_ask_api(req: AskRequest):
++    retrieved_docs, filtered_results = search_docs(
++        query=req.prompt,
++        filter_by_threshold=req.filter_by_threshold
++    )
++
++    result_output = qwen3_ask("", req.prompt, gen_tokenizer, gen_model, max_new_tokens=req.max_new_tokens)
++    result = result_output[0] if isinstance(result_output, (list, tuple)) and result_output else str(result_output)
++
++    return GenResponse(
++        result=result,
++        retrieved_docs=retrieved_docs,
++        filtered_results=filtered_results
++    )
++
++# --- 測試用主程式 ---
++if __name__ == "__main__":
++    uvicorn.run(app, host="0.0.0.0", port=8888)
+\ No newline at end of file
+Index: codes/train/qwen3.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/codes/train/qwen3.py b/codes/training_QLoRa/train_lora_qwen3.py
+rename from codes/train/qwen3.py
+rename to codes/training_QLoRa/train_lora_qwen3.py
+--- a/codes/train/qwen3.py	(revision 688f5023a2401b605188553c222c38582ddc3ed7)
++++ b/codes/training_QLoRa/train_lora_qwen3.py	(date 1767479488685)
+@@ -17,10 +17,10 @@
+ DATA_PATH = os.environ.get("DATA_PATH", "qwen3_train_data.jsonl")
+ OUTPUT_DIR = os.environ.get("OUTPUT_DIR", "./outputs-lora-qwen-3-30b-a3b")
+ 
+-SEQ_LEN = int(os.environ.get("SEQ_LEN", 768))
++SEQ_LEN = int(os.environ.get("SEQ_LEN", 1024))
+ MICRO_BATCH_SIZE = int(os.environ.get("MICRO_BATCH_SIZE", 1))
+ GRADIENT_ACCUMULATION_STEPS = int(os.environ.get("GA_STEPS", 64))
+-NUM_EPOCHS = float(os.environ.get("NUM_EPOCHS", 3))
++NUM_EPOCHS = float(os.environ.get("NUM_EPOCHS", 5))
+ LEARNING_RATE = float(os.environ.get("LR", 2e-4))
+ WARMUP_RATIO = float(os.environ.get("WARMUP_RATIO", 0.03))
+ WEIGHT_DECAY = float(os.environ.get("WEIGHT_DECAY", 0.0))
+diff --git a/codes/without_vector_database/llama3/llama3_multi.py b/codes/models_without_vector_database/llama3/llama3_multi.py
+rename from codes/without_vector_database/llama3/llama3_multi.py
+rename to codes/models_without_vector_database/llama3/llama3_multi.py
+diff --git a/codes/without_vector_database/magicoder/magicoder_multi.py b/codes/models_without_vector_database/magicoder/magicoder_multi.py
+rename from codes/without_vector_database/magicoder/magicoder_multi.py
+rename to codes/models_without_vector_database/magicoder/magicoder_multi.py
+diff --git a/codes/without_vector_database/magicoder/magicoder_quickstart.py b/codes/models_without_vector_database/magicoder/magicoder_quickstart.py
+rename from codes/without_vector_database/magicoder/magicoder_quickstart.py
+rename to codes/models_without_vector_database/magicoder/magicoder_quickstart.py
+diff --git a/codes/train/llama3.py b/codes/training_QLoRa/train_lora_llama3.py
+rename from codes/train/llama3.py
+rename to codes/training_QLoRa/train_lora_llama3.py
+diff --git a/codes/train/llama3_lora_test.py b/codes/training_QLoRa/llama3_lora_test.py
+rename from codes/train/llama3_lora_test.py
+rename to codes/training_QLoRa/llama3_lora_test.py
+diff --git a/codes/train/data.jsonl b/codes/training_QLoRa/data.jsonl
+rename from codes/train/data.jsonl
+rename to codes/training_QLoRa/data.jsonl
+diff --git a/codes/without_vector_database/qwen3/qwen3_quickstart.py b/codes/models_without_vector_database/qwen3/qwen3_quickstart.py
+rename from codes/without_vector_database/qwen3/qwen3_quickstart.py
+rename to codes/models_without_vector_database/qwen3/qwen3_quickstart.py
+diff --git a/codes/train/qwen3_train_data.jsonl b/codes/training_QLoRa/qwen3_train_data.jsonl
+rename from codes/train/qwen3_train_data.jsonl
+rename to codes/training_QLoRa/qwen3_train_data.jsonl
+diff --git a/codes/without_vector_database/qwen3/qwen3_multi.py b/codes/models_without_vector_database/qwen3/qwen3_multi.py
+rename from codes/without_vector_database/qwen3/qwen3_multi.py
+rename to codes/models_without_vector_database/qwen3/qwen3_multi.py
+diff --git a/codes/without_vector_database/llama3/llama3_quickstart.py b/codes/models_without_vector_database/llama3/llama3_quickstart.py
+rename from codes/without_vector_database/llama3/llama3_quickstart.py
+rename to codes/models_without_vector_database/llama3/llama3_quickstart.py
