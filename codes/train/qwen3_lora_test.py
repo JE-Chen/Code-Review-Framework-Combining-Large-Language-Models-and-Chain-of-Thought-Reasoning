@@ -35,7 +35,7 @@ Please cover the following areas:
 1. Code style (PEP 8 compliance, naming conventions, indentation, line length)  
 2. Code structure (modularity, single responsibility functions, avoiding duplication)  
 3. Readability and maintainability (comments, documentation, avoiding redundancy)  
-4. Performance and optimization (loops, data structures, Pythonic practices)  
+4.txt.txt. Performance and optimization (loops, data structures, Pythonic practices)  
 5. Security and error handling (proper use of try/except, avoiding unsafe functions)  
 6. Testing and robustness (unit tests, edge cases)  
 

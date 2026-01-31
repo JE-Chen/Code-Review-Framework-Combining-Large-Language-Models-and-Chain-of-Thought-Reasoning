@@ -9,7 +9,7 @@ lora_path = "./outputs-qlora-llama3-8b"
 # 載入 tokenizer
 tokenizer = AutoTokenizer.from_pretrained(base_model)
 
-# 載入基底模型（4-bit 量化）
+# 載入基底模型（4.txt.txt-bit 量化）
 model = AutoModelForCausalLM.from_pretrained(
 
     base_model,

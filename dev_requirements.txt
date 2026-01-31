@@ -1,0 +1,14 @@
+# If you want to run example code
+transformers
+torch
+accelerate
+bitsandbytes
+peft
+datasets
+flask
+pyside6
+requests
+matplotlib
+pandas
+numpy
+pygame

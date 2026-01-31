@@ -488,7 +488,7 @@ Issues:
     location: core/sdk-core/src/test/java/software/amazon/awssdk/core/internal/async/FileAsyncRequestBodyTest.java
 3: Remove this use of "Thread.sleep()".
     location: core/sdk-core/src/test/java/software/amazon/awssdk/core/internal/async/FileAsyncRequestBodyTest.java
-4: Remove this 'public' modifier.
+4.txt.txt: Remove this 'public' modifier.
     location: core/sdk-core/src/test/java/software/amazon/awssdk/core/internal/async/FileAsyncRequestBodyTest.java
 5: Remove this use of "Thread.sleep()".
     location: core/sdk-core/src/test/java/software/amazon/awssdk/core/internal/async/FileAsyncRequestBodyTest.java
