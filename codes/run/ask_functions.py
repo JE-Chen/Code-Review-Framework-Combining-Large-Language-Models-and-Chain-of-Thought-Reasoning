@@ -5,13 +5,18 @@ from codes.with_vector_database.utils.faiss_util import search_docs
 gen_tokenizer, gen_model = load_qwen3_model()
 
 
-def rag_ask(prompt: str, file_name: str = "prompt_name.md"):
+def rag_ask(prompt: str):
     filter_by_threshold = False
 
     retrieved_docs, filtered_results = search_docs(query=prompt, filter_by_threshold=filter_by_threshold)
 
     # 建立提示詞，把檢索到的文件和問題一起丟給生成模型
-    prompt = f"根據以下規則回答問題：\n{retrieved_docs}\n\n問題：{prompt}\n回答："
+    prompt = (
+    "=== RAG Rules ===\n"
+    f"{retrieved_docs}\n\n"
+    "=== Question ===\n"
+    f"{prompt}\n\n"
+    )
 
     # 呼叫生成模型，產生回答
     result = qwen3_ask("", prompt, gen_tokenizer, gen_model, max_new_tokens=32768)[0]
@@ -20,9 +25,6 @@ def rag_ask(prompt: str, file_name: str = "prompt_name.md"):
         print("符合閾值的文件：")
         for r in filtered_results:
             print(f"Doc: {r['doc']}, 相似度: {r['score']:.4f}")
-
-    with open(f"{file_name}.md", "w+") as file:
-        file.write(result)
 
     print("=== 查詢結果 ===")
     print(result)

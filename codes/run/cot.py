@@ -15,22 +15,22 @@ def code_review(code_for_review: str, code_file_path: Path):
     if Path(str(code_file_path.name)).is_dir():
 
         first_summary = build_global_rule_template(prompt=FIRST_SUMMARY_TEMPLATE.format(code_diff=code_for_review))
-        first_summary_result = rag_ask(first_summary, "first_summary")
+        first_summary_result = rag_ask(first_summary)
         with open(str(code_file_path.name) + "_" + "first_summary_result.md", "w", encoding="utf-8") as f:
             f.write(first_summary_result)
 
         first_code_review = build_global_rule_template(prompt=FIRST_CODE_REVIEW_TEMPLATE.format(code_diff=code_for_review))
-        first_code_review_result = rag_ask(first_code_review, "first_code_review")
+        first_code_review_result = rag_ask(first_code_review)
         with open(str(code_file_path.name) + "_" + "first_code_review_result.md", "w", encoding="utf-8") as f:
             f.write(first_code_review_result)
 
         linter = build_global_rule_template(prompt=LINTER_TEMPLATE.format(code_diff=code_for_review))
-        linter_result = rag_ask(linter, "linter")
+        linter_result = rag_ask(linter)
         with open(str(code_file_path.name) + "_" + "linter_result.md", "w", encoding="utf-8") as f:
             f.write(linter_result)
 
         code_smell = build_global_rule_template(prompt=CODE_SMELL_DETECTOR_TEMPLATE.format(code_diff=code_for_review))
-        code_smell_result = rag_ask(code_smell, "code_smell")
+        code_smell_result = rag_ask(code_smell)
         with open(str(code_file_path.name) + "_" + "code_smell_result.md", "w", encoding="utf-8") as f:
             f.write(code_smell_result)
 
@@ -39,7 +39,7 @@ def code_review(code_for_review: str, code_file_path: Path):
             first_summary=first_summary,
             code_diff=code_smell,
         ))
-        total_summary_result = rag_ask(total_summary, "total_summary")
+        total_summary_result = rag_ask(total_summary)
         with open(str(code_file_path.name) + "_" + "total_summary_result.md", "w", encoding="utf-8") as f:
             f.write(total_summary_result)
 
