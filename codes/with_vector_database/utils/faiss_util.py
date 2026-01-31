@@ -33,13 +33,13 @@ faiss.normalize_L2(doc_embeddings)
 gpu_index.add(doc_embeddings)
 
 # 查詢階段 (每次查詢只做這段)
-def search_docs(query: str, filter_by_threshold: bool = False, k: int = 15):
+def search_docs(query: str, filter_by_threshold: bool = False, threshold:float = 0.7, k: int = 15):
     q_emb = get_embedding(query).reshape(1, -1).astype("float32")
     faiss.normalize_L2(q_emb)
     distance, indices = gpu_index.search(q_emb, k=k)
 
     if filter_by_threshold:
-        threshold = 0.7
+        threshold = threshold
         filtered_results = [
             {"doc": rule_docs[idx], "score": score}
             for idx, score in zip(indices[0], distance[0]) if score >= threshold
