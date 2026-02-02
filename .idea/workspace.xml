@@ -5,11 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="c7802227-67ad-4e04-beaf-4bd7338f9cbd" name="Changes" comment="Edit rag rules">
+      <change beforePath="$PROJECT_DIR$/.idea/LLM_Research.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/LLM_Research.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/codes/run/ask_functions.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/run/ask_functions.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/codes/run/cot.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/run/cot.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/codes/run/skills.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/run/skills.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/codes/with_vector_database/utils/faiss_util.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/with_vector_database/utils/faiss_util.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/train/qwen3_train_data.jsonl" beforeDir="false" afterPath="$PROJECT_DIR$/codes/train/qwen3_train_data.jsonl" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -341,6 +339,7 @@
       <workItem from="1769164697010" duration="39627000" />
       <workItem from="1769635161687" duration="27079000" />
       <workItem from="1769856306969" duration="2600000" />
+      <workItem from="1769965563003" duration="8742000" />
     </task>
     <task id="LOCAL-00001" summary="Edit rag rules">
       <option name="closed" value="true" />
