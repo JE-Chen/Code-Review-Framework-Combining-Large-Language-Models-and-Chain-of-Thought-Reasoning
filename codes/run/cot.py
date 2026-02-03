@@ -17,7 +17,7 @@ def code_review(code_for_review: str, code_file_path: Path):
     Path.mkdir(Path(str(code_file_path.name)), exist_ok=True)
 
     if Path(str(code_file_path.name)).is_dir():
-        rag_docs = get_rag_docs(prompt="", threshold=0.7)
+        rag_docs = get_rag_docs(prompt=code_for_review, threshold=0.7)
 
         first_summary = build_global_rule_template(
             prompt=FIRST_SUMMARY_TEMPLATE.format(code_diff=code_for_review),

@@ -6,7 +6,7 @@ from peft import PeftModel
 
 # 路徑：基底模型 + 你訓練好的 LoRA 輸出資料夾
 base_model = "Qwen/Qwen3-30B-A3B-Thinking-2507"
-lora_path = "./outputs-lora-qwen-3-30b-a3b"
+lora_path = "./outputs-lora-qwen3-30b"
 
 # 載入 tokenizer
 tokenizer = AutoTokenizer.from_pretrained(base_model)
@@ -31,15 +31,7 @@ print(datetime.datetime.now(), "Model loaded")
 
 # 測試推論
 prompt = """ 
-Please cover the following areas:
-1. Code style (PEP 8 compliance, naming conventions, indentation, line length)  
-2. Code structure (modularity, single responsibility functions, avoiding duplication)  
-3. Readability and maintainability (comments, documentation, avoiding redundancy)  
-4.txt.txt. Performance and optimization (loops, data structures, Pythonic practices)  
-5. Security and error handling (proper use of try/except, avoiding unsafe functions)  
-6. Testing and robustness (unit tests, edge cases)  
-
-Output the rules in a structured list so they can be directly used as a reference during code reviews.
+Logging occurs inside a performance-critical loop. What is the cost?
 """
 messages = [
     {"role": "user", "content": prompt}
