@@ -1,3 +1,0 @@
-```
-{"Instruction": "","question": "", "think": "", "answer": "",}
-```

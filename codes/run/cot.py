@@ -64,7 +64,7 @@ def code_review(code_for_review: str, code_file_path: Path):
 
 
 chatgpt_code_diff_file_path_list = [f for f in
-                                    Path("../../datas/code-to-detect/code_diff/Python/ChatGPT").iterdir() if
+                                    Path("../../datas/code_to_detect/code_diff/Python/ChatGPT").iterdir() if
                                     f.is_file()]
 print(chatgpt_code_diff_file_path_list)
 
@@ -74,7 +74,7 @@ for file_path in chatgpt_code_diff_file_path_list:
         code_review(code_for_review=code, code_file_path=file_path)
 
 copilot_code_diff_file_path_list = [f for f in
-                                    Path("../../datas/code-to-detect/code_diff/Python/Copilot").iterdir() if
+                                    Path("../../datas/code_to_detect/code_diff/Python/Copilot").iterdir() if
                                     f.is_file()]
 print(copilot_code_diff_file_path_list)
 
@@ -84,7 +84,7 @@ for file_path in copilot_code_diff_file_path_list:
         code_review(code_for_review=code, code_file_path=file_path)
 
 chatgpt_only_code_file_path_list = [f for f in
-                                    Path("../../datas/code-to-detect/only_code/Python/ChatGPT").iterdir() if
+                                    Path("../../datas/code_to_detect/only_code/Python/ChatGPT").iterdir() if
                                     f.is_file()]
 print(chatgpt_only_code_file_path_list)
 
@@ -94,7 +94,7 @@ for file_path in chatgpt_only_code_file_path_list:
         code_review(code_for_review=code, code_file_path=file_path)
 
 copilot_only_code_file_path_list = [f for f in
-                                    Path("../../datas/code-to-detect/only_code/Python/Copilot").iterdir() if
+                                    Path("../../datas/code_to_detect/only_code/Python/Copilot").iterdir() if
                                     f.is_file()]
 print(copilot_only_code_file_path_list)
 

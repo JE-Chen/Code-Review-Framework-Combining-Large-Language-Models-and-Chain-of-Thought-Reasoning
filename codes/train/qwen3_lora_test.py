@@ -31,7 +31,7 @@ print(datetime.datetime.now(), "Model loaded")
 
 # 測試推論
 prompt = """ 
-Logging occurs inside a performance-critical loop. What is the cost?
+Why is inconsistent or insufficient logging a risk in a production system?
 """
 messages = [
     {"role": "user", "content": prompt}

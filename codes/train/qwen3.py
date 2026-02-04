@@ -6,20 +6,21 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 import torch
 from datasets import load_dataset
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from pathlib import Path
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     Trainer,
     TrainingArguments,
     BitsAndBytesConfig,
-    DataCollatorForLanguageModeling,
+    default_data_collator,
 )
 
 # ======================
 # Config
 # ======================
 MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen3-30B-A3B-Thinking-2507")
-DATA_PATH = os.environ.get("DATA_PATH", "qwen3_train_data.jsonl")
+DATA_PATH = os.environ.get("DATA_PATH", str(Path("../../datas/fine_tuning_data/qwen3_train_data.jsonl")))
 OUTPUT_DIR = os.environ.get("OUTPUT_DIR", "./outputs-lora-qwen3-30b")
 
 SEQ_LEN = int(os.environ.get("SEQ_LEN", 1024))
@@ -28,7 +29,7 @@ GRADIENT_ACCUMULATION_STEPS = int(os.environ.get("GA_STEPS", 64))
 
 NUM_EPOCHS = float(os.environ.get("NUM_EPOCHS", 2))
 
-LEARNING_RATE = float(os.environ.get("LR", 5e-5))
+LEARNING_RATE = float(os.environ.get("LR", 2e-5))
 
 WARMUP_RATIO = float(os.environ.get("WARMUP_RATIO", 0.1))
 WEIGHT_DECAY = float(os.environ.get("WEIGHT_DECAY", 0.01))
@@ -114,7 +115,7 @@ def tokenize_batch(batch):
         prompt_len = len(tok_prompt["input_ids"])
         full_ids = tok_full["input_ids"]
 
-        # ⬇️ only answer tokens get loss
+        # ⬇only answer tokens get loss
         label = [-100] * prompt_len + full_ids[prompt_len:]
 
         input_ids.append(full_ids)
@@ -131,10 +132,7 @@ tokenized = dataset.shuffle(seed=42).map(
 # ======================
 # Data collator (padding)
 # ======================
-data_collator = DataCollatorForLanguageModeling(
-    tokenizer=tokenizer,
-    mlm=False,
-)
+data_collator = default_data_collator
 
 # ======================
 # Model (QLoRA)
