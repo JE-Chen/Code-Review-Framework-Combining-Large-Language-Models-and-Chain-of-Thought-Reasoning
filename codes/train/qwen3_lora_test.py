@@ -24,10 +24,12 @@ model = AutoModelForCausalLM.from_pretrained(
     quantization_config=bnb_config,
 )
 
+print(datetime.datetime.now(), "Model loaded")
+
 # 套用 LoRA 權重
 model = PeftModel.from_pretrained(model, lora_path)
 
-print(datetime.datetime.now(), "Model loaded")
+print(datetime.datetime.now(), "LoRa loaded")
 
 # 測試推論
 prompt = """ 

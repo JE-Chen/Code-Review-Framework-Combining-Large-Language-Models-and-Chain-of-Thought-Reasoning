@@ -4,62 +4,15 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c7802227-67ad-4e04-beaf-4bd7338f9cbd" name="Changes" comment="* Rename folder&#10;* Edit training param (epochs, LR, etc..)">
-      <change afterPath="$PROJECT_DIR$/datas/fine_tuning_data/generate_datas_prompt.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/fine_tuning_data/qwen3_train_data.jsonl" afterDir="false" />
+    <list default="true" id="c7802227-67ad-4e04-beaf-4bd7338f9cbd" name="Changes" comment="* Rename folder">
+      <change beforePath="$PROJECT_DIR$/codes/run/CoT/global_rule.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/run/CoT/global_rule.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/Skills/code_explainer.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/run/Skills/code_explainer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/ask_functions.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/run/ask_functions.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/codes/run/cot.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/run/cot.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/codes/train/qwen3-training-time.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/codes/train/qwen3.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/train/qwen3.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/skills.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/run/skills.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/codes/train/qwen3_lora_test.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/train/qwen3_lora_test.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/codes/train/qwen3_train_data.jsonl" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/RAG-data/RAG-data.jsonl" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/bad_data/Python/ChatGPT/1.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/bad_data/Python/ChatGPT/2.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/bad_data/Python/Copilot/1.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/bad_data/Python/Copilot/2.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/ChatGPT/1.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/ChatGPT/2.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/ChatGPT/3.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/ChatGPT/4.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/ChatGPT/5.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/ChatGPT/6.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/Copilot/1.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/Copilot/2.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/Copilot/3.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/Copilot/4.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/Copilot/5.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/code_diff/Python/Copilot/6.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/1.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/10.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/11.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/12.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/13.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/14.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/2.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/3.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/4.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/5.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/6.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/7.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/8.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/ChatGPT/9.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/1.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/10.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/11.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/12.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/13.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/14.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/2.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/3.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/4.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/5.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/6.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/7.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/8.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/code-to-detect/only_code/Python/Copilot/9.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/fine-tuning-data/llama3-fine-tuning-data-template.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/fine-tuning-data/qwen3-fine-tuning-data.jsonl" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/fine-tuning-data/qwen3-fine-tuning-template.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/util/qwen3_util.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/util/qwen3_util.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/conda_requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/conda_requirements.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -123,6 +76,7 @@
     "Python.cot.executor": "Run",
     "Python.qwen3.executor": "Run",
     "Python.qwen3_lora_test.executor": "Run",
+    "Python.skills.executor": "Run",
     "Python.test.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
@@ -167,11 +121,12 @@
       <window_info anchor="bottom" id="Version Control" order="0" weight="0.32994187" />
       <window_info anchor="bottom" id="Problems" order="1" />
       <window_info anchor="bottom" id="Problems View" order="2" />
-      <window_info anchor="bottom" id="Terminal" order="3" weight="0.30862403" />
+      <window_info anchor="bottom" id="Terminal" order="3" weight="0.35513565" />
       <window_info anchor="bottom" id="Services" order="4" />
       <window_info anchor="bottom" id="Python Packages" order="5" weight="0.1" />
       <window_info anchor="bottom" id="Python Console" order="6" weight="0.1" />
-      <window_info anchor="bottom" id="Run" order="7" weight="0.30862403" />
+      <window_info active="true" anchor="bottom" id="Run" order="7" visible="true" weight="0.35513565" />
+      <window_info anchor="bottom" id="Debug" order="8" weight="0.35513565" />
       <window_info anchor="right" id="Endpoints" />
       <window_info anchor="right" id="Remote Host" />
       <window_info anchor="right" id="Coverage" side_tool="true" />
@@ -194,14 +149,14 @@
       <recent name="C:\CodeWorkspace\Python\LLM_Research\Architecture\v2" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/codes/util" />
       <recent name="$PROJECT_DIR$/datas/code-to-detect/bad_data/Python" />
       <recent name="C:\CodeWorkspace\Python\LLM_Research\codes\run" />
       <recent name="C:\CodeWorkspace\Python\LLM_Research\datas\code-to-detect\code_diff\Python" />
       <recent name="C:\CodeWorkspace\Python\LLM_Research\datas\code-to-detect\only_code\Python" />
-      <recent name="C:\CodeWorkspace\Python\LLM_Research\datas\code-to-detect\only_code" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.qwen3_lora_test">
+  <component name="RunManager" selected="Python.skills">
     <configuration name="14 (1)" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="LLM_Research" />
       <option name="ENV_FILES" value="" />
@@ -218,30 +173,6 @@
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="RUN_TOOL" value="" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/datas/code-to-detect/copilot/14.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration name="14" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
-      <module name="LLM_Research" />
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-      <option name="RUN_TOOL" value="" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/datas/code-to-detect/ChatGPT/14.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -322,13 +253,37 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
+    <configuration name="skills" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="LLM_Research" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/codes/run" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="RUN_TOOL" value="" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/codes/run/skills.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.skills" />
         <item itemvalue="Python.qwen3_lora_test" />
         <item itemvalue="Python.qwen3" />
         <item itemvalue="Python.cot" />
         <item itemvalue="Python.14 (1)" />
-        <item itemvalue="Python.14" />
       </list>
     </recent_temporary>
   </component>
@@ -411,7 +366,15 @@
       <option name="project" value="LOCAL" />
       <updated>1770141840249</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="* Rename folder">
+      <option name="closed" value="true" />
+      <created>1770240338746</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1770240338746</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -431,11 +394,13 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Edit rag rules" />
     <MESSAGE value="* Rename folder&#10;* Edit training param (epochs, LR, etc..)" />
-    <option name="LAST_COMMIT_MESSAGE" value="* Rename folder&#10;* Edit training param (epochs, LR, etc..)" />
+    <MESSAGE value="* Rename folder" />
+    <option name="LAST_COMMIT_MESSAGE" value="* Rename folder" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/LLM_Research$qwen3_lora_test.coverage" NAME="qwen3_lora_test Coverage Results" MODIFIED="1770223831211" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/train" />
     <SUITE FILE_PATH="coverage/LLM_Research$test.coverage" NAME="test Coverage Results" MODIFIED="1769065438705" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect" />
+    <SUITE FILE_PATH="coverage/LLM_Research$skills.coverage" NAME="skills Coverage Results" MODIFIED="1770297096323" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
     <SUITE FILE_PATH="coverage/LLM_Research$3.coverage" NAME="3 Coverage Results" MODIFIED="1769165939160" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
     <SUITE FILE_PATH="coverage/LLM_Research$14.coverage" NAME="14 Coverage Results" MODIFIED="1769238940122" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
     <SUITE FILE_PATH="coverage/LLM_Research$11.coverage" NAME="11 Coverage Results" MODIFIED="1769168139483" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
