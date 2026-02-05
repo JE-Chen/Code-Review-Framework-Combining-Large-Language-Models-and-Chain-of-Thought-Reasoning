@@ -2,13 +2,10 @@ import datetime
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-import os
+from peft import PeftModel
 
-from codes.util.memory import get_max_memory
 
-def load_qwen3_model():
-
-    os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
+def load_qwen3_model(lora_path: str = None):
 
     model_name = "Qwen/Qwen3-30B-A3B-Thinking-2507"
 
@@ -24,19 +21,21 @@ def load_qwen3_model():
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     print("Loading model across all GPUs...")
-    max_memory = get_max_memory()
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         device_map="auto",
-        max_memory=max_memory if max_memory else None,
         quantization_config=bnb_config,
     )
     print(datetime.datetime.now(), "Model loaded")
+
+    if lora_path:
+        model = PeftModel.from_pretrained(model, lora_path)
+        print(datetime.datetime.now(), "LoRa loaded")
+
     return model, tokenizer
 
-def qwen3_ask(system_prompt: str, prompt: str, model, tokenizer, max_new_tokens: int = 16784):
+def qwen3_ask(prompt: str, model, tokenizer, max_new_tokens: int = 16784):
     messages = [
-        {"role": "system", "content": system_prompt},
         {"role": "user", "content": prompt}
     ]
     text = tokenizer.apply_chat_template(

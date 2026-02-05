@@ -1,2 +1,6 @@
+# FAISS GPU
 conda install conda-forge::mkl==2024.2.2
 conda install -c pytorch -c nvidia faiss-gpu=1.13.2
+
+# FAISS CPU (only use one of them <cpu or gpu>)
+conda install conda-forge::faiss-cpu
