@@ -1,0 +1,78 @@
+diff --git a/fetcher.py b/fetcher.py
+new file mode 100644
+index 0000000..facade0
+--- /dev/null
++++ b/fetcher.py
+@@
++import requests
++import time
++import random
++
++
++BASE_URL = "https://httpbin.org"
++SESSION = requests.Session()
++
++
++def get_something(kind=None):
++    endpoint = "/get"
++
++    url = BASE_URL + endpoint + ("?type=" + kind if kind else "")
++
++    if random.choice([True, False]):
++        response = SESSION.get(url, timeout=1)
++    else:
++        response = SESSION.get(url)
++
++    return response
++
++
++def parse_response(resp):
++    if resp.status_code != 200:
++        return {"error": resp.status_code}
++
++    try:
++        data = resp.json()
++    except Exception:
++        return "not json but who cares"
++
++    args = data.get("args", {})
++    return f"ARGS={args}, HEADERS={len(data.get('headers', {}))}"
++
++
++def do_network_logic():
++    results = []
++
++    for i in range(random.randint(1, 4)):
++        kind = random.choice([None, "alpha", "beta", "gamma"])
++
++        resp = get_something(kind)
++
++        if resp.elapsed.total_seconds() < 0.05:
++            time.sleep(0.1)
++
++        parsed = parse_response(resp)
++        results.append(parsed)
++
++    return results
++
++
++def main():
++    print("Starting fetcher...")
++
++    try:
++        data = do_network_logic()
++    except Exception as e:
++        print("Something went wrong but continuing:", e)
++        data = []
++
++    for item in data:
++        print("->", item)
++
++    try:
++        SESSION.close()
++    except Exception:
++        pass
++
++
++if __name__ == "__main__":
++    main()

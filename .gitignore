@@ -208,3 +208,4 @@ cython_debug/
 /codes/training_QLoRa/outputs-lora-qwen-3-30b-a3b/checkpoint-50/vocab.json
 /codes/training_QLoRa/outputs-lora-qwen-3-30b-a3b/vocab.json
 /.idea/workspace.xml
+/codes/train/outputs-lora-qwen3-30b/

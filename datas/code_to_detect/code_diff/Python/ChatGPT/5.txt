@@ -1,0 +1,95 @@
+diff --git a/analysis.py b/analysis.py
+new file mode 100644
+index 0000000..c0ffee0
+--- /dev/null
++++ b/analysis.py
+@@
++import pandas as pd
++import numpy as np
++import matplotlib.pyplot as plt
++import random
++import time
++
++
++RANDOM_SEED = int(time.time()) % 1000
++np.random.seed(RANDOM_SEED)
++
++
++def load_data_but_not_really():
++    size = random.randint(20, 50)
++    data = {
++        "value": np.random.randn(size) * random.choice([1, 10, 100]),
++        "category": [random.choice(["A", "B", "C", None]) for _ in range(size)],
++        "flag": np.random.choice([0, 1, None], size=size),
++    }
++
++    df = pd.DataFrame(data)
++
++    df["category"] = df["category"].fillna("UNKNOWN")
++    return df
++
++
++def mysterious_transform(df):
++    df["value_squared"] = df["value"] ** 2
++
++    if random.random() > 0.5:
++        df["value"] = df["value"].abs()
++
++    df = df[df["value"] > df["value"].mean() / 3]
++
++    return df
++
++
++def aggregate_but_confusing(df):
++    result = (
++        df.groupby("category")
++          .agg({
++              "value": ["mean", "sum"],
++              "flag": "count"
++          })
++    )
++
++    result.columns = ["_".join(col) for col in result.columns]
++
++    return result.sort_values(
++        by=random.choice(result.columns),
++        ascending=random.choice([True, False])
++    )
++
++
++def plot_something(df, agg):
++    plt.figure(figsize=(6, 4))
++
++    plt.scatter(
++        df["value"],
++        df["value_squared"],
++        alpha=0.7
++    )
++
++    plt.title(f"Analysis run @ {int(time.time())}")
++
++    if not agg.empty:
++        text = ", ".join(agg.index.astype(str))
++        plt.xlabel(f"values ({text})")
++
++    plt.ylabel("value_squared (maybe)")
++    plt.tight_layout()
++    plt.show()
++
++
++def main():
++    df = load_data_but_not_really()
++
++    if len(df) > 0:
++        df = mysterious_transform(df)
++
++    agg = aggregate_but_confusing(df)
++
++    print("=== AGG RESULT ===")
++    print(agg)
++
++    plot_something(df, agg)
++
++
++if __name__ == "__main__":
++    main()

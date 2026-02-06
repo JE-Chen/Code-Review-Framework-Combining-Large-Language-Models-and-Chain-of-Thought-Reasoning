@@ -4,16 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c7802227-67ad-4e04-beaf-4bd7338f9cbd" name="Changes" comment="* Rename folder">
-      <change beforePath="$PROJECT_DIR$/codes/run/CoT/global_rule.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/run/CoT/global_rule.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/codes/run/Skills/code_explainer.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/run/Skills/code_explainer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/codes/run/ask_functions.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/run/ask_functions.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/codes/run/cot.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/run/cot.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/codes/run/skills.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/run/skills.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/codes/train/qwen3_lora_test.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/train/qwen3_lora_test.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/codes/util/qwen3_util.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/util/qwen3_util.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/conda_requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/conda_requirements.txt" afterDir="false" />
-    </list>
+    <list default="true" id="c7802227-67ad-4e04-beaf-4bd7338f9cbd" name="Changes" comment="* Edit conda_requirements.txt (Add new installation options)&#10;* Edit prompts.py&#10;* Edit run research script" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -121,11 +112,11 @@
       <window_info anchor="bottom" id="Version Control" order="0" weight="0.32994187" />
       <window_info anchor="bottom" id="Problems" order="1" />
       <window_info anchor="bottom" id="Problems View" order="2" />
-      <window_info anchor="bottom" id="Terminal" order="3" weight="0.35513565" />
+      <window_info active="true" anchor="bottom" id="Terminal" order="3" visible="true" weight="0.4123062" />
       <window_info anchor="bottom" id="Services" order="4" />
       <window_info anchor="bottom" id="Python Packages" order="5" weight="0.1" />
       <window_info anchor="bottom" id="Python Console" order="6" weight="0.1" />
-      <window_info active="true" anchor="bottom" id="Run" order="7" visible="true" weight="0.35513565" />
+      <window_info anchor="bottom" id="Run" order="7" weight="0.4123062" />
       <window_info anchor="bottom" id="Debug" order="8" weight="0.35513565" />
       <window_info anchor="right" id="Endpoints" />
       <window_info anchor="right" id="Remote Host" />
@@ -149,14 +140,14 @@
       <recent name="C:\CodeWorkspace\Python\LLM_Research\Architecture\v2" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/datas/Result/2026-02-06" />
       <recent name="$PROJECT_DIR$/codes/util" />
       <recent name="$PROJECT_DIR$/datas/code-to-detect/bad_data/Python" />
       <recent name="C:\CodeWorkspace\Python\LLM_Research\codes\run" />
       <recent name="C:\CodeWorkspace\Python\LLM_Research\datas\code-to-detect\code_diff\Python" />
-      <recent name="C:\CodeWorkspace\Python\LLM_Research\datas\code-to-detect\only_code\Python" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.skills">
+  <component name="RunManager" selected="Python.cot">
     <configuration name="14 (1)" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="LLM_Research" />
       <option name="ENV_FILES" value="" />
@@ -279,10 +270,10 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.cot" />
         <item itemvalue="Python.skills" />
         <item itemvalue="Python.qwen3_lora_test" />
         <item itemvalue="Python.qwen3" />
-        <item itemvalue="Python.cot" />
         <item itemvalue="Python.14 (1)" />
       </list>
     </recent_temporary>
@@ -374,7 +365,15 @@
       <option name="project" value="LOCAL" />
       <updated>1770240338746</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="* Edit conda_requirements.txt (Add new installation options)&#10;* Edit prompts.py&#10;* Edit run research script">
+      <option name="closed" value="true" />
+      <created>1770297504384</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1770297504384</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -395,7 +394,8 @@
     <MESSAGE value="Edit rag rules" />
     <MESSAGE value="* Rename folder&#10;* Edit training param (epochs, LR, etc..)" />
     <MESSAGE value="* Rename folder" />
-    <option name="LAST_COMMIT_MESSAGE" value="* Rename folder" />
+    <MESSAGE value="* Edit conda_requirements.txt (Add new installation options)&#10;* Edit prompts.py&#10;* Edit run research script" />
+    <option name="LAST_COMMIT_MESSAGE" value="* Edit conda_requirements.txt (Add new installation options)&#10;* Edit prompts.py&#10;* Edit run research script" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/LLM_Research$qwen3_lora_test.coverage" NAME="qwen3_lora_test Coverage Results" MODIFIED="1770223831211" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/train" />
@@ -413,7 +413,7 @@
     <SUITE FILE_PATH="coverage/LLM_Research$13.coverage" NAME="13 Coverage Results" MODIFIED="1769181277670" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
     <SUITE FILE_PATH="coverage/LLM_Research$2.coverage" NAME="2 Coverage Results" MODIFIED="1769165943321" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
     <SUITE FILE_PATH="coverage/LLM_Research$10__1_.coverage" NAME="10 (1) Coverage Results" MODIFIED="1769167490876" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
-    <SUITE FILE_PATH="coverage/LLM_Research$cot.coverage" NAME="cot Coverage Results" MODIFIED="1770003943654" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
+    <SUITE FILE_PATH="coverage/LLM_Research$cot.coverage" NAME="cot Coverage Results" MODIFIED="1770382881602" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
     <SUITE FILE_PATH="coverage/LLM_Research$qwen3.coverage" NAME="qwen3 Coverage Results" MODIFIED="1770204960296" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/train" />
     <SUITE FILE_PATH="coverage/LLM_Research$1__1_.coverage" NAME="1 (1) Coverage Results" MODIFIED="1769112140469" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
     <SUITE FILE_PATH="coverage/LLM_Research$12__1_.coverage" NAME="12 (1) Coverage Results" MODIFIED="1769180959096" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
