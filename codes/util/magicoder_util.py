@@ -53,5 +53,5 @@ def magicoder_ask(prompt: str, model, tokenizer, device):
     match = re.search(r"@@ Response\s*(.*)", result_text, re.DOTALL)
     if match:
         result_text = match.group(1).strip()
-    print(datetime.datetime.now(), "Generate done")
+    print(datetime.datetime.now(), "Generation completed.")
     return result_text

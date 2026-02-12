@@ -1,68 +1,64 @@
 JUDGE_TEMPLATE = """
-# Code Review Judge Template
+# Code Review Comment Evaluation Template
 
-## Global Rules
-{global_rules}
+Please evaluate the review comments using the following scoring mechanism.  
+Focus on whether the comments effectively help improve the code, especially by leveraging code smell and linter messages.
 
-Please conduct a code review for the Pull Request using the following scoring mechanism:
-
-Score range: 1–5.
+Score range: 1–100
 
 Six evaluation dimensions:
 1. Readability
-    - 1: Code is very hard to understand, lacks comments, inconsistent naming.
-    - 2: Some parts are readable, but many unclear sections remain; comments are minimal.
-    - 3: Code is generally clear, naming is reasonable, but structure or documentation needs improvement.
-    - 4: Code is well-structured, consistent naming, good comments, but could be refined further.
-    - 5: Code is highly readable, elegantly structured, with complete naming and thorough documentation.
+    - 1–20: Comments are very hard to understand, poorly structured, confusing language.
+    - 21–40: Some parts are readable, but many unclear sections remain.
+    - 41–60: Comments are generally clear, but structure or phrasing needs improvement.
+    - 61–80: Comments are well-structured, consistent, and easy to follow.
+    - 81–100: Comments are highly readable, elegantly phrased, and well-organized.
 
-
-2. Maintainability
-    - 1: Code is tightly coupled, not modular, difficult to maintain or extend.
-    - 2: Some modularity exists, but duplication or design flaws make maintenance challenging.
-    - 3: Basic modularity is present, maintainable but with potential issues or redundancies.
-    - 4: Well-designed and modular, easy to maintain, with minor room for improvement.
-    - 5: Highly modular, clean design, easy to extend and maintain long-term.
+2. Constructiveness (Maintainability)
+    - 1–20: Comments lack constructive suggestions, no improvement direction.
+    - 21–40: Comments provide partial suggestions, but vague or impractical.
+    - 41–60: Comments offer basic improvement ideas, somewhat helpful.
+    - 61–80: Comments are specific and actionable, clearly guiding improvements.
+    - 81–100: Comments are highly constructive, offering clear and practical improvement paths.
 
 3. Correctness
-    - 1: Contains obvious logical errors or bugs, insufficient testing.
-    - 2: Mostly correct, but significant edge cases remain unhandled.
-    - 3: Code is largely correct, only minor edge cases are missing.
-    - 4: Logically sound, well-tested, stable, with small improvements possible.
-    - 5: Fully correct, logically rigorous, thoroughly tested, highly stable.
+    - 1–20: Comments contain errors or misleading advice.
+    - 21–40: Mostly correct, but important issues are overlooked.
+    - 41–60: Largely correct, with only minor gaps.
+    - 61–80: Correct and reasonable, with small room for refinement.
+    - 81–100: Fully correct, logically sound, and precise in identifying issues.
 
 4. Conciseness
-    - 1: None of the review is related to the code change or identified topics.
-    - 2: Some of the review is related to the identified topics and static analysis feedback.
-    - 3: Roughly half of the review addresses relevant topics without excessive digression.
-    - 4: Most of the review effectively addresses identified topics without unnecessary content.
-    - 5: The entire review precisely addresses identified topics with optimal brevity.
-
+    - 1–20: Comments are overly long, irrelevant to code improvement.
+    - 21–40: Some relevant points, but too much unnecessary content.
+    - 41–60: About half of the comments are focused and relevant.
+    - 61–80: Most comments are concise and focused on improvement.
+    - 81–100: All comments are precise, concise, and directly related to improvement.
 
 5. Comprehensiveness
-    - 1: Review fails to address any identified topics or static analysis findings.
-    - 2: Review covers at least one code smell, linter warning, or important topic.
-    - 3: Review addresses approximately half of the identified topics.
-    - 4: Review covers most identified topics, including code smells and linter warnings.
-    - 5: Review comprehensively addresses virtually all identified topics and static analysis findings.
+    - 1–20: Comments fail to address any code smells or linter findings.
+    - 21–40: Comments mention at least one code smell or linter warning.
+    - 41–60: Comments cover some code smells or linter findings.
+    - 61–80: Comments cover most code smells and linter findings.
+    - 81–100: Comments comprehensively address all code smells and linter findings, with improvement suggestions.
 
 6. Relevance
     Relevance = (2 * Conciseness * Comprehensiveness) / (Conciseness + Comprehensiveness)
 
-
-Note: Scores of 2 and 4 indicate intermediate quality between the defined levels.
-
 Reviewers should:
-- Assign a score (1–5) for each dimension.
+- Assign a score (1–100) for each dimension.
 - Provide brief reasoning for each score.
 - Conclude with an average score and overall recommendation.
 
-## Total Summary
+## Review Comment:
 {total_summary}
 
-## First Code Review
-{first_code_review}
+## Code Smells:
+{code_smell_detector_messages}
 
-## Code Diff
+## Linter Messages:
+{linter_messages}
+
+## Origin code
 {code_diff}
 """

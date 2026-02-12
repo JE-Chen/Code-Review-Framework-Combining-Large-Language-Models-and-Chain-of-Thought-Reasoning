@@ -43,5 +43,5 @@ def llama3_ask(system_prompt: str, question_prompt: str, llm_pipeline):
         messages,
         max_new_tokens=2048,
     )
-    print(datetime.datetime.now(), "Generate done")
+    print(datetime.datetime.now(), "Generation completed.")
     return outputs

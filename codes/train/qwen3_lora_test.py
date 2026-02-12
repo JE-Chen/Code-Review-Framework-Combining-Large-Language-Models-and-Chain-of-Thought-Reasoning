@@ -59,7 +59,7 @@ except ValueError:
 
 thinking_content = tokenizer.decode(output_ids[:index], skip_special_tokens=True).strip("\n")
 content = tokenizer.decode(output_ids[index:], skip_special_tokens=True).strip("\n")
-print(datetime.datetime.now(), "Generate done")
+print(datetime.datetime.now(), "Generation completed.")
 
 print(thinking_content)
 print(content)
