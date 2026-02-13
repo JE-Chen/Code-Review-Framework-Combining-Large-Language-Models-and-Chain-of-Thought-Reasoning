@@ -1,0 +1,6 @@
+- **Variable Naming**: Rename `GLOBAL_DF` to `global_data` and `ANOTHER_GLOBAL` to `analysis_started` for clarity.  
+- **Function Clarity**: Split logic into smaller functions (e.g., `calculate_mean_age`, `generate_random_values`).  
+- **Modularity**: Extract DataFrame creation and random value generation into separate functions.  
+- **Logic Simplification**: Remove nested if-else and use explicit checks for mean age validation.  
+- **Error Handling**: Add explicit try-except blocks for critical operations.  
+- **Code Formatting**: Align indentation and add spaces between logical blocks.

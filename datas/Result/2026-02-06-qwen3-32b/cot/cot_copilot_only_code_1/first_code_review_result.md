@@ -1,0 +1,7 @@
+- **Deeply nested conditionals** in `doSomething` reduce readability. Refactor using guard clauses (e.g., early returns) to flatten logic and simplify control flow.  
+- **Unused parameters** (`g`, `h`, `i`, `j`) in `doSomething` should be removed to eliminate confusion and prevent future misuse.  
+- **Inconsistent return types**: Division branch returns float, others return int. Standardize to consistent types (e.g., all integers or floats) to avoid unexpected behavior.  
+- **Poor naming**: `doSomething` and single-letter parameters (`a`, `b`, etc.) lack semantic meaning. Replace with descriptive names (e.g., `calculate_result`, `threshold`, `value`).  
+- **Global variable dependency**: `processData` relies on global `dataList`. Pass `dataList` as a parameter to improve testability and reduce hidden coupling.  
+- **Missing documentation**: Add docstrings explaining purpose, parameters, and return values for all functions to clarify intent.  
+- **Hardcoded magic values** (e.g., `999999`, `123456789`) should be replaced with named constants for readability and maintainability.

@@ -1,0 +1,8 @@
+- **Naming Clarity**: Function `update_everything` is misleading—it updates state *and* processes input. Split into dedicated functions (e.g., `update_state()` and `process_input(data)`) for single responsibility.
+- **Global State Risk**: `STATE` is mutable global state. Causes hard-to-test logic and race conditions in multi-threaded production. Replace with a class or dependency injection.
+- **Route Misnaming**: `/health` should be named `health_check` for clarity. Current name implies a standard health endpoint (it isn’t).
+- **Arbitrary Delay**: `time.sleep(0.1)` in the route is a performance anti-pattern. Remove or make configurable (e.g., via config).
+- **Input Handling**: `int(x)` conversion without validation returns `"NaN-but-not-really"` on errors. Use explicit error handling (e.g., return 400 for invalid input).
+- **Documentation Gap**: Missing docstrings for all functions. Add brief descriptions (e.g., `update_state()` explains state mutation).
+- **Confusing Return Logic**: `update_everything` returns either a dict or string. Use consistent return types (e.g., always return a dict, or separate handlers).
+- **Security Note**: No input validation beyond exceptions. Critical for production (e.g., prevent type errors from malicious payloads).

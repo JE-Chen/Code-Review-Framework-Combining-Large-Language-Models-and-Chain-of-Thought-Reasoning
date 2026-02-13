@@ -1,0 +1,6 @@
+- **Global Variable Naming**: Use more descriptive names for `DATA_STORE` and `CONFIG` (e.g., `ITEMS_STORAGE` and `CONFIG_SETTINGS`).  
+- **Modularization**: Extract `reset_data` into a separate function for better encapsulation.  
+- **Error Handling**: Add specific exceptions (e.g., `ValueError`) and return formatted error messages.  
+- **Docstrings**: Add docstrings for critical endpoints (e.g., `complex_route`).  
+- **Config Management**: Store `CONFIG` in a separate module for better readability and maintainability.  
+- **Edge Case Coverage**: Validate threshold values (e.g., `threshold > 0`) and handle empty items.

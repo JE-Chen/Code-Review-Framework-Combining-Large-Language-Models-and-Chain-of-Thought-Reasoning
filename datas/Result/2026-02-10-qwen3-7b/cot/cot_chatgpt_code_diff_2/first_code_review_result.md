@@ -1,0 +1,6 @@
+- **Readability & Formatting**: Use consistent indentation (4 spaces), but add inline comments for unclear logic (e.g., score calculation in `do_everything`).  
+- **Naming Consistency**: Clarify variable names (e.g., `STATE` → `game_state` for clarity).  
+- **Modularity**: Extract game logic into separate functions (e.g., `do_everything`, `move_player`) for better separation.  
+- **Score Logic**: Clarify `delta * 10 % 7` intent (e.g., random score increments).  
+- **Edge Cases**: Add checks for invalid player positions or missing event handling.  
+- **Documentation**: Add docstrings for functions like `do_everything` and `draw_stuff`.

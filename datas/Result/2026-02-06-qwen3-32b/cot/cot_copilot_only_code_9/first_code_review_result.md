@@ -1,0 +1,7 @@
+- **Global Variable Abuse**: `GLOBAL_RESULTS` is a mutable global variable, making the code non-testable and prone to unexpected side effects. Replace with function return values and local collection.
+- **KeyError Risk**: In `process_data`, `p["title"]` and `c["email"]` are used directly after safe `.get()` checks, risking `KeyError` if data is missing. Use consistent `.get()` or store values in variables.
+- **Code Duplication**: Three nearly identical functions (`get_users`, `get_posts`, `get_comments`) violate DRY principle. Consolidate into a single helper with parameterized endpoint.
+- **Magic Number**: Hard-coded `id == 5` lacks context. Define as a constant (e.g., `SPECIAL_USER_ID = 5`) for clarity.
+- **Inconsistent Safety Checks**: Conditions use `.get()` but appenders rely on raw keys. Always use `.get()` for data access to prevent crashes.
+- **Missing Documentation**: Functions lack docstrings explaining purpose, parameters, and return values. Add concise descriptions.
+- **Overly Long `process_data`**: Combines data fetching, filtering, and result handling. Split into focused functions (e.g., `filter_special_users`, `filter_long_titles`).

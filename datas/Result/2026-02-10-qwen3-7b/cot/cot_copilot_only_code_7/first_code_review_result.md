@@ -1,0 +1,6 @@
+- **Global Variable Naming**: Use descriptive names like `GLOBAL_TEXT` → `TEXT` or `GLOBAL_COUNTER` → `COUNT`. Avoid all-caps for clarity.  
+- **Commenting**: Add docstrings for classes and functions, and explain global state logic (e.g., `GLOBAL_MODE` values).  
+- **Modularity**: Split `MainWindow` into smaller classes (e.g., `TextHandler`, `CounterManager`) for better organization.  
+- **Test Coverage**: Include unit tests for GUI interactions and edge cases (e.g., empty input, counter resets).  
+- **Clarity**: Improve function names (e.g., `handle_btn1` → `add_text`) and add inline comments for complex logic (e.g., counter validation).  
+- **Security**: Validate input in `handle_btn1` (e.g., trim whitespace or enforce length limits).
