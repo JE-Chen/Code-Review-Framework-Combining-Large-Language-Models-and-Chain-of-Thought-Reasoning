@@ -1,11 +1,10 @@
 import datetime
-import time
 from pathlib import Path
 
 from codes.run.CoT.step_by_step_analysis import STEP_BY_STEP_ANALYSIS_TEMPLATE
 from codes.util.qwen3_util import load_qwen3_model, qwen3_ask
 
-RUN_ON = "Qwen2.5-Coder"
+RUN_ON = "Qwen3-32B"
 
 # 載入 Qwen 的生成模型，用來生成答案
 match RUN_ON:

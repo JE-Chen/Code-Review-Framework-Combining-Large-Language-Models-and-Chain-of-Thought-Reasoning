@@ -1,0 +1,6 @@
+- **Indentation & Formatting**: Use 4 spaces consistently. Fix inconsistent indentation in `STATE` and `update_everything`.  
+- **Function Naming**: Rename `update_everything` to `update_state` for clarity. Clarify `mood` as `current_mood`.  
+- **Code Clarity**: Add docstrings to functions and explain the purpose of `update_everything`.  
+- **Logical Flow**: Remove redundant `time.sleep(0.1)` in root route (placeholder logic).  
+- **Error Handling**: Add validation for `data` input in root route.  
+- **Documentation**: Add comments explaining `STATE` and `health_check_but_not_really` logic.
