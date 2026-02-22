@@ -211,3 +211,4 @@ cython_debug/
 /codes/train/outputs-lora-qwen3-30b/
 /codes/train/outputs-lora-qwen3-1.7b/
 /codes/train/outputs-lora-qwen2.5-coder-7b/
+/codes/train/outputs-lora-qwen3-coder-30b/

@@ -5,7 +5,7 @@ from pathlib import Path
 from codes.run.ask_functions import get_rag_docs
 from codes.util.qwen3_util import load_qwen3_model, qwen3_ask
 
-RUN_ON = "Qwen2.5-Coder"
+RUN_ON = "Qwen/Qwen3-Coder-30B-A3B-Instruct"
 
 # 載入 Qwen 的生成模型，用來生成答案
 match RUN_ON:
@@ -17,6 +17,10 @@ match RUN_ON:
         gen_tokenizer, gen_model = load_qwen3_model(
             model_name="Qwen/Qwen2.5-Coder-7B-Instruct",
             lora_path="../train/outputs-lora-qwen2.5-coder-7b")
+    case "Qwen/Qwen3-Coder-30B-A3B-Instruct":
+        gen_tokenizer, gen_model = load_qwen3_model(
+            model_name="Qwen/Qwen3-Coder-30B-A3B-Instruct",
+            lora_path="../train/outputs-lora-qwen3-coder-30b")
     case _:
         gen_tokenizer, gen_model = load_qwen3_model(
             lora_path="../train/outputs-lora-qwen3-30b")
