@@ -8,7 +8,7 @@ from peft import PeftModel
 def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3B-Thinking-2507"):
 
     print("Loading model across all GPUs...")
-    if model_name in ["Qwen/Qwen3-30B-A3B-Thinking-2507"]:
+    if model_name in ["Qwen/Qwen3-30B-A3B-Thinking-2507", "Qwen/Qwen3-Coder-30B-A3B-Instruct"]:
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_use_double_quant=True,

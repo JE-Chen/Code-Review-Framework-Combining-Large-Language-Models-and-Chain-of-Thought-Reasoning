@@ -6,7 +6,7 @@ from peft import PeftModel
 
 # 路徑：基底模型 + 你訓練好的 LoRA 輸出資料夾
 base_model = "Qwen/Qwen3-30B-A3B-Thinking-2507"
-lora_path = "./outputs-lora-qwen3-30b"
+lora_path = "outputs-lora-qwen3-30b"
 
 # 載入 tokenizer
 tokenizer = AutoTokenizer.from_pretrained(base_model)
