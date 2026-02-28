@@ -4,110 +4,51 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c7802227-67ad-4e04-beaf-4bd7338f9cbd" name="Changes" comment="* Add Compare folder&#10;* Add CRScore.md under compare folder">
-      <change afterPath="$PROJECT_DIR$/codes/run/build_crscore_llm_judge.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/codes/run/run_single_prompt.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/codes/run/singel_prompt.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Prompts/CoT/step_by_step_analysis.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-06-qwen3-32b/cot/cot_chatgpt_bad_data_1/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/all_crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_bad_data_1/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_bad_data_1/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_bad_data_2/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_bad_data_2/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_1/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_1/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_2/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_2/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_3/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_3/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_4/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_4/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_5/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_5/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_6/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_6/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_1/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_1/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_10/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_10/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_11/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_11/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_12/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_12/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_13/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_13/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_14/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_14/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_2/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_2/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_3/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_3/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_4/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_4/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_5/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_5/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_6/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_6/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_7/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_7/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_8/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_8/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_9/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_9/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_bad_data_1/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_bad_data_1/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_bad_data_2/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_bad_data_2/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_1/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_1/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_2/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_2/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_3/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_3/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_4/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_4/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_5/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_5/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_6/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_6/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_1/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_1/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_10/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_10/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_11/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_11/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_12/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_12/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_13/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_13/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_14/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_14/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_2/crscoe_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_2/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_3/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_3/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_4/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_4/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_5/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_5/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_6/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_6/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_7/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_7/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_8/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_8/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_9/crscore_llm_judge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_9/crscore_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/score.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/codes/run/CoT/CRSCORE/crscore_llm_as_judge.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/run/CoT/CRSCORE/crscore_llm_as_judge.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/codes/run/CoT/linter.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/run/CoT/linter.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/codes/run/crscore_cot.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/run/crscore_cot.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Compare/CRScore.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Compare/CRSCORE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Prompts/CoT/CRSCORE/crscore_llm_as_judge.py" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Prompts/CoT/CRSCORE/crscore_llm_as_judge.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/fine-tune-param.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/fine_tuning_data/generate_datas_prompt.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/fine_tuning_data/generate_datas_prompt.md" afterDir="false" />
+    <list default="true" id="c7802227-67ad-4e04-beaf-4bd7338f9cbd" name="Changes" comment="* Add results&#10;* Add scores">
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_bad_data_1/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_bad_data_1/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_bad_data_2/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_bad_data_2/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_code_diff_1/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_code_diff_1/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_code_diff_2/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_code_diff_2/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_code_diff_3/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_code_diff_3/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_code_diff_4/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_code_diff_4/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_code_diff_5/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_code_diff_5/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_code_diff_6/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_code_diff_6/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_only_code_1/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_only_code_1/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_only_code_10/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_only_code_10/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_only_code_11/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_only_code_11/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_only_code_12/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_only_code_12/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_only_code_13/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_only_code_13/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_only_code_14/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_only_code_14/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_only_code_2/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_only_code_2/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_only_code_3/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_only_code_3/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_only_code_4/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_only_code_4/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_only_code_5/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_only_code_5/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_only_code_6/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_only_code_6/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_only_code_7/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_only_code_7/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_only_code_8/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_only_code_8/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_chatgpt_only_code_9/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_chatgpt_only_code_9/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_bad_data_1/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_bad_data_1/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_bad_data_2/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_bad_data_2/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_code_diff_1/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_code_diff_1/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_code_diff_2/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_code_diff_2/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_code_diff_3/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_code_diff_3/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_code_diff_4/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_code_diff_4/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_code_diff_5/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_code_diff_5/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_code_diff_6/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_code_diff_6/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_only_code_1/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_only_code_1/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_only_code_10/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_only_code_10/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_only_code_11/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_only_code_11/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_only_code_12/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_only_code_12/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_only_code_13/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_only_code_13/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_only_code_14/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_only_code_14/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_only_code_2/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_only_code_2/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_only_code_3/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_only_code_3/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_only_code_4/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_only_code_4/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_only_code_5/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_only_code_5/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_only_code_6/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_only_code_6/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_only_code_7/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_only_code_7/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_only_code_8/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_only_code_8/single_code_review_prompt_result.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/cot_copilot_only_code_9/single_code_review_prompt_result.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps/cot_copilot_only_code_9/single_code_review_prompt_result.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -250,11 +191,11 @@
       <recent name="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/skills" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-any-steps" />
       <recent name="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-multi-steps" />
       <recent name="$PROJECT_DIR$/datas/Result/2026-02-27-qwen3-coder-30b-no-fine-tuning-no-rag" />
       <recent name="$PROJECT_DIR$/codes/run/cot" />
       <recent name="$PROJECT_DIR$/codes/run" />
-      <recent name="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b" />
     </key>
   </component>
   <component name="RunManager" selected="Python.run_single_prompt">
@@ -450,7 +391,7 @@
       <workItem from="1769635161687" duration="27079000" />
       <workItem from="1769856306969" duration="2600000" />
       <workItem from="1769965563003" duration="8742000" />
-      <workItem from="1770384969737" duration="308619000" />
+      <workItem from="1770384969737" duration="308931000" />
     </task>
     <task id="LOCAL-00001" summary="Edit rag rules">
       <option name="closed" value="true" />
@@ -516,7 +457,23 @@
       <option name="project" value="LOCAL" />
       <updated>1771867614399</updated>
     </task>
-    <option name="localTasksCounter" value="9" />
+    <task id="LOCAL-00009" summary="* Add results&#10;* Add scores">
+      <option name="closed" value="true" />
+      <created>1772273652422</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1772273652422</updated>
+    </task>
+    <task id="LOCAL-00010" summary="* Add results&#10;* Add scores">
+      <option name="closed" value="true" />
+      <created>1772273683833</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1772273683833</updated>
+    </task>
+    <option name="localTasksCounter" value="11" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -542,7 +499,8 @@
     <MESSAGE value="* Add crscore_cot.py&#10;* Run crscore_cot.py and collect results" />
     <MESSAGE value="* Add results" />
     <MESSAGE value="* Add Compare folder&#10;* Add CRScore.md under compare folder" />
-    <option name="LAST_COMMIT_MESSAGE" value="* Add Compare folder&#10;* Add CRScore.md under compare folder" />
+    <MESSAGE value="* Add results&#10;* Add scores" />
+    <option name="LAST_COMMIT_MESSAGE" value="* Add results&#10;* Add scores" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/LLM_Research$qwen3_lora_test.coverage" NAME="qwen3_lora_test Coverage Results" MODIFIED="1770223831211" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/train" />
