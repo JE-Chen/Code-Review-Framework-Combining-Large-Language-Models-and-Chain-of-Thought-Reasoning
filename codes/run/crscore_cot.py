@@ -18,8 +18,7 @@ match RUN_ON:
             lora_path="../train/outputs-lora-qwen2.5-coder-7b")
     case "Qwen/Qwen3-Coder-30B-A3B-Instruct":
         gen_tokenizer, gen_model = load_qwen3_model(
-            model_name="Qwen/Qwen3-Coder-30B-A3B-Instruct",
-            lora_path="../train/outputs-lora-qwen3-coder-30b")
+            model_name="Qwen/Qwen3-Coder-30B-A3B-Instruct")
     case _:
         gen_tokenizer, gen_model = load_qwen3_model(
             lora_path="../train/outputs-lora-qwen3-30b")
@@ -28,7 +27,7 @@ match RUN_ON:
 def list_and_ask_qwen(root_folder: str):
     root_path = Path(root_folder)
     for folder_path in root_path.rglob("*"):
-        if "cot" in folder_path.name in folder_path.name:
+        if "cot" in folder_path.name:
             if folder_path.is_dir():
                 code_smell_result = None
                 linter_result = None

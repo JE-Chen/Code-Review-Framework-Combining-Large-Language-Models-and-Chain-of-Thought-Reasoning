@@ -4,9 +4,110 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c7802227-67ad-4e04-beaf-4bd7338f9cbd" name="Changes" comment="* Add results">
-      <change afterPath="$PROJECT_DIR$/datas/Compare/CRScore.md" afterDir="false" />
+    <list default="true" id="c7802227-67ad-4e04-beaf-4bd7338f9cbd" name="Changes" comment="* Add Compare folder&#10;* Add CRScore.md under compare folder">
+      <change afterPath="$PROJECT_DIR$/codes/run/build_crscore_llm_judge.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/codes/run/run_single_prompt.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/codes/run/singel_prompt.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Prompts/CoT/step_by_step_analysis.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-06-qwen3-32b/cot/cot_chatgpt_bad_data_1/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/all_crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_bad_data_1/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_bad_data_1/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_bad_data_2/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_bad_data_2/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_1/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_1/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_2/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_2/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_3/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_3/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_4/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_4/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_5/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_5/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_6/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_code_diff_6/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_1/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_1/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_10/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_10/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_11/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_11/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_12/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_12/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_13/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_13/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_14/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_14/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_2/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_2/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_3/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_3/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_4/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_4/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_5/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_5/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_6/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_6/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_7/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_7/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_8/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_8/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_9/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_chatgpt_only_code_9/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_bad_data_1/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_bad_data_1/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_bad_data_2/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_bad_data_2/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_1/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_1/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_2/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_2/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_3/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_3/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_4/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_4/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_5/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_5/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_6/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_code_diff_6/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_1/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_1/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_10/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_10/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_11/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_11/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_12/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_12/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_13/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_13/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_14/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_14/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_2/crscoe_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_2/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_3/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_3/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_4/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_4/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_5/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_5/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_6/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_6/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_7/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_7/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_8/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_8/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_9/crscore_llm_judge.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/cot/cot_copilot_only_code_9/crscore_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/score.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/CoT/CRSCORE/crscore_llm_as_judge.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/run/CoT/CRSCORE/crscore_llm_as_judge.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/CoT/linter.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/run/CoT/linter.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codes/run/crscore_cot.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/run/crscore_cot.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/datas/Compare/CRScore.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Compare/CRSCORE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/datas/Prompts/CoT/CRSCORE/crscore_llm_as_judge.py" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Prompts/CoT/CRSCORE/crscore_llm_as_judge.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/datas/fine-tune-param.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/datas/fine_tuning_data/generate_datas_prompt.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/fine_tuning_data/generate_datas_prompt.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -67,6 +168,7 @@
     "Python.7 (1).executor": "Run",
     "Python.7.executor": "Run",
     "Python.9.executor": "Run",
+    "Python.build_crscore_llm_judge.executor": "Run",
     "Python.cot.executor": "Run",
     "Python.crscore_cot.executor": "Run",
     "Python.qwen2.5-7b.executor": "Run",
@@ -74,6 +176,7 @@
     "Python.qwen3.1-7b.executor": "Run",
     "Python.qwen3.executor": "Run",
     "Python.qwen3_lora_test.executor": "Run",
+    "Python.run_single_prompt.executor": "Run",
     "Python.skills.executor": "Run",
     "Python.test.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
@@ -87,7 +190,7 @@
     "git-widget-placeholder": "main",
     "ignore.virus.scanning.warn.message": "true",
     "junie.onboarding.icon.badge.shown": "true",
-    "last_opened_file_path": "/home/nknul40s/LLM_Research/datas/Result/2026-02-15-qwen3-coder-30b/skills",
+    "last_opened_file_path": "/home/nknul40s/LLM_Research/datas/Prompts",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -102,13 +205,13 @@
     <layout>
       <window_info id="Bookmarks" side_tool="true" />
       <window_info id="Merge Requests" />
-      <window_info id="AI Playground" side_tool="true" />
       <window_info id="Backup and Sync History" />
       <window_info id="Pull Requests" />
       <window_info id="Learn" show_stripe_button="false" />
-      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.2252604" />
-      <window_info id="Commit" order="1" weight="0.2252604" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" sideWeight="0.41442156" visible="true" weight="0.25598958" />
+      <window_info id="Commit" order="1" weight="0.25598958" />
       <window_info id="Structure" order="2" side_tool="true" weight="0.25" />
+      <window_info id="AI Playground" order="3" sideWeight="0.58557844" side_tool="true" weight="0.35302734" />
       <window_info anchor="bottom" id="Database Changes" />
       <window_info anchor="bottom" id="TypeScript" />
       <window_info anchor="bottom" id="TODO" />
@@ -116,11 +219,11 @@
       <window_info anchor="bottom" id="Version Control" order="0" />
       <window_info anchor="bottom" id="Problems" order="1" />
       <window_info anchor="bottom" id="Problems View" order="2" />
-      <window_info anchor="bottom" id="Terminal" order="3" weight="0.32994187" />
+      <window_info anchor="bottom" id="Terminal" order="3" weight="0.2621124" />
       <window_info anchor="bottom" id="Services" order="4" />
       <window_info anchor="bottom" id="Python Packages" order="5" weight="0.1" />
-      <window_info anchor="bottom" id="Python Console" order="6" weight="0.1" />
-      <window_info anchor="bottom" id="Run" order="7" weight="0.32994187" />
+      <window_info anchor="bottom" id="Python Console" order="6" weight="0.32994187" />
+      <window_info active="true" anchor="bottom" id="Run" order="7" visible="true" weight="0.2621124" />
       <window_info anchor="bottom" id="Debug" order="8" weight="0.35513565" />
       <window_info anchor="bottom" id="Find" order="8" weight="0.32994187" />
       <window_info anchor="bottom" id="HfCacheToolWindow" order="9" weight="0.32994187" />
@@ -140,21 +243,45 @@
   </component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
-      <recent name="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/skills" />
-      <recent name="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b" />
-      <recent name="$PROJECT_DIR$/codes/train" />
+      <recent name="$PROJECT_DIR$/datas/Prompts" />
       <recent name="$PROJECT_DIR$/codes/run" />
-      <recent name="$PROJECT_DIR$/datas/Result/2026-02-10-qwen3-7b" />
+      <recent name="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b" />
+      <recent name="$PROJECT_DIR$/codes/run/CoT" />
+      <recent name="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b/skills" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/datas/Result/2026-02-28-qwen3-coder-30b-no-multi-steps" />
+      <recent name="$PROJECT_DIR$/datas/Result/2026-02-27-qwen3-coder-30b-no-fine-tuning-no-rag" />
       <recent name="$PROJECT_DIR$/codes/run/cot" />
-      <recent name="$PROJECT_DIR$/datas/Result/2026-02-06-qwen3-32b" />
-      <recent name="$PROJECT_DIR$/datas/Result/2026-02-11-qwen2_5-coder/skills" />
-      <recent name="$PROJECT_DIR$/codes/run/CoT/CRSCORE" />
-      <recent name="$PROJECT_DIR$/datas/Result/2026-02-11-qwen2_5-coder/cot" />
+      <recent name="$PROJECT_DIR$/codes/run" />
+      <recent name="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.skills">
+  <component name="RunManager" selected="Python.run_single_prompt">
+    <configuration name="build_crscore_llm_judge" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="LLM_Research" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/codes/run" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="RUN_TOOL" value="" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/codes/run/build_crscore_llm_judge.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <configuration name="cot" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="LLM_Research" />
       <option name="ENV_FILES" value="" />
@@ -203,7 +330,7 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="qwen2.5-7b" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+    <configuration name="run_single_prompt" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="LLM_Research" />
       <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -212,37 +339,13 @@
         <env name="PYTHONUNBUFFERED" value="1" />
       </envs>
       <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/codes/train" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/codes/run" />
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="RUN_TOOL" value="" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/codes/train/qwen2.5-7b.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration name="qwen3-coder-30b" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
-      <module name="LLM_Research" />
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/codes/train" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-      <option name="RUN_TOOL" value="" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/codes/train/qwen3-coder-30b.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/codes/run/run_single_prompt.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -277,11 +380,11 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.skills" />
+        <item itemvalue="Python.run_single_prompt" />
+        <item itemvalue="Python.build_crscore_llm_judge" />
         <item itemvalue="Python.crscore_cot" />
         <item itemvalue="Python.cot" />
-        <item itemvalue="Python.qwen3-coder-30b" />
-        <item itemvalue="Python.qwen2.5-7b" />
+        <item itemvalue="Python.skills" />
       </list>
     </recent_temporary>
   </component>
@@ -347,7 +450,7 @@
       <workItem from="1769635161687" duration="27079000" />
       <workItem from="1769856306969" duration="2600000" />
       <workItem from="1769965563003" duration="8742000" />
-      <workItem from="1770384969737" duration="239425000" />
+      <workItem from="1770384969737" duration="308619000" />
     </task>
     <task id="LOCAL-00001" summary="Edit rag rules">
       <option name="closed" value="true" />
@@ -405,7 +508,15 @@
       <option name="project" value="LOCAL" />
       <updated>1771777512666</updated>
     </task>
-    <option name="localTasksCounter" value="8" />
+    <task id="LOCAL-00008" summary="* Add Compare folder&#10;* Add CRScore.md under compare folder">
+      <option name="closed" value="true" />
+      <created>1771867614399</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1771867614399</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -430,11 +541,12 @@
     <MESSAGE value="* Add CRSCORE cot&#10;* Add qwen3.1-7b.py&#10;* Add qwen2.5-7b.py" />
     <MESSAGE value="* Add crscore_cot.py&#10;* Run crscore_cot.py and collect results" />
     <MESSAGE value="* Add results" />
-    <option name="LAST_COMMIT_MESSAGE" value="* Add results" />
+    <MESSAGE value="* Add Compare folder&#10;* Add CRScore.md under compare folder" />
+    <option name="LAST_COMMIT_MESSAGE" value="* Add Compare folder&#10;* Add CRScore.md under compare folder" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/LLM_Research$qwen3_lora_test.coverage" NAME="qwen3_lora_test Coverage Results" MODIFIED="1770223831211" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/train" />
-    <SUITE FILE_PATH="coverage/LLM_Research$crscore_cot.coverage" NAME="crscore_cot Coverage Results" MODIFIED="1771123295490" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
+    <SUITE FILE_PATH="coverage/LLM_Research$crscore_cot.coverage" NAME="crscore_cot Coverage Results" MODIFIED="1772170323370" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
     <SUITE FILE_PATH="coverage/LLM_Research$test.coverage" NAME="test Coverage Results" MODIFIED="1769065438705" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect" />
     <SUITE FILE_PATH="coverage/LLM_Research$skills.coverage" NAME="skills Coverage Results" MODIFIED="1771163066442" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
     <SUITE FILE_PATH="coverage/LLM_Research$3.coverage" NAME="3 Coverage Results" MODIFIED="1769165939160" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
@@ -451,16 +563,18 @@
     <SUITE FILE_PATH="coverage/LLM_Research$13.coverage" NAME="13 Coverage Results" MODIFIED="1769181277670" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
     <SUITE FILE_PATH="coverage/LLM_Research$2.coverage" NAME="2 Coverage Results" MODIFIED="1769165943321" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
     <SUITE FILE_PATH="coverage/LLM_Research$10__1_.coverage" NAME="10 (1) Coverage Results" MODIFIED="1769167490876" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
-    <SUITE FILE_PATH="coverage/LLM_Research$cot.coverage" NAME="cot Coverage Results" MODIFIED="1771036783027" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
+    <SUITE FILE_PATH="coverage/LLM_Research$cot.coverage" NAME="cot Coverage Results" MODIFIED="1772117388248" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
     <SUITE FILE_PATH="coverage/LLM_Research$qwen3.coverage" NAME="qwen3 Coverage Results" MODIFIED="1770204960296" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/train" />
     <SUITE FILE_PATH="coverage/LLM_Research$1__1_.coverage" NAME="1 (1) Coverage Results" MODIFIED="1769112140469" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
     <SUITE FILE_PATH="coverage/LLM_Research$qwen3_1_7b.coverage" NAME="qwen3.1-7b Coverage Results" MODIFIED="1770696787144" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/train" />
     <SUITE FILE_PATH="coverage/LLM_Research$12__1_.coverage" NAME="12 (1) Coverage Results" MODIFIED="1769180959096" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
     <SUITE FILE_PATH="coverage/LLM_Research$7__1_.coverage" NAME="7 (1) Coverage Results" MODIFIED="1769166926727" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
     <SUITE FILE_PATH="coverage/LLM_Research$4.coverage" NAME="4 Coverage Results" MODIFIED="1769165322542" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
+    <SUITE FILE_PATH="coverage/LLM_Research$run_single_prompt.coverage" NAME="run_single_prompt Coverage Results" MODIFIED="1772206650322" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
     <SUITE FILE_PATH="coverage/LLM_Research$2__1_.coverage" NAME="2 (1) Coverage Results" MODIFIED="1769112319970" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
     <SUITE FILE_PATH="coverage/LLM_Research$4__1_.coverage" NAME="4 (1) Coverage Results" MODIFIED="1769166247319" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
     <SUITE FILE_PATH="coverage/LLM_Research$1.coverage" NAME="1 Coverage Results" MODIFIED="1769112134568" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
     <SUITE FILE_PATH="coverage/LLM_Research$9.coverage" NAME="9 Coverage Results" MODIFIED="1769167092184" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$build_crscore_llm_judge.coverage" NAME="build_crscore_llm_judge Coverage Results" MODIFIED="1772184295626" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
   </component>
 </project>
