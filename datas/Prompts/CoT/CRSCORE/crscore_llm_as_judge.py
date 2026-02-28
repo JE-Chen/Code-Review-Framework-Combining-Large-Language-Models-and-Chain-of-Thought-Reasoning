@@ -60,15 +60,13 @@ scoring 1 is neither concise nor comprehensive,
 effectively making relevance a combined score
 of conciseness and comprehensiveness. You
 should give your final rating in a section
-titled \### Final Scores:". If a review scores
-4 on comprehensiveness, 2 on conciseness, and 3
-on relevance give the final scores as shown
+titled \### Final Scores:". give the final scores as shown
 below (please follow the exact format).
 
 ### Final Scores:
 ```
-{"comprehensiveness": 4, "conciseness": 2,
-"relevance": 3}
+("comprehensiveness": your score, "conciseness": your score,
+"relevance": your score)
 ```
 Now start your analysis starting with the \###
 Topics to be Covered:", followed by "###
@@ -76,5 +74,5 @@ Step-by-Step Analysis of Review Comment:" and
 ending with the \### Final Scores:".
 
 ### Topics to be Covered:
-{topics_to_be_covered}
+(topics_to_be_covered)
 """
