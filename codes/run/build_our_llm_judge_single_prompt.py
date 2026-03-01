@@ -1,0 +1,28 @@
+from pathlib import Path
+
+from codes.run.CoT_Prompts.judge_singel_review import JUDGE_SINGLE_REVIEW_TEMPLATE
+
+
+def build_llm_judge_prompt(root_folder: str):
+    root_path = Path(root_folder)
+    for folder_path in root_path.rglob("*"):
+        if "cot" in folder_path.name:
+            if folder_path.is_dir():
+                single_code_review_prompt_result = None
+                for file_path in folder_path.iterdir():
+                    if file_path.name == "single_code_review_prompt_result.md":
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            single_code_review_prompt_result = f.read()
+                review_comment = single_code_review_prompt_result
+                judge_prompt = JUDGE_SINGLE_REVIEW_TEMPLATE.format(
+                    code_diff="\n\n",
+                    review_comment=review_comment,
+                )
+                with open(str(Path(str(folder_path) + "/" + "our_llm_judge_single_review.md")), "w+",
+                          encoding="utf-8") as f:
+                    f.write(judge_prompt)
+
+
+if __name__ == "__main__":
+    target_folder = "./cot"
+    build_llm_judge_prompt(target_folder)
