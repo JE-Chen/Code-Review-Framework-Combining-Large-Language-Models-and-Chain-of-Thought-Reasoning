@@ -1,11 +1,11 @@
 from pathlib import Path
 
-from codes.run.CoT.code_smell_detector import CODE_SMELL_DETECTOR_TEMPLATE
-from codes.run.CoT.first_code_review import FIRST_CODE_REVIEW_TEMPLATE
-from codes.run.CoT.first_summary_prompt import FIRST_SUMMARY_TEMPLATE
-from codes.run.CoT.global_rule import build_global_rule_template
-from codes.run.CoT.linter import LINTER_TEMPLATE
-from codes.run.CoT.total_summary import TOTAL_SUMMARY_TEMPLATE
+from codes.run.CoT_Prompts.code_smell_detector import CODE_SMELL_DETECTOR_TEMPLATE
+from codes.run.CoT_Prompts.first_code_review import FIRST_CODE_REVIEW_TEMPLATE
+from codes.run.CoT_Prompts.first_summary_prompt import FIRST_SUMMARY_TEMPLATE
+from codes.run.CoT_Prompts.global_rule import build_global_rule_template
+from codes.run.CoT_Prompts.linter import LINTER_TEMPLATE
+from codes.run.CoT_Prompts.total_summary import TOTAL_SUMMARY_TEMPLATE
 from codes.run.ask_functions import get_rag_docs
 from codes.util.qwen3_util import load_qwen3_model, qwen3_ask
 

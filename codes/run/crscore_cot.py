@@ -1,7 +1,7 @@
 import datetime
 from pathlib import Path
 
-from codes.run.CoT.step_by_step_analysis import STEP_BY_STEP_ANALYSIS_TEMPLATE
+from codes.run.CoT_Prompts.step_by_step_analysis import STEP_BY_STEP_ANALYSIS_TEMPLATE
 from codes.util.qwen3_util import load_qwen3_model, qwen3_ask
 
 RUN_ON = "Qwen/Qwen3-Coder-30B-A3B-Instruct"

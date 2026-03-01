@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from codes.run.CoT.CRSCORE.crscore_llm_as_judge import CRSCore_JUDGE_TEMPLATE
+from codes.run.CoT_Prompts.CRSCORE.crscore_llm_as_judge import CRSCore_JUDGE_TEMPLATE
 
 
 def build_llm_judge_prompt(root_folder: str):
