@@ -58,7 +58,7 @@ def main():
     print("High Scores:", highs)
 
     misc_result = process_misc()
-    print("Misc Result:", misc_result)
+    print("Misc Results:", misc_result)
 
     if DATA["config"]["mode"] == "X":
         if DATA["config"]["flags"][0]:

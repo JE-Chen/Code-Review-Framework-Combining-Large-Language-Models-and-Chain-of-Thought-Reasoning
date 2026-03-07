@@ -48,7 +48,7 @@ def process_data():
 def main():
     process_data()
     for r in GLOBAL_RESULTS:
-        print("Result:", r)
+        print("Results:", r)
 
     if len(GLOBAL_RESULTS) > 0:
         if len(GLOBAL_RESULTS) < 10:

@@ -45,7 +45,7 @@ def main():
     calcStats()
     plotData()
     for item in resultList:
-        print("Result:", item)
+        print("Results:", item)
 
 if __name__ == "__main__":
     main()

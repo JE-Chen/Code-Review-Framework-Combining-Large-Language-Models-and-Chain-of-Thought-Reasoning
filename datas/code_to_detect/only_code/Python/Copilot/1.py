@@ -34,7 +34,7 @@ def processData():
 
 def main():
     val = doSomething(11, 4, 3, 2, "yes", "no", None, None, None, None)
-    print("Result:", val)
+    print("Results:", val)
 
     print("Process:", processData())
 

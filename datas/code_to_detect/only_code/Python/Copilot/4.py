@@ -47,7 +47,7 @@ def main():
     try:
         content = read_file("data.txt")
         result = process_data(content)
-        print("Result:", result)
+        print("Results:", result)
     except Exception as e:
         print("Main error:", e)
 
