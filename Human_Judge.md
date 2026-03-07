@@ -45,7 +45,7 @@
 ---
 
 ### 4. Multi-Review Coverage, Structural Independence & Extractability  
-（多重覆蓋、結構獨立性與可抽取性）
+（多重審查覆蓋率、結構獨立性與可抽取性）
 
 #### 評估面向
 - 是否涵蓋多份審查報告中的重要問題  
