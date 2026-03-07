@@ -4,3 +4,4 @@ accelerate
 bitsandbytes
 peft
 datasets
+fastapi
