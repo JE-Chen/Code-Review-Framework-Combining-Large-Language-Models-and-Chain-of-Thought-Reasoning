@@ -70,7 +70,7 @@ def main():
         result = process(service)
 
     print("Users:", users)
-    print("Result:", result)
+    print("Results:", result)
 
 
 if __name__ == "__main__":

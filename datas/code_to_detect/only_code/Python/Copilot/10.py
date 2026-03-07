@@ -60,7 +60,7 @@ def process_all():
 def main():
     results = process_all()
     for r in results:
-        print("Result:", r)
+        print("Results:", r)
 
     if len(results) > 0:
         if len(results) < 5:

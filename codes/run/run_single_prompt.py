@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from codes.run.singel_prompt import SINGLE_CODE_REVIEW_PROMPT
+from codes.run.single_prompt import SINGLE_CODE_REVIEW_PROMPT
 from codes.util.qwen3_util import load_qwen3_model, qwen3_ask
 
 RUN_ON = "Qwen/Qwen3-Coder-30B-A3B-Instruct"

@@ -10,10 +10,10 @@ Your task is to synthesize all provided review artifacts into a single, well-rea
 ## Requirements
 
 - Use **all provided inputs** as evidence:
-  - First Code Review Result
-  - First Summary Result
-  - Linter Result
-  - Code Smell Result
+  - First Code Review Results
+  - First Summary Results
+  - Linter Results
+  - Code Smell Results
   - Code Diff
 - The final summary must clearly reflect **actual findings** from the above inputs.
 - Avoid generic statements such as “code quality is good” unless directly supported by the data.
@@ -49,16 +49,16 @@ Constraints:
 
 ---
 
-## First Code Review Result
+## First Code Review Results
 {first_code_review}
 
-## First Summary Result
+## First Summary Results
 {first_summary}
 
-## Linter Result
+## Linter Results
 {linter_result}
 
-## Code Smell Result
+## Code Smell Results
 {code_smell_result}
 
 ## Code Diff

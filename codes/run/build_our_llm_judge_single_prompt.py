@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from codes.run.CoT_Prompts.judge_singel_review import JUDGE_SINGLE_REVIEW_TEMPLATE
+from codes.run.CoT_Prompts.judge_single_review import JUDGE_SINGLE_REVIEW_TEMPLATE
 
 
 def build_llm_judge_prompt(root_folder: str):

@@ -22,10 +22,10 @@ Instructions:
 5. **Best Practice Note**  
    - Mention a general guideline or principle (e.g., SOLID, DRY, naming conventions) that helps prevent similar issues.
 
-## Linter Result
+## Linter Results
 {linter_result}
 
-## Code Smell Result
+## Code Smell Results
 {code_smell_result}
 
 Output Format:
