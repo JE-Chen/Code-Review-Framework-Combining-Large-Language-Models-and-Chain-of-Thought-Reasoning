@@ -3,21 +3,12 @@ import gc
 import torch
 
 from codes.util.qwen3_util import load_qwen3_model, qwen3_ask
-from codes.util.prompt_define import system_prompt_define, question_prompt_define
 
-system_prompt = system_prompt_define
-ask_prompt = question_prompt_define
+model, tokenizer = load_qwen3_model(model_name="Qwen/Qwen3.5-4B")
 
-model, tokenizer = load_qwen3_model()
+gc.collect()
+torch.cuda.empty_cache()
 
-for i in range(10):
+result = qwen3_ask("你可以解釋程式碼異味嗎", model, tokenizer)[0]
 
-    gc.collect()
-    torch.cuda.empty_cache()
-
-    result = qwen3_ask(system_prompt, ask_prompt, model, tokenizer)[0]
-
-    print("content: \n", result)
-
-    with open(f"qwen3_response_{i}.md", "w+") as file:
-        file.write(result)
+print("content: \n", result)
