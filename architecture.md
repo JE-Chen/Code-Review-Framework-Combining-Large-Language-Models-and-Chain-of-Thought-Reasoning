@@ -81,6 +81,57 @@ graph TB
     style JUDGE fill:#efebe9
 ```
 
+## Knowledge Distillation Training Flow
+
+```mermaid
+graph TB
+    TEACHER["Teacher LLM<br/>大型高能力模型"]
+    GEN_PROMPT["generate_datas_prompt.md<br/>蒸餾用提示模板"]
+    TEACHER --> GEN
+    GEN_PROMPT --> GEN
+
+    GEN["Synthetic Data Generation<br/>由 Teacher 產生帶 CoT 的審查樣本"]
+    GEN --> JSONL[/"qwen3_train_data.jsonl<br/>{Instruction, question, think, answer}"/]
+
+    JSONL --> TOK["Tokenize<br/>build_prompt + concat answer"]
+    TOK --> MASK["Label Masking<br/>prompt 標 -100，僅 answer 計算 loss"]
+
+    BASE["Student Base Model<br/>Qwen3-Coder-30B-A3B-Instruct"]
+    BNB["BitsAndBytesConfig<br/>NF4 4-bit + bf16 compute"]
+    BASE --> QLORA
+    BNB --> QLORA
+    QLORA["QLoRA Quantized Load<br/>prepare_model_for_kbit_training"]
+
+    LORA_CFG["LoRA Adapter<br/>r=64, α=64, dropout=0.1<br/>q/k/v/o + gate/up/down_proj"]
+    QLORA --> INJECT
+    LORA_CFG --> INJECT
+    INJECT["get_peft_model<br/>注入 LoRA 可訓練參數"]
+
+    MASK --> TRAIN
+    INJECT --> TRAIN
+    TRAIN["Trainer (HF Transformers)<br/>cosine LR · warmup 0.1<br/>grad accum 64 · adamw_8bit<br/>gradient_checkpointing"]
+
+    TRAIN --> ADAPTER[/"LoRA Adapter Weights<br/>outputs-lora-qwen3-coder-30b/"/]
+    ADAPTER -.optional.-> MERGE["merge_and_unload<br/>合併回 Base 權重"]
+    ADAPTER --> SERVE["Inference Pipeline<br/>CoT / Skills / Single Prompt"]
+
+    style TEACHER fill:#f3e5f5,stroke:#7b1fa2
+    style GEN_PROMPT fill:#f3e5f5,stroke:#7b1fa2
+    style GEN fill:#f3e5f5,stroke:#7b1fa2
+    style JSONL fill:#e1f5fe,stroke:#0288d1
+    style TOK fill:#e1f5fe,stroke:#0288d1
+    style MASK fill:#e1f5fe,stroke:#0288d1
+    style BASE fill:#fff3e0,stroke:#ef6c00
+    style BNB fill:#fff3e0,stroke:#ef6c00
+    style QLORA fill:#fff3e0,stroke:#ef6c00
+    style LORA_CFG fill:#fff3e0,stroke:#ef6c00
+    style INJECT fill:#fff3e0,stroke:#ef6c00
+    style TRAIN fill:#e8f5e9,stroke:#2e7d32
+    style ADAPTER fill:#fff9c4,stroke:#f9a825
+    style MERGE fill:#efebe9,stroke:#4e342e
+    style SERVE fill:#efebe9,stroke:#4e342e
+```
+
 ## Project Directory Structure
 
 ```
