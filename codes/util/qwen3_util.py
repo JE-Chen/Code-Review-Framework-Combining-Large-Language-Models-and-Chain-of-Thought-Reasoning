@@ -5,7 +5,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from peft import PeftModel
 
 
-def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3B-Thinking-2507"):
+def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3B-Thinking-2507", quantization: bool = True):
 
     print("Loading model across all GPUs...")
     if model_name in ["Qwen/Qwen3-30B-A3B-Thinking-2507", "Qwen/Qwen3-Coder-30B-A3B-Instruct"]:
@@ -19,6 +19,11 @@ def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3
             model_name,
             device_map="auto",
             quantization_config=bnb_config,
+        )
+    elif not quantization:
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            device_map="auto",
         )
     else:
         bnb_config = BitsAndBytesConfig(

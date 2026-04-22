@@ -6,9 +6,3 @@ bitsandbytes
 peft
 datasets
 flask
-pyside6
-requests
-matplotlib
-pandas
-numpy
-pygame
