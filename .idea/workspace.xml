@@ -4,272 +4,56 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c7802227-67ad-4e04-beaf-4bd7338f9cbd" name="Changes" comment="* Add results">
+    <list default="true" id="c7802227-67ad-4e04-beaf-4bd7338f9cbd" name="Changes" comment="update 2.5coder-7b &amp; 3-7b cots">
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/avg_score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_bad_data_1/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_bad_data_2/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_code_diff_1/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_code_diff_2/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_code_diff_3/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_code_diff_4/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_code_diff_5/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_code_diff_6/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_only_code_1/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_only_code_10/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_only_code_11/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_only_code_12/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_only_code_13/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_only_code_14/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_only_code_2/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_only_code_3/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_only_code_4/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_only_code_5/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_only_code_6/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_only_code_7/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_only_code_8/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_only_code_9/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_bad_data_1/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_bad_data_2/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_code_diff_1/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_code_diff_2/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_code_diff_3/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_code_diff_4/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_code_diff_5/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_code_diff_6/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_only_code_1/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_only_code_10/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_only_code_11/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_only_code_12/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_only_code_13/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_only_code_14/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_only_code_2/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_only_code_3/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_only_code_4/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_only_code_5/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_only_code_6/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_only_code_7/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_only_code_8/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_copilot_only_code_9/score.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/total_score.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_bad_data_1/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_bad_data_1/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_bad_data_1/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_bad_data_1/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_bad_data_1/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_bad_data_1/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_bad_data_2/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_bad_data_2/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_bad_data_2/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_bad_data_2/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_bad_data_2/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_bad_data_2/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_1/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_1/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_1/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_1/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_1/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_1/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_2/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_2/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_2/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_2/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_2/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_2/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_3/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_3/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_3/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_3/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_3/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_3/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_4/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_4/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_4/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_4/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_4/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_4/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_5/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_5/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_5/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_5/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_5/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_5/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_6/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_6/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_6/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_6/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_6/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_code_diff_6/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_1/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_1/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_1/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_1/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_1/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_1/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_10/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_10/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_10/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_10/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_10/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_10/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_11/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_11/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_11/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_11/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_11/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_11/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_12/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_12/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_12/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_12/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_12/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_12/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_13/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_13/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_13/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_13/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_13/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_13/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_14/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_14/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_14/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_14/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_14/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_14/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_2/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_2/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_2/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_2/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_2/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_2/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_3/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_3/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_3/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_3/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_3/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_3/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_4/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_4/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_4/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_4/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_4/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_4/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_5/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_5/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_5/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_5/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_5/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_5/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_6/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_6/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_6/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_6/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_6/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_6/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_7/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_7/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_7/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_7/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_7/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_7/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_8/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_8/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_8/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_8/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_8/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_8/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_9/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_9/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_9/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_9/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_9/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_chatgpt_only_code_9/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_bad_data_1/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_bad_data_1/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_bad_data_1/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_bad_data_1/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_bad_data_1/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_bad_data_1/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_bad_data_2/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_bad_data_2/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_bad_data_2/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_bad_data_2/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_bad_data_2/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_bad_data_2/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_1/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_1/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_1/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_1/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_1/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_1/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_2/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_2/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_2/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_2/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_2/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_2/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_3/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_3/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_3/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_3/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_3/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_3/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_4/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_4/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_4/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_4/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_4/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_4/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_5/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_5/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_5/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_5/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_5/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_5/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_6/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_6/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_6/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_6/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_6/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_code_diff_6/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_1/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_1/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_1/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_1/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_1/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_1/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_10/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_10/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_10/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_10/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_10/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_10/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_11/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_11/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_11/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_11/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_11/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_11/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_12/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_12/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_12/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_12/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_12/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_12/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_13/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_13/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_13/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_13/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_13/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_13/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_14/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_14/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_14/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_14/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_14/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_14/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_2/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_2/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_2/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_2/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_2/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_2/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_3/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_3/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_3/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_3/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_3/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_3/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_4/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_4/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_4/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_4/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_4/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_4/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_5/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_5/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_5/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_5/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_5/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_5/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_6/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_6/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_6/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_6/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_6/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_6/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_7/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_7/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_7/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_7/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_7/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_7/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_8/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_8/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_8/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_8/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_8/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_8/total_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_9/code_smell_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_9/first_code_review_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_9/first_summary_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_9/linter_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_9/step_by_step_analysis_result.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder/cot/cot_copilot_only_code_9/total_summary_result.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_only_code_2/crscore_llm_judge.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_only_code_2/crscore_llm_judge.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_only_code_6/crscore_llm_judge.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Results/2026-02-10-qwen3-7b/cot/cot_chatgpt_only_code_6/crscore_llm_judge.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -304,12 +88,12 @@
     &quot;assignee&quot;: &quot;JE-Chen&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings">{
-  &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/JE-Chen/LLM_Research.git&quot;,
-    &quot;accountId&quot;: &quot;a99e3205-1b0b-4362-b014-5d2163fb0c3a&quot;
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/JE-Chen/LLM_Research.git",
+    "accountId": "cc8caebb-5722-4188-b82b-2f768d840e21"
   }
-}</component>
+}]]></component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 5
 }</component>
@@ -318,70 +102,70 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;Python.1 (1).executor&quot;: &quot;Run&quot;,
-    &quot;Python.1.executor&quot;: &quot;Run&quot;,
-    &quot;Python.10 (1).executor&quot;: &quot;Run&quot;,
-    &quot;Python.10.executor&quot;: &quot;Run&quot;,
-    &quot;Python.11 (1).executor&quot;: &quot;Run&quot;,
-    &quot;Python.11.executor&quot;: &quot;Run&quot;,
-    &quot;Python.12 (1).executor&quot;: &quot;Run&quot;,
-    &quot;Python.12.executor&quot;: &quot;Run&quot;,
-    &quot;Python.13 (1).executor&quot;: &quot;Run&quot;,
-    &quot;Python.13.executor&quot;: &quot;Run&quot;,
-    &quot;Python.14 (1).executor&quot;: &quot;Run&quot;,
-    &quot;Python.14.executor&quot;: &quot;Run&quot;,
-    &quot;Python.2 (1).executor&quot;: &quot;Run&quot;,
-    &quot;Python.2.executor&quot;: &quot;Run&quot;,
-    &quot;Python.3.executor&quot;: &quot;Run&quot;,
-    &quot;Python.4 (1).executor&quot;: &quot;Run&quot;,
-    &quot;Python.4.executor&quot;: &quot;Run&quot;,
-    &quot;Python.7 (1).executor&quot;: &quot;Run&quot;,
-    &quot;Python.7.executor&quot;: &quot;Run&quot;,
-    &quot;Python.9.executor&quot;: &quot;Run&quot;,
-    &quot;Python.build_crscore_llm_judge.executor&quot;: &quot;Run&quot;,
-    &quot;Python.build_our_llm_judge.executor&quot;: &quot;Run&quot;,
-    &quot;Python.build_our_llm_judge_single_prompt.executor&quot;: &quot;Run&quot;,
-    &quot;Python.cot.executor&quot;: &quot;Run&quot;,
-    &quot;Python.crscore_cot.executor&quot;: &quot;Run&quot;,
-    &quot;Python.judge_singel_review.executor&quot;: &quot;Run&quot;,
-    &quot;Python.mermaid_to_png.executor&quot;: &quot;Run&quot;,
-    &quot;Python.qwen2.5-7b.executor&quot;: &quot;Run&quot;,
-    &quot;Python.qwen3-coder-30b.executor&quot;: &quot;Run&quot;,
-    &quot;Python.qwen3.1-7b.executor&quot;: &quot;Run&quot;,
-    &quot;Python.qwen3.executor&quot;: &quot;Run&quot;,
-    &quot;Python.qwen3_lora_test.executor&quot;: &quot;Run&quot;,
-    &quot;Python.qwen3_quickstart.executor&quot;: &quot;Run&quot;,
-    &quot;Python.remove_our_llm_judge.executor&quot;: &quot;Run&quot;,
-    &quot;Python.run_single_prompt.executor&quot;: &quot;Run&quot;,
-    &quot;Python.singel_prompt.executor&quot;: &quot;Run&quot;,
-    &quot;Python.skills.executor&quot;: &quot;Run&quot;,
-    &quot;Python.test.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
-    &quot;ai.playground.ignore.import.keys.banner.in.settings&quot;: &quot;true&quot;,
-    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1&quot;: &quot;true&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;D:/Codes/Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;,
-    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python.1 (1).executor": "Run",
+    "Python.1.executor": "Run",
+    "Python.10 (1).executor": "Run",
+    "Python.10.executor": "Run",
+    "Python.11 (1).executor": "Run",
+    "Python.11.executor": "Run",
+    "Python.12 (1).executor": "Run",
+    "Python.12.executor": "Run",
+    "Python.13 (1).executor": "Run",
+    "Python.13.executor": "Run",
+    "Python.14 (1).executor": "Run",
+    "Python.14.executor": "Run",
+    "Python.2 (1).executor": "Run",
+    "Python.2.executor": "Run",
+    "Python.3.executor": "Run",
+    "Python.4 (1).executor": "Run",
+    "Python.4.executor": "Run",
+    "Python.7 (1).executor": "Run",
+    "Python.7.executor": "Run",
+    "Python.9.executor": "Run",
+    "Python.build_crscore_llm_judge.executor": "Run",
+    "Python.build_our_llm_judge.executor": "Debug",
+    "Python.build_our_llm_judge_single_prompt.executor": "Run",
+    "Python.cot.executor": "Run",
+    "Python.crscore_cot.executor": "Run",
+    "Python.judge_singel_review.executor": "Run",
+    "Python.mermaid_to_png.executor": "Run",
+    "Python.qwen2.5-7b.executor": "Run",
+    "Python.qwen3-coder-30b.executor": "Run",
+    "Python.qwen3.1-7b.executor": "Run",
+    "Python.qwen3.executor": "Run",
+    "Python.qwen3_lora_test.executor": "Run",
+    "Python.qwen3_quickstart.executor": "Run",
+    "Python.remove_our_llm_judge.executor": "Run",
+    "Python.run_single_prompt.executor": "Run",
+    "Python.singel_prompt.executor": "Run",
+    "Python.skills.executor": "Run",
+    "Python.test.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "ai.playground.ignore.import.keys.banner.in.settings": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "main",
+    "ignore.virus.scanning.warn.message": "true",
+    "junie.onboarding.icon.badge.shown": "true",
+    "last_opened_file_path": "D:/Codes/Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable",
+    "to.speed.mode.migration.done": "true",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RdControllerToolWindowsLayoutState" isNewUi="true">
     <layout>
       <window_info id="Bookmarks" side_tool="true" />
@@ -390,25 +174,25 @@
       <window_info id="Backup and Sync History" />
       <window_info id="Pull Requests" />
       <window_info id="Learn" show_stripe_button="false" />
-      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.23776042" />
-      <window_info id="Commit" order="1" weight="0.25" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.2763021" />
+      <window_info id="Commit" order="1" weight="0.2763021" />
       <window_info id="Structure" order="2" side_tool="true" weight="0.25" />
       <window_info anchor="bottom" id="Database Changes" />
       <window_info anchor="bottom" id="TypeScript" />
       <window_info anchor="bottom" id="TODO" />
       <window_info anchor="bottom" id="File Transfer" />
-      <window_info anchor="bottom" id="HfCacheToolWindow" />
       <window_info anchor="bottom" id="PythonProcessOutput" />
+      <window_info anchor="bottom" id="Find" />
       <window_info anchor="bottom" id="Version Control" order="0" />
       <window_info anchor="bottom" id="Problems" order="1" />
       <window_info anchor="bottom" id="Problems View" order="2" />
-      <window_info active="true" anchor="bottom" id="Terminal" order="3" visible="true" weight="0.33029515" />
+      <window_info anchor="bottom" id="Terminal" order="3" weight="0.33029515" />
       <window_info anchor="bottom" id="Services" order="4" />
       <window_info anchor="bottom" id="Python Packages" order="5" weight="0.1" />
       <window_info anchor="bottom" id="Python Console" order="6" weight="0.1" />
-      <window_info anchor="bottom" id="Run" order="7" weight="0.3341393" />
-      <window_info anchor="bottom" id="Find" order="8" weight="0.32994187" />
-      <window_info anchor="bottom" id="Debug" order="11" weight="0.32994187" />
+      <window_info anchor="bottom" id="Run" order="7" weight="0.33029515" />
+      <window_info anchor="bottom" id="Debug" order="8" weight="0.33029515" />
+      <window_info anchor="bottom" id="HfCacheToolWindow" order="9" weight="0.33029515" />
       <window_info anchor="right" id="Endpoints" />
       <window_info anchor="right" id="Remote Host" />
       <window_info anchor="right" id="Coverage" side_tool="true" />
@@ -742,7 +526,15 @@
       <option name="project" value="LOCAL" />
       <updated>1772620817775</updated>
     </task>
-    <option name="localTasksCounter" value="14" />
+    <task id="LOCAL-00014" summary="update 2.5coder-7b &amp; 3-7b cots">
+      <option name="closed" value="true" />
+      <created>1776835514707</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1776835514707</updated>
+    </task>
+    <option name="localTasksCounter" value="15" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -769,46 +561,47 @@
     <MESSAGE value="* Add Compare folder&#10;* Add CRScore.md under compare folder" />
     <MESSAGE value="* Add results&#10;* Add scores" />
     <MESSAGE value="* Add results" />
-    <option name="LAST_COMMIT_MESSAGE" value="* Add results" />
+    <MESSAGE value="update 2.5coder-7b &amp; 3-7b cots" />
+    <option name="LAST_COMMIT_MESSAGE" value="update 2.5coder-7b &amp; 3-7b cots" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/LLM_Research$10.coverage" NAME="10 Coverage Results" MODIFIED="1769167153181" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
-    <SUITE FILE_PATH="coverage/LLM_Research$cot.coverage" NAME="cot Coverage Results" MODIFIED="1772117388248" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
-    <SUITE FILE_PATH="coverage/LLM_Research$build_crscore_llm_judge.coverage" NAME="build_crscore_llm_judge Coverage Results" MODIFIED="1772184295626" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
-    <SUITE FILE_PATH="coverage/LLM_Research$7.coverage" NAME="7 Coverage Results" MODIFIED="1769166931958" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
-    <SUITE FILE_PATH="coverage/LLM_Research$13.coverage" NAME="13 Coverage Results" MODIFIED="1769181277670" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
-    <SUITE FILE_PATH="coverage/LLM_Research$remove_our_llm_judge.coverage" NAME="remove_our_llm_judge Coverage Results" MODIFIED="1772450252136" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
-    <SUITE FILE_PATH="coverage/LLM_Research$4.coverage" NAME="4 Coverage Results" MODIFIED="1769165322542" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
-    <SUITE FILE_PATH="coverage/LLM_Research$build_our_llm_judge_single_prompt.coverage" NAME="build_our_llm_judge_single_prompt Coverage Results" MODIFIED="1772426622710" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
-    <SUITE FILE_PATH="coverage/LLM_Research$singel_prompt.coverage" NAME="singel_prompt Coverage Results" MODIFIED="1772285126283" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
-    <SUITE FILE_PATH="coverage/LLM_Research$12.coverage" NAME="12 Coverage Results" MODIFIED="1769180863859" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
-    <SUITE FILE_PATH="coverage/LLM_Research$4__1_.coverage" NAME="4 (1) Coverage Results" MODIFIED="1769166247319" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
-    <SUITE FILE_PATH="coverage/LLM_Research$3.coverage" NAME="3 Coverage Results" MODIFIED="1769165939160" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
-    <SUITE FILE_PATH="coverage/LLM_Research$2__1_.coverage" NAME="2 (1) Coverage Results" MODIFIED="1769112319970" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
-    <SUITE FILE_PATH="coverage/LLM_Research$judge_singel_review.coverage" NAME="judge_singel_review Coverage Results" MODIFIED="1772425424167" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run/CoT_Prompts" />
-    <SUITE FILE_PATH="coverage/LLM_Research$1.coverage" NAME="1 Coverage Results" MODIFIED="1769112134568" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
-    <SUITE FILE_PATH="coverage/LLM_Research$build_our_llm_judge.coverage" NAME="build_our_llm_judge Coverage Results" MODIFIED="1772450257183" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
-    <SUITE FILE_PATH="coverage/Code_Review_Framework_Combining_Large_Language_Models_and_Chain_of_Thought_Reasoning$mermaid_to_png.coverage" NAME="mermaid_to_png Coverage Results" MODIFIED="1776251572402" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/LLM_Research$1__1_.coverage" NAME="1 (1) Coverage Results" MODIFIED="1769112140469" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
-    <SUITE FILE_PATH="coverage/LLM_Research$9.coverage" NAME="9 Coverage Results" MODIFIED="1769167092184" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
-    <SUITE FILE_PATH="coverage/Code_Review_Framework_Combining_Large_Language_Models_and_Chain_of_Thought_Reasoning$qwen3_quickstart.coverage" NAME="qwen3_quickstart Coverage Results" MODIFIED="1774894842062" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/base_model_without_vector_database/qwen3" />
-    <SUITE FILE_PATH="coverage/LLM_Research$qwen3_1_7b.coverage" NAME="qwen3.1-7b Coverage Results" MODIFIED="1770696787144" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/train" />
-    <SUITE FILE_PATH="coverage/LLM_Research$2.coverage" NAME="2 Coverage Results" MODIFIED="1769165943321" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
-    <SUITE FILE_PATH="coverage/LLM_Research$crscore_cot.coverage" NAME="crscore_cot Coverage Results" MODIFIED="1772170323370" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
-    <SUITE FILE_PATH="coverage/LLM_Research$qwen3.coverage" NAME="qwen3 Coverage Results" MODIFIED="1770204960296" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/train" />
-    <SUITE FILE_PATH="coverage/LLM_Research$qwen3_coder_30b.coverage" NAME="qwen3-coder-30b Coverage Results" MODIFIED="1770992528057" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/train" />
-    <SUITE FILE_PATH="coverage/LLM_Research$10__1_.coverage" NAME="10 (1) Coverage Results" MODIFIED="1769167490876" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
-    <SUITE FILE_PATH="coverage/LLM_Research$12__1_.coverage" NAME="12 (1) Coverage Results" MODIFIED="1769180959096" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
-    <SUITE FILE_PATH="coverage/LLM_Research$test.coverage" NAME="test Coverage Results" MODIFIED="1769065438705" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect" />
-    <SUITE FILE_PATH="coverage/LLM_Research$14.coverage" NAME="14 Coverage Results" MODIFIED="1769238940122" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
-    <SUITE FILE_PATH="coverage/LLM_Research$11__1_.coverage" NAME="11 (1) Coverage Results" MODIFIED="1769168203995" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
-    <SUITE FILE_PATH="coverage/LLM_Research$7__1_.coverage" NAME="7 (1) Coverage Results" MODIFIED="1769166926727" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
-    <SUITE FILE_PATH="coverage/LLM_Research$skills.coverage" NAME="skills Coverage Results" MODIFIED="1771163066442" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
-    <SUITE FILE_PATH="coverage/LLM_Research$13__1_.coverage" NAME="13 (1) Coverage Results" MODIFIED="1769181299843" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
-    <SUITE FILE_PATH="coverage/LLM_Research$14__1_.coverage" NAME="14 (1) Coverage Results" MODIFIED="1769238949019" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
     <SUITE FILE_PATH="coverage/LLM_Research$qwen3_lora_test.coverage" NAME="qwen3_lora_test Coverage Results" MODIFIED="1770223831211" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/train" />
+    <SUITE FILE_PATH="coverage/LLM_Research$crscore_cot.coverage" NAME="crscore_cot Coverage Results" MODIFIED="1772170323370" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
+    <SUITE FILE_PATH="coverage/LLM_Research$test.coverage" NAME="test Coverage Results" MODIFIED="1769065438705" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect" />
+    <SUITE FILE_PATH="coverage/LLM_Research$skills.coverage" NAME="skills Coverage Results" MODIFIED="1771163066442" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
+    <SUITE FILE_PATH="coverage/LLM_Research$3.coverage" NAME="3 Coverage Results" MODIFIED="1769165939160" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$14.coverage" NAME="14 Coverage Results" MODIFIED="1769238940122" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
     <SUITE FILE_PATH="coverage/LLM_Research$11.coverage" NAME="11 Coverage Results" MODIFIED="1769168139483" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$remove_our_llm_judge.coverage" NAME="remove_our_llm_judge Coverage Results" MODIFIED="1772450252136" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
+    <SUITE FILE_PATH="coverage/LLM_Research$singel_prompt.coverage" NAME="singel_prompt Coverage Results" MODIFIED="1772285126283" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
+    <SUITE FILE_PATH="coverage/LLM_Research$7.coverage" NAME="7 Coverage Results" MODIFIED="1769166931958" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$judge_singel_review.coverage" NAME="judge_singel_review Coverage Results" MODIFIED="1772425424167" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run/CoT_Prompts" />
+    <SUITE FILE_PATH="coverage/LLM_Research$12.coverage" NAME="12 Coverage Results" MODIFIED="1769180863859" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
+    <SUITE FILE_PATH="coverage/LLM_Research$build_our_llm_judge.coverage" NAME="build_our_llm_judge Coverage Results" MODIFIED="1776835402095" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
     <SUITE FILE_PATH="coverage/LLM_Research$qwen2_5_7b.coverage" NAME="qwen2.5-7b Coverage Results" MODIFIED="1770776151216" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/train" />
+    <SUITE FILE_PATH="coverage/LLM_Research$13__1_.coverage" NAME="13 (1) Coverage Results" MODIFIED="1769181299843" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
+    <SUITE FILE_PATH="coverage/Code_Review_Framework_Combining_Large_Language_Models_and_Chain_of_Thought_Reasoning$qwen3_quickstart.coverage" NAME="qwen3_quickstart Coverage Results" MODIFIED="1774894842062" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/base_model_without_vector_database/qwen3" />
+    <SUITE FILE_PATH="coverage/LLM_Research$14__1_.coverage" NAME="14 (1) Coverage Results" MODIFIED="1769238949019" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$qwen3_coder_30b.coverage" NAME="qwen3-coder-30b Coverage Results" MODIFIED="1770992528057" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/train" />
+    <SUITE FILE_PATH="coverage/LLM_Research$11__1_.coverage" NAME="11 (1) Coverage Results" MODIFIED="1769168203995" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
+    <SUITE FILE_PATH="coverage/LLM_Research$10.coverage" NAME="10 Coverage Results" MODIFIED="1769167153181" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$13.coverage" NAME="13 Coverage Results" MODIFIED="1769181277670" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$cot.coverage" NAME="cot Coverage Results" MODIFIED="1772117388248" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
+    <SUITE FILE_PATH="coverage/LLM_Research$2.coverage" NAME="2 Coverage Results" MODIFIED="1769165943321" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$10__1_.coverage" NAME="10 (1) Coverage Results" MODIFIED="1769167490876" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
+    <SUITE FILE_PATH="coverage/Code_Review_Framework_Combining_Large_Language_Models_and_Chain_of_Thought_Reasoning$mermaid_to_png.coverage" NAME="mermaid_to_png Coverage Results" MODIFIED="1776251572402" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/LLM_Research$qwen3.coverage" NAME="qwen3 Coverage Results" MODIFIED="1770204960296" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/train" />
+    <SUITE FILE_PATH="coverage/LLM_Research$1__1_.coverage" NAME="1 (1) Coverage Results" MODIFIED="1769112140469" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$build_our_llm_judge_single_prompt.coverage" NAME="build_our_llm_judge_single_prompt Coverage Results" MODIFIED="1772426622710" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
+    <SUITE FILE_PATH="coverage/LLM_Research$qwen3_1_7b.coverage" NAME="qwen3.1-7b Coverage Results" MODIFIED="1770696787144" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/train" />
+    <SUITE FILE_PATH="coverage/LLM_Research$12__1_.coverage" NAME="12 (1) Coverage Results" MODIFIED="1769180959096" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$7__1_.coverage" NAME="7 (1) Coverage Results" MODIFIED="1769166926727" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
+    <SUITE FILE_PATH="coverage/LLM_Research$4.coverage" NAME="4 Coverage Results" MODIFIED="1769165322542" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
     <SUITE FILE_PATH="coverage/LLM_Research$run_single_prompt.coverage" NAME="run_single_prompt Coverage Results" MODIFIED="1772285130738" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
+    <SUITE FILE_PATH="coverage/LLM_Research$2__1_.coverage" NAME="2 (1) Coverage Results" MODIFIED="1769112319970" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
+    <SUITE FILE_PATH="coverage/LLM_Research$4__1_.coverage" NAME="4 (1) Coverage Results" MODIFIED="1769166247319" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$1.coverage" NAME="1 Coverage Results" MODIFIED="1769112134568" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/ChatGPT" />
+    <SUITE FILE_PATH="coverage/LLM_Research$9.coverage" NAME="9 Coverage Results" MODIFIED="1769167092184" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/datas/code-to-detect/copilot" />
+    <SUITE FILE_PATH="coverage/LLM_Research$build_crscore_llm_judge.coverage" NAME="build_crscore_llm_judge Coverage Results" MODIFIED="1776835399187" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/codes/run" />
   </component>
 </project>
