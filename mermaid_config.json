@@ -1,0 +1,12 @@
+{
+  "theme": "default",
+  "themeVariables": {
+    "fontSize": "28px"
+  },
+  "flowchart": {
+    "htmlLabels": true,
+    "padding": 20,
+    "nodeSpacing": 60,
+    "rankSpacing": 60
+  }
+}
