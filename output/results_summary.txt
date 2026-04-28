@@ -1,1 +1,1 @@
-實驗結果顯示，本框架以 CoT 多步驟拆解搭配 RAG 規則注入與 LoRA 微調，在審查品質、評分一致性與錯誤偵測能力上皆明顯優於傳統 Single Prompt 方法，能更完整命中可讀性、命名、邏輯錯誤與 Code Smell 等問題，同時有效降低無中生有的誤判與重要問題遺漏的情形。
+本框架在 CRSCORE++ 三項指標（comprehensiveness 0.86、relevance 0.83、conciseness 0.64）皆顯著優於基準；提示詞比較顯示 CoT 拆解是品質主因，單提示詞版本在 Correctness、Conciseness、Coverage 上明顯下滑，而 LoRA 微調進一步在 Maintainability、Correctness 與 Multi-Review Coverage 提供加值，整體可歸納為「提示詞設計打底、微調加值」，能有效降低誤判與遺漏。

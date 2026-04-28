@@ -3,55 +3,69 @@
 ## System Overview
 
 ```mermaid
+%%{init: {'themeVariables': {'fontSize': '52px', 'fontFamily': 'Arial, "Microsoft JhengHei", sans-serif'}, 'flowchart': {'padding': 36, 'nodeSpacing': 100, 'rankSpacing': 120}}}%%
 graph TB
-    CODE["Source Code<br/>ChatGPT / Copilot Generated"]
-    DT["bad_data · code_diff · only_code"]
-    CODE --> DT
+    subgraph INPUT["① 輸入層 Input"]
+        CODE["Source Code<br/>ChatGPT / Copilot<br/>(bad_data · code_diff · only_code)"]
+    end
 
-    RAG_DATA["Rule Documents"] --> EMB["Qwen3-Embedding-4B"]
+    subgraph RAG["② 檢索層 RAG"]
+        RAG_DATA["Rule Documents"]
+        EMB["Qwen3-Embedding-4B"]
+        FAISS["FAISS Index<br/>(threshold ≥ 0.7)"]
+        RAG_DATA --> EMB --> FAISS
+    end
+
+    subgraph PIPE["③ 推論層 Pipelines + Model"]
+        COT["CoT Pipeline"]
+        SKILLS["Skills Pipeline"]
+        SINGLE["Single Prompt"]
+        QWEN["Qwen3-Coder-30B-A3B<br/>+ LoRA · 4-bit Quantization"]
+        COT --> QWEN
+        SKILLS --> QWEN
+        SINGLE --> QWEN
+    end
+
+    subgraph EVAL["④ 評估層 Evaluation"]
+        JUDGE["LLM-as-Judge<br/>5 Dimensions"]
+        CRSCORE["CRScore"]
+        HUMAN["Human Judge"]
+    end
+
     CODE --> EMB
-    EMB --> FAISS["FAISS Vector Index"]
-    FAISS -->|"threshold ≥ 0.7"| RULES["Retrieved Rules"]
+    CODE --> COT
+    CODE --> SKILLS
+    CODE --> SINGLE
+    FAISS -->|Retrieved Rules| COT
+    FAISS -->|Retrieved Rules| SKILLS
 
-    RULES --> GR["7 Review Standards<br/>+ RAG Rules Injection"]
+    QWEN --> JUDGE
+    QWEN --> CRSCORE
+    QWEN --> HUMAN
 
-    DT --> COT & SKILLS & SINGLE
-    GR --> COT & SKILLS
+    style INPUT fill:#e1f5fe,stroke:#01579b,stroke-width:6px,color:#1a1a1a
+    style RAG fill:#f3e5f5,stroke:#4a148c,stroke-width:6px,color:#1a1a1a
+    style PIPE fill:#fff3e0,stroke:#e65100,stroke-width:6px,color:#1a1a1a
+    style EVAL fill:#efebe9,stroke:#3e2723,stroke-width:6px,color:#1a1a1a
 
-    COT["CoT Pipeline<br/>Summary → Review → Linter → Smell → Total"]
-    SKILLS["Skills Pipeline<br/>Explainer + Review"]
-    SINGLE["Single Prompt Baseline"]
-
-    COT --> QWEN
-    SKILLS --> QWEN
-    SINGLE --> QWEN
-
-    LORA["LoRA Adapter"] --> QWEN["Qwen3-Coder-30B-A3B<br/>4-bit Quantization"]
-
-    QWEN -->|"Review Results"| JUDGE["LLM-as-Judge<br/>5 Dimensions Scoring"]
-    QWEN -->|"Review Results"| CRSCORE["CRScore Evaluation"]
-    QWEN -->|"Review Results"| HUMAN["Human Judge 人工評估"]
-
-    style CODE fill:#e1f5fe,stroke:#0288d1
-    style DT fill:#e1f5fe,stroke:#0288d1
-    style RAG_DATA fill:#f3e5f5,stroke:#7b1fa2
-    style EMB fill:#f3e5f5,stroke:#7b1fa2
-    style FAISS fill:#f3e5f5,stroke:#7b1fa2
-    style RULES fill:#f3e5f5,stroke:#7b1fa2
-    style GR fill:#f1f8e9,stroke:#558b2f
-    style COT fill:#e8f5e9,stroke:#2e7d32
-    style SKILLS fill:#fce4ec,stroke:#c62828
-    style SINGLE fill:#fff9c4,stroke:#f9a825
-    style LORA fill:#fff3e0,stroke:#ef6c00
-    style QWEN fill:#fff3e0,stroke:#ef6c00
-    style JUDGE fill:#efebe9,stroke:#4e342e
-    style CRSCORE fill:#efebe9,stroke:#4e342e
-    style HUMAN fill:#efebe9,stroke:#4e342e
+    style CODE fill:#ffffff,stroke:#01579b,stroke-width:5px,color:#1a1a1a
+    style RAG_DATA fill:#ffffff,stroke:#4a148c,stroke-width:5px,color:#1a1a1a
+    style EMB fill:#ffffff,stroke:#4a148c,stroke-width:5px,color:#1a1a1a
+    style FAISS fill:#ffffff,stroke:#4a148c,stroke-width:5px,color:#1a1a1a
+    style COT fill:#e8f5e9,stroke:#1b5e20,stroke-width:5px,color:#1a1a1a
+    style SKILLS fill:#fce4ec,stroke:#b71c1c,stroke-width:5px,color:#1a1a1a
+    style SINGLE fill:#fff9c4,stroke:#f57f17,stroke-width:5px,color:#1a1a1a
+    style QWEN fill:#ffffff,stroke:#e65100,stroke-width:5px,color:#1a1a1a
+    style JUDGE fill:#ffffff,stroke:#3e2723,stroke-width:5px,color:#1a1a1a
+    style CRSCORE fill:#ffffff,stroke:#3e2723,stroke-width:5px,color:#1a1a1a
+    style HUMAN fill:#ffffff,stroke:#3e2723,stroke-width:5px,color:#1a1a1a
+    linkStyle default stroke:#37474f,stroke-width:4px
 ```
 
 ## CoT Code Review Detailed Flow
 
 ```mermaid
+%%{init: {'themeVariables': {'fontSize': '52px', 'fontFamily': 'Arial, "Microsoft JhengHei", sans-serif'}, 'flowchart': {'padding': 36, 'nodeSpacing': 100, 'rankSpacing': 100}}}%%
 graph TB
     CODE[/"Source Code"/]
     CODE --> EMB["Query Embedding"]
@@ -76,14 +90,26 @@ graph TB
 
     JUDGE --> FINAL[/"Final Score & Recommendation"/]
 
-    style COT fill:#e8f5e9
-    style TS fill:#fff3e0
-    style JUDGE fill:#efebe9
+    style CODE fill:#e1f5fe,stroke:#01579b,stroke-width:6px,color:#1a1a1a
+    style EMB fill:#f3e5f5,stroke:#4a148c,stroke-width:6px,color:#1a1a1a
+    style FAISS fill:#f3e5f5,stroke:#4a148c,stroke-width:6px,color:#1a1a1a
+    style RULES fill:#f3e5f5,stroke:#4a148c,stroke-width:6px,color:#1a1a1a
+    style INJECT fill:#f1f8e9,stroke:#33691e,stroke-width:6px,color:#1a1a1a
+    style S1 fill:#e8f5e9,stroke:#1b5e20,stroke-width:6px,color:#1a1a1a
+    style S2 fill:#e8f5e9,stroke:#1b5e20,stroke-width:6px,color:#1a1a1a
+    style S3 fill:#e8f5e9,stroke:#1b5e20,stroke-width:6px,color:#1a1a1a
+    style S4 fill:#e8f5e9,stroke:#1b5e20,stroke-width:6px,color:#1a1a1a
+    style COT fill:#e8f5e9,stroke:#1b5e20,stroke-width:6px,color:#1a1a1a
+    style TS fill:#fff3e0,stroke:#e65100,stroke-width:6px,color:#1a1a1a
+    style JUDGE fill:#efebe9,stroke:#3e2723,stroke-width:6px,color:#1a1a1a
+    style FINAL fill:#fff9c4,stroke:#f57f17,stroke-width:6px,color:#1a1a1a
+    linkStyle default stroke:#37474f,stroke-width:4px
 ```
 
 ## Knowledge Distillation Training Flow
 
 ```mermaid
+%%{init: {'themeVariables': {'fontSize': '52px', 'fontFamily': 'Arial, "Microsoft JhengHei", sans-serif'}, 'flowchart': {'padding': 36, 'nodeSpacing': 100, 'rankSpacing': 100}}}%%
 graph TB
     TEACHER["Teacher LLM<br/>大型高能力模型"]
     GEN_PROMPT["generate_datas_prompt.md<br/>蒸餾用提示模板"]
@@ -115,21 +141,22 @@ graph TB
     ADAPTER -.optional.-> MERGE["merge_and_unload<br/>合併回 Base 權重"]
     ADAPTER --> SERVE["Inference Pipeline<br/>CoT / Skills / Single Prompt"]
 
-    style TEACHER fill:#f3e5f5,stroke:#7b1fa2
-    style GEN_PROMPT fill:#f3e5f5,stroke:#7b1fa2
-    style GEN fill:#f3e5f5,stroke:#7b1fa2
-    style JSONL fill:#e1f5fe,stroke:#0288d1
-    style TOK fill:#e1f5fe,stroke:#0288d1
-    style MASK fill:#e1f5fe,stroke:#0288d1
-    style BASE fill:#fff3e0,stroke:#ef6c00
-    style BNB fill:#fff3e0,stroke:#ef6c00
-    style QLORA fill:#fff3e0,stroke:#ef6c00
-    style LORA_CFG fill:#fff3e0,stroke:#ef6c00
-    style INJECT fill:#fff3e0,stroke:#ef6c00
-    style TRAIN fill:#e8f5e9,stroke:#2e7d32
-    style ADAPTER fill:#fff9c4,stroke:#f9a825
-    style MERGE fill:#efebe9,stroke:#4e342e
-    style SERVE fill:#efebe9,stroke:#4e342e
+    style TEACHER fill:#f3e5f5,stroke:#4a148c,stroke-width:6px,color:#1a1a1a
+    style GEN_PROMPT fill:#f3e5f5,stroke:#4a148c,stroke-width:6px,color:#1a1a1a
+    style GEN fill:#f3e5f5,stroke:#4a148c,stroke-width:6px,color:#1a1a1a
+    style JSONL fill:#e1f5fe,stroke:#01579b,stroke-width:6px,color:#1a1a1a
+    style TOK fill:#e1f5fe,stroke:#01579b,stroke-width:6px,color:#1a1a1a
+    style MASK fill:#e1f5fe,stroke:#01579b,stroke-width:6px,color:#1a1a1a
+    style BASE fill:#fff3e0,stroke:#e65100,stroke-width:6px,color:#1a1a1a
+    style BNB fill:#fff3e0,stroke:#e65100,stroke-width:6px,color:#1a1a1a
+    style QLORA fill:#fff3e0,stroke:#e65100,stroke-width:6px,color:#1a1a1a
+    style LORA_CFG fill:#fff3e0,stroke:#e65100,stroke-width:6px,color:#1a1a1a
+    style INJECT fill:#fff3e0,stroke:#e65100,stroke-width:6px,color:#1a1a1a
+    style TRAIN fill:#e8f5e9,stroke:#1b5e20,stroke-width:6px,color:#1a1a1a
+    style ADAPTER fill:#fff9c4,stroke:#f57f17,stroke-width:6px,color:#1a1a1a
+    style MERGE fill:#efebe9,stroke:#3e2723,stroke-width:6px,color:#1a1a1a
+    style SERVE fill:#efebe9,stroke:#3e2723,stroke-width:6px,color:#1a1a1a
+    linkStyle default stroke:#37474f,stroke-width:4px
 ```
 
 ## Project Directory Structure
