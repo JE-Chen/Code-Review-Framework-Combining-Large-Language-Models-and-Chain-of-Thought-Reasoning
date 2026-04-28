@@ -213,3 +213,9 @@ cython_debug/
 /codes/train/outputs-lora-qwen2.5-coder-7b/
 /codes/train/outputs-lora-qwen3-coder-30b/
 /.claude/
+
+# Defense slides build artifacts
+paper/node_modules/
+/paper/
+paper/論文_v1.5.docx
+/paper
