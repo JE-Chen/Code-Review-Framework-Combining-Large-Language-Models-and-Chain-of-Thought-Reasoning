@@ -215,7 +215,5 @@ cython_debug/
 /.claude/
 
 # Defense slides build artifacts
-paper/node_modules/
-/paper/
-paper/論文_v1.5.docx
-/paper
+gen-paper/node_modules/
+/gen-paper/

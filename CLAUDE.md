@@ -231,7 +231,7 @@ replace this with a print-to-PDF or image-export path.
 ### Build commands
 
 ```bash
-cd paper
+cd gen-paper
 npm install
 npm run build      # node build_slides.js → slides.pptx
 ```
