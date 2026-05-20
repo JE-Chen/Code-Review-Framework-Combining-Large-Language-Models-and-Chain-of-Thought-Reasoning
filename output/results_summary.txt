@@ -1,1 +1,0 @@
-本框架在 CRSCORE++ 三項指標（comprehensiveness 0.86、relevance 0.83、conciseness 0.64）皆顯著優於基準；提示詞比較顯示 CoT 拆解是品質主因，單提示詞版本在 Correctness、Conciseness、Coverage 上明顯下滑，而 LoRA 微調進一步在 Maintainability、Correctness 與 Multi-Review Coverage 提供加值，整體可歸納為「提示詞設計打底、微調加值」，能有效降低誤判與遺漏。

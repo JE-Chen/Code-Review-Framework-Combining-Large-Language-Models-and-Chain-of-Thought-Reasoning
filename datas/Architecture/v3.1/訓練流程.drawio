@@ -1,0 +1,67 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="第 1 页" id="YaoBQMETCXxo4kYV9sPC">
+    <mxGraphModel dx="1440" dy="829" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="CU2n6jwE8dZkgf_9L_dc-37" edge="1" parent="1" source="CU2n6jwE8dZkgf_9L_dc-38" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.3333333333333333;exitDx=0;exitDy=0;exitPerimeter=0;" target="CU2n6jwE8dZkgf_9L_dc-40">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="CU2n6jwE8dZkgf_9L_dc-38" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fontSize=30;" value="" vertex="1">
+          <mxGeometry height="90" width="60" x="630.0026315789476" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="CU2n6jwE8dZkgf_9L_dc-39" edge="1" parent="1" source="CU2n6jwE8dZkgf_9L_dc-40" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" target="CU2n6jwE8dZkgf_9L_dc-42">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="CU2n6jwE8dZkgf_9L_dc-40" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=20;" value="Input prompt to distill data from the teacher model" vertex="1">
+          <mxGeometry height="80" width="200" x="310.00263157894756" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="CU2n6jwE8dZkgf_9L_dc-41" edge="1" parent="1" source="CU2n6jwE8dZkgf_9L_dc-42" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="CU2n6jwE8dZkgf_9L_dc-44">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="CU2n6jwE8dZkgf_9L_dc-42" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=20;" value="Convert the distilled data into JSONL format" vertex="1">
+          <mxGeometry height="80" width="210" x="90.00263157894756" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="CU2n6jwE8dZkgf_9L_dc-43" edge="1" parent="1" source="CU2n6jwE8dZkgf_9L_dc-44" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" target="CU2n6jwE8dZkgf_9L_dc-46">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="CU2n6jwE8dZkgf_9L_dc-44" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=20;" value="Preprocess the training data" vertex="1">
+          <mxGeometry height="80" width="210" x="90.00263157894756" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="CU2n6jwE8dZkgf_9L_dc-45" edge="1" parent="1" source="CU2n6jwE8dZkgf_9L_dc-46" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="CU2n6jwE8dZkgf_9L_dc-48">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="CU2n6jwE8dZkgf_9L_dc-46" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=20;" value="Load the student model" vertex="1">
+          <mxGeometry height="80" width="210" x="370.00263157894756" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="CU2n6jwE8dZkgf_9L_dc-47" edge="1" parent="1" source="CU2n6jwE8dZkgf_9L_dc-48" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="CU2n6jwE8dZkgf_9L_dc-52">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="CU2n6jwE8dZkgf_9L_dc-48" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=20;" value="Input the data and start training" vertex="1">
+          <mxGeometry height="80" width="210" x="370.00263157894756" y="455" as="geometry" />
+        </mxCell>
+        <mxCell id="CU2n6jwE8dZkgf_9L_dc-49" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=20;" value="&lt;div class=&quot;qMYqUG_convSearchResultHighlightRoot&quot;&gt;&lt;div class=&quot;&quot; data-turn-id-container=&quot;request-WEB:005423e6-f77b-47b7-a7cd-d52b24c15eb8-19&quot; data-is-intersecting=&quot;true&quot;&gt;&lt;div class=&quot;relative w-full overflow-visible&quot;&gt;&lt;section class=&quot;text-token-text-primary w-full focus:outline-none has-data-writing-block:pointer-events-none [&amp;amp;:has([data-writing-block])&amp;gt;*]:pointer-events-auto R6Vx5W_threadScrollVars scroll-mb-[calc(var(--scroll-root-safe-area-inset-bottom,0px)+var(--thread-response-height))] scroll-mt-[calc(var(--header-height)+min(200px,max(70px,20svh)))]&quot; dir=&quot;auto&quot; data-turn-id=&quot;request-WEB:005423e6-f77b-47b7-a7cd-d52b24c15eb8-19&quot; data-turn-id-container=&quot;request-WEB:005423e6-f77b-47b7-a7cd-d52b24c15eb8-19&quot; data-testid=&quot;conversation-turn-40&quot; data-scroll-anchor=&quot;false&quot; data-turn=&quot;assistant&quot;&gt;&lt;div class=&quot;text-base my-auto mx-auto pb-3 [--thread-content-margin:var(--thread-content-margin-xs,calc(var(--spacing)*4))] @w-sm/main:[--thread-content-margin:var(--thread-content-margin-sm,calc(var(--spacing)*6))] @w-lg/main:[--thread-content-margin:var(--thread-content-margin-lg,calc(var(--spacing)*16))] px-(--thread-content-margin)&quot;&gt;&lt;div class=&quot;[--thread-content-max-width:40rem] @w-lg/main:[--thread-content-max-width:48rem] mx-auto max-w-(--thread-content-max-width) flex-1 group/turn-messages focus-visible:outline-hidden relative flex w-full min-w-0 flex-col agent-turn&quot;&gt;&lt;div class=&quot;flex max-w-full flex-col gap-4 grow&quot;&gt;&lt;div data-message-author-role=&quot;assistant&quot; data-message-id=&quot;bfa455c4-40b0-4700-83e0-000e5b488415&quot; dir=&quot;auto&quot; data-message-model-slug=&quot;gpt-5-5&quot; class=&quot;min-h-8 text-message relative flex w-full flex-col items-end gap-2 text-start break-words whitespace-normal outline-none keyboard-focused:focus-ring [.text-message+&amp;amp;]:mt-1&quot; data-turn-start-message=&quot;true&quot; tabindex=&quot;0&quot;&gt;&lt;div class=&quot;flex w-full flex-col gap-1 empty:hidden&quot;&gt;&lt;div class=&quot;markdown prose dark:prose-invert wrap-break-word w-full dark markdown-new-styling&quot;&gt;&lt;p data-start=&quot;0&quot; data-end=&quot;30&quot; data-is-last-node=&quot;&quot; data-is-only-node=&quot;&quot;&gt;Output the trained LoRA model&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;z-0 flex min-h-[46px] justify-start&quot;&gt;&lt;/div&gt;&lt;div class=&quot;mt-3 w-full empty:hidden&quot;&gt;&lt;div class=&quot;text-center&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;/section&gt;&lt;div class=&quot;contents&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;div aria-hidden=&quot;true&quot; class=&quot;pointer-events-none -mt-px h-px translate-y-[calc(var(--scroll-root-safe-area-inset-bottom)-14*var(--spacing))]&quot;&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="80" width="210" x="370.00263157894756" y="840" as="geometry" />
+        </mxCell>
+        <mxCell id="CU2n6jwE8dZkgf_9L_dc-50" edge="1" parent="1" source="CU2n6jwE8dZkgf_9L_dc-52" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="CU2n6jwE8dZkgf_9L_dc-49">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="CU2n6jwE8dZkgf_9L_dc-51" edge="1" parent="1" source="CU2n6jwE8dZkgf_9L_dc-52" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" target="CU2n6jwE8dZkgf_9L_dc-54">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="CU2n6jwE8dZkgf_9L_dc-52" parent="1" style="rhombus;whiteSpace=wrap;html=1;fontSize=20;" value="Should it be&amp;nbsp;&lt;div&gt;merged&amp;nbsp;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;back into the&amp;nbsp;&lt;/span&gt;&lt;div&gt;original model?&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="190" width="212.5" x="368.75" y="584" as="geometry" />
+        </mxCell>
+        <mxCell id="CU2n6jwE8dZkgf_9L_dc-53" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;font style=&quot;font-size: 20px;&quot;&gt;No&lt;/font&gt;" vertex="1">
+          <mxGeometry height="30" width="60" x="490.00263157894756" y="790" as="geometry" />
+        </mxCell>
+        <mxCell id="CU2n6jwE8dZkgf_9L_dc-54" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=20;" value="Merge the data into the model" vertex="1">
+          <mxGeometry height="80" width="210" x="70.00263157894756" y="639" as="geometry" />
+        </mxCell>
+        <mxCell id="CU2n6jwE8dZkgf_9L_dc-55" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontSize=20;" value="Yes" vertex="1">
+          <mxGeometry height="30" width="60" x="300.00263157894756" y="640" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

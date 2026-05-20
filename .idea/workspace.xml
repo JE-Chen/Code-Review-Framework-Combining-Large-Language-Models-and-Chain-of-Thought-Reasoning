@@ -5,10 +5,34 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="c7802227-67ad-4e04-beaf-4bd7338f9cbd" name="Changes" comment="* Add results">
-      <change afterPath="$PROJECT_DIR$/paper/TCSE_v1.5.docx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3.1/LLM-as-a-Judge流程.drawio" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3.1/LLM-as-a-Judge流程.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3.1/程式碼審查流程.drawio" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3.1/程式碼審查流程.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3.1/訓練流程.drawio" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3.1/訓練流程.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3/LLM-as-a-Judge流程.drawio" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3/LLM-as-a-Judge流程.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3/程式碼審查流程.drawio" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3/程式碼審查流程.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3/訓練流程.drawio" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3/訓練流程.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/paper/TCSE_v1.8.docx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/paper/slides.pptx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/paper/論文_v1.7.docx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/CLAUDE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/cot_code_review_detailed_flow.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/cot_code_review_detailed_flow.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/knowledge_distillation_training_flow.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/knowledge_distillation_training_flow.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/results_summary.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/system_overview.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/system_overview.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/table1_crscore_overall.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/table2_prompt_design_llm_judge.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/output/table3_prompt_design_human_judge.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/paper/TCSE_v1.6.docx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/paper/論文_v1.6.docx" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -45,8 +69,8 @@
 }</component>
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/JE-Chen/LLM_Research.git&quot;,
-    &quot;accountId&quot;: &quot;a99e3205-1b0b-4362-b014-5d2163fb0c3a&quot;
+    &quot;url&quot;: &quot;https://github.com/JE-Chen/Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning.git&quot;,
+    &quot;accountId&quot;: &quot;cc48a9a8-1daf-43de-b68d-fd276cc6f2bd&quot;
   }
 }</component>
   <component name="ProjectColorInfo">{
@@ -110,7 +134,7 @@
     &quot;git-widget-placeholder&quot;: &quot;docs/strengthen-claude-md-and-results-output&quot;,
     &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
     &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;D:/Codes/Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning/paper&quot;,
+    &quot;last_opened_file_path&quot;: &quot;D:/Codes/Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning/datas/Architecture/v3.1&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -163,11 +187,11 @@
   </component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="D:\Codes\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\datas\Architecture\v3.1" />
+      <recent name="D:\Codes\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\datas\Architecture\v3" />
       <recent name="D:\Codes\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\paper" />
       <recent name="$PROJECT_DIR$/datas/Prompts" />
       <recent name="$PROJECT_DIR$/codes/run" />
-      <recent name="$PROJECT_DIR$/codes/run/CoT" />
-      <recent name="$PROJECT_DIR$/datas/Result/2026-02-15-qwen3-coder-30b" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
       <recent name="D:\Codes\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\paper" />
@@ -316,8 +340,8 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-js-predefined-d6986cc7102b-31caf2ab9e3c-JavaScript-PY-261.23567.174" />
-        <option value="bundled-python-sdk-024ed6589d45-c2ffad84badb-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-261.23567.174" />
+        <option value="bundled-js-predefined-d6986cc7102b-31caf2ab9e3c-JavaScript-PY-261.24374.152" />
+        <option value="bundled-python-sdk-c59985aa861c-c2ffad84badb-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-261.24374.152" />
       </set>
     </attachedChunks>
   </component>
@@ -386,7 +410,19 @@
       <workItem from="1776611513699" duration="3024000" />
       <workItem from="1777217697164" duration="422000" />
       <workItem from="1777361137371" duration="1602000" />
-      <workItem from="1777458118005" duration="8471000" />
+      <workItem from="1777458118005" duration="11154000" />
+      <workItem from="1777634365149" duration="17000" />
+      <workItem from="1777879143161" duration="8869000" />
+      <workItem from="1778475202884" duration="7392000" />
+      <workItem from="1778643327160" duration="1441000" />
+      <workItem from="1778777332532" duration="371000" />
+      <workItem from="1778785831720" duration="36000" />
+      <workItem from="1778843848437" duration="9772000" />
+      <workItem from="1778926743163" duration="123000" />
+      <workItem from="1778927661393" duration="1395000" />
+      <workItem from="1778995071730" duration="4637000" />
+      <workItem from="1779192814142" duration="3969000" />
+      <workItem from="1779248985618" duration="1204000" />
     </task>
     <task id="LOCAL-00001" summary="Edit rag rules">
       <option name="closed" value="true" />
