@@ -160,6 +160,48 @@ _FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
 _ARRAY_RE = re.compile(r"\[[\s\S]*\]")
 
 
+def _extract_json_array(raw_output: str) -> list | None:
+    """Pull the JSON array out of a model reply; ``None`` on parse failure."""
+    body = raw_output.strip()
+    fence = _FENCE_RE.search(body)
+    if fence:
+        body = fence.group(1).strip()
+    if not body or body == "[]":
+        return []
+    match = _ARRAY_RE.search(body)
+    if match is None:
+        log.warning("personas parser: no JSON array found")
+        return None
+    try:
+        data = json.loads(match.group(0))
+    except json.JSONDecodeError as exc:
+        log.warning("personas parser: JSON decode failed (%s)", exc)
+        return None
+    return data if isinstance(data, list) else None
+
+
+def _coerce_conflict_entry(entry, valid_names: set[str]) -> PersonaConflict | None:
+    """Validate one raw entry and return a :class:`PersonaConflict` or
+    ``None`` if it must be dropped. Single-persona entries and entries
+    citing unknown personas are filtered here so the caller stays flat.
+    """
+    if not isinstance(entry, dict):
+        return None
+    names = entry.get("personas")
+    if not isinstance(names, list) or len(names) < 2:
+        return None
+    filtered = [n for n in names if isinstance(n, str) and n in valid_names]
+    if len(filtered) < 2:
+        return None
+    payload = dict(entry)
+    payload["personas"] = filtered
+    try:
+        return PersonaConflict.model_validate(payload)
+    except ValidationError as exc:
+        log.debug("Dropped malformed conflict %r: %s", entry, exc)
+        return None
+
+
 def parse_conflicts(
     raw_output: str,
     *,
@@ -170,41 +212,15 @@ def parse_conflicts(
     Out-of-set persona names and entries citing only one persona are
     dropped — same safe-failure posture as the rest of the parsers.
     """
-    body = raw_output.strip()
-    fence = _FENCE_RE.search(body)
-    if fence:
-        body = fence.group(1).strip()
-    if not body or body == "[]":
+    data = _extract_json_array(raw_output)
+    if not data:
         return []
-    match = _ARRAY_RE.search(body)
-    if match is None:
-        log.warning("personas parser: no JSON array found")
-        return []
-    try:
-        data = json.loads(match.group(0))
-    except json.JSONDecodeError as exc:
-        log.warning("personas parser: JSON decode failed (%s)", exc)
-        return []
-    if not isinstance(data, list):
-        return []
-
     valid_names = {p.value for p in valid_personas}
     out: list[PersonaConflict] = []
     for entry in data:
-        if not isinstance(entry, dict):
-            continue
-        names = entry.get("personas")
-        if not isinstance(names, list) or len(names) < 2:
-            continue
-        filtered = [n for n in names if isinstance(n, str) and n in valid_names]
-        if len(filtered) < 2:
-            continue
-        payload = dict(entry)
-        payload["personas"] = filtered
-        try:
-            out.append(PersonaConflict.model_validate(payload))
-        except ValidationError as exc:
-            log.debug("Dropped malformed conflict %r: %s", entry, exc)
+        conflict = _coerce_conflict_entry(entry, valid_names)
+        if conflict is not None:
+            out.append(conflict)
     return out
 
 

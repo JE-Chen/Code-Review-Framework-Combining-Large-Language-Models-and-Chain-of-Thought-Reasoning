@@ -66,6 +66,73 @@ class VerificationResult:
     stderr_tail: str = ""
 
 
+def _run_verify_cmd(
+    verify_cmd: str,
+    sandbox_root: Path,
+    timeout_seconds: float,
+    tail_chars: int,
+) -> VerificationResult:
+    """Execute ``verify_cmd`` inside ``sandbox_root`` with the given
+    timeout and return the outcome. Pure-data return; all subprocess
+    bookkeeping is fenced inside this helper so the orchestrator stays
+    flat.
+    """
+    t0 = time.monotonic()
+    try:
+        proc = subprocess.run(  # noqa: S603 — argv list, never shell=True
+            verify_cmd.split(),
+            cwd=sandbox_root,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return VerificationResult(
+            status="error", verify_cmd=verify_cmd,
+            reason=f"verify_cmd exceeded {timeout_seconds}s timeout",
+            duration_ms=int((time.monotonic() - t0) * 1000),
+        )
+    except FileNotFoundError as exc:
+        return VerificationResult(
+            status="error", verify_cmd=verify_cmd,
+            reason=f"verify_cmd not runnable: {exc}",
+        )
+    return VerificationResult(
+        status="pass" if proc.returncode == 0 else "fail",
+        verify_cmd=verify_cmd,
+        duration_ms=int((time.monotonic() - t0) * 1000),
+        reason=f"exit={proc.returncode}",
+        stdout_tail=(proc.stdout or "")[-tail_chars:],
+        stderr_tail=(proc.stderr or "")[-tail_chars:],
+    )
+
+
+def _prepare_sandbox(
+    finding: InlineFinding,
+    workdir: Path,
+    sandbox_root: Path,
+    verify_cmd: str,
+) -> VerificationResult | None:
+    """Copy the workdir + splice the suggestion. Returns ``None`` on
+    success so the caller proceeds to run verify_cmd, or a ``skip``
+    :class:`VerificationResult` when the splice can't be done safely.
+    """
+    _copy_tree(workdir, sandbox_root)
+    target = sandbox_root / finding.path
+    if not target.exists():
+        return VerificationResult(
+            status="skip", verify_cmd=verify_cmd,
+            reason=f"file {finding.path} not present in workdir",
+        )
+    ok, why = _apply_suggestion(target, finding)
+    if not ok:
+        return VerificationResult(
+            status="skip", verify_cmd=verify_cmd, reason=why,
+        )
+    return None
+
+
 def verify_suggestion(
     finding: InlineFinding,
     *,
@@ -81,60 +148,16 @@ def verify_suggestion(
     """
     if finding.suggestion is None:
         return VerificationResult(
-            status="skip",
-            verify_cmd=verify_cmd,
+            status="skip", verify_cmd=verify_cmd,
             reason="finding has no suggestion block",
         )
-
     sandbox_root = Path(tempfile.mkdtemp(prefix="prthinker-sbx-"))
     try:
-        _copy_tree(workdir, sandbox_root)
-        target = sandbox_root / finding.path
-        if not target.exists():
-            return VerificationResult(
-                status="skip",
-                verify_cmd=verify_cmd,
-                reason=f"file {finding.path} not present in workdir",
-            )
-
-        ok, why = _apply_suggestion(target, finding)
-        if not ok:
-            return VerificationResult(
-                status="skip", verify_cmd=verify_cmd, reason=why,
-            )
-
-        t0 = time.monotonic()
-        try:
-            proc = subprocess.run(  # noqa: S603 — argv list, never shell=True
-                verify_cmd.split(),
-                cwd=sandbox_root,
-                capture_output=True,
-                text=True,
-                timeout=timeout_seconds,
-                check=False,
-            )
-        except subprocess.TimeoutExpired:
-            return VerificationResult(
-                status="error",
-                verify_cmd=verify_cmd,
-                reason=f"verify_cmd exceeded {timeout_seconds}s timeout",
-                duration_ms=int((time.monotonic() - t0) * 1000),
-            )
-        except FileNotFoundError as exc:
-            return VerificationResult(
-                status="error",
-                verify_cmd=verify_cmd,
-                reason=f"verify_cmd not runnable: {exc}",
-            )
-
-        duration = int((time.monotonic() - t0) * 1000)
-        return VerificationResult(
-            status="pass" if proc.returncode == 0 else "fail",
-            verify_cmd=verify_cmd,
-            duration_ms=duration,
-            reason=f"exit={proc.returncode}",
-            stdout_tail=(proc.stdout or "")[-tail_chars:],
-            stderr_tail=(proc.stderr or "")[-tail_chars:],
+        early = _prepare_sandbox(finding, workdir, sandbox_root, verify_cmd)
+        if early is not None:
+            return early
+        return _run_verify_cmd(
+            verify_cmd, sandbox_root, timeout_seconds, tail_chars,
         )
     finally:
         # Best-effort cleanup. Sandboxes are small (text only) but if

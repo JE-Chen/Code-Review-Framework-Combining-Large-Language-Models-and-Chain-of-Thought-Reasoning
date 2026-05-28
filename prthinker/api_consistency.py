@@ -114,6 +114,28 @@ Rules:
 """
 
 
+def _split_diffs_by_side(
+    file_diffs: list[FileDiff],
+) -> tuple[list[str], list[str]]:
+    """Render each touched file as a prompt section and return
+    ``(backend_sections, frontend_sections)``.
+    """
+    backend_parts: list[str] = []
+    frontend_parts: list[str] = []
+    for fd in file_diffs:
+        if fd.is_binary or fd.is_deleted:
+            continue
+        side = classify_side(fd.path)
+        if side is None:
+            continue
+        section = f"### `{fd.path}`\n\n```diff\n{fd.raw.rstrip()}\n```\n"
+        if side == "backend":
+            backend_parts.append(section)
+        else:  # side == "frontend"
+            frontend_parts.append(section)
+    return backend_parts, frontend_parts
+
+
 def build_prompt(file_diffs: list[FileDiff]) -> str:
     """Render the cross-language-review prompt for the model.
 
@@ -122,25 +144,51 @@ def build_prompt(file_diffs: list[FileDiff]) -> str:
     """
     if not is_mixed_language(file_diffs):
         return ""
-
-    backend_parts: list[str] = []
-    frontend_parts: list[str] = []
-    for fd in file_diffs:
-        if fd.is_binary or fd.is_deleted:
-            continue
-        side = classify_side(fd.path)
-        section = (
-            f"### `{fd.path}`\n\n```diff\n{fd.raw.rstrip()}\n```\n"
-        )
-        if side == "backend":
-            backend_parts.append(section)
-        elif side == "frontend":
-            frontend_parts.append(section)
-
+    backend_parts, frontend_parts = _split_diffs_by_side(file_diffs)
     return PROMPT_TEMPLATE.format(
         backend_block="\n".join(backend_parts) or "(none)",
         frontend_block="\n".join(frontend_parts) or "(none)",
     )
+
+
+def _parse_drift_payload(raw_output: str) -> list | None:
+    """Best-effort JSON-array extraction; ``None`` on any failure."""
+    body = raw_output.strip()
+    fence = _FENCE_RE.search(body)
+    if fence:
+        body = fence.group(1).strip()
+    if not body or body == "[]":
+        return []
+    match = _ARRAY_RE.search(body)
+    if match is None:
+        log.warning("api_consistency parser: no JSON array found")
+        return None
+    try:
+        data = json.loads(match.group(0))
+    except json.JSONDecodeError as exc:
+        log.warning("api_consistency parser: JSON decode failed (%s)", exc)
+        return None
+    return data if isinstance(data, list) else None
+
+
+def _coerce_drift_entry(
+    entry, allowed_paths: set[str],
+) -> ApiDriftFinding | None:
+    """Validate one raw entry; ``None`` if it must be dropped."""
+    if not isinstance(entry, dict):
+        return None
+    try:
+        df = ApiDriftFinding.model_validate(entry)
+    except ValidationError as exc:
+        log.debug("Dropped malformed drift finding %r: %s", entry, exc)
+        return None
+    if df.backend_path not in allowed_paths:
+        log.debug("Drift cites unknown backend path %s", df.backend_path)
+        return None
+    if df.frontend_path not in allowed_paths:
+        log.debug("Drift cites unknown frontend path %s", df.frontend_path)
+        return None
+    return df
 
 
 def parse_drift_findings(
@@ -153,42 +201,14 @@ def parse_drift_findings(
     diff). Out-of-set paths are silently dropped — same safe-failure
     posture as :mod:`prthinker.findings`.
     """
-    body = raw_output.strip()
-    fence = _FENCE_RE.search(body)
-    if fence:
-        body = fence.group(1).strip()
-    if not body or body == "[]":
+    data = _parse_drift_payload(raw_output)
+    if not data:
         return []
-
-    match = _ARRAY_RE.search(body)
-    if match is None:
-        log.warning("api_consistency parser: no JSON array found")
-        return []
-
-    try:
-        data = json.loads(match.group(0))
-    except json.JSONDecodeError as exc:
-        log.warning("api_consistency parser: JSON decode failed (%s)", exc)
-        return []
-    if not isinstance(data, list):
-        return []
-
     out: list[ApiDriftFinding] = []
     for entry in data:
-        if not isinstance(entry, dict):
-            continue
-        try:
-            df = ApiDriftFinding.model_validate(entry)
-        except ValidationError as exc:
-            log.debug("Dropped malformed drift finding %r: %s", entry, exc)
-            continue
-        if df.backend_path not in allowed_paths:
-            log.debug("Drift finding cites unknown backend path %s", df.backend_path)
-            continue
-        if df.frontend_path not in allowed_paths:
-            log.debug("Drift finding cites unknown frontend path %s", df.frontend_path)
-            continue
-        out.append(df)
+        df = _coerce_drift_entry(entry, allowed_paths)
+        if df is not None:
+            out.append(df)
     return out
 
 

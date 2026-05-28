@@ -191,7 +191,7 @@ class CoTPipeline:
         skip_binary: bool = True,
         output_dir: Path | None = None,
         dialogue_block: str = "",
-        review_cache: "ReviewCache | None" = None,
+        review_cache: ReviewCache | None = None,
         cache_repo: str = "",
         cache_pr_number: int = 0,
         verify_suggestions: bool = False,

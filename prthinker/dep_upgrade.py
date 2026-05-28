@@ -84,6 +84,11 @@ class PackageUpgrade:
 # single file and yields PackageUpgrade items.
 # ---------------------------------------------------------------------------
 
+
+def _is_diff_header(line: str) -> bool:
+    return line.startswith(("+++", "---", "@@"))
+
+
 _PY_REQ_RE = re.compile(
     r"^([+-])\s*(?P<name>[A-Za-z0-9._-]+)\s*"
     r"(?:==|~=|>=|<=|>)\s*"
@@ -95,19 +100,13 @@ def _scan_python_requirements(file_diff: str) -> dict[str, dict[str, str]]:
     """Pair up '-' / '+' lines by package name."""
     pairs: dict[str, dict[str, str]] = {}
     for line in file_diff.splitlines():
-        if line.startswith("+++") or line.startswith("---") or line.startswith("@@"):
+        if _is_diff_header(line):
             continue
         m = _PY_REQ_RE.match(line)
         if m is None:
             continue
-        sign = m.group(1)
-        name = m.group("name")
-        ver = m.group("ver")
-        slot = pairs.setdefault(name, {})
-        if sign == "+":
-            slot["new"] = ver
-        else:
-            slot["old"] = ver
+        slot_key = "new" if m.group(1) == "+" else "old"
+        pairs.setdefault(m.group("name"), {})[slot_key] = m.group("ver")
     return pairs
 
 
@@ -124,27 +123,30 @@ _NPM_METADATA_KEYS = frozenset({
 })
 
 
+_NPM_SPEC_RE = re.compile(r"^[\^~>=<0-9.]")
+
+
+def _is_likely_dep_key(name: str, spec: str) -> bool:
+    """Skip well-known metadata keys + non-semver-shaped values."""
+    if name in _NPM_METADATA_KEYS:
+        return False
+    return bool(_NPM_SPEC_RE.match(spec))
+
+
 def _scan_package_json(file_diff: str) -> dict[str, dict[str, str]]:
     pairs: dict[str, dict[str, str]] = {}
     for line in file_diff.splitlines():
-        if line.startswith("+++") or line.startswith("---") or line.startswith("@@"):
+        if _is_diff_header(line):
             continue
         m = _NPM_RE.match(line)
         if m is None:
             continue
-        sign = m.group(1)
         name = m.group("name")
         spec = m.group("spec")
-        if name in _NPM_METADATA_KEYS:
+        if not _is_likely_dep_key(name, spec):
             continue
-        # Demand a semver-ish spec to avoid script entries etc.
-        if not re.match(r"^[\^~>=<0-9.]", spec):
-            continue
-        slot = pairs.setdefault(name, {})
-        if sign == "+":
-            slot["new"] = spec
-        else:
-            slot["old"] = spec
+        slot_key = "new" if m.group(1) == "+" else "old"
+        pairs.setdefault(name, {})[slot_key] = spec
     return pairs
 
 
@@ -158,20 +160,63 @@ _PYPROJECT_DEP_RE = re.compile(
 def _scan_pyproject(file_diff: str) -> dict[str, dict[str, str]]:
     pairs: dict[str, dict[str, str]] = {}
     for line in file_diff.splitlines():
-        if line.startswith("+++") or line.startswith("---") or line.startswith("@@"):
+        if _is_diff_header(line):
             continue
         m = _PYPROJECT_DEP_RE.match(line)
         if m is None:
             continue
-        sign = m.group(1)
-        name = m.group("name")
-        ver = m.group("ver")
-        slot = pairs.setdefault(name, {})
-        if sign == "+":
-            slot["new"] = ver
-        else:
-            slot["old"] = ver
+        slot_key = "new" if m.group(1) == "+" else "old"
+        pairs.setdefault(m.group("name"), {})[slot_key] = m.group("ver")
     return pairs
+
+
+_PY_REQ_BASENAMES = frozenset({
+    "requirements.txt",
+    "requirements-dev.txt",
+    "requirements_dev.txt",
+    "constraints.txt",
+})
+
+
+def _dispatch_scanner(
+    basename: str,
+) -> tuple[str, callable] | None:
+    """Map a lock-file basename to ``(ecosystem, scanner)`` or ``None``
+    when the file is one we deliberately don't scan (e.g. auto-generated
+    poetry.lock / Cargo.lock).
+    """
+    if basename in _PY_REQ_BASENAMES:
+        return ("python", _scan_python_requirements)
+    if basename == "pyproject.toml":
+        return ("python", _scan_pyproject)
+    if basename == "package.json":
+        return ("node", _scan_package_json)
+    return None
+
+
+def _collect_upgrades(
+    file_path: str,
+    ecosystem: str,
+    pairs: dict[str, dict[str, str]],
+) -> list[PackageUpgrade]:
+    """Turn the ``{name: {old, new}}`` map produced by a scanner into a
+    list of :class:`PackageUpgrade`, dropping rows that didn't actually
+    change.
+    """
+    out: list[PackageUpgrade] = []
+    for pkg, versions in pairs.items():
+        old = versions.get("old", "")
+        new = versions.get("new", "")
+        if not old or not new or old == new:
+            continue
+        out.append(PackageUpgrade(
+            file_path=file_path,
+            package=pkg,
+            old_version=old,
+            new_version=new,
+            ecosystem=ecosystem,
+        ))
+    return out
 
 
 def detect_upgrades(file_diffs: list[FileDiff]) -> list[PackageUpgrade]:
@@ -180,36 +225,11 @@ def detect_upgrades(file_diffs: list[FileDiff]) -> list[PackageUpgrade]:
     for fd in file_diffs:
         if fd.is_binary or fd.is_deleted or not _is_lockfile(fd.path):
             continue
-        name = PurePosixPath(fd.path).name
-        if name in {"requirements.txt", "requirements-dev.txt",
-                    "requirements_dev.txt", "constraints.txt"}:
-            ecosystem = "python"
-            pairs = _scan_python_requirements(fd.raw)
-        elif name == "pyproject.toml":
-            ecosystem = "python"
-            pairs = _scan_pyproject(fd.raw)
-        elif name in {"package.json"}:
-            ecosystem = "node"
-            pairs = _scan_package_json(fd.raw)
-        else:
-            # Other lock files (poetry.lock, Cargo.lock, yarn.lock, …)
-            # are deliberately skipped at this level — they are
-            # auto-generated, noisy, and the human-curated file in the
-            # same PR already names the package + version pair.
+        dispatch = _dispatch_scanner(PurePosixPath(fd.path).name)
+        if dispatch is None:
             continue
-
-        for pkg, versions in pairs.items():
-            old = versions.get("old", "")
-            new = versions.get("new", "")
-            if not old or not new or old == new:
-                continue
-            out.append(PackageUpgrade(
-                file_path=fd.path,
-                package=pkg,
-                old_version=old,
-                new_version=new,
-                ecosystem=ecosystem,
-            ))
+        ecosystem, scanner = dispatch
+        out.extend(_collect_upgrades(fd.path, ecosystem, scanner(fd.raw)))
     return out
 
 
@@ -288,10 +308,8 @@ _FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
 _ARRAY_RE = re.compile(r"\[[\s\S]*\]")
 
 
-def parse_impact(
-    raw_output: str, *, upgrade: PackageUpgrade,
-) -> list[DependencyUpgradeFinding]:
-    """Parse the model's JSON-array reply into structured findings."""
+def _extract_json_array(raw_output: str, *, parser_name: str) -> list | None:
+    """Shared JSON-array extractor; ``None`` on any parse failure."""
     body = raw_output.strip()
     fence = _FENCE_RE.search(body)
     if fence:
@@ -300,29 +318,47 @@ def parse_impact(
         return []
     match = _ARRAY_RE.search(body)
     if match is None:
-        log.warning("dep_upgrade parser: no JSON array found")
-        return []
+        log.warning("%s: no JSON array found", parser_name)
+        return None
     try:
         data = json.loads(match.group(0))
     except json.JSONDecodeError as exc:
-        log.warning("dep_upgrade parser: JSON decode failed (%s)", exc)
-        return []
-    if not isinstance(data, list):
+        log.warning("%s: JSON decode failed (%s)", parser_name, exc)
+        return None
+    return data if isinstance(data, list) else None
+
+
+def _coerce_impact_entry(
+    entry, upgrade: PackageUpgrade,
+) -> DependencyUpgradeFinding | None:
+    """Validate one raw entry; ``None`` if it must be dropped."""
+    if not isinstance(entry, dict):
+        return None
+    payload = dict(entry)
+    payload.setdefault("package", upgrade.package)
+    payload.setdefault("old_version", upgrade.old_version)
+    payload.setdefault("new_version", upgrade.new_version)
+    payload.setdefault("ecosystem", upgrade.ecosystem)
+    payload.setdefault("file_path", upgrade.file_path)
+    try:
+        return DependencyUpgradeFinding.model_validate(payload)
+    except ValidationError as exc:
+        log.debug("Dropped malformed dep-upgrade finding %r: %s", entry, exc)
+        return None
+
+
+def parse_impact(
+    raw_output: str, *, upgrade: PackageUpgrade,
+) -> list[DependencyUpgradeFinding]:
+    """Parse the model's JSON-array reply into structured findings."""
+    data = _extract_json_array(raw_output, parser_name="dep_upgrade parser")
+    if not data:
         return []
     out: list[DependencyUpgradeFinding] = []
     for entry in data:
-        if not isinstance(entry, dict):
-            continue
-        payload = dict(entry)
-        payload.setdefault("package", upgrade.package)
-        payload.setdefault("old_version", upgrade.old_version)
-        payload.setdefault("new_version", upgrade.new_version)
-        payload.setdefault("ecosystem", upgrade.ecosystem)
-        payload.setdefault("file_path", upgrade.file_path)
-        try:
-            out.append(DependencyUpgradeFinding.model_validate(payload))
-        except ValidationError as exc:
-            log.debug("Dropped malformed dep-upgrade finding %r: %s", entry, exc)
+        finding = _coerce_impact_entry(entry, upgrade)
+        if finding is not None:
+            out.append(finding)
     return out
 
 

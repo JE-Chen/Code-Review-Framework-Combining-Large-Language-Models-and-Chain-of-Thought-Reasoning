@@ -75,6 +75,32 @@ def _shannon(counts: list[int]) -> float:
     return -sum(pi * math.log2(pi) for pi in p)
 
 
+def _tally_active(
+    active: list[FileDiff],
+) -> tuple[int, int, dict[str, int]]:
+    """Sum +/- lines and group by top-level directory across ``active``."""
+    add_total = rem_total = 0
+    dir_counts: dict[str, int] = {}
+    for fd in active:
+        added, removed = _added_removed(fd)
+        add_total += added
+        rem_total += removed
+        d = _top_dir(fd.path)
+        dir_counts[d] = dir_counts.get(d, 0) + 1
+    return add_total, rem_total, dir_counts
+
+
+def _verdict_for(
+    score: float, thresholds: tuple[float, float],
+) -> str:
+    lo, hi = thresholds
+    if score < lo:
+        return "focused"
+    if score < hi:
+        return "wide"
+    return "bomb"
+
+
 def compute_entropy(
     file_diffs: list[FileDiff],
     *,
@@ -89,42 +115,23 @@ def compute_entropy(
     reached. The dispersion component is the Shannon entropy of the
     top-directory distribution normalised by ``log2(n_dirs)``.
     """
-    if not file_diffs:
-        return DiffEntropy(top_dir_distribution={})
-
-    active = [fd for fd in file_diffs if not fd.is_binary and not fd.is_deleted]
+    active = [
+        fd for fd in (file_diffs or [])
+        if not fd.is_binary and not fd.is_deleted
+    ]
     if not active:
         return DiffEntropy(top_dir_distribution={})
 
-    add_total = rem_total = 0
-    dir_counts: dict[str, int] = {}
-    for fd in active:
-        added, removed = _added_removed(fd)
-        add_total += added
-        rem_total += removed
-        d = _top_dir(fd.path)
-        dir_counts[d] = dir_counts.get(d, 0) + 1
-
+    add_total, rem_total, dir_counts = _tally_active(active)
     file_count = len(active)
-    size_component = min(1.0, file_count / file_norm) * 0.5 + \
-        min(1.0, (add_total + rem_total) / line_norm) * 0.5
-
+    size_component = (
+        min(1.0, file_count / file_norm) * 0.5
+        + min(1.0, (add_total + rem_total) / line_norm) * 0.5
+    )
     raw_entropy = _shannon(list(dir_counts.values()))
     n_dirs = len(dir_counts)
-    if n_dirs <= 1:
-        dispersion = 0.0
-    else:
-        dispersion = raw_entropy / math.log2(n_dirs)
-
+    dispersion = raw_entropy / math.log2(n_dirs) if n_dirs > 1 else 0.0
     score = min(1.0, 0.6 * size_component + 0.4 * dispersion)
-    lo, hi = thresholds
-    if score < lo:
-        verdict = "focused"
-    elif score < hi:
-        verdict = "wide"
-    else:
-        verdict = "bomb"
-
     return DiffEntropy(
         file_count=file_count,
         added_lines=add_total,
@@ -132,7 +139,7 @@ def compute_entropy(
         top_dir_distribution=dict(sorted(dir_counts.items())),
         dispersion_entropy=raw_entropy,
         score=score,
-        verdict=verdict,
+        verdict=_verdict_for(score, thresholds),
     )
 
 
