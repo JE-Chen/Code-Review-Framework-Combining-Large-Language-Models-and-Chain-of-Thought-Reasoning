@@ -226,9 +226,81 @@ kind、兩側檔路、一句摘要\ 。
 * 原始模型輸出保留於 ``api_consistency`` step output\ ，事後可審計\ 。
 
 
+PR 類型自適應審查（``--pr-classify``）
+----------------------------------------
+
+多數 LLM 審查器對所有 PR 一視同仁\ 。docs-only PR 不需要 inline_findings\ ；
+hotfix 不需要 refactor 級的設計討論\ 。本擴充先跑一個分類 step\ ，
+用 diff + PR 標題 + body 把 PR 分到六類之一（``bugfix`` / ``feature``
+/ ``refactor`` / ``docs`` / ``chore`` / ``unknown``）\ ，然後調整後續
+pipeline：
+
+* ``docs`` ── 整個 inline-findings step 跳過\ 。
+* ``bugfix`` ── 較小的 ``max_findings_per_file``\ ；prompt 把模型導向
+  正確性、回歸風險、是否解決根因\ 。
+* ``refactor`` ── 較大 budget\ ；prompt 專問行為等價（錯誤訊息文字、
+  例外類型、順序、lazy vs eager）\ 。
+* ``feature`` / ``chore`` / ``unknown`` ── 標準 budget + 對應的 focus hint\ 。
+
+.. code-block:: bash
+
+   reviewmind review-pr --pr 42 --inline-review --pr-classify
+
+PR 留言頂部新增一行如：「PR classified as **bugfix** ── fixes the
+off-by-one in the rate-limiter」\ ，方便人類校驗模型的意圖判讀\ 。
+分類正確率屬於未知\ ，本頁不做主張\ 。
+
+
+評論一致性訊號（``--reproducibility-check``）
+-----------------------------------------------
+
+多數 backend 並沒有把穩定的 per-token logprob 透過統一 API 暴露出來\ 。
+本擴充是\ 不依賴 logprob\ 的後端通用 uncertainty proxy：對同一檔跑兩次
+inline-findings step（prompt 相同\ ；非 0 temperature 自然產生第二個樣本）\ ，
+然後給每條 finding 標：
+
+* ``[stable]`` ── 兩次都出現（path + line + 正規化 comment 匹配）\ 。
+  正規化會壓掉空白 / 大小寫 / 標點\ ，paraphrase 仍視為 match\ 。
+* ``[low-reproducibility]`` ── 只在其中一次出現\ 。
+
+第二次新出現的 finding 也會被保留（標 ``low``）\ ，不會靜默丟失\ 。
+
+.. code-block:: bash
+
+   reviewmind review-pr --pr 42 --inline-review --reproducibility-check
+
+成本：每檔多一次 backend 呼叫\ 。在 deterministic（temperature=0）
+backend 上兩次結果一致\ ，全部標 ``[stable]`` ── 也是正確答案\ 。
+
+
+依賴升級影響分析（``--dep-upgrade-check``）
+---------------------------------------------
+
+最容易出大事、卻最被人類審查者迅速放行的 PR\ ，往往是\ 一行不顯眼的
+``requests`` 從 ``2.28`` bump 到 ``2.32``\ 。本擴充新增一個 step：
+
+1. 偵測 diff 是否動到 lock-file（``requirements.txt`` /
+   ``pyproject.toml`` / ``package.json``）\ 。
+2. 抽出每個套件之 ``(old_version, new_version)`` delta\ 。
+3. 對每個升級套件\ ，建一份 prompt 將該套件在 diff 其他檔案中的
+   *實際呼叫點*\ 一併放入\ ，問模型：兩個版本間之 breaking change
+   是否影響本 repo 之用法？
+4. 將回覆解析為 :class:`DependencyUpgradeFinding`\ （每升級一個 severity
+   / summary / evidence）\ 。
+
+.. code-block:: bash
+
+   reviewmind review-pr --pr 42 --dep-upgrade-check
+
+PR 留言頂端多出一張\ *Dependency upgrade impact*\ 表格\ ，列 severity、
+package、版本 bump、一句摘要\ 。框架\ 不在 review-time 抓 remote changelog
+（CI 不穩 + 隱私問題）\ ，模型從自身訓練資料與 diff 內容作答\ 。未來可
+插入有快取的 changelog source\ 。
+
+
 狀態
 ----
 
-六個機制皆已交付為框架程式碼、單元測試與 prompt 樣板\ 。依
+九個機制皆已交付為框架程式碼、單元測試與 prompt 樣板\ 。依
 ``paper_rule.md``\ ，本專案有意不在此頁提供 benchmark 數字；語料與
 outcome 儲存體均已就位\ ，量測之時\ ，將以可審計之方式為之\ 。

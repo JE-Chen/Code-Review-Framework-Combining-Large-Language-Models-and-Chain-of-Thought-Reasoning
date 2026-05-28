@@ -76,10 +76,20 @@ def _format_per_file(result: ReviewResult, marker: str) -> str:
         "",
     ]
 
+    if result.pr_classification is not None:
+        cls = result.pr_classification
+        parts.append(
+            f"PR classified as **{cls.pr_type}** — {cls.reason or '(no reason given)'}"
+        )
+        parts.append("")
+
     total_findings = sum(len(f.inline_findings) for f in result.per_file)
     if total_findings:
         parts.append(f"Posted **{total_findings}** inline finding(s).")
         parts.append("")
+
+    if result.dep_upgrades:
+        parts += _format_dep_upgrade_block(result.dep_upgrades)
 
     if result.api_drift:
         parts += _format_api_drift_block(result.api_drift)
@@ -88,6 +98,30 @@ def _format_per_file(result: ReviewResult, marker: str) -> str:
         parts += _format_file_block(fr)
 
     return "\n".join(parts).rstrip() + "\n"
+
+
+def _format_dep_upgrade_block(upgrades: list) -> list[str]:
+    """Render the dependency-upgrade impact section.
+
+    Keeps the table tight: severity / package / version delta / what
+    to do. Full evidence stays in the raw ``dep_upgrade::*`` step
+    outputs for traceability.
+    """
+    block: list[str] = [
+        "### Dependency upgrade impact",
+        "",
+        "| Severity | Package | Bump | Summary |",
+        "| --- | --- | --- | --- |",
+    ]
+    for u in upgrades:
+        sev = u.severity
+        bump = f"{u.old_version} -> {u.new_version}"
+        summary = u.summary.replace("|", "\\|").strip()
+        block.append(
+            f"| {sev} | `{u.package}` ({u.ecosystem}) | {bump} | {summary} |"
+        )
+    block += ["", ""]
+    return block
 
 
 _API_DRIFT_KIND_LABEL: dict[str, str] = {
@@ -142,6 +176,10 @@ def _format_file_block(fr: FileReviewResult) -> list[str]:
     cited = [f for f in fr.inline_findings if f.provenance is not None]
     if cited:
         block += _format_provenance_block(cited)
+
+    labelled = [f for f in fr.inline_findings if f.reproducibility is not None]
+    if labelled:
+        block += _format_reproducibility_block(labelled)
 
     verified = [f for f in fr.inline_findings if f.verification is not None]
     if verified:
@@ -221,6 +259,29 @@ _VERIFICATION_BADGE: dict[str, str] = {  # nosec B105 — display labels keyed o
     "skip":  "_[skipped]_",
     "error": "**[error]**",
 }
+
+_REPRO_BADGE: dict[str, str] = {
+    "stable": "**[stable]**",
+    "low":    "_[low-reproducibility]_",
+}
+
+
+def _format_reproducibility_block(findings: list[InlineFinding]) -> list[str]:
+    """Render the per-finding stable / low-repro labels."""
+    block: list[str] = [
+        "<details><summary>Finding reproducibility (two-pass)</summary>",
+        "",
+        "| Line | Label | Comment |",
+        "| ---: | --- | --- |",
+    ]
+    for f in findings:
+        badge = _REPRO_BADGE.get(f.reproducibility or "", f.reproducibility or "")
+        comment = f.comment.replace("|", "\\|").strip()
+        if len(comment) > 80:
+            comment = comment[:79].rstrip() + "..."
+        block.append(f"| {f.line} | {badge} | {comment} |")
+    block += ["", "</details>", ""]
+    return block
 
 
 def _format_verification_block(findings: list[InlineFinding]) -> list[str]:

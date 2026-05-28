@@ -259,10 +259,96 @@ Safety:
   output so a future analysis can audit precision.
 
 
+PR-type adaptive review (``--pr-classify``)
+-------------------------------------------
+
+Most LLM reviewers run the same five-step pipeline against every PR
+type. A docs-only PR doesn't need inline_findings; a hotfix doesn't
+need a refactor-grade design discussion. ``--pr-classify`` runs a
+classifier step first (six categories — ``bugfix`` / ``feature`` /
+``refactor`` / ``docs`` / ``chore`` / ``unknown``) using the diff +
+the PR title + the PR body, then adapts the downstream pipeline:
+
+* ``docs`` — inline-findings step is skipped entirely.
+* ``bugfix`` — smaller ``max_findings_per_file`` budget; the prompt
+  steers the model toward correctness, regression risk, and
+  root-cause vs symptom.
+* ``refactor`` — larger budget; the prompt asks specifically for
+  behavioural-equivalence checks (error text, exception types,
+  ordering, lazy vs eager).
+* ``feature`` / ``chore`` / ``unknown`` — standard budget with a
+  category-specific focus hint.
+
+.. code-block:: bash
+
+   reviewmind review-pr --pr 42 --inline-review --pr-classify
+
+The PR-comment header now reads e.g. *"PR classified as **bugfix** —
+fixes the off-by-one in the rate-limiter"* so reviewers can sanity-check
+the model's intent assessment. Classification quality is a known
+unknown; it is not measured here.
+
+
+Reproducibility signal (``--reproducibility-check``)
+----------------------------------------------------
+
+Most backends do not expose stable per-token logprobs through a
+unified API. ``--reproducibility-check`` is a backend-agnostic
+uncertainty proxy: run the inline-findings step *twice* per file (the
+prompt is identical; non-zero temperature gives a second sample) and
+label each finding:
+
+* ``[stable]`` — appeared in both passes (path + line + normalised
+  comment matched). The normalisation collapses whitespace / case /
+  punctuation so a paraphrase still counts as a match.
+* ``[low-reproducibility]`` — appeared in only one of the two passes.
+
+Findings unique to the second pass are surfaced too (labelled
+``low``) so nothing is silently dropped.
+
+.. code-block:: bash
+
+   reviewmind review-pr --pr 42 --inline-review --reproducibility-check
+
+Cost: one extra backend call per file. On deterministic
+(temperature=0) backends, both passes agree and everything is
+``[stable]`` — which is also the right answer.
+
+
+Dependency upgrade impact (``--dep-upgrade-check``)
+---------------------------------------------------
+
+The PR most likely to break production in unexpected ways — a quiet
+``requests`` bump from ``2.28`` to ``2.32`` — is often the one human
+reviewers wave through fastest. ``--dep-upgrade-check`` adds a
+dedicated step:
+
+1. Scan the diff for lock-file touches
+   (``requirements.txt`` / ``pyproject.toml`` / ``package.json``).
+2. Extract per-package ``(old_version, new_version)`` deltas.
+3. For each upgraded package, build a prompt that includes the
+   package's *actual call-sites* visible elsewhere in the diff, and
+   ask the model: do the breaking changes between these versions
+   affect this codebase's usage?
+4. Parse the reply into structured :class:`DependencyUpgradeFinding`
+   objects (severity / summary / evidence per upgrade).
+
+.. code-block:: bash
+
+   reviewmind review-pr --pr 42 --dep-upgrade-check
+
+The PR comment grows a *Dependency upgrade impact* table at the top
+listing severity, package, version bump, and a one-sentence summary
+per upgrade. The framework does not fetch remote changelogs at review
+time (CI fragility + privacy implications); the model answers from
+its training data and the diff itself. Future work could plug in a
+cached changelog source.
+
+
 Status
 ------
 
-All six mechanisms ship as framework code, unit tests, and prompt
+All nine mechanisms ship as framework code, unit tests, and prompt
 templates. Per ``paper_rule.md`` the project intentionally publishes
 no benchmark numbers here; the corpora and outcome stores exist so
 that measurements can be taken honestly when they are taken.

@@ -113,6 +113,7 @@ class InlineFinding(BaseModel):
     original: str | None = None
     provenance: Provenance | None = None
     verification: SuggestionVerification | None = None
+    reproducibility: Literal["stable", "low"] | None = None
 
     @property
     def is_multiline(self) -> bool:
@@ -145,6 +146,24 @@ class JudgeVerdict(BaseModel):
     reasons: list[str] = Field(default_factory=list)
 
 
+class DependencyUpgradeFinding(BaseModel):
+    """One finding from the dependency-upgrade impact step.
+
+    Each entry corresponds to one (package, old, new) tuple. ``severity``
+    follows the same ``info`` / ``warning`` / ``error`` ladder used in
+    :class:`InlineFinding` so the gate can score it uniformly.
+    """
+
+    file_path: str
+    package: str
+    old_version: str
+    new_version: str
+    ecosystem: str = "unknown"
+    severity: Severity = "info"
+    summary: str
+    evidence: str = ""
+
+
 class CounterfactualOption(BaseModel):
     """One alternative implementation proposed by the counterfactual step.
 
@@ -168,6 +187,24 @@ class CounterfactualOption(BaseModel):
             "'readability': 'one-liner vs explicit loop'}."
         ),
     )
+
+
+PRTypeLiteral = Literal[
+    "bugfix", "feature", "refactor", "docs", "chore", "unknown",
+]
+
+
+class PRClassification(BaseModel):
+    """The PR-type-classifier's output.
+
+    Attached to :class:`ReviewResponse` when ``--pr-classify`` is set.
+    ``reason`` is the model's one-sentence justification; it's surfaced
+    in the PR comment header for transparency but never used to
+    re-classify the PR.
+    """
+
+    pr_type: PRTypeLiteral = "unknown"
+    reason: str = ""
 
 
 ApiDriftKind = Literal[
@@ -218,6 +255,8 @@ class ReviewResponse(BaseModel):
     verdict: JudgeVerdict | None = None
     counterfactuals: list[CounterfactualBlock] = Field(default_factory=list)
     api_drift: list[ApiDriftFinding] = Field(default_factory=list)
+    pr_classification: PRClassification | None = None
+    dep_upgrades: list[DependencyUpgradeFinding] = Field(default_factory=list)
 
     def step_map(self) -> dict[str, str]:
         return {s.name: s.output for s in self.steps}
@@ -230,8 +269,11 @@ __all__ = [
     "CitationKind",
     "CounterfactualBlock",
     "CounterfactualOption",
+    "DependencyUpgradeFinding",
     "InlineFinding",
     "JudgeVerdict",
+    "PRClassification",
+    "PRTypeLiteral",
     "Provenance",
     "ProvenanceCitation",
     "RagRequest",

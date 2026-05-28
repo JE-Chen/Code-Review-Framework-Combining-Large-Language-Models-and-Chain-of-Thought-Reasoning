@@ -226,9 +226,81 @@ kind、两侧文件路径、一句摘要\ 。
 * 原始模型输出保留于 ``api_consistency`` step output\ ，事后可审计\ 。
 
 
+PR 类型自适应审查（``--pr-classify``）
+----------------------------------------
+
+多数 LLM 审查器对所有 PR 一视同仁\ 。docs-only PR 不需要 inline_findings\ ；
+hotfix 不需要 refactor 级的设计讨论\ 。本扩展先跑一个分类 step\ ，
+用 diff + PR 标题 + body 把 PR 分到六类之一（``bugfix`` / ``feature``
+/ ``refactor`` / ``docs`` / ``chore`` / ``unknown``）\ ，然后调整后续
+pipeline：
+
+* ``docs`` ── 整个 inline-findings step 跳过\ 。
+* ``bugfix`` ── 较小的 ``max_findings_per_file``\ ；prompt 把模型导向
+  正确性、回归风险、是否解决根因\ 。
+* ``refactor`` ── 较大 budget\ ；prompt 专问行为等价（错误消息文字、
+  异常类型、顺序、lazy vs eager）\ 。
+* ``feature`` / ``chore`` / ``unknown`` ── 标准 budget + 对应的 focus hint\ 。
+
+.. code-block:: bash
+
+   reviewmind review-pr --pr 42 --inline-review --pr-classify
+
+PR 评论顶部新增一行如：「PR classified as **bugfix** ── fixes the
+off-by-one in the rate-limiter」\ ，方便人类校验模型的意图判读\ 。
+分类准确率属于未知\ ，本页不做主张\ 。
+
+
+评论一致性信号（``--reproducibility-check``）
+-----------------------------------------------
+
+多数 backend 并没有把稳定的 per-token logprob 通过统一 API 暴露出来\ 。
+本扩展是\ 不依赖 logprob\ 的后端通用 uncertainty proxy：对同一文件跑两次
+inline-findings step（prompt 相同\ ；非 0 temperature 自然产生第二个样本）\ ，
+然后给每条 finding 标：
+
+* ``[stable]`` ── 两次都出现（path + line + 正规化 comment 匹配）\ 。
+  正规化会压掉空白 / 大小写 / 标点\ ，paraphrase 仍视为 match\ 。
+* ``[low-reproducibility]`` ── 只在其中一次出现\ 。
+
+第二次新出现的 finding 也会被保留（标 ``low``）\ ，不会静默丢失\ 。
+
+.. code-block:: bash
+
+   reviewmind review-pr --pr 42 --inline-review --reproducibility-check
+
+成本：每文件多一次 backend 调用\ 。在 deterministic（temperature=0）
+backend 上两次结果一致\ ，全部标 ``[stable]`` ── 也是正确答案\ 。
+
+
+依赖升级影响分析（``--dep-upgrade-check``）
+---------------------------------------------
+
+最容易出大事、却最被人类审查者迅速放行的 PR\ ，往往是\ 一行不显眼的
+``requests`` 从 ``2.28`` bump 到 ``2.32``\ 。本扩展新增一个 step：
+
+1. 检测 diff 是否动到 lock-file（``requirements.txt`` /
+   ``pyproject.toml`` / ``package.json``）\ 。
+2. 抽出每个包之 ``(old_version, new_version)`` delta\ 。
+3. 对每个升级包\ ，建一份 prompt 将该包在 diff 其他文件中的
+   *实际调用点*\ 一并放入\ ，问模型：两个版本间之 breaking change
+   是否影响本 repo 之用法？
+4. 将回复解析为 :class:`DependencyUpgradeFinding`\ （每升级一个 severity
+   / summary / evidence）\ 。
+
+.. code-block:: bash
+
+   reviewmind review-pr --pr 42 --dep-upgrade-check
+
+PR 评论顶端多出一张\ *Dependency upgrade impact*\ 表格\ ，列 severity、
+package、版本 bump、一句摘要\ 。框架\ 不在 review-time 抓 remote changelog
+（CI 不稳 + 隐私问题）\ ，模型从自身训练数据与 diff 内容作答\ 。未来可
+插入有缓存的 changelog source\ 。
+
+
 状态
 ----
 
-六个机制皆已交付为框架代码、单元测试与 prompt 样板\ 。依
+九个机制皆已交付为框架代码、单元测试与 prompt 样板\ 。依
 ``paper_rule.md``\ ，本项目有意不在此页提供 benchmark 数字；语料与
 outcome 存储体均已位\ ，量测之时\ ，将以可审计之方式为之\ 。

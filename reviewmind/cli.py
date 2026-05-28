@@ -311,6 +311,39 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     common.add_argument(
+        "--pr-classify",
+        action="store_true",
+        default=env_bool("REVIEWMIND_PR_CLASSIFY", False),
+        help=(
+            "Classify the PR (bugfix / feature / refactor / docs / chore "
+            "/ unknown) before reviewing, then adapt review depth + "
+            "focus to the type. Docs-only PRs skip inline findings; "
+            "bugfix PRs use a focused prompt with smaller budget."
+        ),
+    )
+    common.add_argument(
+        "--reproducibility-check",
+        action="store_true",
+        default=env_bool("REVIEWMIND_REPRODUCIBILITY_CHECK", False),
+        help=(
+            "Run the inline-findings step twice per file and label each "
+            "finding stable / low-reproducibility based on whether it "
+            "appeared in both passes. Backend-agnostic uncertainty "
+            "proxy; costs one extra backend call per file."
+        ),
+    )
+    common.add_argument(
+        "--dep-upgrade-check",
+        action="store_true",
+        default=env_bool("REVIEWMIND_DEP_UPGRADE_CHECK", False),
+        help=(
+            "Detect dependency version bumps in lock files "
+            "(requirements / pyproject / package.json / etc.) and "
+            "ask the model whether breaking changes between the old and "
+            "new versions affect this codebase's actual usage."
+        ),
+    )
+    common.add_argument(
         "--rules-dir",
         type=Path,
         default=Path(env_str("REVIEWMIND_RULES_DIR") or "") if env_str("REVIEWMIND_RULES_DIR") else None,
@@ -861,6 +894,11 @@ def _review_via_pipeline(
                 verify_cmd=getattr(args, "verify_cmd", "") or "",
                 verify_timeout=float(getattr(args, "verify_timeout", 60.0) or 60.0),
                 api_consistency_check=bool(getattr(args, "api_consistency", False)),
+                pr_classify=bool(getattr(args, "pr_classify", False)),
+                pr_title=getattr(args, "pr_title", "") or "",
+                pr_body=getattr(args, "pr_body", "") or "",
+                reproducibility_check=bool(getattr(args, "reproducibility_check", False)),
+                dep_upgrade_check=bool(getattr(args, "dep_upgrade_check", False)),
             )
         return pipeline.run(diff_text, output_dir=output_dir)
     finally:
@@ -939,6 +977,17 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
     if not diff.strip():
         log.warning("Empty diff — skipping review")
         return 0
+
+    if getattr(args, "pr_classify", False):
+        try:
+            pr_title, pr_body = adapter.fetch_pr_meta()
+            args.pr_title = pr_title
+            args.pr_body = pr_body
+            log.info("Fetched PR meta: title=%r body_len=%d",
+                     pr_title[:60], len(pr_body))
+        except Exception as exc:
+            log.warning("Could not fetch PR meta for classifier (%s); "
+                        "classifier will run on diff only", exc)
 
     head_sha: str | None = None
     needs_head_sha = (

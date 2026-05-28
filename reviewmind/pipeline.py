@@ -16,19 +16,22 @@ from pathlib import Path
 
 from reviewmind.accepted import AcceptedExamplesRetriever, format_examples_block
 from reviewmind.backends.base import InferenceBackend
-from reviewmind import api_consistency
+from reviewmind import api_consistency, dep_upgrade, pr_classifier
 from reviewmind.counterfactual import parse_counterfactuals
 from reviewmind.diff import FileDiff, parse_unified_diff
 from reviewmind.dismissed import DismissedFilter
 from reviewmind.findings import build_provenance_block, parse_inline_findings
+from reviewmind.pr_classifier import ReviewBudget
 from reviewmind.review_cache import CacheKey, ReviewCache
 from reviewmind.judge import parse_verdict
 from reviewmind.rag import RAGRetriever
 from reviewmind.schemas import (
     ApiDriftFinding,
     CounterfactualBlock,
+    DependencyUpgradeFinding,
     InlineFinding,
     JudgeVerdict,
+    PRClassification,
 )
 from reviewmind.self_review import (
     apply_self_review,
@@ -56,6 +59,8 @@ class ReviewResult:
     per_file: list["FileReviewResult"] = field(default_factory=list)
     counterfactuals: list[CounterfactualBlock] = field(default_factory=list)
     api_drift: list[ApiDriftFinding] = field(default_factory=list)
+    pr_classification: PRClassification | None = None
+    dep_upgrades: list[DependencyUpgradeFinding] = field(default_factory=list)
 
     @property
     def total_summary(self) -> str | None:
@@ -180,6 +185,11 @@ class CoTPipeline:
         verify_workdir: Path | None = None,
         verify_cmd: str = "",
         verify_timeout: float = 60.0,
+        pr_classify: bool = False,
+        pr_title: str = "",
+        pr_body: str = "",
+        reproducibility_check: bool = False,
+        dep_upgrade_check: bool = False,
     ) -> ReviewResult:
         """Run the full step sequence once per file in the diff.
 
@@ -190,6 +200,42 @@ class CoTPipeline:
         if not file_diffs:
             log.warning("Diff had no parseable files")
             return ReviewResult(code_diff=diff_text, rag_docs=[])
+
+        # ---------- optional PR-type classification ------------------------
+        classification: PRClassification | None = None
+        budget: ReviewBudget | None = None
+        if pr_classify:
+            log.info("Classifying PR type")
+            classify_prompt = pr_classifier.build_prompt(
+                diff_text=diff_text, title=pr_title, body=pr_body,
+            )
+            raw_classify = self._backend.generate(
+                classify_prompt, max_new_tokens=self._max_new_tokens,
+            )
+            parsed = pr_classifier.parse_classification(raw_classify)
+            classification = PRClassification(
+                pr_type=parsed.pr_type.value, reason=parsed.reason,
+            )
+            budget = pr_classifier.budget_for(parsed.pr_type)
+            log.info(
+                "PR classified as %s -> inline=%s, max_findings=%d",
+                parsed.pr_type.value, budget.run_inline_findings,
+                budget.max_findings_per_file,
+            )
+            # Override caller-supplied flags with classifier's budget
+            # (caller can still pass --no-pr-classify to bypass).
+            inline_review = inline_review and budget.run_inline_findings
+            max_findings_per_file = (
+                budget.max_findings_per_file
+                if budget.max_findings_per_file > 0
+                else max_findings_per_file
+            )
+            if budget.focus_hint:
+                # Append to the dialogue block — it's already a free-form
+                # injection slot for inline-findings.
+                dialogue_block = (
+                    dialogue_block + "\n\n" + budget.focus_hint
+                ).strip()
 
         extra: tuple[type[ReviewStep], ...] = ()
         if inline_review:
@@ -255,6 +301,7 @@ class CoTPipeline:
                 self_correct=self_correct,
                 dialogue_block=dialogue_block,
                 provenance=provenance,
+                reproducibility_check=reproducibility_check,
             )
             if cache_key is not None:
                 review_cache.put(
@@ -278,6 +325,22 @@ class CoTPipeline:
                 key = f"{fd.path}::{name}"
                 aggregated_steps[key] = output
 
+        dep_upgrades: list[DependencyUpgradeFinding] = []
+        if dep_upgrade_check:
+            upgrades = dep_upgrade.detect_upgrades(file_diffs)
+            for up in upgrades:
+                log.info(
+                    "dep-upgrade: %s %s %s -> %s",
+                    up.ecosystem, up.package, up.old_version, up.new_version,
+                )
+                prompt = dep_upgrade.build_prompt(up, file_diffs)
+                raw = self._backend.generate(
+                    prompt, max_new_tokens=self._max_new_tokens,
+                )
+                key = f"dep_upgrade::{up.package}::{up.new_version}"
+                aggregated_steps[key] = raw
+                dep_upgrades.extend(dep_upgrade.parse_impact(raw, upgrade=up))
+
         api_drift: list[ApiDriftFinding] = []
         if api_consistency_check and api_consistency.is_mixed_language(file_diffs):
             log.info("Mixed-language PR detected → running api-consistency step")
@@ -297,6 +360,8 @@ class CoTPipeline:
             per_file=per_file_results,
             counterfactuals=aggregated_counterfactuals,
             api_drift=api_drift,
+            pr_classification=classification,
+            dep_upgrades=dep_upgrades,
         )
 
     # ---------- internals ---------------------------------------------------
@@ -311,6 +376,7 @@ class CoTPipeline:
         self_correct: bool = False,
         dialogue_block: str = "",
         provenance: bool = False,
+        reproducibility_check: bool = False,
     ) -> FileReviewResult:
         rag_docs = self._merge_rules(self._retriever.retrieve(fd.raw))
         positive_examples_block = ""
@@ -349,6 +415,23 @@ class CoTPipeline:
                 n_rag_rules=len(rag_docs) if provenance else 0,
                 n_accepted_examples=n_accepted_examples if provenance else 0,
             )
+            if reproducibility_check:
+                from reviewmind import reproducibility
+                # Rebuild the same prompt and re-query the model. With
+                # non-deterministic backends we get a second sample;
+                # with temperature=0 backends the two passes agree and
+                # everything is labelled "stable" — also the right answer.
+                inline_prompt = InlineFindingsStep().build_prompt(ctx)
+                second_raw = self._backend.generate(
+                    inline_prompt, max_new_tokens=self._max_new_tokens,
+                )
+                second = parse_inline_findings(
+                    second_raw, path=fd.path,
+                    allowed_lines=fd.commentable_lines(),
+                    n_rag_rules=len(rag_docs) if provenance else 0,
+                    n_accepted_examples=n_accepted_examples if provenance else 0,
+                )
+                findings = reproducibility.label_findings(findings, second)
             if self._dismissed_filter is not None and findings:
                 findings = self._dismissed_filter.filter(findings)
             if self_correct and findings:
