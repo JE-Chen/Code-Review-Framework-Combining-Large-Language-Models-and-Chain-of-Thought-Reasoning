@@ -1,11 +1,11 @@
-# reviewmind
+# prthinker
 
 **English** · [繁體中文](READMEs/README.zh-TW.md) · [简体中文](READMEs/README.zh-CN.md)
 
 > A Chain-of-Thought code review framework for GitHub PRs, backed by a
 > fine-tuned Qwen3-Coder model with retrieval-augmented prompting.
 
-`reviewmind` reads a Pull Request diff, runs a five-step Chain-of-Thought
+`prthinker` reads a Pull Request diff, runs a five-step Chain-of-Thought
 review, and posts a structured summary plus one-click `suggestion` blocks
 back to the PR. It learns from each repo's history — dismissed comments
 are filtered out next time, accepted suggestions are surfaced as in-context
@@ -35,14 +35,14 @@ exemplars — and can act as a required status check before merges.
 - **Cost + latency telemetry** — SQLite-backed prompt cache (`--cache`)
   with content-hash invalidation, plus per-call telemetry (`--telemetry`)
   that records tokens, latency, cache-hit status and estimated USD cost.
-  `reviewmind stats` aggregates by backend / model.
-- **`.reviewmind.yaml` repo-level config** — pin backend, gate threshold,
+  `prthinker stats` aggregates by backend / model.
+- **`.prthinker.yaml` repo-level config** — pin backend, gate threshold,
   cache + telemetry, per-repo rules in one PR-reviewable file. Secrets
   always come from env vars, never the YAML.
 - **Secret redaction** — `--redact-secrets` scrubs AWS / GitHub / OpenAI
   / Anthropic / Stripe / Slack / JWT / PEM keys from the diff before any
   paid backend call. Idempotent, cache-friendly, never logs content.
-- **MCP server** — `reviewmind mcp` exposes the pipeline as a Model
+- **MCP server** — `prthinker mcp` exposes the pipeline as a Model
   Context Protocol stdio server so Claude Desktop, Cursor, Continue,
   Cline, and Zed can run reviews from inside the IDE.
 
@@ -53,12 +53,12 @@ require `--inline-review`; per the project's no-fabrication rule we
 publish the framework only — measured benchmark numbers are future
 work.
 
-- **Adversarial robustness** (`reviewmind adversarial-eval`) — runs a
+- **Adversarial robustness** (`prthinker adversarial-eval`) — runs a
   prompt-injection corpus across four attack families and records
   every per-call outcome to SQLite. The bundled `seed.jsonl` is a
   seed, **not** a benchmark.
 - **Closed-loop multi-turn dialogue** (`--reply-to-author`) — injects
-  the PR author's replies to the last reviewmind comment as *Prior
+  the PR author's replies to the last prthinker comment as *Prior
   dialogue* so the next review drops, refines, or rebuts findings the
   author already addressed.
 - **Counterfactual review** (`--counterfactual`) — for design-choice
@@ -111,32 +111,32 @@ for the design write-up.
 pip install -e ".[runner]"
 
 # Review a local diff against a remote inference server
-reviewmind review-file my-change.diff \
+prthinker review-file my-change.diff \
     --backend remote \
     --remote-url https://my-host:8000 \
     --per-file --inline-review
 
 # Review a PR end-to-end (used by the GitHub Action)
-reviewmind review-pr \
+prthinker review-pr \
     --repo owner/name --pr-number 42 \
     --backend remote --remote-url https://my-host:8000 \
     --gate-on error --include-ci-signals
 
 # …or use OpenAI / Azure / vLLM / Ollama via the OpenAI-compat backend
-reviewmind review-pr --repo o/r --pr-number 42 \
+prthinker review-pr --repo o/r --pr-number 42 \
     --backend openai \
     --openai-base-url http://localhost:11434/v1 \
     --openai-model llama3.1:8b \
     --openai-api-key ollama
 
 # …or use Anthropic Claude
-reviewmind review-pr --repo o/r --pr-number 42 \
+prthinker review-pr --repo o/r --pr-number 42 \
     --backend anthropic \
     --anthropic-model claude-sonnet-4-6 \
     --anthropic-api-key "$ANTHROPIC_API_KEY"
 
 # …or turn on every research-grade extension at once
-reviewmind review-pr --repo o/r --pr-number 42 \
+prthinker review-pr --repo o/r --pr-number 42 \
     --per-file --inline-review \
     --reply-to-author --counterfactual --provenance \
     --diff-since-last --verify-suggestions --api-consistency \
@@ -145,9 +145,9 @@ reviewmind review-pr --repo o/r --pr-number 42 \
     --judge --self-correct
 
 # Stress-test backend robustness against prompt-injection patterns
-reviewmind adversarial-eval \
-    --corpus reviewmind/adversarial_corpus/seed.jsonl \
-    --outcomes-path .reviewmind/adversarial.sqlite \
+prthinker adversarial-eval \
+    --corpus prthinker/adversarial_corpus/seed.jsonl \
+    --outcomes-path .prthinker/adversarial.sqlite \
     --backend openai --openai-model gpt-4o-mini
 ```
 
@@ -160,12 +160,12 @@ uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
 
 ## GitHub Actions
 
-Copy `.github/workflows/reviewmind.yml`, then set two repo secrets:
+Copy `.github/workflows/prthinker.yml`, then set two repo secrets:
 
 | Secret               | Purpose                                |
 | -------------------- | -------------------------------------- |
-| `REVIEWMIND_BACKEND_URL`    | Base URL of your FastAPI server        |
-| `REVIEWMIND_BACKEND_API_KEY`| Bearer token (optional)                |
+| `PRTHINKER_BACKEND_URL`    | Base URL of your FastAPI server        |
+| `PRTHINKER_BACKEND_API_KEY`| Bearer token (optional)                |
 
 The workflow fires on `pull_request` opened/synchronize/reopened and
 upserts a single collapsible review comment.
@@ -195,14 +195,14 @@ sphinx-build -b html docs docs/_build/html
 ## Repo layout
 
 ```
-reviewmind/        The standalone Python package (Strategy/Factory/Registry)
+prthinker/        The standalone Python package (Strategy/Factory/Registry)
 codes/run/           Original scripts; cot.py and fastapi_server.py call the package
 codes/run/CoT_Prompts/  Prompt templates (single source of truth)
 codes/train/         LoRA fine-tuning scripts (Qwen3.1-7B, Qwen2.5-Coder-7B, Qwen3-30B, Qwen3-Coder-30B)
 codes/util/          Model loading + FAISS retrieval utilities
 datas/               Test data, RAG rule documents
 paper/               Manuscript + slide build
-.github/workflows/   reviewmind.yml — the GHA integration
+.github/workflows/   prthinker.yml — the GHA integration
 docs/                Sphinx documentation
 ```
 

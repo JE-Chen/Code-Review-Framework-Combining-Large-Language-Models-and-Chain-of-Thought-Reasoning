@@ -1,7 +1,7 @@
 Installation
 ============
 
-``reviewmind`` ships as a Python package with three install profiles.
+``prthinker`` ships as a Python package with three install profiles.
 Pick the one that matches where the code will run.
 
 Profiles
@@ -65,10 +65,10 @@ Verifying the install
 .. code-block:: bash
 
    # The CLI should respond with subcommand help
-   reviewmind --help
+   prthinker --help
 
    # The five built-in CoT steps should be registered
-   python -c "from reviewmind.steps import registered_steps; \
+   python -c "from prthinker.steps import registered_steps; \
               print([s.name for s in registered_steps()])"
 
 Expected output::

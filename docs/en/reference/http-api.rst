@@ -64,7 +64,7 @@ POST /review
 ------------
 
 Run the full CoT pipeline server-side. This is the endpoint used by
-``reviewmind review-pr --use-remote-pipeline``.
+``prthinker review-pr --use-remote-pipeline``.
 
 **Request body** (``ReviewRequest``):
 
@@ -120,7 +120,7 @@ Field semantics:
    }
 
 The dismissed filter (when configured server-side via
-``REVIEWMIND_DISMISSED_PATH``) runs before the response is returned, so
+``PRTHINKER_DISMISSED_PATH``) runs before the response is returned, so
 findings that match prior dismissals are already filtered out.
 
 **Errors**
@@ -133,28 +133,28 @@ findings that match prior dismissals are already filtered out.
 Schema definitions
 ------------------
 
-The Pydantic models in :mod:`reviewmind.schemas` are the single source
+The Pydantic models in :mod:`prthinker.schemas` are the single source
 of truth for the wire format. Both the server (FastAPI's
 ``response_model``) and the runner (``model_validate_json``) reference
 them, so type drift is impossible.
 
-.. autoclass:: reviewmind.schemas.AskRequest
+.. autoclass:: prthinker.schemas.AskRequest
    :noindex:
 
-.. autoclass:: reviewmind.schemas.RagRequest
+.. autoclass:: prthinker.schemas.RagRequest
    :noindex:
 
-.. autoclass:: reviewmind.schemas.RagResponse
+.. autoclass:: prthinker.schemas.RagResponse
    :noindex:
 
-.. autoclass:: reviewmind.schemas.ReviewRequest
+.. autoclass:: prthinker.schemas.ReviewRequest
    :noindex:
 
-.. autoclass:: reviewmind.schemas.ReviewResponse
+.. autoclass:: prthinker.schemas.ReviewResponse
    :noindex:
 
-.. autoclass:: reviewmind.schemas.InlineFinding
+.. autoclass:: prthinker.schemas.InlineFinding
    :noindex:
 
-.. autoclass:: reviewmind.schemas.StepOutput
+.. autoclass:: prthinker.schemas.StepOutput
    :noindex:

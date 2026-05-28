@@ -113,7 +113,7 @@
 >    度將領域規則動態注入提示詞，避免規則總量隨基礎模型 context window
 >    擴張而線性增加；§5 所載結果皆於該檢索層啟用之配置下取得。
 >
-> 下列三項屬於本研究隨附之開源框架（reviewmind）之設計貢獻；其量化
+> 下列三項屬於本研究隨附之開源框架（prthinker）之設計貢獻；其量化
 > 效益之驗證留待 §6.4 所述之未來工作：
 >
 > 4. **以 `JudgeStep` 為核心之 LLM-as-a-Judge-Our 細粒度評分機制與
@@ -142,7 +142,7 @@
 
 > 3.5  學習語料與評審機制（設計層）
 >
-> 本節描述本研究隨附之開源框架（reviewmind）於 §3.2 系統架構之外另實作
+> 本節描述本研究隨附之開源框架（prthinker）於 §3.2 系統架構之外另實作
 > 之兩項機制：作者反饋學習語料與 `JudgeStep` 評審層。下列說明屬於框架
 > 之設計與介面定義；其量化效益本論文未予評估，留待 §6.4 所述之未來
 > 工作以累積實際 PR 流量後另行驗證。
@@ -153,7 +153,7 @@
 > 符合下列任一條件之留言視為被拒：留言本身或其回覆含 👎 reaction、
 > 或留言之回覆字串命中「false positive」、「wontfix」、「not relevant」、
 > 「誤判」、「不修」等中英文關鍵字集合。命中之留言以 JSONL 格式 append
-> 至 `.reviewmind/dismissed.jsonl`，欄位包含 `path`、`comment`、`reason`、
+> 至 `.prthinker/dismissed.jsonl`，欄位包含 `path`、`comment`、`reason`、
 > `diff_snippet`。於推論時，server 啟動時將該 JSONL 之每筆 `comment` 各
 > embed 一次並載入記憶體；對每個候選 inline finding 計算其 `comment` 與
 > 全部 stored example 之最大餘弦相似度 `s_max`，若 `s_max ≥ τ_d` 即將
@@ -219,7 +219,7 @@
 >
 > 3.6.2  Model Context Protocol 整合層
 >
-> 本框架除 CI 觸發路徑外，另以 `reviewmind mcp` 子指令啟動 stdio MCP
+> 本框架除 CI 觸發路徑外，另以 `prthinker mcp` 子指令啟動 stdio MCP
 > server（Model Context Protocol，LLM client 與外部工具之間之 JSON-RPC
 > 協定），將 review 管線暴露為兩個可由 MCP client 之 LLM 自由調用之
 > tool。後端設定共用 §3.2 所述之環境變數機制，密鑰一律取自環境變數

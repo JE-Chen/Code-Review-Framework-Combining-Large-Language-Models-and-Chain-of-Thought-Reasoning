@@ -6,14 +6,14 @@ import json
 
 import pytest
 
-from reviewmind.api_consistency import (
+from prthinker.api_consistency import (
     build_prompt,
     classify_side,
     is_mixed_language,
     parse_drift_findings,
 )
-from reviewmind.diff import FileDiff
-from reviewmind.schemas import ApiDriftFinding
+from prthinker.diff import FileDiff
+from prthinker.schemas import ApiDriftFinding
 
 
 def _fd(path: str, raw: str = "diff", is_binary: bool = False,

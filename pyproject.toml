@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "reviewmind"
+name = "prthinker"
 version = "0.1.0"
 description = "Chain-of-Thought code review pipeline with pluggable inference backends (local HF / OpenAI-compat / Anthropic / project FastAPI server) and GitHub PR integration"
 requires-python = ">=3.12"
@@ -40,11 +40,11 @@ mcp = [
 ]
 
 [project.scripts]
-reviewmind = "reviewmind.cli:main"
+prthinker = "prthinker.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["reviewmind*"]
+include = ["prthinker*"]
 exclude = ["codes*", "datas*", "paper*", "gen-paper*"]
 
 [tool.bandit]

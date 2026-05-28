@@ -1,11 +1,11 @@
 Docker、多平台、纵向报告
 ========================
 
-三项把 reviewmind 从「可被 import 的库」升级为「可运营的系统」之新增：
+三项把 prthinker 从「可被 import 的库」升级为「可运营的系统」之新增：
 
 * **Docker compose**\ ──一指令自部署。
 * **PlatformAdapter**\ ──GitHub 与 GitLab 共用一个 Strategy 接口。
-* **``reviewmind report``**\ ──跨 store 纵向汇总。
+* **``prthinker report``**\ ──跨 store 纵向汇总。
 
 以 Docker compose 自部署
 ------------------------
@@ -30,11 +30,11 @@ Docker、多平台、纵向报告
      - CUDA-runtime base + Python 3.12 + ``pip install -e .[server]``\ 。
        模型权重\ **不**\ 烤进 image，于首次运行时拉到 volume 中。
    * - ``docker/docker-compose.yml``
-     - 两个 service（\ ``reviewmind`` + ``nginx``\ ）、三个 volume
+     - 两个 service（\ ``prthinker`` + ``nginx``\ ）、三个 volume
        （\ ``hf_cache``\ 、\ ``data``\ 、host TLS 目录）。
    * - ``docker/nginx.conf``
      - TLS termination；\ ``/healthz`` 不检查 auth，其他路径要求
-       ``Authorization: Bearer <REVIEWMIND_BACKEND_TOKEN>``\ 。
+       ``Authorization: Bearer <PRTHINKER_BACKEND_TOKEN>``\ 。
    * - ``docker/entrypoint-nginx.sh``
      - container 启动时把 token 注入 ``nginx.conf``\ ；env 变量缺失
        时拒绝启动（fail-fast）。
@@ -47,13 +47,13 @@ Docker、多平台、纵向报告
 
    cd docker
    cp .env.example .env
-   # 编辑：REVIEWMIND_BACKEND_TOKEN=$(openssl rand -hex 32)
+   # 编辑：PRTHINKER_BACKEND_TOKEN=$(openssl rand -hex 32)
    #       TLS_CERT_DIR=/etc/letsencrypt/live/your-host
    docker compose up -d
 
    # 验证
    curl https://your-host/healthz \
-       -H "Authorization: Bearer $REVIEWMIND_BACKEND_TOKEN"
+       -H "Authorization: Bearer $PRTHINKER_BACKEND_TOKEN"
 
 Volume 说明：
 
@@ -73,7 +73,7 @@ Pipeline 通过一个 Strategy 接口同时对接 GitHub 与 GitLab：
 
 .. code-block:: text
 
-   reviewmind.platforms.base.PlatformAdapter        (ABC)
+   prthinker.platforms.base.PlatformAdapter        (ABC)
        │
        ├── GitHubAdapter   (包住 github_api.py + checks.py)
        └── GitLabAdapter   (直接以 httpx 打 /api/v4)
@@ -138,17 +138,17 @@ CLI 用法
 .. code-block:: bash
 
    # GitHub（默认）
-   reviewmind review-pr --repo owner/name --pr-number 42
+   prthinker review-pr --repo owner/name --pr-number 42
 
    # gitlab.com 上之 GitLab
-   reviewmind review-pr \
+   prthinker review-pr \
        --platform gitlab \
        --repo group/project \
        --pr-number 42 \
        --github-token "$GITLAB_TOKEN"
 
    # 自部署之 GitHub Enterprise
-   reviewmind review-pr \
+   prthinker review-pr \
        --platform github \
        --platform-base-url https://github.example.com/api/v3 \
        --repo owner/name --pr-number 42
@@ -171,23 +171,23 @@ CLI 用法
 其他功能（CoT pipeline、gate、inline review、judge、self-correct）
 GitHub 与 GitLab 皆支持。
 
-``reviewmind report``\ ──纵向汇总
+``prthinker report``\ ──纵向汇总
 ---------------------------------
 
 框架写入之四份 store（telemetry SQLite、cache SQLite、dismissed /
-accepted JSONL）会悄悄积累。\ ``reviewmind report`` 把它们 join 起来，
+accepted JSONL）会悄悄积累。\ ``prthinker report`` 把它们 join 起来，
 产出可给人或机器读之汇总：
 
 .. code-block:: bash
 
    # markdown 到 stdout
-   reviewmind report --since-days 30
+   prthinker report --since-days 30
 
    # html 文件，方便寄给 ops
-   reviewmind report --since-days 30 --format html --out report.html
+   prthinker report --since-days 30 --format html --out report.html
 
    # json 可接 Grafana / DuckDB
-   reviewmind report --since-days 30 --format json --out report.json
+   prthinker report --since-days 30 --format json --out report.json
 
 渲染之段落：
 

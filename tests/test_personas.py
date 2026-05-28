@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import json
 
-from reviewmind.personas import (
+from prthinker.personas import (
     Persona,
     build_conflict_prompt,
     build_persona_prompt,
     parse_conflicts,
 )
-from reviewmind.schemas import PersonaConflict
+from prthinker.schemas import PersonaConflict
 
 
 # ----- per-persona prompt builder ---------------------------------------

@@ -1,7 +1,7 @@
 End-to-end example
 ==================
 
-A single coherent walkthrough that wires together everything reviewmind
+A single coherent walkthrough that wires together everything prthinker
 ships: a GPU inference server, a thin runner driving it (CLI or GitHub
 Actions), and a Python API that talks to the same server for one-off
 scripted reviews.
@@ -33,22 +33,22 @@ gating.
 .. code-block:: bash
 
    # On the GPU machine
-   git clone https://github.com/<your-org>/reviewmind.git
-   cd reviewmind
+   git clone https://github.com/<your-org>/prthinker.git
+   cd prthinker
    pip install -e ".[server]"             # torch / transformers / faiss / fastapi
 
    # Learned corpora (optional; empty files are fine — the server
    # ignores them when len == 0)
-   mkdir -p .reviewmind && touch \
-       .reviewmind/dismissed.jsonl \
-       .reviewmind/accepted.jsonl
+   mkdir -p .prthinker && touch \
+       .prthinker/dismissed.jsonl \
+       .prthinker/accepted.jsonl
 
    # Launch (model loads at import time; first run downloads weights)
    export HF_HOME=/srv/hf-cache
-   export REVIEWMIND_DISMISSED_PATH=$PWD/.reviewmind/dismissed.jsonl
-   export REVIEWMIND_ACCEPTED_PATH=$PWD/.reviewmind/accepted.jsonl
-   export REVIEWMIND_CACHE_ENABLED=true
-   export REVIEWMIND_TELEMETRY_ENABLED=true
+   export PRTHINKER_DISMISSED_PATH=$PWD/.prthinker/dismissed.jsonl
+   export PRTHINKER_ACCEPTED_PATH=$PWD/.prthinker/accepted.jsonl
+   export PRTHINKER_CACHE_ENABLED=true
+   export PRTHINKER_TELEMETRY_ENABLED=true
 
    uvicorn codes.run.fastapi_server:app \
        --host 0.0.0.0 --port 8000 --workers 1
@@ -73,15 +73,15 @@ Health check:
 
 .. code-block:: bash
 
-   cd reviewmind/docker
+   cd prthinker/docker
    cp .env.example .env
    # edit .env:
-   #   REVIEWMIND_BACKEND_TOKEN=<long random string>
+   #   PRTHINKER_BACKEND_TOKEN=<long random string>
    #   TLS_CERT_DIR=/etc/letsencrypt/live/your-host
    docker compose up -d
 
    curl https://your-host/healthz \
-       -H "Authorization: Bearer $REVIEWMIND_BACKEND_TOKEN"
+       -H "Authorization: Bearer $PRTHINKER_BACKEND_TOKEN"
 
 
 Step 2 — Runner
@@ -99,10 +99,10 @@ The runner has no GPU dependency — install with the ``runner`` extra.
    git diff main..HEAD > my-change.diff
 
    # Self-hosted server + every research-grade extension enabled
-   reviewmind review-file my-change.diff \
+   prthinker review-file my-change.diff \
        --backend remote \
        --remote-url https://your-host \
-       --remote-api-key "$REVIEWMIND_BACKEND_TOKEN" \
+       --remote-api-key "$PRTHINKER_BACKEND_TOKEN" \
        --use-remote-pipeline \
        --per-file --inline-review \
        --counterfactual --provenance \
@@ -113,11 +113,11 @@ The runner has no GPU dependency — install with the ``runner`` extra.
 2b. GitHub Actions
 ~~~~~~~~~~~~~~~~~~
 
-Drop the workflow into ``.github/workflows/reviewmind.yml``:
+Drop the workflow into ``.github/workflows/prthinker.yml``:
 
 .. code-block:: yaml
 
-   name: ReviewMind
+   name: prthinker
    on:
      pull_request:
        types: [opened, synchronize, reopened]
@@ -129,11 +129,11 @@ Drop the workflow into ``.github/workflows/reviewmind.yml``:
      actions: read
 
    concurrency:
-     group: reviewmind-${{ github.event.pull_request.number }}
+     group: prthinker-${{ github.event.pull_request.number }}
      cancel-in-progress: true
 
    jobs:
-     reviewmind:
+     prthinker:
        runs-on: ubuntu-latest
        if: ${{ github.event.pull_request.draft == false }}
        timeout-minutes: 30
@@ -148,58 +148,62 @@ Drop the workflow into ``.github/workflows/reviewmind.yml``:
              cache: "pip"
          - name: Install runner deps
            run: pip install -e ".[runner]"
-         - name: Run ReviewMind
+         - name: Run prthinker
            env:
              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
              GITHUB_REPOSITORY: ${{ github.repository }}
-             REVIEWMIND_PR_NUMBER: ${{ github.event.pull_request.number }}
+             PRTHINKER_PR_NUMBER: ${{ github.event.pull_request.number }}
 
              # Backend — points at the Step 1 server.
-             REVIEWMIND_BACKEND: remote
-             REVIEWMIND_REMOTE_URL: ${{ secrets.REVIEWMIND_BACKEND_URL }}
-             REVIEWMIND_REMOTE_API_KEY: ${{ secrets.REVIEWMIND_BACKEND_API_KEY }}
-             REVIEWMIND_USE_REMOTE_PIPELINE: "true"
+             PRTHINKER_BACKEND: remote
+             PRTHINKER_REMOTE_URL: ${{ secrets.PRTHINKER_BACKEND_URL }}
+             PRTHINKER_REMOTE_API_KEY: ${{ secrets.PRTHINKER_BACKEND_API_KEY }}
+             PRTHINKER_USE_REMOTE_PIPELINE: "true"
 
              # Five-step CoT + per-file inline review
-             REVIEWMIND_PER_FILE: "true"
-             REVIEWMIND_INLINE_REVIEW: "true"
-             REVIEWMIND_MAX_FINDINGS_PER_FILE: "10"
+             PRTHINKER_PER_FILE: "true"
+             PRTHINKER_INLINE_REVIEW: "true"
+             PRTHINKER_MAX_FINDINGS_PER_FILE: "10"
 
              # RAG over global + per-repo rule packs
-             REVIEWMIND_RAG_ENABLED: "true"
-             REVIEWMIND_REMOTE_RAG: "true"
-             REVIEWMIND_RULES_DIR: ./team-rules
+             PRTHINKER_RAG_ENABLED: "true"
+             PRTHINKER_REMOTE_RAG: "true"
+             PRTHINKER_RULES_DIR: ./team-rules
 
              # Pre-merge gate: any error-severity finding fails the Check Run
-             REVIEWMIND_GATE_ON: "error"
+             PRTHINKER_GATE_ON: "error"
 
              # Failed-job tail logs prepended to the diff for grounded review
-             REVIEWMIND_INCLUDE_CI_SIGNALS: "true"
+             PRTHINKER_INCLUDE_CI_SIGNALS: "true"
 
              # Research-grade extensions (all opt-in, all require --inline-review)
-             REVIEWMIND_REPLY_TO_AUTHOR: "true"
-             REVIEWMIND_COUNTERFACTUAL: "true"
-             REVIEWMIND_PROVENANCE: "true"
-             REVIEWMIND_JUDGE: "true"
-             REVIEWMIND_SELF_CORRECT: "true"
-           run: python -m reviewmind review-pr
+             PRTHINKER_REPLY_TO_AUTHOR: "true"
+             PRTHINKER_COUNTERFACTUAL: "true"
+             PRTHINKER_PROVENANCE: "true"
+             PRTHINKER_JUDGE: "true"
+             PRTHINKER_SELF_CORRECT: "true"
+           run: python -m prthinker review-pr
 
 Set two repo secrets under *Settings → Secrets and variables → Actions*:
 
-==============================  ===================================================
-Secret                          Value
-==============================  ===================================================
-``REVIEWMIND_BACKEND_URL``      ``https://your-host`` (docker path) or
-                                ``http://your-host:8000`` (uvicorn path)
-``REVIEWMIND_BACKEND_API_KEY``  The ``REVIEWMIND_BACKEND_TOKEN`` set in Step 1b;
-                                may be empty for the uvicorn path.
-==============================  ===================================================
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Secret
+     - Value
+   * - ``PRTHINKER_BACKEND_URL``
+     - ``https://your-host`` (docker path) or ``http://your-host:8000``
+       (uvicorn path)
+   * - ``PRTHINKER_BACKEND_API_KEY``
+     - The ``PRTHINKER_BACKEND_TOKEN`` set in Step 1b; may be empty for
+       the uvicorn path.
 
 
 Step 3 — Python API
 -------------------
 
-For embedding reviewmind in a custom tool (IDE plugin, Slack bot,
+For embedding prthinker in a custom tool (IDE plugin, Slack bot,
 batch-scan-the-repo job), drive the pipeline directly:
 
 .. code-block:: python
@@ -207,10 +211,10 @@ batch-scan-the-repo job), drive the pipeline directly:
    # review_a_diff.py
    from pathlib import Path
 
-   from reviewmind.backends.remote import RemoteHttpBackend
-   from reviewmind.config import RemoteBackendConfig
-   from reviewmind.pipeline import CoTPipeline
-   from reviewmind.rag import RemoteRAGRetriever
+   from prthinker.backends.remote import RemoteHttpBackend
+   from prthinker.config import RemoteBackendConfig
+   from prthinker.pipeline import CoTPipeline
+   from prthinker.rag import RemoteRAGRetriever
 
 
    def review_diff(diff_text: str, *, backend_url: str, token: str) -> dict:
@@ -274,8 +278,8 @@ batch-scan-the-repo job), drive the pipeline directly:
        diff = Path(sys.argv[1]).read_text(encoding="utf-8")
        out = review_diff(
            diff,
-           backend_url=os.environ["REVIEWMIND_REMOTE_URL"],
-           token=os.environ.get("REVIEWMIND_REMOTE_API_KEY", ""),
+           backend_url=os.environ["PRTHINKER_REMOTE_URL"],
+           token=os.environ.get("PRTHINKER_REMOTE_API_KEY", ""),
        )
        json.dump(out, sys.stdout, indent=2, ensure_ascii=False)
 
@@ -285,8 +289,8 @@ Run it:
 .. code-block:: bash
 
    git diff main..HEAD > my.diff
-   export REVIEWMIND_REMOTE_URL=https://your-host
-   export REVIEWMIND_REMOTE_API_KEY=...
+   export PRTHINKER_REMOTE_URL=https://your-host
+   export PRTHINKER_REMOTE_API_KEY=...
    python review_a_diff.py my.diff > result.json
 
 

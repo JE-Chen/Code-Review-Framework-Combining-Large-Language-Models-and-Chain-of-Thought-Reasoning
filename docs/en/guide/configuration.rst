@@ -17,25 +17,25 @@ Backend selection
      - Env var
      - Default
    * - ``--backend {local,remote,openai,anthropic}``
-     - ``REVIEWMIND_BACKEND``
+     - ``PRTHINKER_BACKEND``
      - ``remote``
    * - ``--remote-url URL``
-     - ``REVIEWMIND_REMOTE_URL``
+     - ``PRTHINKER_REMOTE_URL``
      - *(required for remote)*
    * - ``--remote-api-key TOKEN``
-     - ``REVIEWMIND_REMOTE_API_KEY``
+     - ``PRTHINKER_REMOTE_API_KEY``
      - *(unset)*
    * - ``--remote-timeout SECONDS``
-     - ``REVIEWMIND_REMOTE_TIMEOUT``
+     - ``PRTHINKER_REMOTE_TIMEOUT``
      - ``600``
    * - ``--use-remote-pipeline``
-     - ``REVIEWMIND_USE_REMOTE_PIPELINE``
+     - ``PRTHINKER_USE_REMOTE_PIPELINE``
      - ``false``
    * - ``--model-name NAME``
-     - ``REVIEWMIND_MODEL_NAME``
+     - ``PRTHINKER_MODEL_NAME``
      - ``Qwen/Qwen3-Coder-30B-A3B-Instruct``
    * - ``--lora-path PATH``
-     - ``REVIEWMIND_LORA_PATH``
+     - ``PRTHINKER_LORA_PATH``
      - *(unset)*
 
 ``--use-remote-pipeline`` calls the ``/review`` endpoint once per file
@@ -59,16 +59,16 @@ DeepInfra, OpenRouter, …
      - Env var
      - Default
    * - ``--openai-model NAME``
-     - ``REVIEWMIND_OPENAI_MODEL``
+     - ``PRTHINKER_OPENAI_MODEL``
      - ``gpt-4o-mini``
    * - ``--openai-api-key TOKEN``
-     - ``REVIEWMIND_OPENAI_API_KEY`` / ``OPENAI_API_KEY``
+     - ``PRTHINKER_OPENAI_API_KEY`` / ``OPENAI_API_KEY``
      - *(required)*
    * - ``--openai-base-url URL``
-     - ``REVIEWMIND_OPENAI_BASE_URL``
+     - ``PRTHINKER_OPENAI_BASE_URL``
      - ``https://api.openai.com/v1``
    * - ``--openai-organization ID``
-     - ``REVIEWMIND_OPENAI_ORGANIZATION`` / ``OPENAI_ORG_ID``
+     - ``PRTHINKER_OPENAI_ORGANIZATION`` / ``OPENAI_ORG_ID``
      - *(unset)*
 
 Anthropic Claude (``--backend anthropic``)
@@ -82,16 +82,16 @@ Anthropic Claude (``--backend anthropic``)
      - Env var
      - Default
    * - ``--anthropic-model NAME``
-     - ``REVIEWMIND_ANTHROPIC_MODEL``
+     - ``PRTHINKER_ANTHROPIC_MODEL``
      - ``claude-opus-4-7``
    * - ``--anthropic-api-key TOKEN``
-     - ``REVIEWMIND_ANTHROPIC_API_KEY`` / ``ANTHROPIC_API_KEY``
+     - ``PRTHINKER_ANTHROPIC_API_KEY`` / ``ANTHROPIC_API_KEY``
      - *(required)*
    * - ``--anthropic-base-url URL``
-     - ``REVIEWMIND_ANTHROPIC_BASE_URL``
+     - ``PRTHINKER_ANTHROPIC_BASE_URL``
      - ``https://api.anthropic.com``
    * - ``--anthropic-version VER``
-     - ``REVIEWMIND_ANTHROPIC_VERSION``
+     - ``PRTHINKER_ANTHROPIC_VERSION``
      - ``2023-06-01``
 
 RAG and rules
@@ -105,16 +105,16 @@ RAG and rules
      - Env var
      - Default
    * - ``--no-rag``
-     - ``REVIEWMIND_RAG_ENABLED=false``
+     - ``PRTHINKER_RAG_ENABLED=false``
      - RAG on
    * - ``--remote-rag``
-     - ``REVIEWMIND_REMOTE_RAG``
+     - ``PRTHINKER_REMOTE_RAG``
      - ``false``
    * - ``--rag-threshold FLOAT``
-     - ``REVIEWMIND_RAG_THRESHOLD``
+     - ``PRTHINKER_RAG_THRESHOLD``
      - ``0.7``
    * - ``--rules-dir PATH``
-     - ``REVIEWMIND_RULES_DIR``
+     - ``PRTHINKER_RULES_DIR``
      - *(unset)*
 
 ``--remote-rag`` makes the runner call the server's ``/rag`` endpoint
@@ -135,13 +135,13 @@ Per-file mode and inline review
      - Env var
      - Default
    * - ``--per-file``
-     - ``REVIEWMIND_PER_FILE``
+     - ``PRTHINKER_PER_FILE``
      - ``false``
    * - ``--inline-review``
-     - ``REVIEWMIND_INLINE_REVIEW``
+     - ``PRTHINKER_INLINE_REVIEW``
      - ``false``
    * - ``--max-findings-per-file N``
-     - ``REVIEWMIND_MAX_FINDINGS_PER_FILE``
+     - ``PRTHINKER_MAX_FINDINGS_PER_FILE``
      - ``10``
 
 Inline review requires per-file mode (the inline-findings step needs to
@@ -159,7 +159,7 @@ Pre-merge gate
      - Env var
      - Default
    * - ``--gate-on {none,warning,error}``
-     - ``REVIEWMIND_GATE_ON``
+     - ``PRTHINKER_GATE_ON``
      - ``none``
 
 See :doc:`../concepts/ci-and-gate`. Set to ``none`` for advisory mode,
@@ -176,13 +176,13 @@ CI signals
      - Env var
      - Default
    * - ``--include-ci-signals``
-     - ``REVIEWMIND_INCLUDE_CI_SIGNALS``
+     - ``PRTHINKER_INCLUDE_CI_SIGNALS``
      - ``false``
    * - ``--ci-signal-max-jobs N``
-     - ``REVIEWMIND_CI_SIGNAL_MAX_JOBS``
+     - ``PRTHINKER_CI_SIGNAL_MAX_JOBS``
      - ``5``
    * - ``--ci-signal-tail-chars N``
-     - ``REVIEWMIND_CI_SIGNAL_TAIL_CHARS``
+     - ``PRTHINKER_CI_SIGNAL_TAIL_CHARS``
      - ``4000``
 
 Server-side
@@ -197,15 +197,15 @@ the runner CLI.
 
    * - Env var
      - Effect
-   * - ``REVIEWMIND_DISMISSED_PATH``
+   * - ``PRTHINKER_DISMISSED_PATH``
      - Path to ``dismissed.jsonl``. Empty / missing → filter off.
-   * - ``REVIEWMIND_DISMISSED_THRESHOLD``
+   * - ``PRTHINKER_DISMISSED_THRESHOLD``
      - Cosine similarity floor for dropping repeats. Default ``0.85``.
-   * - ``REVIEWMIND_ACCEPTED_PATH``
+   * - ``PRTHINKER_ACCEPTED_PATH``
      - Path to ``accepted.jsonl``. Empty / missing → no exemplars.
-   * - ``REVIEWMIND_ACCEPTED_THRESHOLD``
+   * - ``PRTHINKER_ACCEPTED_THRESHOLD``
      - Cosine floor for inclusion in top-K. Default ``0.6``.
-   * - ``REVIEWMIND_ACCEPTED_TOP_K``
+   * - ``PRTHINKER_ACCEPTED_TOP_K``
      - Number of exemplars to inject. Default ``3``.
 
 Output and logging
@@ -219,13 +219,13 @@ Output and logging
      - Env var
      - Default
    * - ``--log-level LEVEL``
-     - ``REVIEWMIND_LOG_LEVEL``
+     - ``PRTHINKER_LOG_LEVEL``
      - ``INFO``
    * - ``--steps a,b,c``
      - *(none)*
      - *(all registered)*
    * - ``--max-new-tokens N``
-     - ``REVIEWMIND_MAX_NEW_TOKENS``
+     - ``PRTHINKER_MAX_NEW_TOKENS``
      - ``32768``
    * - ``--output-dir PATH``
      - *(review-file only)*

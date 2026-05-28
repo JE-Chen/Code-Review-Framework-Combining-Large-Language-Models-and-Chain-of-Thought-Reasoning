@@ -1,7 +1,7 @@
 Architecture
 ============
 
-``reviewmind`` is structured around six design patterns called out as
+``prthinker`` is structured around six design patterns called out as
 mandatory in the project's ``CLAUDE.md``. Every extension point follows
 one of them, so adding a new step, backend, or retriever is a matter of
 slotting code into existing seams — not editing the pipeline.
@@ -12,9 +12,9 @@ Patterns at a glance
 ================== ================================================================
 Pattern             Where it lives
 ================== ================================================================
-Strategy            ``reviewmind.backends.base.InferenceBackend`` with
+Strategy            ``prthinker.backends.base.InferenceBackend`` with
                     ``LocalQwen3Backend`` and ``RemoteHttpBackend`` implementations.
-Factory             ``reviewmind.backends.create_backend(config)`` is the only
+Factory             ``prthinker.backends.create_backend(config)`` is the only
                     way to build a backend. Heavy imports (torch, transformers)
                     are deferred inside the concrete backend.
 Template Method     Each review step provides ``build_prompt(ctx)``; the pipeline
@@ -25,7 +25,7 @@ Registry            ``@register_step`` appends new ``ReviewStep`` subclasses to 
                     module-level list. Adding a step does not require editing
                     ``pipeline.py``.
 Repository          All FAISS access goes through
-                    ``reviewmind.rag.RAGRetriever`` implementations. The
+                    ``prthinker.rag.RAGRetriever`` implementations. The
                     embedding model loads once.
 Dependency          Backends, retrievers, filters and stores are passed into
 Injection           ``CoTPipeline`` as constructor arguments. Nothing reaches
@@ -38,7 +38,7 @@ Component map
 ::
 
    ┌────────────────────────────────────────────────────────────┐
-   │ reviewmind/                                              │
+   │ prthinker/                                              │
    │                                                            │
    │  cli.py ────────────┐                                      │
    │                     ▼                                      │
@@ -100,8 +100,8 @@ the registry — no edits to ``pipeline.py``.
 
 .. code-block:: python
 
-   # reviewmind/extras/security_audit.py
-   from reviewmind.steps import (
+   # prthinker/extras/security_audit.py
+   from prthinker.steps import (
        ReviewContext, ReviewStep, register_step,
    )
 
@@ -121,8 +121,8 @@ the registry — no edits to ``pipeline.py``.
            return _PROMPT.format(code_diff=ctx.code_diff)
 
 Import the module once at process start (for example in
-``reviewmind/__init__.py``) so the ``@register_step`` decorator runs.
-The new step will appear in ``reviewmind review-file --steps`` and
+``prthinker/__init__.py``) so the ``@register_step`` decorator runs.
+The new step will appear in ``prthinker review-file --steps`` and
 will be picked up by the default ``--steps ""`` (all registered).
 
 Adding a backend

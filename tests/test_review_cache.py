@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from reviewmind.diff import parse_unified_diff
-from reviewmind.review_cache import CacheKey, ReviewCache
-from reviewmind.schemas import InlineFinding
+from prthinker.diff import parse_unified_diff
+from prthinker.review_cache import CacheKey, ReviewCache
+from prthinker.schemas import InlineFinding
 
 
 def _finding(line: int = 4, comment: str = "x") -> InlineFinding:

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from reviewmind.reproducibility import label_findings
-from reviewmind.schemas import InlineFinding
+from prthinker.reproducibility import label_findings
+from prthinker.schemas import InlineFinding
 
 
 def _f(path: str, line: int, comment: str) -> InlineFinding:

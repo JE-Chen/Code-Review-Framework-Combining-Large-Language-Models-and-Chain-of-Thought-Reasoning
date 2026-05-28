@@ -11,8 +11,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from reviewmind.sandbox import VerificationResult, verify_suggestion
-from reviewmind.schemas import InlineFinding
+from prthinker.sandbox import VerificationResult, verify_suggestion
+from prthinker.schemas import InlineFinding
 
 
 def _make_workdir(tmp_path: Path, body: str) -> Path:

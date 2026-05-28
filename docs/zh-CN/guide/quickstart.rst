@@ -12,7 +12,7 @@
 
    git diff main..HEAD > my-change.diff
 
-   reviewmind review-file my-change.diff \
+   prthinker review-file my-change.diff \
        --backend remote \
        --remote-url https://my-host:8000 \
        --per-file --inline-review
@@ -28,9 +28,9 @@ stdout 会打印整合好的 markdown 评论与 inline findings 的数量。不�
 .. code-block:: bash
 
    export GITHUB_TOKEN=ghp_...
-   export REVIEWMIND_REMOTE_URL=https://my-host:8000
+   export PRTHINKER_REMOTE_URL=https://my-host:8000
 
-   reviewmind review-pr \
+   prthinker review-pr \
        --repo owner/name \
        --pr-number 42 \
        --gate-on error \
@@ -59,7 +59,7 @@ stdout 会打印整合好的 markdown 评论与 inline findings 的数量。不�
    python -m codes.run.cot
 
    # 或对单个文件做一次审查
-   reviewmind review-file path/to/code.py \
+   prthinker review-file path/to/code.py \
        --backend local \
        --model-name Qwen/Qwen3-Coder-30B-A3B-Instruct \
        --lora-path ../train/outputs-lora-qwen3-coder-30b
@@ -72,21 +72,21 @@ stdout 会打印整合好的 markdown 评论与 inline findings 的数量。不�
 .. code-block:: bash
 
    # 作者按 👎 或回「false positive」的评论
-   reviewmind harvest-dismissed \
+   prthinker harvest-dismissed \
        --repo owner/name --max-prs 100 \
-       --out .reviewmind/dismissed.jsonl
+       --out .prthinker/dismissed.jsonl
 
    # 含「Apply suggestion」commit 的 PR
-   reviewmind harvest-accepted \
+   prthinker harvest-accepted \
        --repo owner/name --max-prs 100 \
-       --out .reviewmind/accepted.jsonl
+       --out .prthinker/accepted.jsonl
 
 然后让服务器指向它们：
 
 .. code-block:: bash
 
-   export REVIEWMIND_DISMISSED_PATH=.reviewmind/dismissed.jsonl
-   export REVIEWMIND_ACCEPTED_PATH=.reviewmind/accepted.jsonl
+   export PRTHINKER_DISMISSED_PATH=.prthinker/dismissed.jsonl
+   export PRTHINKER_ACCEPTED_PATH=.prthinker/accepted.jsonl
    uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
 
 语义细节请见 :doc:`../concepts/corpora`。

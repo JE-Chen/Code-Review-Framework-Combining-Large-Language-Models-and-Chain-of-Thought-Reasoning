@@ -66,8 +66,8 @@ Paper-aligned ablation
 Because backend selection is per-process, you can let the judge step
 run on a *different* backend from the rest of the review (e.g. local
 Qwen for the five CoT steps, Anthropic Claude for the judge). The
-schema is in :class:`reviewmind.schemas.JudgeVerdict`; the parser and
-aggregator are in :mod:`reviewmind.judge`.
+schema is in :class:`prthinker.schemas.JudgeVerdict`; the parser and
+aggregator are in :mod:`prthinker.judge`.
 
 Streaming (``--stream``)
 ------------------------

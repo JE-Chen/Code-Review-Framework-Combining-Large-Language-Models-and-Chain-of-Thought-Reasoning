@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import json
 
-from reviewmind.dep_upgrade import (
+from prthinker.dep_upgrade import (
     PackageUpgrade,
     build_prompt,
     detect_upgrades,
     parse_impact,
 )
-from reviewmind.diff import FileDiff
+from prthinker.diff import FileDiff
 
 
 def _fd(path: str, raw: str) -> FileDiff:

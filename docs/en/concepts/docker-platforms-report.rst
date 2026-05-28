@@ -1,12 +1,12 @@
 Docker, multi-platform, and longitudinal reporting
 ===================================================
 
-Three additions that take reviewmind from "library you import" to
+Three additions that take prthinker from "library you import" to
 "system you operate":
 
 * **Docker compose** — one-command self-hosted deployment.
 * **PlatformAdapter** — GitHub and GitLab behind a single Strategy.
-* **``reviewmind report``** — cross-store longitudinal summary.
+* **``prthinker report``** — cross-store longitudinal summary.
 
 Self-hosted deployment with Docker compose
 ------------------------------------------
@@ -33,11 +33,11 @@ Files:
      - CUDA-runtime base + Python 3.12 + ``pip install -e .[server]``.
        Model weights NOT baked in — pulled into a volume at first run.
    * - ``docker/docker-compose.yml``
-     - Two services (``reviewmind`` + ``nginx``), three volumes
+     - Two services (``prthinker`` + ``nginx``), three volumes
        (``hf_cache``, ``data``, host TLS dir).
    * - ``docker/nginx.conf``
      - TLS termination, ``/healthz`` bypasses auth, all other paths
-       require ``Authorization: Bearer <REVIEWMIND_BACKEND_TOKEN>``.
+       require ``Authorization: Bearer <PRTHINKER_BACKEND_TOKEN>``.
    * - ``docker/entrypoint-nginx.sh``
      - Substitutes the token into ``nginx.conf`` at container start;
        refuses to boot if the env var is missing (fail-fast).
@@ -50,13 +50,13 @@ Bring-up:
 
    cd docker
    cp .env.example .env
-   # edit: REVIEWMIND_BACKEND_TOKEN=$(openssl rand -hex 32)
+   # edit: PRTHINKER_BACKEND_TOKEN=$(openssl rand -hex 32)
    #       TLS_CERT_DIR=/etc/letsencrypt/live/your-host
    docker compose up -d
 
    # verify
    curl https://your-host/healthz \
-       -H "Authorization: Bearer $REVIEWMIND_BACKEND_TOKEN"
+       -H "Authorization: Bearer $PRTHINKER_BACKEND_TOKEN"
 
 Volumes:
 
@@ -79,7 +79,7 @@ The pipeline talks to GitHub / GitLab through one Strategy interface:
 
 .. code-block:: text
 
-   reviewmind.platforms.base.PlatformAdapter        (ABC)
+   prthinker.platforms.base.PlatformAdapter        (ABC)
        │
        ├── GitHubAdapter   (wraps github_api.py + checks.py)
        └── GitLabAdapter   (direct httpx → /api/v4 endpoints)
@@ -144,17 +144,17 @@ CLI usage
 .. code-block:: bash
 
    # GitHub (default)
-   reviewmind review-pr --repo owner/name --pr-number 42
+   prthinker review-pr --repo owner/name --pr-number 42
 
    # GitLab on gitlab.com
-   reviewmind review-pr \
+   prthinker review-pr \
        --platform gitlab \
        --repo group/project \
        --pr-number 42 \
        --github-token "$GITLAB_TOKEN"
 
    # Self-hosted GitHub Enterprise
-   reviewmind review-pr \
+   prthinker review-pr \
        --platform github \
        --platform-base-url https://github.example.com/api/v3 \
        --repo owner/name --pr-number 42
@@ -179,23 +179,23 @@ API and are skipped on GitLab with a log line:
 Both are tracked as future work. Everything else (CoT pipeline, gate,
 inline review, judge, self-correct) works on both platforms today.
 
-``reviewmind report`` — longitudinal summary
+``prthinker report`` — longitudinal summary
 --------------------------------------------
 
 The four stores the framework writes (telemetry SQLite, cache SQLite,
-dismissed / accepted JSONL) accumulate quietly. ``reviewmind report``
+dismissed / accepted JSONL) accumulate quietly. ``prthinker report``
 joins them and renders a human- or machine-readable summary:
 
 .. code-block:: bash
 
    # markdown to stdout
-   reviewmind report --since-days 30
+   prthinker report --since-days 30
 
    # html file you can email to ops
-   reviewmind report --since-days 30 --format html --out report.html
+   prthinker report --since-days 30 --format html --out report.html
 
    # json for piping into Grafana / DuckDB
-   reviewmind report --since-days 30 --format json --out report.json
+   prthinker report --since-days 30 --format json --out report.json
 
 Sections rendered:
 

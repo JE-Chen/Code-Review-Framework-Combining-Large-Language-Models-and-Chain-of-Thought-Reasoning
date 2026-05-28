@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from reviewmind.accepted import AcceptedExample, AcceptedExamplesStore
-from reviewmind.dismissed import DismissedExample, DismissedExamplesStore
-from reviewmind.formatters import format_pr_comment
-from reviewmind.pipeline import FileReviewResult, ReviewResult
-from reviewmind.rules import load_rules_dir
-from reviewmind.schemas import InlineFinding
+from prthinker.accepted import AcceptedExample, AcceptedExamplesStore
+from prthinker.dismissed import DismissedExample, DismissedExamplesStore
+from prthinker.formatters import format_pr_comment
+from prthinker.pipeline import FileReviewResult, ReviewResult
+from prthinker.rules import load_rules_dir
+from prthinker.schemas import InlineFinding
 
 
-_MARKER = "<!-- reviewmind:summary -->"
+_MARKER = "<!-- prthinker:summary -->"
 
 
 def test_single_pass_comment_contains_total_and_marker() -> None:

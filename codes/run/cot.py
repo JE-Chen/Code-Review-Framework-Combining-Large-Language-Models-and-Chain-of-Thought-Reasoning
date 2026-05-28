@@ -1,16 +1,16 @@
 """CoT batch runner.
 
-Thin wrapper over the `reviewmind` package: loads the model once, then
+Thin wrapper over the `prthinker` package: loads the model once, then
 iterates over every file in the standard test-data directories and writes
 per-step outputs to `<prefix>_<stem>/`.
 """
 
 from pathlib import Path
 
-from reviewmind.backends.local import LocalQwen3Backend
-from reviewmind.config import LocalBackendConfig
-from reviewmind.pipeline import CoTPipeline
-from reviewmind.rag import FaissRAGRetriever
+from prthinker.backends.local import LocalQwen3Backend
+from prthinker.config import LocalBackendConfig
+from prthinker.pipeline import CoTPipeline
+from prthinker.rag import FaissRAGRetriever
 
 RUN_ON = "Qwen/Qwen3-Coder-30B-A3B-Instruct"
 

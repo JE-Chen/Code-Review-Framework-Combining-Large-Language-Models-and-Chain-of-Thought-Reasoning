@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from reviewmind.pr_classifier import (
+from prthinker.pr_classifier import (
     Classification,
     PRType,
     ReviewBudget,

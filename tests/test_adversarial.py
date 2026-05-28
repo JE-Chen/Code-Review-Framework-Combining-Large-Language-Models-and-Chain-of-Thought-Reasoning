@@ -1,4 +1,4 @@
-"""Pure-logic tests for :mod:`reviewmind.adversarial`.
+"""Pure-logic tests for :mod:`prthinker.adversarial`.
 
 Per ``paper_rule.md``, no fabricated benchmark numbers live here — we
 test the bypass-decision function, not "how often Qwen3 gets fooled".
@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from reviewmind.adversarial import (
+from prthinker.adversarial import (
     AttackCase,
     AttackCategory,
     BypassResult,
@@ -128,7 +128,7 @@ def test_load_corpus_seed_jsonl_parses() -> None:
     """The bundled seed corpus must load cleanly (regression for typos)."""
     seed = (
         Path(__file__).resolve().parent.parent
-        / "reviewmind" / "adversarial_corpus" / "seed.jsonl"
+        / "prthinker" / "adversarial_corpus" / "seed.jsonl"
     )
     if not seed.exists():
         return  # seed shipped optionally

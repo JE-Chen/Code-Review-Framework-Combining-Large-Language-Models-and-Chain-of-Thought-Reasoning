@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from reviewmind.checks import evaluate_gate
-from reviewmind.schemas import InlineFinding
+from prthinker.checks import evaluate_gate
+from prthinker.schemas import InlineFinding
 
 
 def _f(line: int, severity: str) -> InlineFinding:

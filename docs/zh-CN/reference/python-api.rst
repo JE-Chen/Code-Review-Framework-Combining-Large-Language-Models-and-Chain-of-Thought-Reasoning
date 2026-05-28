@@ -1,20 +1,20 @@
 Python API
 ==========
 
-包公开的 API 面积小而稳定。下列项目都会从 ``reviewmind`` re-export，
-所以 ``from reviewmind import X`` 是常见用法。
+包公开的 API 面积小而稳定。下列项目都会从 ``prthinker`` re-export，
+所以 ``from prthinker import X`` 是常见用法。
 
 顶层包
 ------
 
-.. automodule:: reviewmind
+.. automodule:: prthinker
    :members:
    :no-index:
 
 Config
 ------
 
-.. automodule:: reviewmind.config
+.. automodule:: prthinker.config
    :no-index:
    :members:
    :show-inheritance:
@@ -22,28 +22,28 @@ Config
 Backends（Strategy）
 --------------------
 
-.. automodule:: reviewmind.backends.base
+.. automodule:: prthinker.backends.base
    :no-index:
    :members:
    :show-inheritance:
 
-.. automodule:: reviewmind.backends.local
+.. automodule:: prthinker.backends.local
    :no-index:
    :members:
    :show-inheritance:
 
-.. automodule:: reviewmind.backends.remote
+.. automodule:: prthinker.backends.remote
    :no-index:
    :members:
    :show-inheritance:
 
-.. autofunction:: reviewmind.backends.create_backend
+.. autofunction:: prthinker.backends.create_backend
    :no-index:
 
 RAG（Repository）
 -----------------
 
-.. automodule:: reviewmind.rag
+.. automodule:: prthinker.rag
    :no-index:
    :members:
    :show-inheritance:
@@ -51,7 +51,7 @@ RAG（Repository）
 Steps（Registry + Template Method）
 -----------------------------------
 
-.. automodule:: reviewmind.steps
+.. automodule:: prthinker.steps
    :no-index:
    :members:
    :show-inheritance:
@@ -59,7 +59,7 @@ Steps（Registry + Template Method）
 Pipeline
 --------
 
-.. automodule:: reviewmind.pipeline
+.. automodule:: prthinker.pipeline
    :no-index:
    :members:
    :show-inheritance:
@@ -67,7 +67,7 @@ Pipeline
 Diff 解析
 ---------
 
-.. automodule:: reviewmind.diff
+.. automodule:: prthinker.diff
    :no-index:
    :members:
    :show-inheritance:
@@ -75,7 +75,7 @@ Diff 解析
 Findings 解析
 -------------
 
-.. automodule:: reviewmind.findings
+.. automodule:: prthinker.findings
    :no-index:
    :members:
    :show-inheritance:
@@ -83,19 +83,19 @@ Findings 解析
 规则包
 ------
 
-.. automodule:: reviewmind.rules
+.. automodule:: prthinker.rules
    :no-index:
    :members:
 
 学习语料
 --------
 
-.. automodule:: reviewmind.dismissed
+.. automodule:: prthinker.dismissed
    :no-index:
    :members:
    :show-inheritance:
 
-.. automodule:: reviewmind.accepted
+.. automodule:: prthinker.accepted
    :no-index:
    :members:
    :show-inheritance:
@@ -103,14 +103,14 @@ Findings 解析
 Harvester
 ---------
 
-.. automodule:: reviewmind.harvest
+.. automodule:: prthinker.harvest
    :no-index:
    :members:
 
 CI 信号
 -------
 
-.. automodule:: reviewmind.ci_signals
+.. automodule:: prthinker.ci_signals
    :no-index:
    :members:
    :show-inheritance:
@@ -118,7 +118,7 @@ CI 信号
 Checks API gate
 ---------------
 
-.. automodule:: reviewmind.checks
+.. automodule:: prthinker.checks
    :no-index:
    :members:
    :show-inheritance:
@@ -126,21 +126,21 @@ Checks API gate
 GitHub 集成
 -----------
 
-.. automodule:: reviewmind.github_api
+.. automodule:: prthinker.github_api
    :no-index:
    :members:
 
 Formatter
 ---------
 
-.. automodule:: reviewmind.formatters
+.. automodule:: prthinker.formatters
    :no-index:
    :members:
 
 Schemas
 -------
 
-.. automodule:: reviewmind.schemas
+.. automodule:: prthinker.schemas
    :no-index:
    :members:
    :show-inheritance:

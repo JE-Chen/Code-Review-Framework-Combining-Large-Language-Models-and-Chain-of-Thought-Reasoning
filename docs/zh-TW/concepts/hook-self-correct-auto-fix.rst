@@ -1,27 +1,27 @@
 Pre-commit hook、自我糾正、自動修補 PR
 ======================================
 
-三項新增功能，把 reviewmind 接到開發者日常流程的最後一哩。
+三項新增功能，把 prthinker 接到開發者日常流程的最後一哩。
 
-Pre-commit hook（\ ``reviewmind hook``\ ）
+Pre-commit hook（\ ``prthinker hook``\ ）
 ------------------------------------------
 
 新增的 subcommand 會讀 ``git diff --cached``\ 、跑 per-file pipeline，
 若在設定之嚴重度下限有 finding 倖存即以非零碼結束。配合
-`pre-commit <https://pre-commit.com>`_ framework，reviewmind 就成為
+`pre-commit <https://pre-commit.com>`_ framework，prthinker 就成為
 CI、IDE（MCP）、手動 CLI 之外的第四個觸發點：
 
 .. code-block:: yaml
 
    # 消費端 repo 之 .pre-commit-config.yaml
    repos:
-     - repo: https://github.com/<your-org>/reviewmind
+     - repo: https://github.com/<your-org>/prthinker
        rev: v0.1.0
        hooks:
-         - id: reviewmind
+         - id: prthinker
            env:
-             REVIEWMIND_BACKEND: openai
-             REVIEWMIND_OPENAI_MODEL: gpt-4o-mini
+             PRTHINKER_BACKEND: openai
+             PRTHINKER_OPENAI_MODEL: gpt-4o-mini
 
 ``.pre-commit-hooks.yaml`` 提供兩種 hook：
 
@@ -31,10 +31,10 @@ CI、IDE（MCP）、手動 CLI 之外的第四個觸發點：
 
    * - hook id
      - 結束碼語義
-   * - ``reviewmind``
+   * - ``prthinker``
      - 任一 error 嚴重度 finding 即 exit 1（commit 被擋）。可用
        ``--block-on warning`` 或 ``--block-on none`` 覆寫。
-   * - ``reviewmind-advisory``
+   * - ``prthinker-advisory``
      - 永遠 exit 0；finding 只印到 stderr。適合在開 branch protection
        前作為過渡。
 
@@ -44,7 +44,7 @@ Cache 與 telemetry 在此一樣可疊上；同一份 diff 重跑幾乎一定命
 ~~~~~~~~~~
 
 * 若團隊提交頻率高、每次只 commit 很小的 WIP，hook 延遲會累積。改用
-  ``reviewmind-advisory``\ 、或把 hook 移到 ``pre-push`` 階段。
+  ``prthinker-advisory``\ 、或把 hook 移到 ``pre-push`` 階段。
 * 若隊友沒有 API 額度，僅在 CI 也審查之 branch 上啟用，避免「我能跑、
   你不能跑」的分裂。
 
@@ -71,7 +71,7 @@ Prompt（\ :data:`codes.run.CoT_Prompts.finding_self_review.FINDING_SELF_REVIEW_
 失敗安全姿態
 ~~~~~~~~~~~~
 
-:mod:`reviewmind.self_review` 之 parser 故意寬容：模型輸出格式錯誤時
+:mod:`prthinker.self_review` 之 parser 故意寬容：模型輸出格式錯誤時
 回\ **空 drop set**\ （不丟任何 finding），而非「全部丟」。此一不對稱
 是刻意的——錯誤地 post 一筆 finding 可救（人可忽略），錯誤地刪掉一筆
 真 bug 救不回。
@@ -88,7 +88,7 @@ Prompt（\ :data:`codes.run.CoT_Prompts.finding_self_review.FINDING_SELF_REVIEW_
 當倖存之 ``warning`` 嚴重度 + 帶 ``suggestion`` block 之 finding 數 ≥
 threshold，runner 會：
 
-1. 開新 branch ``auto-fix/reviewmind-pr-<N>``\ 。
+1. 開新 branch ``auto-fix/prthinker-pr-<N>``\ 。
 2. 對每個受影響檔案，由下而上套用 suggestion（保持後段行號穩定）。
    兩條相交之 edit 以先到先贏處理；被擋掉之 edit 寫入 skipped 報告。
 3. 用單一固定訊息 commit。
@@ -110,8 +110,8 @@ artifact。作者檢查 diff 後決定要不要合回原 branch 或 close。
 衝突偵測
 ~~~~~~~~
 
-純函式 :func:`reviewmind.auto_fix.apply_suggestions_to_text` 回
-:class:`reviewmind.auto_fix.ConflictReport`\ ，內含 ``applied``\ （成功
+純函式 :func:`prthinker.auto_fix.apply_suggestions_to_text` 回
+:class:`prthinker.auto_fix.ConflictReport`\ ，內含 ``applied``\ （成功
 寫入之 edit）與 ``skipped``\ （與既有 edit 相交而被擋之 edit + 擋住它
 的 edit）兩份清單。偵測規則：edit 依 ``(start, end, finding_index)``
 排序，按序走一遍；先到先贏。此函式不需 git 環境即可單元測試，見
@@ -133,12 +133,12 @@ artifact。作者檢查 diff 後決定要不要合回原 branch 或 close。
 * **hook ↔ cache**\ ：hook 重跑命中 CI 跑過之同一份 cache；相同 diff
   token 成本為零。
 * **self-correct ↔ telemetry**\ ：多出之 backend call 與其他 ``generate``
-  一樣記錄，於 ``reviewmind stats`` 之 ``(backend, model)`` 欄位中可見。
+  一樣記錄，於 ``prthinker stats`` 之 ``(backend, model)`` 欄位中可見。
 * **auto-fix ↔ gate**\ ：gate 結算發生在 auto-fix 之前，所以原 PR 之
   Check Run 反映「未修補」狀態。作者合回 auto-fix PR 後，下一次推送會
   重新觸發 gate 對修正後 diff。
 * **auto-fix ↔ judge**\ ：judge verdict 套在原 PR；auto-fix PR 不自己再
-  跑 reviewmind（會循環）。
+  跑 prthinker（會循環）。
 
 CLI flag 速查
 -------------
@@ -154,17 +154,17 @@ CLI flag 速查
      - 不適用
      - —
    * - ``--advisory``\ （僅 hook）
-     - ``REVIEWMIND_HOOK_ADVISORY``
+     - ``PRTHINKER_HOOK_ADVISORY``
      - ``false``
    * - ``--block-on {none,warning,error}``\ （僅 hook）
-     - ``REVIEWMIND_HOOK_BLOCK_ON``
+     - ``PRTHINKER_HOOK_BLOCK_ON``
      - ``error``
    * - ``--self-correct``
-     - ``REVIEWMIND_SELF_CORRECT``
+     - ``PRTHINKER_SELF_CORRECT``
      - ``false``
    * - ``--auto-fix-threshold N``\ （review-pr）
-     - ``REVIEWMIND_AUTO_FIX_THRESHOLD``
+     - ``PRTHINKER_AUTO_FIX_THRESHOLD``
      - ``0``\ （關閉）
    * - ``--auto-fix-base-branch BRANCH``\ （review-pr）
-     - ``REVIEWMIND_AUTO_FIX_BASE_BRANCH``
+     - ``PRTHINKER_AUTO_FIX_BASE_BRANCH``
      - *(自原 PR 抓)*

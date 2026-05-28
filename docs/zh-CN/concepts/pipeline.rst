@@ -49,7 +49,7 @@ Per-file 是 production 设定；内附的 GHA workflow 默认开启。
 Diff 解析
 ---------
 
-``reviewmind.diff.parse_unified_diff`` 把 unified diff 切成 ``FileDiff``
+``prthinker.diff.parse_unified_diff`` 把 unified diff 切成 ``FileDiff``
 对象，并跟踪每个文件在 *新侧* 出现过的 line numbers。这份集合驱动 line
 校验：任何 ``InlineFinding`` 指向不在 diff 内的行都会在送到 GitHub 前就
 被丢掉。GitHub 本来就会拒绝针对被删除行的评论，先在 client 侧丢干净可以
@@ -59,7 +59,7 @@ Findings extraction
 -------------------
 
 ``inline_findings`` step 要求模型输出 JSON 数组。
-``reviewmind.findings`` 的解析器刻意做得宽容：
+``prthinker.findings`` 的解析器刻意做得宽容：
 
 1. 剥掉 Markdown fenced-code 包装（\ ``\`\`\`json … \`\`\```\ ）。
 2. 找最外层的 ``[ ... ]`` 区块。

@@ -6,7 +6,7 @@ comments on lines it will reject.
 
 from __future__ import annotations
 
-from reviewmind.diff import parse_unified_diff
+from prthinker.diff import parse_unified_diff
 
 
 def test_empty_diff_returns_no_files() -> None:

@@ -1,11 +1,11 @@
-# reviewmind
+# prthinker
 
 [English](../README.md) · [繁體中文](README.zh-TW.md) · **简体中文**
 
 > 为 GitHub Pull Request 设计的思维链（Chain-of-Thought）代码审查框架，
 > 底层由微调后的 Qwen3-Coder 模型加上检索增强（RAG）提示驱动。
 
-`reviewmind` 会读取 PR diff、执行五步思维链审查、把结构化的总结与一键应用的
+`prthinker` 会读取 PR diff、执行五步思维链审查、把结构化的总结与一键应用的
 `suggestion` 区块回帖到 PR。它会从每个 repo 的历史中学习──被 PR 作者拒绝的评论
 下次会被过滤掉，被采纳的建议会以示例（exemplar）的形式注入下一轮 prompt──
 并且可以作为合并前的必需状态检查。
@@ -36,10 +36,10 @@
 十三个多数 LLM code review 系统未实作的机制。大多需搭配 `--inline-review`；
 依本项目不臆造原则，我们只交付框架，量化 benchmark 数字属于未来工作。
 
-- **对抗鲁棒性**（`reviewmind adversarial-eval`）──针对四种攻击类型跑
+- **对抗鲁棒性**（`prthinker adversarial-eval`）──针对四种攻击类型跑
   prompt-injection 语料，把每一笔调用结果写入 SQLite。随附之
   `seed.jsonl` 是种子语料，**不是** benchmark。
-- **闭环多轮对话**（`--reply-to-author`）──读取 PR 作者对上次 reviewmind
+- **闭环多轮对话**（`--reply-to-author`）──读取 PR 作者对上次 prthinker
   摘要评论之回复，注入为 *Prior dialogue* 区块。
 - **反事实审查**（`--counterfactual`）──针对属于 *设计选择* 之 finding，
   列出竞争性实现方案与小型 trade-off 矩阵。
@@ -76,32 +76,32 @@
 pip install -e ".[runner]"
 
 # 对本地 diff 跑审查（指向远程推理服务器）
-reviewmind review-file my-change.diff \
+prthinker review-file my-change.diff \
     --backend remote \
     --remote-url https://my-host:8000 \
     --per-file --inline-review
 
 # 完整审查 PR（GitHub Action 内部用的就是这个）
-reviewmind review-pr \
+prthinker review-pr \
     --repo owner/name --pr-number 42 \
     --backend remote --remote-url https://my-host:8000 \
     --gate-on error --include-ci-signals
 
 # …或通过 OpenAI-compat backend 使用 OpenAI / Azure / vLLM / Ollama
-reviewmind review-pr --repo o/r --pr-number 42 \
+prthinker review-pr --repo o/r --pr-number 42 \
     --backend openai \
     --openai-base-url http://localhost:11434/v1 \
     --openai-model llama3.1:8b \
     --openai-api-key ollama
 
 # …或使用 Anthropic Claude
-reviewmind review-pr --repo o/r --pr-number 42 \
+prthinker review-pr --repo o/r --pr-number 42 \
     --backend anthropic \
     --anthropic-model claude-sonnet-4-6 \
     --anthropic-api-key "$ANTHROPIC_API_KEY"
 
 # …或一次开启所有研究级扩展
-reviewmind review-pr --repo o/r --pr-number 42 \
+prthinker review-pr --repo o/r --pr-number 42 \
     --per-file --inline-review \
     --reply-to-author --counterfactual --provenance \
     --diff-since-last --verify-suggestions --api-consistency \
@@ -110,9 +110,9 @@ reviewmind review-pr --repo o/r --pr-number 42 \
     --judge --self-correct
 
 # 对 backend 做 prompt-injection 鲁棒性压测
-reviewmind adversarial-eval \
-    --corpus reviewmind/adversarial_corpus/seed.jsonl \
-    --outcomes-path .reviewmind/adversarial.sqlite \
+prthinker adversarial-eval \
+    --corpus prthinker/adversarial_corpus/seed.jsonl \
+    --outcomes-path .prthinker/adversarial.sqlite \
     --backend openai --openai-model gpt-4o-mini
 ```
 
@@ -125,12 +125,12 @@ uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
 
 ## GitHub Actions
 
-复制 `.github/workflows/reviewmind.yml`，然后在 repo 设置两个 secrets：
+复制 `.github/workflows/prthinker.yml`，然后在 repo 设置两个 secrets：
 
 | Secret               | 用途                                |
 | -------------------- | ----------------------------------- |
-| `REVIEWMIND_BACKEND_URL`    | FastAPI 推理服务器的基础 URL        |
-| `REVIEWMIND_BACKEND_API_KEY`| Bearer token（可选）                |
+| `PRTHINKER_BACKEND_URL`    | FastAPI 推理服务器的基础 URL        |
+| `PRTHINKER_BACKEND_API_KEY`| Bearer token（可选）                |
 
 workflow 会在 `pull_request` opened / synchronize / reopened 时触发，
 并维护一条可折叠的 PR 评论（重复触发时就地 upsert，不刷屏）。
@@ -164,14 +164,14 @@ py -m sphinx -b html docs docs/_build/html
 ## 仓库结构
 
 ```
-reviewmind/        独立 Python 包（Strategy / Factory / Registry）
+prthinker/        独立 Python 包（Strategy / Factory / Registry）
 codes/run/           原本的脚本；cot.py 与 fastapi_server.py 现在会调用包
 codes/run/CoT_Prompts/  Prompt templates（单一真实来源）
 codes/train/         LoRA 微调脚本（Qwen3.1-7B、Qwen2.5-Coder-7B、Qwen3-30B、Qwen3-Coder-30B）
 codes/util/          模型加载 + FAISS 检索工具
 datas/               测试数据、RAG 规则文档
 paper/               论文 + slide build
-.github/workflows/   reviewmind.yml──GHA 集成
+.github/workflows/   prthinker.yml──GHA 集成
 docs/                Sphinx 文档
 ```
 

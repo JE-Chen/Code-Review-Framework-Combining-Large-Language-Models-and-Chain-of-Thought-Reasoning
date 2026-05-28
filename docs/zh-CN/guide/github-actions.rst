@@ -1,7 +1,7 @@
 GitHub Actions 集成
 ===================
 
-Reviewer 内附一份可直接用的 workflow：\ ``.github/workflows/reviewmind.yml``\ 。
+Reviewer 内附一份可直接用的 workflow：\ ``.github/workflows/prthinker.yml``\ 。
 它在 ``pull_request`` ``opened`` / ``synchronize`` / ``reopened`` 时触发，
 通过同一个 PR 回贴 review。
 
@@ -14,10 +14,10 @@ Reviewer 内附一份可直接用的 workflow：\ ``.github/workflows/reviewmind
 
    * - Secret
      - 用途
-   * - ``REVIEWMIND_BACKEND_URL``
+   * - ``PRTHINKER_BACKEND_URL``
      - 你自己部署的推理服务器基础 URL
        （例如 ``https://gpu-host.internal:8000``\ ）。
-   * - ``REVIEWMIND_BACKEND_API_KEY``
+   * - ``PRTHINKER_BACKEND_API_KEY``
      - 可选的 bearer token，会以 ``Authorization: Bearer ...`` 发送。
 
 在 **Settings → Secrets and variables → Actions** 设置。
@@ -49,35 +49,35 @@ Workflow 把最常用的 flag 都暴露成环境变量，这样不用改 Python 
    * - 变量
      - 默认
      - 效果
-   * - ``REVIEWMIND_BACKEND``
+   * - ``PRTHINKER_BACKEND``
      - ``remote``
      - 设为 ``local`` 改在 runner 上加载 Qwen（需要 self-hosted GPU runner）。
-   * - ``REVIEWMIND_USE_REMOTE_PIPELINE``
+   * - ``PRTHINKER_USE_REMOTE_PIPELINE``
      - ``true``
      - 用 ``/review`` 单回合调用，而不是每个 step 都打一次 ``/ask``\ 。
-   * - ``REVIEWMIND_PER_FILE``
+   * - ``PRTHINKER_PER_FILE``
      - ``true``
      - 逐文件执行 pipeline。
-   * - ``REVIEWMIND_INLINE_REVIEW``
+   * - ``PRTHINKER_INLINE_REVIEW``
      - ``true``
      - 产出 inline ``suggestion`` 区块。
-   * - ``REVIEWMIND_MAX_FINDINGS_PER_FILE``
+   * - ``PRTHINKER_MAX_FINDINGS_PER_FILE``
      - ``10``
      - 每个文件最多保留几条 finding。
-   * - ``REVIEWMIND_RAG_ENABLED``
+   * - ``PRTHINKER_RAG_ENABLED``
      - ``true``
      - 整体 RAG 开关。
-   * - ``REVIEWMIND_REMOTE_RAG``
+   * - ``PRTHINKER_REMOTE_RAG``
      - ``true``
      - 用服务器端 ``/rag`` 而非在本地加载 FAISS（省 runner 内存）。
-   * - ``REVIEWMIND_GATE_ON``
+   * - ``PRTHINKER_GATE_ON``
      - ``error``
      - 哪一级严重度会让 Check Run 变 ``failure``\ ：
        ``none`` / ``warning`` / ``error``\ 。
-   * - ``REVIEWMIND_INCLUDE_CI_SIGNALS``
+   * - ``PRTHINKER_INCLUDE_CI_SIGNALS``
      - ``true``
      - 把失败 job 的末端日志前置到 diff。
-   * - ``REVIEWMIND_RULES_DIR``
+   * - ``PRTHINKER_RULES_DIR``
      - *(未设)*
      - Per-repo ``*.md`` 规则文件的路径。
 
@@ -89,12 +89,12 @@ Branch protection
 
 让 reviewer 真的能挡合并：
 
-1. 跑至少一次 ``REVIEWMIND_GATE_ON=error`` 的 PR──PR 的 Checks 标签页就会出现
-   ``reviewmind`` 这个 check。
+1. 跑至少一次 ``PRTHINKER_GATE_ON=error`` 的 PR──PR 的 Checks 标签页就会出现
+   ``prthinker`` 这个 check。
 2. 到 **Settings → Branches → branch protection rule**\ ，选你的 ``main``
    （或目标 branch）。
 3. 启用 **Require status checks to pass before merging**\ ，把
-   ``reviewmind`` 加进必需检查。
+   ``prthinker`` 加进必需检查。
 
 之后，只要 PR 还有至少一条 ``error`` 严重度的 finding 就无法合并，直到：
 
@@ -131,17 +131,17 @@ Workflow 范例：
 .. code-block:: yaml
 
    jobs:
-     reviewmind:
+     prthinker:
        runs-on: [self-hosted, gpu]
        env:
-         REVIEWMIND_BACKEND: local
-         REVIEWMIND_MODEL_NAME: Qwen/Qwen3-Coder-30B-A3B-Instruct
-         REVIEWMIND_LORA_PATH: ../train/outputs-lora-qwen3-coder-30b
-         REVIEWMIND_USE_REMOTE_PIPELINE: "false"
-         REVIEWMIND_REMOTE_RAG: "false"
+         PRTHINKER_BACKEND: local
+         PRTHINKER_MODEL_NAME: Qwen/Qwen3-Coder-30B-A3B-Instruct
+         PRTHINKER_LORA_PATH: ../train/outputs-lora-qwen3-coder-30b
+         PRTHINKER_USE_REMOTE_PIPELINE: "false"
+         PRTHINKER_REMOTE_RAG: "false"
        steps:
          - uses: actions/checkout@v4
          - run: pip install -e ".[local]"
-         - run: python -m reviewmind review-pr
+         - run: python -m prthinker review-pr
 
 flag 都一样，只是每个文件要 5-10 分钟（vs 配好的服务器上的约 30 秒）。

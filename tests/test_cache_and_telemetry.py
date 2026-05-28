@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import time
 
-from reviewmind.backends.base import Usage
-from reviewmind.backends.wrappers import CachingBackend, InstrumentedBackend
-from reviewmind.cache import PromptCache
-from reviewmind.telemetry import CallRecord, TelemetrySink
-from reviewmind.pricing import estimate_cost
+from prthinker.backends.base import Usage
+from prthinker.backends.wrappers import CachingBackend, InstrumentedBackend
+from prthinker.cache import PromptCache
+from prthinker.telemetry import CallRecord, TelemetrySink
+from prthinker.pricing import estimate_cost
 
 from tests.conftest import FakeBackend
 

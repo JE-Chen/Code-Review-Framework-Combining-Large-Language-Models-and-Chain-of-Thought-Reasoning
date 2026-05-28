@@ -1,7 +1,7 @@
 端到端示例
 ==========
 
-一份把 reviewmind 所有组件串成一条完整流程之走查\ ：GPU 推理服务器、
+一份把 prthinker 所有组件串成一条完整流程之走查\ ：GPU 推理服务器、
 驱动它的 runner（CLI 或 GitHub Actions）、以及对同一台服务器发起
 脚本级审查的 Python API\ 。
 
@@ -31,21 +31,21 @@ Step 1 — 推理服务器（GPU host）
 .. code-block:: bash
 
    # 在 GPU 机器上
-   git clone https://github.com/<your-org>/reviewmind.git
-   cd reviewmind
+   git clone https://github.com/<your-org>/prthinker.git
+   cd prthinker
    pip install -e ".[server]"             # torch / transformers / faiss / fastapi
 
    # 学习语料（可选；空文件即可，服务器在 len == 0 时会忽略）
-   mkdir -p .reviewmind && touch \
-       .reviewmind/dismissed.jsonl \
-       .reviewmind/accepted.jsonl
+   mkdir -p .prthinker && touch \
+       .prthinker/dismissed.jsonl \
+       .prthinker/accepted.jsonl
 
    # 启动（模型在 import time 载入；首次需下载权重）
    export HF_HOME=/srv/hf-cache
-   export REVIEWMIND_DISMISSED_PATH=$PWD/.reviewmind/dismissed.jsonl
-   export REVIEWMIND_ACCEPTED_PATH=$PWD/.reviewmind/accepted.jsonl
-   export REVIEWMIND_CACHE_ENABLED=true
-   export REVIEWMIND_TELEMETRY_ENABLED=true
+   export PRTHINKER_DISMISSED_PATH=$PWD/.prthinker/dismissed.jsonl
+   export PRTHINKER_ACCEPTED_PATH=$PWD/.prthinker/accepted.jsonl
+   export PRTHINKER_CACHE_ENABLED=true
+   export PRTHINKER_TELEMETRY_ENABLED=true
 
    uvicorn codes.run.fastapi_server:app \
        --host 0.0.0.0 --port 8000 --workers 1
@@ -69,15 +69,15 @@ Step 1 — 推理服务器（GPU host）
 
 .. code-block:: bash
 
-   cd reviewmind/docker
+   cd prthinker/docker
    cp .env.example .env
    # 编辑 .env：
-   #   REVIEWMIND_BACKEND_TOKEN=<长随机字符串>
+   #   PRTHINKER_BACKEND_TOKEN=<长随机字符串>
    #   TLS_CERT_DIR=/etc/letsencrypt/live/your-host
    docker compose up -d
 
    curl https://your-host/healthz \
-       -H "Authorization: Bearer $REVIEWMIND_BACKEND_TOKEN"
+       -H "Authorization: Bearer $PRTHINKER_BACKEND_TOKEN"
 
 
 Step 2 — Runner
@@ -95,10 +95,10 @@ Runner 端不需要 GPU\ ，用 ``runner`` extra 即可\ 。
    git diff main..HEAD > my-change.diff
 
    # 指向自部署服务器 + 开启所有研究级扩展
-   reviewmind review-file my-change.diff \
+   prthinker review-file my-change.diff \
        --backend remote \
        --remote-url https://your-host \
-       --remote-api-key "$REVIEWMIND_BACKEND_TOKEN" \
+       --remote-api-key "$PRTHINKER_BACKEND_TOKEN" \
        --use-remote-pipeline \
        --per-file --inline-review \
        --counterfactual --provenance \
@@ -109,11 +109,11 @@ Runner 端不需要 GPU\ ，用 ``runner`` extra 即可\ 。
 2b. GitHub Actions
 ~~~~~~~~~~~~~~~~~~
 
-把 workflow 放到 ``.github/workflows/reviewmind.yml``：
+把 workflow 放到 ``.github/workflows/prthinker.yml``：
 
 .. code-block:: yaml
 
-   name: ReviewMind
+   name: prthinker
    on:
      pull_request:
        types: [opened, synchronize, reopened]
@@ -125,11 +125,11 @@ Runner 端不需要 GPU\ ，用 ``runner`` extra 即可\ 。
      actions: read
 
    concurrency:
-     group: reviewmind-${{ github.event.pull_request.number }}
+     group: prthinker-${{ github.event.pull_request.number }}
      cancel-in-progress: true
 
    jobs:
-     reviewmind:
+     prthinker:
        runs-on: ubuntu-latest
        if: ${{ github.event.pull_request.draft == false }}
        timeout-minutes: 30
@@ -144,58 +144,61 @@ Runner 端不需要 GPU\ ，用 ``runner`` extra 即可\ 。
              cache: "pip"
          - name: Install runner deps
            run: pip install -e ".[runner]"
-         - name: Run ReviewMind
+         - name: Run prthinker
            env:
              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
              GITHUB_REPOSITORY: ${{ github.repository }}
-             REVIEWMIND_PR_NUMBER: ${{ github.event.pull_request.number }}
+             PRTHINKER_PR_NUMBER: ${{ github.event.pull_request.number }}
 
              # Backend —— 指向 Step 1 那台服务器
-             REVIEWMIND_BACKEND: remote
-             REVIEWMIND_REMOTE_URL: ${{ secrets.REVIEWMIND_BACKEND_URL }}
-             REVIEWMIND_REMOTE_API_KEY: ${{ secrets.REVIEWMIND_BACKEND_API_KEY }}
-             REVIEWMIND_USE_REMOTE_PIPELINE: "true"
+             PRTHINKER_BACKEND: remote
+             PRTHINKER_REMOTE_URL: ${{ secrets.PRTHINKER_BACKEND_URL }}
+             PRTHINKER_REMOTE_API_KEY: ${{ secrets.PRTHINKER_BACKEND_API_KEY }}
+             PRTHINKER_USE_REMOTE_PIPELINE: "true"
 
              # 五步 CoT + 逐文件 inline review
-             REVIEWMIND_PER_FILE: "true"
-             REVIEWMIND_INLINE_REVIEW: "true"
-             REVIEWMIND_MAX_FINDINGS_PER_FILE: "10"
+             PRTHINKER_PER_FILE: "true"
+             PRTHINKER_INLINE_REVIEW: "true"
+             PRTHINKER_MAX_FINDINGS_PER_FILE: "10"
 
              # RAG over 全局 + per-repo 规则
-             REVIEWMIND_RAG_ENABLED: "true"
-             REVIEWMIND_REMOTE_RAG: "true"
-             REVIEWMIND_RULES_DIR: ./team-rules
+             PRTHINKER_RAG_ENABLED: "true"
+             PRTHINKER_REMOTE_RAG: "true"
+             PRTHINKER_RULES_DIR: ./team-rules
 
              # 合并前 gate：出现 error 严重度 finding 就 Check Run failure
-             REVIEWMIND_GATE_ON: "error"
+             PRTHINKER_GATE_ON: "error"
 
              # CI 失败 log 前置到 diff（grounded review）
-             REVIEWMIND_INCLUDE_CI_SIGNALS: "true"
+             PRTHINKER_INCLUDE_CI_SIGNALS: "true"
 
              # 研究级扩展（opt-in；均需搭配 --inline-review）
-             REVIEWMIND_REPLY_TO_AUTHOR: "true"
-             REVIEWMIND_COUNTERFACTUAL: "true"
-             REVIEWMIND_PROVENANCE: "true"
-             REVIEWMIND_JUDGE: "true"
-             REVIEWMIND_SELF_CORRECT: "true"
-           run: python -m reviewmind review-pr
+             PRTHINKER_REPLY_TO_AUTHOR: "true"
+             PRTHINKER_COUNTERFACTUAL: "true"
+             PRTHINKER_PROVENANCE: "true"
+             PRTHINKER_JUDGE: "true"
+             PRTHINKER_SELF_CORRECT: "true"
+           run: python -m prthinker review-pr
 
 Repo Settings → Secrets → Actions 设两个 secrets：
 
-==============================  ===================================================
-Secret                          Value
-==============================  ===================================================
-``REVIEWMIND_BACKEND_URL``      ``https://your-host``\ （docker 路径）或
-                                ``http://your-host:8000``\ （uvicorn 路径）
-``REVIEWMIND_BACKEND_API_KEY``  Step 1b 设的 ``REVIEWMIND_BACKEND_TOKEN``\ ；
-                                走 uvicorn 路径可空\ 。
-==============================  ===================================================
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Secret
+     - Value
+   * - ``PRTHINKER_BACKEND_URL``
+     - ``https://your-host``\ （docker 路径）或
+       ``http://your-host:8000``\ （uvicorn 路径）
+   * - ``PRTHINKER_BACKEND_API_KEY``
+     - Step 1b 设的 ``PRTHINKER_BACKEND_TOKEN``\ ；走 uvicorn 路径可空\ 。
 
 
 Step 3 — Python API
 -------------------
 
-想把 reviewmind 嵌入自家工具（IDE plugin、Slack bot、批量扫 repo）\ ，
+想把 prthinker 嵌入自家工具（IDE plugin、Slack bot、批量扫 repo）\ ，
 直接驱动 pipeline：
 
 .. code-block:: python
@@ -203,10 +206,10 @@ Step 3 — Python API
    # review_a_diff.py
    from pathlib import Path
 
-   from reviewmind.backends.remote import RemoteHttpBackend
-   from reviewmind.config import RemoteBackendConfig
-   from reviewmind.pipeline import CoTPipeline
-   from reviewmind.rag import RemoteRAGRetriever
+   from prthinker.backends.remote import RemoteHttpBackend
+   from prthinker.config import RemoteBackendConfig
+   from prthinker.pipeline import CoTPipeline
+   from prthinker.rag import RemoteRAGRetriever
 
 
    def review_diff(diff_text: str, *, backend_url: str, token: str) -> dict:
@@ -266,8 +269,8 @@ Step 3 — Python API
        diff = Path(sys.argv[1]).read_text(encoding="utf-8")
        out = review_diff(
            diff,
-           backend_url=os.environ["REVIEWMIND_REMOTE_URL"],
-           token=os.environ.get("REVIEWMIND_REMOTE_API_KEY", ""),
+           backend_url=os.environ["PRTHINKER_REMOTE_URL"],
+           token=os.environ.get("PRTHINKER_REMOTE_API_KEY", ""),
        )
        json.dump(out, sys.stdout, indent=2, ensure_ascii=False)
 
@@ -277,8 +280,8 @@ Step 3 — Python API
 .. code-block:: bash
 
    git diff main..HEAD > my.diff
-   export REVIEWMIND_REMOTE_URL=https://your-host
-   export REVIEWMIND_REMOTE_API_KEY=...
+   export PRTHINKER_REMOTE_URL=https://your-host
+   export PRTHINKER_REMOTE_API_KEY=...
    python review_a_diff.py my.diff > result.json
 
 

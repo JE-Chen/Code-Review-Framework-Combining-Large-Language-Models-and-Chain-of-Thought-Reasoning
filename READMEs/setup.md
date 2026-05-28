@@ -18,7 +18,7 @@ This is the deep-dive setup guide. For a one-paragraph overview see
 - [Scenario 4 — Claude Desktop / Cursor / Cline (MCP)](#scenario-4--claude-desktop--cursor--cline-mcp)
 - [Scenario 5 — Team self-host (GPU server + GHA runner)](#scenario-5--team-self-host-gpu-server--gha-runner)
 - [Scenario 6 — Research environment (LoRA training + local inference)](#scenario-6--research-environment-lora-training--local-inference)
-- [`.reviewmind.yaml` repo config](#reviewmindyaml-repo-config)
+- [`.prthinker.yaml` repo config](#prthinkeryaml-repo-config)
 - [GitHub repo secrets](#github-repo-secrets)
 - [GitHub Actions workflow](#github-actions-workflow)
 - [Branch protection](#branch-protection)
@@ -57,10 +57,10 @@ pip install -e ".[mcp]"      # adds the `mcp` SDK for IDE integrations
 pip install -e ".[dev]"      # adds pytest for running the test suite
 ```
 
-The CLI entry point is `reviewmind`. Verify after install:
+The CLI entry point is `prthinker`. Verify after install:
 
 ```bash
-reviewmind --help
+prthinker --help
 ```
 
 ---
@@ -68,9 +68,9 @@ reviewmind --help
 ## Scenario 1 — GitHub Actions only (no GPU)
 
 The cheapest path: GHA-hosted runner, paid API for inference, everything
-configured via repo secrets + `.reviewmind.yaml`.
+configured via repo secrets + `.prthinker.yaml`.
 
-1. **Add `.reviewmind.yaml` at the repo root:**
+1. **Add `.prthinker.yaml` at the repo root:**
 
    ```yaml
    backend: anthropic
@@ -90,7 +90,7 @@ configured via repo secrets + `.reviewmind.yaml`.
    |---|---|
    | `ANTHROPIC_API_KEY` | `sk-ant-...` |
 
-3. **Copy the workflow file** `.github/workflows/reviewmind.yml` from
+3. **Copy the workflow file** `.github/workflows/prthinker.yml` from
    this repo into yours. It already declares the required permissions
    (`contents: read`, `pull-requests: write`, `checks: write`,
    `actions: read`).
@@ -114,7 +114,7 @@ export OPENAI_API_KEY="sk-..."
 
 git diff main..HEAD > my-change.diff
 
-reviewmind review-file my-change.diff \
+prthinker review-file my-change.diff \
     --backend openai \
     --openai-model gpt-4o-mini \
     --per-file --inline-review \
@@ -124,7 +124,7 @@ reviewmind review-file my-change.diff \
 Or against the staged change:
 
 ```bash
-git diff --cached | reviewmind review-file - \
+git diff --cached | prthinker review-file - \
     --backend openai --openai-model gpt-4o-mini \
     --per-file --inline-review --redact-secrets
 ```
@@ -135,7 +135,7 @@ The markdown body goes to stdout; nothing is posted anywhere.
 
 ## Scenario 3 — Solo developer with local Ollama
 
-If you'd rather not pay per-token, point reviewmind at a local
+If you'd rather not pay per-token, point prthinker at a local
 Ollama via its OpenAI-compatible endpoint.
 
 ```bash
@@ -143,10 +143,10 @@ Ollama via its OpenAI-compatible endpoint.
 ollama pull qwen2.5-coder:7b
 ollama serve   # listens on :11434
 
-# 2. Review with reviewmind
+# 2. Review with prthinker
 pip install -e ".[runner]"
 
-reviewmind review-file my-change.diff \
+prthinker review-file my-change.diff \
     --backend openai \
     --openai-base-url http://localhost:11434/v1 \
     --openai-model qwen2.5-coder:7b \
@@ -177,15 +177,15 @@ macOS, edit
 ```json
 {
   "mcpServers": {
-    "reviewmind": {
-      "command": "reviewmind",
+    "prthinker": {
+      "command": "prthinker",
       "args": ["mcp"],
       "env": {
-        "REVIEWMIND_BACKEND": "anthropic",
+        "PRTHINKER_BACKEND": "anthropic",
         "ANTHROPIC_API_KEY": "sk-ant-...",
-        "REVIEWMIND_ANTHROPIC_MODEL": "claude-sonnet-4-6",
-        "REVIEWMIND_CACHE_ENABLED": "true",
-        "REVIEWMIND_TELEMETRY_ENABLED": "true"
+        "PRTHINKER_ANTHROPIC_MODEL": "claude-sonnet-4-6",
+        "PRTHINKER_CACHE_ENABLED": "true",
+        "PRTHINKER_TELEMETRY_ENABLED": "true"
       }
     }
   }
@@ -194,7 +194,7 @@ macOS, edit
 
 Restart Claude Desktop. In the chat:
 
-> Run reviewmind on `$(git diff --cached)`
+> Run prthinker on `$(git diff --cached)`
 
 The LLM invokes the `review_diff` MCP tool, secrets get redacted before
 the API call, and the markdown review streams back into the chat.
@@ -218,8 +218,8 @@ Best fit when:
 ```bash
 pip install -e ".[server]"
 
-export REVIEWMIND_DISMISSED_PATH=./store/dismissed.jsonl
-export REVIEWMIND_ACCEPTED_PATH=./store/accepted.jsonl
+export PRTHINKER_DISMISSED_PATH=./store/dismissed.jsonl
+export PRTHINKER_ACCEPTED_PATH=./store/accepted.jsonl
 uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
 ```
 
@@ -231,7 +231,7 @@ curl https://my-host:8000/healthz   # → {"status": "ok", "model": "..."}
 
 **In the repo:**
 
-Add `.reviewmind.yaml`:
+Add `.prthinker.yaml`:
 
 ```yaml
 backend: remote
@@ -253,8 +253,8 @@ Set repo secrets:
 
 | Secret | Value |
 |---|---|
-| `REVIEWMIND_BACKEND_URL` | `https://my-host:8000` |
-| `REVIEWMIND_BACKEND_API_KEY` | (optional) Bearer token for your reverse proxy |
+| `PRTHINKER_BACKEND_URL` | `https://my-host:8000` |
+| `PRTHINKER_BACKEND_API_KEY` | (optional) Bearer token for your reverse proxy |
 
 Push a PR. The runner stays thin (httpx + pydantic only); the server
 owns the GPU, the FAISS index, and the dismissed/accepted stores.
@@ -277,16 +277,16 @@ python -m codes.train.qwen3-coder-30b
 python -m codes.run.cot     # writes one folder per file under cwd
 
 # 3. Inspect telemetry to compare runs
-reviewmind stats --since-days 7
+prthinker stats --since-days 7
 ```
 
 The `codes/run/CoT_Prompts/` directory contains the prompt templates;
-reviewmind re-uses them as the source of truth. Edit a prompt → the
+prthinker re-uses them as the source of truth. Edit a prompt → the
 content hash changes → the cache is invalidated automatically.
 
 ---
 
-## `.reviewmind.yaml` repo config
+## `.prthinker.yaml` repo config
 
 The full schema lives at the repo root. Every key is optional; defaults
 are sensible.
@@ -317,16 +317,16 @@ ci_signals:
 
 cache:
   enabled: true
-  path: .reviewmind/cache.sqlite
+  path: .prthinker/cache.sqlite
   ttl_days: 7
 
 telemetry:
   enabled: true
-  path: .reviewmind/telemetry.sqlite
+  path: .prthinker/telemetry.sqlite
 
 stores:
-  dismissed: .reviewmind/dismissed.jsonl
-  accepted:  .reviewmind/accepted.jsonl
+  dismissed: .prthinker/dismissed.jsonl
+  accepted:  .prthinker/accepted.jsonl
 
 local:
   model: Qwen/Qwen3-Coder-30B-A3B-Instruct
@@ -352,7 +352,7 @@ from environment variables.
 
 ### Precedence
 
-`CLI flag` ≻ `env var` ≻ `.reviewmind.yaml` ≻ `package default`
+`CLI flag` ≻ `env var` ≻ `.prthinker.yaml` ≻ `package default`
 
 So a flag in the workflow overrides a YAML setting, which overrides the
 shipped default.
@@ -365,9 +365,9 @@ Depending on your backend:
 
 | Backend | Required secrets |
 |---|---|
-| `remote` | `REVIEWMIND_BACKEND_URL`, optional `REVIEWMIND_BACKEND_API_KEY` |
-| `openai` | `OPENAI_API_KEY` (or `REVIEWMIND_OPENAI_API_KEY`) |
-| `anthropic` | `ANTHROPIC_API_KEY` (or `REVIEWMIND_ANTHROPIC_API_KEY`) |
+| `remote` | `PRTHINKER_BACKEND_URL`, optional `PRTHINKER_BACKEND_API_KEY` |
+| `openai` | `OPENAI_API_KEY` (or `PRTHINKER_OPENAI_API_KEY`) |
+| `anthropic` | `ANTHROPIC_API_KEY` (or `PRTHINKER_ANTHROPIC_API_KEY`) |
 | `local` | none — but requires a self-hosted GPU runner |
 
 `GITHUB_TOKEN` is provided automatically by GitHub Actions; you don't
@@ -377,9 +377,9 @@ configure it.
 
 ## GitHub Actions workflow
 
-The bundled `.github/workflows/reviewmind.yml` covers the common case.
+The bundled `.github/workflows/prthinker.yml` covers the common case.
 Customize by editing the `env:` block — every CLI flag has a matching
-`REVIEWMIND_*` env var. See [`features.md`](features.md) for the
+`PRTHINKER_*` env var. See [`features.md`](features.md) for the
 complete list.
 
 **Required permissions:**
@@ -406,14 +406,14 @@ on:
 
 ## Branch protection
 
-To make reviewmind block merges on error-severity findings:
+To make prthinker block merges on error-severity findings:
 
-1. Run at least one PR with `REVIEWMIND_GATE_ON=error` so the
-   `reviewmind` Check Run appears on the PR's Checks tab.
+1. Run at least one PR with `PRTHINKER_GATE_ON=error` so the
+   `prthinker` Check Run appears on the PR's Checks tab.
 2. Go to **Settings → Branches → branch protection rule** for your
    default branch.
 3. Enable **Require status checks to pass before merging** and add
-   `reviewmind` to the list.
+   `prthinker` to the list.
 
 After that, any PR with at least one error-severity finding cannot be
 merged until the author addresses it (or a maintainer overrides).
@@ -427,23 +427,23 @@ reviews:
 
 ```bash
 # Comments authors thumbed-down or replied "false positive" to
-reviewmind harvest-dismissed \
+prthinker harvest-dismissed \
     --repo owner/name \
     --max-prs 100 \
-    --out .reviewmind/dismissed.jsonl
+    --out .prthinker/dismissed.jsonl
 
 # PRs that contain "Apply suggestion" commits
-reviewmind harvest-accepted \
+prthinker harvest-accepted \
     --repo owner/name \
     --max-prs 100 \
-    --out .reviewmind/accepted.jsonl
+    --out .prthinker/accepted.jsonl
 ```
 
 Then on the server:
 
 ```bash
-export REVIEWMIND_DISMISSED_PATH=.reviewmind/dismissed.jsonl
-export REVIEWMIND_ACCEPTED_PATH=.reviewmind/accepted.jsonl
+export PRTHINKER_DISMISSED_PATH=.prthinker/dismissed.jsonl
+export PRTHINKER_ACCEPTED_PATH=.prthinker/accepted.jsonl
 uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
 ```
 
@@ -455,19 +455,19 @@ Both stores are no-ops when empty — the server logs `filter disabled` /
 ## Cache and telemetry first run
 
 ```bash
-reviewmind review-file my-change.diff \
+prthinker review-file my-change.diff \
     --backend anthropic --anthropic-api-key "$ANTHROPIC_API_KEY" \
     --cache --telemetry
 ```
 
-Two SQLite files are created under `.reviewmind/`. Don't commit them —
+Two SQLite files are created under `.prthinker/`. Don't commit them —
 they're machine-generated state:
 
 ```gitignore
-.reviewmind/cache.sqlite
-.reviewmind/cache.sqlite-*
-.reviewmind/telemetry.sqlite
-.reviewmind/telemetry.sqlite-*
+.prthinker/cache.sqlite
+.prthinker/cache.sqlite-*
+.prthinker/telemetry.sqlite
+.prthinker/telemetry.sqlite-*
 ```
 
 (Stores like `dismissed.jsonl` / `accepted.jsonl` are content you DO
@@ -476,7 +476,7 @@ want to commit — they're learned guidance, not state.)
 Inspect after a few reviews:
 
 ```bash
-reviewmind stats --since-days 7
+prthinker stats --since-days 7
 ```
 
 ---
@@ -492,25 +492,25 @@ for the design write-up.
 
 | Flag                       | Env var                              | Default | Extra cost              |
 | -------------------------- | ------------------------------------ | ------- | ----------------------- |
-| `--reply-to-author`        | `REVIEWMIND_REPLY_TO_AUTHOR`         | off     | 1 platform API call     |
-| `--counterfactual`         | `REVIEWMIND_COUNTERFACTUAL`          | off     | +1 backend call /file   |
-| `--provenance`             | `REVIEWMIND_PROVENANCE`              | off     | larger prompt + output  |
-| `--judge`                  | `REVIEWMIND_JUDGE`                   | off     | +1 backend call /file   |
-| `--self-correct`           | `REVIEWMIND_SELF_CORRECT`            | off     | +1 backend call /file   |
-| `--diff-since-last`        | `REVIEWMIND_DIFF_SINCE_LAST`         | off     | saves cost on iterative PRs |
-| `--verify-suggestions`     | `REVIEWMIND_VERIFY_SUGGESTIONS`      | off     | 1 sandbox + verify_cmd /suggestion |
-| `--api-consistency`        | `REVIEWMIND_API_CONSISTENCY`         | off     | +1 backend call on mixed-language PRs |
-| `--pr-classify`            | `REVIEWMIND_PR_CLASSIFY`             | off     | +1 backend call /PR     |
-| `--reproducibility-check`  | `REVIEWMIND_REPRODUCIBILITY_CHECK`   | off     | +1 backend call /file   |
-| `--dep-upgrade-check`      | `REVIEWMIND_DEP_UPGRADE_CHECK`       | off     | +1 backend call /upgrade |
-| `--personas`               | `REVIEWMIND_PERSONAS`                | empty   | +N backend calls /PR (N = persona count) + 1 conflict step |
-| `--risk-weighted`          | `REVIEWMIND_RISK_WEIGHTED`           | off     | a few `git log` calls   |
-| `--diff-entropy`           | `REVIEWMIND_DIFF_ENTROPY`            | off     | pure CPU, no backend call |
+| `--reply-to-author`        | `PRTHINKER_REPLY_TO_AUTHOR`         | off     | 1 platform API call     |
+| `--counterfactual`         | `PRTHINKER_COUNTERFACTUAL`          | off     | +1 backend call /file   |
+| `--provenance`             | `PRTHINKER_PROVENANCE`              | off     | larger prompt + output  |
+| `--judge`                  | `PRTHINKER_JUDGE`                   | off     | +1 backend call /file   |
+| `--self-correct`           | `PRTHINKER_SELF_CORRECT`            | off     | +1 backend call /file   |
+| `--diff-since-last`        | `PRTHINKER_DIFF_SINCE_LAST`         | off     | saves cost on iterative PRs |
+| `--verify-suggestions`     | `PRTHINKER_VERIFY_SUGGESTIONS`      | off     | 1 sandbox + verify_cmd /suggestion |
+| `--api-consistency`        | `PRTHINKER_API_CONSISTENCY`         | off     | +1 backend call on mixed-language PRs |
+| `--pr-classify`            | `PRTHINKER_PR_CLASSIFY`             | off     | +1 backend call /PR     |
+| `--reproducibility-check`  | `PRTHINKER_REPRODUCIBILITY_CHECK`   | off     | +1 backend call /file   |
+| `--dep-upgrade-check`      | `PRTHINKER_DEP_UPGRADE_CHECK`       | off     | +1 backend call /upgrade |
+| `--personas`               | `PRTHINKER_PERSONAS`                | empty   | +N backend calls /PR (N = persona count) + 1 conflict step |
+| `--risk-weighted`          | `PRTHINKER_RISK_WEIGHTED`           | off     | a few `git log` calls   |
+| `--diff-entropy`           | `PRTHINKER_DIFF_ENTROPY`            | off     | pure CPU, no backend call |
 
 ### Closed-loop multi-turn dialogue — `--reply-to-author`
 
 **What it does.** Before generating the next review, fetch the PR
-author's replies to the most recent reviewmind summary comment via
+author's replies to the most recent prthinker summary comment via
 `PlatformAdapter.fetch_author_replies()` and render them into a
 *Prior dialogue* block injected into the inline-findings prompt.
 The model is told to drop, refine, or rebut findings the author
@@ -523,11 +523,11 @@ replied 'wontfix'".
 **How to enable.**
 
 ```bash
-reviewmind review-pr --repo o/r --pr-number 42 \
+prthinker review-pr --repo o/r --pr-number 42 \
     --per-file --inline-review --reply-to-author
 ```
 
-Or in `.reviewmind.yaml`:
+Or in `.prthinker.yaml`:
 
 ```yaml
 reply_to_author: true
@@ -553,11 +553,11 @@ and burns an extra backend call per file.
 **How to enable.**
 
 ```bash
-reviewmind review-pr --repo o/r --pr-number 42 \
+prthinker review-pr --repo o/r --pr-number 42 \
     --per-file --inline-review --counterfactual
 ```
 
-Or in `.reviewmind.yaml`:
+Or in `.prthinker.yaml`:
 
 ```yaml
 counterfactual: true
@@ -584,11 +584,11 @@ generously.
 **How to enable.**
 
 ```bash
-reviewmind review-pr --repo o/r --pr-number 42 \
+prthinker review-pr --repo o/r --pr-number 42 \
     --per-file --inline-review --provenance
 ```
 
-Or in `.reviewmind.yaml`:
+Or in `.prthinker.yaml`:
 
 ```yaml
 provenance: true
@@ -603,7 +603,7 @@ provenance: true
 - `confidence` is surfaced for human use only; it is **never** used to
   silently filter findings.
 
-### Adversarial robustness — `reviewmind adversarial-eval`
+### Adversarial robustness — `prthinker adversarial-eval`
 
 **What it does.** Runs a prompt-injection corpus against the
 configured backend and records every per-call outcome (bypass /
@@ -621,16 +621,16 @@ it is a hand-authored seed across four attack families
 **How to run.**
 
 ```bash
-reviewmind adversarial-eval \
-    --corpus reviewmind/adversarial_corpus/seed.jsonl \
-    --outcomes-path .reviewmind/adversarial.sqlite \
+prthinker adversarial-eval \
+    --corpus prthinker/adversarial_corpus/seed.jsonl \
+    --outcomes-path .prthinker/adversarial.sqlite \
     --backend openai --openai-model gpt-4o-mini
 ```
 
 **Inspecting outcomes.** Use plain SQL:
 
 ```bash
-sqlite3 .reviewmind/adversarial.sqlite \
+sqlite3 .prthinker/adversarial.sqlite \
   "SELECT category, COUNT(*), SUM(bypassed), SUM(detected)
      FROM outcomes
     GROUP BY category;"
@@ -647,8 +647,8 @@ findings; only genuinely-changed files re-enter the model.
 **How to enable.**
 
 ```bash
-reviewmind review-pr --pr 42 --per-file --inline-review \
-    --diff-since-last --diff-cache-path .reviewmind/diff-cache.sqlite
+prthinker review-pr --pr 42 --per-file --inline-review \
+    --diff-since-last --diff-cache-path .prthinker/diff-cache.sqlite
 ```
 
 Cross-PR isolated by primary key. Close the PR to drop entries
@@ -663,7 +663,7 @@ the workdir into `tempfile.mkdtemp`, applies the suggestion with an
 `[verified]` / `[FAILED]` / `[skipped]` / `[error]` in the PR comment.
 
 ```bash
-reviewmind review-pr --pr 42 --inline-review --verify-suggestions \
+prthinker review-pr --pr 42 --inline-review --verify-suggestions \
     --verify-cmd "pytest -x tests/" --verify-timeout 60
 ```
 
@@ -679,7 +679,7 @@ routes, type changes. Skipped silently on single-language PRs (no
 wasted backend call).
 
 ```bash
-reviewmind review-pr --pr 42 --inline-review --api-consistency
+prthinker review-pr --pr 42 --inline-review --api-consistency
 ```
 
 ### PR-type adaptive review — `--pr-classify`
@@ -691,7 +691,7 @@ prompt with smaller budget; refactor PRs widen the budget and add an
 equivalence-check focus hint.
 
 ```bash
-reviewmind review-pr --pr 42 --inline-review --pr-classify
+prthinker review-pr --pr 42 --inline-review --pr-classify
 ```
 
 ### Reproducibility signal — `--reproducibility-check`
@@ -704,7 +704,7 @@ one). Findings unique to the second pass are surfaced too. Costs one
 extra backend call per file.
 
 ```bash
-reviewmind review-pr --pr 42 --inline-review --reproducibility-check
+prthinker review-pr --pr 42 --inline-review --reproducibility-check
 ```
 
 ### Dependency upgrade impact — `--dep-upgrade-check`
@@ -716,7 +716,7 @@ package's actual call-sites visible elsewhere in the diff — whether
 breaking changes between the two versions affect this codebase.
 
 ```bash
-reviewmind review-pr --pr 42 --dep-upgrade-check
+prthinker review-pr --pr 42 --dep-upgrade-check
 ```
 
 Surfaces a *Dependency upgrade impact* table at the top of the PR
@@ -733,9 +733,9 @@ then surfaces *where the personas disagree*. The PR comment grows a
 
 ```bash
 # Subset:
-reviewmind review-pr --pr 42 --personas security,performance,readability
+prthinker review-pr --pr 42 --personas security,performance,readability
 # All five:
-reviewmind review-pr --pr 42 --personas all
+prthinker review-pr --pr 42 --personas all
 ```
 
 Cost: one backend call per persona + one conflict step.
@@ -750,7 +750,7 @@ scaled linearly between `floor` (default 2) and `ceiling` (default
 `2 × base_budget`) proportional to the risk score.
 
 ```bash
-reviewmind review-pr --pr 42 --inline-review --risk-weighted \
+prthinker review-pr --pr 42 --inline-review --risk-weighted \
     --risk-workdir /path/to/repo
 ```
 
@@ -769,7 +769,7 @@ does not block on a high score — the point is to make the PR's shape
 visible.
 
 ```bash
-reviewmind review-pr --pr 42 --diff-entropy
+prthinker review-pr --pr 42 --diff-entropy
 ```
 
 No backend call; pure local CPU.
@@ -779,7 +779,7 @@ No backend call; pure local CPU.
 For a research-grade run on a single PR:
 
 ```bash
-reviewmind review-pr --repo o/r --pr-number 42 \
+prthinker review-pr --repo o/r --pr-number 42 \
     --per-file --inline-review \
     --reply-to-author --counterfactual --provenance \
     --diff-since-last --verify-suggestions --api-consistency \
@@ -791,7 +791,7 @@ reviewmind review-pr --repo o/r --pr-number 42 \
 ```
 
 Expect ~ 4–6× the token budget of a vanilla review. Combine with
-`--cache --cache-path .reviewmind/cache.sqlite` to amortize cost
+`--cache --cache-path .prthinker/cache.sqlite` to amortize cost
 across iterations on the same PR.
 
 ---
@@ -823,7 +823,7 @@ zero errors and zero warnings.
 ### `bitsandbytes` fails to import on Windows
 
 bitsandbytes ships official Linux wheels; on Windows use the upstream
-`bitsandbytes-windows-webui` wheel, or run reviewmind inside WSL2.
+`bitsandbytes-windows-webui` wheel, or run prthinker inside WSL2.
 Alternative: skip quantization entirely (`quantization: false` in the
 local config) — burns more VRAM but doesn't need bitsandbytes.
 
@@ -838,7 +838,7 @@ local:
   lora_path: ../train/outputs-lora-qwen2.5-coder-7b
 ```
 
-### "REVIEWMIND_BACKEND_URL secret is not configured"
+### "PRTHINKER_BACKEND_URL secret is not configured"
 
 The workflow's startup check failed because the secret isn't set on the
 repo. Go to Settings → Secrets and variables → Actions and add it.
@@ -848,7 +848,7 @@ repo. Go to Settings → Secrets and variables → Actions and add it.
 The Qwen3-Embedding-4B model is ~ 8 GB VRAM. The default GitHub-hosted
 runner can't load it. Two fixes, in order of preference:
 
-1. `rag.remote: true` in `.reviewmind.yaml` — runner calls the
+1. `rag.remote: true` in `.prthinker.yaml` — runner calls the
    server's `/rag` endpoint, doesn't load FAISS locally.
 2. `rag.enabled: false` — disable RAG entirely. Loses the global rules
    but works on the smallest hardware.
@@ -859,10 +859,10 @@ The default TTL is 7 days. Override with `cache.ttl_days: 1` (more
 aggressive) or `cache.ttl_days: null` (never expire). Prune manually:
 
 ```bash
-sqlite3 .reviewmind/cache.sqlite "DELETE FROM prompt_cache WHERE created_at < strftime('%s','now','-7 days');"
+sqlite3 .prthinker/cache.sqlite "DELETE FROM prompt_cache WHERE created_at < strftime('%s','now','-7 days');"
 ```
 
-### `reviewmind mcp` exits with "The `mcp` package is not installed"
+### `prthinker mcp` exits with "The `mcp` package is not installed"
 
 You installed the runner profile but not the MCP extra:
 

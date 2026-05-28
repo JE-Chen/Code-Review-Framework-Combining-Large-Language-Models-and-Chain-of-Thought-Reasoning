@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from reviewmind.diff import FileDiff
-from reviewmind.diff_entropy import compute_entropy
+from prthinker.diff import FileDiff
+from prthinker.diff_entropy import compute_entropy
 
 
 def _fd(path: str, *, added: int = 0, removed: int = 0,
@@ -72,7 +72,7 @@ def test_binary_and_deleted_files_excluded() -> None:
 
 
 def test_thresholds_are_orderable() -> None:
-    from reviewmind.diff_entropy import DEFAULT_THRESHOLDS
+    from prthinker.diff_entropy import DEFAULT_THRESHOLDS
     lo, hi = DEFAULT_THRESHOLDS
     assert 0 < lo < hi < 1
 

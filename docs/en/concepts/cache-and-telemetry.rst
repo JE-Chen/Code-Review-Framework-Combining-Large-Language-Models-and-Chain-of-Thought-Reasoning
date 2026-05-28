@@ -16,7 +16,7 @@ bust operation is required.
 
 Defaults:
 
-* Path: ``.reviewmind/cache.sqlite``.
+* Path: ``.prthinker/cache.sqlite``.
 * TTL: 7 days (override with ``--cache-ttl-days``; ``0`` disables TTL).
 * WAL mode is enabled so concurrent readers don't block.
 
@@ -44,7 +44,7 @@ An append-only ``calls`` table that records one row per
   ``usage`` block when available; estimated from char counts otherwise —
   see ``tokens_estimated`` column)
 * ``latency_ms``
-* ``cost_usd`` (computed from :mod:`reviewmind.pricing`; ``NULL`` for
+* ``cost_usd`` (computed from :mod:`prthinker.pricing`; ``NULL`` for
   local and self-hosted-remote backends)
 * ``cache_hit`` (1 if the upstream ``CachingBackend`` returned the
   cached response)
@@ -53,7 +53,7 @@ An append-only ``calls`` table that records one row per
 Pricing
 ~~~~~~~
 
-:mod:`reviewmind.pricing` holds a static ``(backend, model) → (input_rate,
+:mod:`prthinker.pricing` holds a static ``(backend, model) → (input_rate,
 output_rate)`` table in USD per million tokens. Models not in the table
 return ``None`` cost — the row is recorded but ``cost_usd`` is left
 ``NULL`` so you can spot drift.
@@ -66,13 +66,13 @@ The ``stats`` subcommand
 
 .. code-block:: bash
 
-   reviewmind stats                          # all-time
-   reviewmind stats --since-days 7           # last week
-   reviewmind stats --since-days 1           # last 24 h
+   prthinker stats                          # all-time
+   prthinker stats --since-days 7           # last week
+   prthinker stats --since-days 1           # last 24 h
 
 Sample output::
 
-   # reviewmind stats — last 7 day(s)
+   # prthinker stats — last 7 day(s)
 
    backend    model                               calls  hits   in-tok   out-tok       USD   p50 ms   p95 ms
    ----------------------------------------------------------------------------------------------------------
@@ -81,7 +81,7 @@ Sample output::
    ----------------------------------------------------------------------------------------------------------
    Total: 60 call(s), 38 cache hits (63.3%), $0.6573
 
-   Cache: 312 entries stored, 119 lifetime hits at .reviewmind/cache.sqlite
+   Cache: 312 entries stored, 119 lifetime hits at .prthinker/cache.sqlite
 
 Why this matters
 ~~~~~~~~~~~~~~~~
@@ -95,7 +95,7 @@ and the cache row tells you whether tuning the workflow trigger to
 Wrapping order
 --------------
 
-The factory in :func:`reviewmind.backends.create_backend` stacks
+The factory in :func:`prthinker.backends.create_backend` stacks
 wrappers in this order::
 
    InstrumentedBackend(CachingBackend(real_backend))
@@ -109,8 +109,8 @@ Disabling
 
 Both wrappers are gated on flags + env vars and default to **off**:
 
-* ``--cache`` / ``REVIEWMIND_CACHE_ENABLED``
-* ``--telemetry`` / ``REVIEWMIND_TELEMETRY_ENABLED``
+* ``--cache`` / ``PRTHINKER_CACHE_ENABLED``
+* ``--telemetry`` / ``PRTHINKER_TELEMETRY_ENABLED``
 
 When disabled the factory returns the concrete backend directly; no
 disk activity, no schema migration risk.

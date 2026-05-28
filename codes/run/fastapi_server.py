@@ -19,16 +19,16 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
 
-from reviewmind.accepted import (
+from prthinker.accepted import (
     AcceptedExamplesRetriever,
     AcceptedExamplesStore,
 )
-from reviewmind.backends.local import LocalQwen3Backend
-from reviewmind.config import LocalBackendConfig
-from reviewmind.dismissed import DismissedExamplesStore, DismissedFilter
-from reviewmind.pipeline import CoTPipeline
-from reviewmind.rag import FaissRAGRetriever
-from reviewmind.schemas import (
+from prthinker.backends.local import LocalQwen3Backend
+from prthinker.config import LocalBackendConfig
+from prthinker.dismissed import DismissedExamplesStore, DismissedFilter
+from prthinker.pipeline import CoTPipeline
+from prthinker.rag import FaissRAGRetriever
+from prthinker.schemas import (
     AskRequest,
     RagRequest,
     RagResponse,
@@ -37,7 +37,7 @@ from reviewmind.schemas import (
     StepOutput,
 )
 
-log = logging.getLogger("reviewmind.server")
+log = logging.getLogger("prthinker.server")
 
 RUN_ON = "Qwen/Qwen3-Coder-30B-A3B-Instruct"
 _LORA_BY_MODEL: dict[str, str] = {
@@ -63,14 +63,14 @@ _retriever = FaissRAGRetriever(threshold=0.7)
 
 
 def _build_dismissed_filter() -> DismissedFilter | None:
-    raw_path = os.environ.get("REVIEWMIND_DISMISSED_PATH", "").strip()
+    raw_path = os.environ.get("PRTHINKER_DISMISSED_PATH", "").strip()
     if not raw_path:
         return None
     store = DismissedExamplesStore(Path(raw_path))
     if len(store) == 0:
         log.info("Dismissed store at %s is empty — filter disabled", raw_path)
         return None
-    threshold = float(os.environ.get("REVIEWMIND_DISMISSED_THRESHOLD", "0.85") or 0.85)
+    threshold = float(os.environ.get("PRTHINKER_DISMISSED_THRESHOLD", "0.85") or 0.85)
     return DismissedFilter(store, threshold=threshold, path_scoped=False)
 
 
@@ -78,15 +78,15 @@ _dismissed_filter = _build_dismissed_filter()
 
 
 def _build_accepted_retriever() -> AcceptedExamplesRetriever | None:
-    raw_path = os.environ.get("REVIEWMIND_ACCEPTED_PATH", "").strip()
+    raw_path = os.environ.get("PRTHINKER_ACCEPTED_PATH", "").strip()
     if not raw_path:
         return None
     store = AcceptedExamplesStore(Path(raw_path))
     if len(store) == 0:
         log.info("Accepted store at %s is empty — exemplars disabled", raw_path)
         return None
-    threshold = float(os.environ.get("REVIEWMIND_ACCEPTED_THRESHOLD", "0.6") or 0.6)
-    k = int(os.environ.get("REVIEWMIND_ACCEPTED_TOP_K", "3") or 3)
+    threshold = float(os.environ.get("PRTHINKER_ACCEPTED_THRESHOLD", "0.6") or 0.6)
+    k = int(os.environ.get("PRTHINKER_ACCEPTED_TOP_K", "3") or 3)
     return AcceptedExamplesRetriever(store, k=k, threshold=threshold)
 
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from reviewmind.cli import _build_parser
+from prthinker.cli import _build_parser
 
 
 def test_hook_subcommand_is_registered() -> None:

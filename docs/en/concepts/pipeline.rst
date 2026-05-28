@@ -55,7 +55,7 @@ Per-file is the production setup; the bundled GHA workflow enables it.
 Diff parsing
 ------------
 
-``reviewmind.diff.parse_unified_diff`` splits the unified diff into
+``prthinker.diff.parse_unified_diff`` splits the unified diff into
 ``FileDiff`` objects and tracks the set of *new-side* line numbers that
 appear in each file. This set drives line validation: any
 ``InlineFinding`` pointing at a line outside the diff is dropped before
@@ -66,7 +66,7 @@ Findings extraction
 -------------------
 
 The ``inline_findings`` step asks the model to output a JSON array. The
-parser in ``reviewmind.findings`` is intentionally lenient:
+parser in ``prthinker.findings`` is intentionally lenient:
 
 1. Strip optional Markdown fenced-code wrapping (``\`\`\`json … \`\`\```).
 2. Find the outermost ``[ ... ]`` block.

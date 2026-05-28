@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 from typing import Iterable, Iterator
 
-# Make ``reviewmind`` importable when running pytest from the repo root
+# Make ``prthinker`` importable when running pytest from the repo root
 # without an editable install.
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
@@ -22,7 +22,7 @@ if str(_REPO_ROOT) not in sys.path:
 # Imports below depend on the sys.path insertion above.
 import pytest  # noqa: E402
 
-from reviewmind.backends.base import InferenceBackend, Usage  # noqa: E402
+from prthinker.backends.base import InferenceBackend, Usage  # noqa: E402
 
 
 class FakeBackend(InferenceBackend):

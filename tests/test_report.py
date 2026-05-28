@@ -1,4 +1,4 @@
-"""``reviewmind report`` rendering — markdown, html, json.
+"""``prthinker report`` rendering — markdown, html, json.
 
 We use real temporary SQLite + JSONL stores so the renderers see live
 data via the same code path that production uses.
@@ -11,16 +11,16 @@ from pathlib import Path
 
 import pytest
 
-from reviewmind.accepted import AcceptedExample, AcceptedExamplesStore
-from reviewmind.cache import PromptCache
-from reviewmind.dismissed import DismissedExample, DismissedExamplesStore
-from reviewmind.report import (
+from prthinker.accepted import AcceptedExample, AcceptedExamplesStore
+from prthinker.cache import PromptCache
+from prthinker.dismissed import DismissedExample, DismissedExamplesStore
+from prthinker.report import (
     ReportInputs,
     render_html,
     render_json,
     render_markdown,
 )
-from reviewmind.telemetry import CallRecord, TelemetrySink
+from prthinker.telemetry import CallRecord, TelemetrySink
 
 
 @pytest.fixture
@@ -72,7 +72,7 @@ def populated_inputs(tmp_path: Path) -> ReportInputs:
 
 def test_markdown_includes_every_section(populated_inputs: ReportInputs) -> None:
     body = render_markdown(populated_inputs)
-    assert "# reviewmind report" in body
+    assert "# prthinker report" in body
     assert "## Usage by backend & model" in body
     assert "## Cache" in body
     assert "## Daily cost (last 14 days)" in body
@@ -118,7 +118,7 @@ def test_html_wraps_markdown(populated_inputs: ReportInputs) -> None:
     body = render_html(populated_inputs)
     assert body.startswith("<!doctype html>")
     assert "<pre>" in body
-    assert "reviewmind report" in body
+    assert "prthinker report" in body
 
 
 def test_renderers_handle_missing_files(tmp_path: Path) -> None:

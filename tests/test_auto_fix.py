@@ -1,14 +1,14 @@
 """Auto-fix pure transforms — suggestion application + conflict detection.
 
-The git / GitHub side effects in ``reviewmind.auto_fix.open_auto_fix_pr``
+The git / GitHub side effects in ``prthinker.auto_fix.open_auto_fix_pr``
 are not exercised here (they need a real git repo + GitHub credentials);
 the pure functions are what the test suite locks in.
 """
 
 from __future__ import annotations
 
-from reviewmind.auto_fix import apply_suggestions_to_text, detect_conflicts
-from reviewmind.schemas import InlineFinding
+from prthinker.auto_fix import apply_suggestions_to_text, detect_conflicts
+from prthinker.schemas import InlineFinding
 
 
 def _f(
@@ -106,7 +106,7 @@ def test_bottom_up_application_keeps_line_numbers_stable() -> None:
 # ----- pure ConflictReport behaviour ------------------------------------
 
 def test_detect_conflicts_first_come_priority() -> None:
-    from reviewmind.auto_fix import _Edit  # noqa: SLF001
+    from prthinker.auto_fix import _Edit  # noqa: SLF001
 
     edits = [
         _Edit(start=10, end=12, replacement="x", finding_index=0),
@@ -119,7 +119,7 @@ def test_detect_conflicts_first_come_priority() -> None:
 
 
 def test_detect_conflicts_no_edges_no_overlap() -> None:
-    from reviewmind.auto_fix import _Edit  # noqa: SLF001
+    from prthinker.auto_fix import _Edit  # noqa: SLF001
 
     # Touching but not overlapping: edit1 ends at 10, edit2 starts at 11.
     edits = [

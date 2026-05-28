@@ -1,6 +1,6 @@
 """Tests for the counterfactual-review schema + parser.
 
-Same defensive parser stance as :mod:`reviewmind.findings`: malformed
+Same defensive parser stance as :mod:`prthinker.findings`: malformed
 output drops nothing real; we never crash the pipeline on a bad
 counterfactual step.
 """
@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import json
 
-from reviewmind.counterfactual import parse_counterfactuals
-from reviewmind.schemas import CounterfactualBlock, CounterfactualOption
+from prthinker.counterfactual import parse_counterfactuals
+from prthinker.schemas import CounterfactualBlock, CounterfactualOption
 
 
 # ----- schema -----------------------------------------------------------

@@ -1,4 +1,4 @@
-"""Tests for :mod:`reviewmind.dialogue` — author-reply harvesting.
+"""Tests for :mod:`prthinker.dialogue` — author-reply harvesting.
 
 The renderer is a pure function over a list of :class:`AuthorReply`;
 the platform-side fetching is exercised separately through the adapter
@@ -8,7 +8,7 @@ not stand up a fake GitHub.
 
 from __future__ import annotations
 
-from reviewmind.dialogue import AuthorReply, render_dialogue_block
+from prthinker.dialogue import AuthorReply, render_dialogue_block
 
 
 def test_render_empty_returns_empty_string() -> None:

@@ -1,0 +1,132 @@
+name: PRThinker
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  actions: read
+
+concurrency:
+  group: prthinker-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  prthinker:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.pull_request.draft == false }}
+    timeout-minutes: 30
+    steps:
+      - name: Check out PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install runner dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[runner]"
+
+      - name: Run PRThinker
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PRTHINKER_PR_NUMBER: ${{ github.event.pull_request.number }}
+
+          # ----- Backend selection -----------------------------------------
+          # `remote` is the project's own FastAPI inference server. Swap to
+          # `openai` to drive any OpenAI-Chat-Completions endpoint (OpenAI,
+          # Azure, vLLM, Ollama /v1, LM Studio, Together, Groq, …), or to
+          # `anthropic` for Claude. See docs/guide/configuration.rst.
+          PRTHINKER_BACKEND: remote
+          PRTHINKER_REMOTE_URL: ${{ secrets.PRTHINKER_BACKEND_URL }}
+          PRTHINKER_REMOTE_API_KEY: ${{ secrets.PRTHINKER_BACKEND_API_KEY }}
+          PRTHINKER_USE_REMOTE_PIPELINE: "true"
+
+          # For --backend openai (uncomment + set secrets):
+          # PRTHINKER_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # PRTHINKER_OPENAI_MODEL: gpt-4o-mini
+          # PRTHINKER_OPENAI_BASE_URL: https://api.openai.com/v1
+
+          # For --backend anthropic (uncomment + set secrets):
+          # PRTHINKER_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # PRTHINKER_ANTHROPIC_MODEL: claude-sonnet-4-6
+
+          PRTHINKER_PER_FILE: "true"
+          PRTHINKER_INLINE_REVIEW: "true"
+          PRTHINKER_MAX_FINDINGS_PER_FILE: "10"
+
+          PRTHINKER_RAG_ENABLED: "true"
+          PRTHINKER_REMOTE_RAG: "true"
+
+          # Pre-merge gate. Set to "warning" to also fail on warnings, or
+          # "none" to disable gating entirely (advisory mode).
+          PRTHINKER_GATE_ON: "error"
+
+          # Pull failed-job tail logs from the PR head into the prompt.
+          PRTHINKER_INCLUDE_CI_SIGNALS: "true"
+
+          # Optional per-repo coding standards: ./team-rules/*.md
+          # PRTHINKER_RULES_DIR: ./team-rules
+        run: |
+          # Preflight: if the remote backend is unreachable, skip the
+          # review gracefully — post a single upserted PR comment and
+          # exit 0 so the PR isn't blocked. The marker matches the one
+          # the reviewer would use, so a subsequent real run replaces
+          # this notice in place.
+          MARKER='<!-- prthinker:summary -->'
+          # SKIP_REASON_LOG is verbose and may include the backend URL —
+          # it only ends up in the workflow log (repo-scoped). PUBLIC_REASON
+          # is what we expose in the PR comment and MUST NOT leak any URL,
+          # IP, or token.
+          SKIP_REASON_LOG=""
+          PUBLIC_REASON=""
+
+          if [ "$PRTHINKER_BACKEND" = "remote" ]; then
+            if [ -z "$PRTHINKER_REMOTE_URL" ]; then
+              SKIP_REASON_LOG="PRTHINKER_BACKEND_URL secret is not configured"
+              PUBLIC_REASON="backend not configured"
+            else
+              AUTH_HEADER=()
+              if [ -n "$PRTHINKER_REMOTE_API_KEY" ]; then
+                AUTH_HEADER=(-H "Authorization: Bearer $PRTHINKER_REMOTE_API_KEY")
+              fi
+              if ! curl -fsS --max-time 5 "${AUTH_HEADER[@]}" \
+                       "$PRTHINKER_REMOTE_URL/healthz" > /dev/null; then
+                SKIP_REASON_LOG="backend $PRTHINKER_REMOTE_URL unreachable from the GitHub Actions runner"
+                PUBLIC_REASON="backend unreachable from the GitHub Actions runner"
+              fi
+            fi
+          fi
+
+          if [ -n "$PUBLIC_REASON" ]; then
+            echo "::warning::PRThinker skipped — $SKIP_REASON_LOG"
+            BODY=$(printf '%s\n' \
+              "$MARKER" \
+              "" \
+              "## PRThinker — skipped" \
+              "" \
+              "The automated review did not run on this push: **$PUBLIC_REASON**." \
+              "" \
+              "Ask a repo maintainer to either point the backend at a reachable" \
+              "inference server, or switch \`PRTHINKER_BACKEND\` in" \
+              "\`.github/workflows/prthinker.yml\` to \`openai\` / \`anthropic\` and" \
+              "configure the matching API key secret." \
+              "" \
+              "Re-pushing after the backend is reachable will overwrite this notice with a real review.")
+            gh pr comment "$PRTHINKER_PR_NUMBER" --body "$BODY" --edit-last \
+              || gh pr comment "$PRTHINKER_PR_NUMBER" --body "$BODY"
+            exit 0
+          fi
+
+          python -m prthinker review-pr

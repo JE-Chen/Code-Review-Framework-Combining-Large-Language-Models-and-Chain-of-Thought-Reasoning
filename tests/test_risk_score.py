@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from reviewmind.risk_score import (
+from prthinker.risk_score import (
     RiskWeights,
     budget_for_file,
     compute_risk_scores,
