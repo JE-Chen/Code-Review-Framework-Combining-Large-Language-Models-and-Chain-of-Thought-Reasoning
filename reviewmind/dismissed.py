@@ -20,9 +20,10 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import TYPE_CHECKING, Iterable
 
-import numpy as np
+if TYPE_CHECKING:
+    import numpy as np
 
 from reviewmind.schemas import InlineFinding
 
@@ -124,6 +125,9 @@ class DismissedFilter:
             return items
 
         self._ensure_embeddings()
+        # Lazy imports keep the runner profile (httpx + pydantic only)
+        # importable on machines without numpy / faiss.
+        import numpy as np
         from codes.util.faiss_util import get_embedding
 
         kept: list[InlineFinding] = []
