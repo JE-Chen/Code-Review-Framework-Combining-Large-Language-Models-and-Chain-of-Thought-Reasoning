@@ -1,0 +1,194 @@
+"""Shared request/response schemas for the FastAPI server and runner.
+
+Pydantic v2 is required. Keeping these in the package (rather than on the
+server side) so the runner can serialize requests with the same models the
+server validates against — single source of truth for the wire format.
+"""
+
+from __future__ import annotations
+
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+Severity = Literal["info", "warning", "error"]
+
+
+class AskRequest(BaseModel):
+    prompt: str
+    max_new_tokens: int = 32768
+
+
+class RagRequest(BaseModel):
+    query: str
+    threshold: float = 0.7
+    k: int = 15
+
+
+class RagResponse(BaseModel):
+    docs: list[str]
+
+
+class StepOutput(BaseModel):
+    name: str
+    output: str
+
+
+CitationKind = Literal["rag_rule", "accepted_example", "diff_evidence"]
+
+
+class ProvenanceCitation(BaseModel):
+    """One pointer to *why* the model raised a finding.
+
+    Three kinds, matching the three sources the inline-findings prompt
+    can expose:
+
+    * ``rag_rule`` — an entry from the retrieved RAG rule list. ``index``
+      is 1-based into the numbered ``Available RAG rules`` block.
+    * ``accepted_example`` — a past comment + suggestion the author
+      already accepted. ``index`` is 1-based into the ``Examples of
+      past advice that was accepted`` block.
+    * ``diff_evidence`` — line numbers in the new side of the diff that
+      ground the finding. ``index`` is unused; the supporting lines go
+      in ``lines``.
+
+    ``note`` is a one-line rationale tying the citation to the finding
+    (e.g. "matches rule on returning None in branching code").
+    """
+
+    kind: CitationKind
+    index: int | None = Field(default=None, ge=1)
+    lines: list[int] = Field(default_factory=list)
+    note: str = ""
+
+
+class Provenance(BaseModel):
+    """Why the model thinks this finding is correct.
+
+    Optional on every :class:`InlineFinding`. Empty when the user did
+    not enable ``--provenance``. ``confidence`` is the model's own
+    self-rated calibration in ``[0, 1]`` — surfaced for transparency,
+    NEVER used to silently drop a finding (the project's safe-failure
+    posture: drop nothing real on parse errors or low confidence).
+    """
+
+    citations: list[ProvenanceCitation] = Field(default_factory=list)
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+
+
+class InlineFinding(BaseModel):
+    """A single line-level review remark, intended for an inline PR comment.
+
+    `suggestion` (if set) is the full replacement text rendered into a
+    GitHub ```suggestion``` block. When the replacement spans more than one
+    line, `start_line` should point at the first affected line and `line`
+    at the last; GitHub treats `(start_line, line]` as the replaced range.
+    """
+
+    path: str
+    line: int = Field(ge=1)
+    severity: Severity = "info"
+    comment: str
+    suggestion: str | None = None
+    start_line: int | None = Field(default=None, ge=1)
+    original: str | None = None
+    provenance: Provenance | None = None
+
+    @property
+    def is_multiline(self) -> bool:
+        return self.start_line is not None and self.start_line != self.line
+
+
+class ReviewRequest(BaseModel):
+    code_diff: str
+    file_path: str | None = None
+    steps: list[str] | None = None
+    rag_enabled: bool = True
+    rag_threshold: float = 0.7
+    max_new_tokens: int = 32768
+    extra_rules: list[str] = Field(default_factory=list)
+
+
+Verdict = Literal["approve", "request_changes", "comment"]
+
+
+class JudgeVerdict(BaseModel):
+    """Per-file decision from the ``JudgeStep``.
+
+    The CLI aggregates verdicts across files and maps the result to a
+    GitHub review ``event``: any ``request_changes`` wins, otherwise all
+    ``approve`` collapses to ``APPROVE``, otherwise ``COMMENT``.
+    """
+
+    verdict: Verdict = "comment"
+    score: int = Field(ge=0, le=10)
+    reasons: list[str] = Field(default_factory=list)
+
+
+class CounterfactualOption(BaseModel):
+    """One alternative implementation proposed by the counterfactual step.
+
+    For each finding flagged as a non-trivial design choice, the model
+    is asked to surface *competing* implementations — not just "fix X"
+    but "you could do A, B, or C, and here is the trade-off matrix".
+
+    Per ``paper_rule.md``'s no-fabrication rule, neither the prompt nor
+    this schema makes any empirical claim about how often the proposed
+    options are useful. The mechanism is a design contribution; its
+    end-to-end utility is future-work.
+    """
+
+    label: str
+    rationale: str
+    tradeoffs: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Free-form axis-name → impact map, e.g. "
+            "{'performance': 'O(n) vs O(n log n)', "
+            "'readability': 'one-liner vs explicit loop'}."
+        ),
+    )
+
+
+class CounterfactualBlock(BaseModel):
+    """A finding + its competing alternative implementations."""
+
+    finding_index: int = Field(
+        ge=0,
+        description=(
+            "0-based index into the inline_findings array this block "
+            "elaborates on. Out-of-range entries are dropped by the parser."
+        ),
+    )
+    options: list[CounterfactualOption] = Field(default_factory=list)
+
+
+class ReviewResponse(BaseModel):
+    code_diff: str
+    rag_docs: list[str]
+    steps: list[StepOutput]
+    inline_findings: list[InlineFinding] = Field(default_factory=list)
+    verdict: JudgeVerdict | None = None
+    counterfactuals: list[CounterfactualBlock] = Field(default_factory=list)
+
+    def step_map(self) -> dict[str, str]:
+        return {s.name: s.output for s in self.steps}
+
+
+__all__ = [
+    "AskRequest",
+    "CitationKind",
+    "CounterfactualBlock",
+    "CounterfactualOption",
+    "InlineFinding",
+    "JudgeVerdict",
+    "Provenance",
+    "ProvenanceCitation",
+    "RagRequest",
+    "RagResponse",
+    "ReviewRequest",
+    "ReviewResponse",
+    "Severity",
+    "StepOutput",
+    "Verdict",
+]

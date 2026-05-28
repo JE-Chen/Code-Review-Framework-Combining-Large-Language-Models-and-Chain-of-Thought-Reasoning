@@ -1,0 +1,45 @@
+# Hooks exposed to the `pre-commit` framework (https://pre-commit.com).
+#
+# Consumer repos opt in via their own .pre-commit-config.yaml, e.g.:
+#
+#   repos:
+#     - repo: https://github.com/<your-org>/reviewmind
+#       rev: v0.1.0
+#       hooks:
+#         - id: reviewmind
+#           env:
+#             REVIEWMIND_BACKEND: openai
+#             REVIEWMIND_OPENAI_MODEL: gpt-4o-mini
+#             OPENAI_API_KEY: ${OPENAI_API_KEY}
+#
+# The hook reads `git diff --cached` itself, so `pass_filenames` is false.
+# Exit codes mirror the CLI: 0 = no error findings (commit proceeds);
+# 1 = at least one error-severity finding (commit blocked).
+
+- id: reviewmind
+  name: reviewmind code review (staged diff)
+  description: |
+    Runs the reviewmind CoT pipeline against the staged diff. Blocks the
+    commit if any error-severity finding survives the dismissed filter.
+    Configure backend + cache via REVIEWMIND_* env vars in the consumer
+    repo's pre-commit config.
+  entry: reviewmind hook
+  language: python
+  pass_filenames: false
+  always_run: true
+  stages: [commit]
+  require_serial: true
+
+- id: reviewmind-advisory
+  name: reviewmind code review (advisory, never blocks)
+  description: |
+    Same as the `reviewmind` hook, but always exits 0 — findings are
+    printed to stderr for the developer to read, but the commit always
+    proceeds. Useful as a soft introduction before flipping branch
+    protection on.
+  entry: reviewmind hook --advisory
+  language: python
+  pass_filenames: false
+  always_run: true
+  stages: [commit]
+  require_serial: true

@@ -1,0 +1,226 @@
+Docker、多平台、縱向報告
+========================
+
+三項把 reviewmind 從「可被 import 的函式庫」升級為「可營運的系統」之
+新增：
+
+* **Docker compose**\ ──一指令自架部署。
+* **PlatformAdapter**\ ──GitHub 與 GitLab 共用一個 Strategy 介面。
+* **``reviewmind report``**\ ──跨 store 縱向匯總。
+
+以 Docker compose 自架部署
+--------------------------
+
+``docker/`` 目錄下之 bundle 一指令即可部署 FastAPI 推論伺服器（含 TLS
+與 bearer-token 驗證）。三項主機需求：
+
+* NVIDIA GPU 加上與設定之 CUDA 版本相容之驅動（預設 ``12.2.0``\ ）。
+* Docker 24+ 並配置 NVIDIA container runtime（\ ``docker-compose.yml``
+  內 ``runtime: nvidia``\ ）。
+* TLS 憑證（Let's Encrypt 或 self-signed），mount 進 nginx container。
+
+檔案清單：
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - 檔案
+     - 用途
+   * - ``docker/Dockerfile.server``
+     - CUDA-runtime base + Python 3.12 + ``pip install -e .[server]``\ 。
+       模型權重\ **不**\ 烤進 image，於首次執行時拉到 volume 中。
+   * - ``docker/docker-compose.yml``
+     - 兩個 service（\ ``reviewmind`` + ``nginx``\ ）、三個 volume
+       （\ ``hf_cache``\ 、\ ``data``\ 、host TLS 目錄）。
+   * - ``docker/nginx.conf``
+     - TLS termination；\ ``/healthz`` 不檢查 auth，其他路徑要求
+       ``Authorization: Bearer <REVIEWMIND_BACKEND_TOKEN>``\ 。
+   * - ``docker/entrypoint-nginx.sh``
+     - container 啟動時把 token 注入 ``nginx.conf``\ ；env 變數缺失
+       時拒絕啟動（fail-fast）。
+   * - ``docker/.env.example``
+     - bearer token、TLS 憑證目錄、host port、CUDA tag 之範本。
+
+啟動：
+
+.. code-block:: bash
+
+   cd docker
+   cp .env.example .env
+   # 編輯：REVIEWMIND_BACKEND_TOKEN=$(openssl rand -hex 32)
+   #       TLS_CERT_DIR=/etc/letsencrypt/live/your-host
+   docker compose up -d
+
+   # 驗證
+   curl https://your-host/healthz \
+       -H "Authorization: Bearer $REVIEWMIND_BACKEND_TOKEN"
+
+Volume 說明：
+
+* ``hf_cache``\ ──HuggingFace 權重。\ ``docker compose down`` 不會清除；
+  只在換模型且想釋出約 80 GB 空間時才刪。
+* ``data``\ ──cache.sqlite、telemetry.sqlite、dismissed.jsonl、
+  accepted.jsonl，請納入備份。
+* TLS 目錄為 **host bind-mount**\ ，憑證更新與 compose 生命週期分開管。
+
+Image 刻意不烤入權重——image 重建不應作廢 ~80 GB 下載。代價是
+``docker compose up`` 首次請求要等權重下載；後續即熱。
+
+以 ``PlatformAdapter`` 支援多平台
+---------------------------------
+
+Pipeline 透過一個 Strategy 介面同時對接 GitHub 與 GitLab：
+
+.. code-block:: text
+
+   reviewmind.platforms.base.PlatformAdapter        (ABC)
+       │
+       ├── GitHubAdapter   (包住 github_api.py + checks.py)
+       └── GitLabAdapter   (直接以 httpx 打 /api/v4)
+
+每個 adapter 必實作之五個方法：
+
+.. list-table::
+   :header-rows: 1
+   :widths: 32 68
+
+   * - 方法
+     - 用途
+   * - ``fetch_diff()``
+     - 取得 PR / MR 之 unified diff。
+   * - ``fetch_head_sha()``
+     - head commit SHA──gate 需要。
+   * - ``fetch_base_branch()``
+     - auto-fix 開 draft PR 時用。
+   * - ``upsert_summary_comment(body)``
+     - 以 ``comment_marker`` 子字串 upsert 之留言。
+   * - ``submit_inline_review(findings, summary_body, event)``
+     - inline comment 含可選 ``suggestion`` 區塊；\ ``event`` 對應到
+       GitHub Review verb 或 GitLab discussion 前綴。
+   * - ``open_gate(head_sha)`` / ``close_gate(handle, result)``
+     - GitHub：Check Run。GitLab：commit status，呼叫
+       ``POST /projects/:id/statuses/:sha``\ 。
+
+adapter 掩蓋之 wire-format 差異
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 36 36
+
+   * - 面向
+     - GitHub
+     - GitLab
+   * - 識別子
+     - ``owner/name`` + ``pr_number``
+     - ``group/project`` URL-encoded + ``mr_iid``
+   * - inline comment
+     - ``POST /pulls/:n/reviews``\ ，\ ``comments[].line``
+     - ``POST /merge_requests/:iid/discussions``\ ，\ ``position``
+       （\ ``base_sha`` / ``start_sha`` / ``head_sha`` /
+       ``new_path`` / ``new_line``\ ）
+   * - status check
+     - Check Run（\ ``POST /check-runs``\ ）
+     - commit status（\ ``POST /statuses/:sha``\ ，
+       ``state=pending|success|failed``\ ）
+   * - review verdict
+     - 原生 ``event: APPROVE`` / ``REQUEST_CHANGES`` / ``COMMENT``
+     - GitLab discussions 無原生 verb，於 body 加前綴
+       ``**Verdict: APPROVE**``\ （未來工作：APPROVE 時實際呼叫
+       ``POST /merge_requests/:iid/approve``\ ）
+   * - 驗證 header
+     - ``Authorization: Bearer <token>``
+     - ``PRIVATE-TOKEN: <token>``
+
+CLI 用法
+~~~~~~~~
+
+.. code-block:: bash
+
+   # GitHub（預設）
+   reviewmind review-pr --repo owner/name --pr-number 42
+
+   # gitlab.com 上之 GitLab
+   reviewmind review-pr \
+       --platform gitlab \
+       --repo group/project \
+       --pr-number 42 \
+       --github-token "$GITLAB_TOKEN"
+
+   # 自架之 GitHub Enterprise
+   reviewmind review-pr \
+       --platform github \
+       --platform-base-url https://github.example.com/api/v3 \
+       --repo owner/name --pr-number 42
+
+``--github-token`` flag 也接受 ``GITLAB_TOKEN`` 作 fallback；CLI 依
+``--platform`` 自動判斷該讀哪個。\ ``--repo`` 也接受 GitLab CI 之
+``CI_PROJECT_PATH``\ 。
+
+目前仍僅支援 GitHub 之功能
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+兩處仍直打 GitHub Actions API，在 GitLab 上會以一行 log 跳過：
+
+* **CI 訊號注入**\ （\ ``--include-ci-signals``\ ）──用 Actions 之
+  ``/jobs/:id/logs``\ 。GitLab 對應為
+  ``/projects/:id/jobs/:id/trace``\ ，已列入未來工作。
+* **Auto-fix draft PR**\ （\ ``--auto-fix-threshold``\ ）──用 GitHub
+  pulls API 建立修補 PR；GitLab 對應為 Merge Requests API。
+
+其他功能（CoT pipeline、gate、inline review、judge、self-correct）
+GitHub 與 GitLab 皆支援。
+
+``reviewmind report``\ ──縱向匯總
+---------------------------------
+
+框架寫入之四份 store（telemetry SQLite、cache SQLite、dismissed /
+accepted JSONL）會悄悄累積。\ ``reviewmind report`` 把它們 join 起來，
+產出可給人或機器讀之匯總：
+
+.. code-block:: bash
+
+   # markdown 到 stdout
+   reviewmind report --since-days 30
+
+   # html 檔，方便寄給 ops
+   reviewmind report --since-days 30 --format html --out report.html
+
+   # json 可接 Grafana / DuckDB
+   reviewmind report --since-days 30 --format json --out report.json
+
+渲染之段落：
+
+1. **依 (backend, model) 之使用量**\ ──calls、cache hits、in/out
+   tokens、USD 成本、p50 / p95 延遲。
+2. **Cache**\ ──entry 數 + lifetime 命中數。
+3. **每日成本 sparkline**\ ──最近 14 天之 ASCII 條，含峰值標注。
+4. **Dismissed corpus**\ ──總數 + 各 reason 之筆數
+   （\ ``thumbs-down reaction`` / ``reply matched: ...``\ ）。
+5. **Accepted corpus**\ ──總數 + 採納數前 5 之檔案。
+
+實作性質：
+
+* **純 stdlib + 既有套件模組**\ ；無 numpy、無 matplotlib──sparkline
+  用八種 Unicode block：\ ``▁▂▃▄▅▆▇█``\ 。
+* **缺檔不會 error**\ 。telemetry 或某 JSONL 尚未存在時，該段落顯示
+  「無資料」，其餘段落照常。
+* **唯讀**\ 。每個 store 都以 read mode 開啟，跑 report 不會修改任何
+  狀態。
+
+各格式適用情境
+~~~~~~~~~~~~~~
+
+* ``markdown``\ ──貼到 wiki 或 commit 進 repo 作 weekly 標題。
+* ``html``\ ──單檔 self-contained，可放 static server 或 email。
+* ``json``\ ──餵下游工具（DuckDB、Grafana JSON datasource、ad-hoc
+  pandas）。
+
+目前不做語義 clustering
+~~~~~~~~~~~~~~~~~~~~~~~
+
+目前 report 不對 dismissed comments 做語義 cluster。Dismissed store 之
+embedding 是 server 啟動時為 filter 計算的；單為 cluster 幾百筆留言而把
+embedding 模型也搬進 runner 不划算。若日後需要 cluster，請以
+``--format json`` 為對接介面，自選 embedding + KMeans 套件處理。
