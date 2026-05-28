@@ -616,6 +616,103 @@ dropped (the citation, never the finding). `confidence` is **never**
 used to filter findings silently. The PR comment renders the
 citations as an *Audit trail* footer under each file.
 
+### Force-push differential review — `--diff-since-last`
+
+`FileDiff.content_sha256()` hashes only the new-side content of each
+file (added lines + unchanged context), excluding removed lines and
+diff metadata, so a no-op force-push that re-orders hunks still hits
+the cache. `ReviewCache` is a small SQLite store keyed on
+`(pr_number, repo, file_path, hunk_sha256)`; cross-PR isolated by
+primary key. On cache hit the file's findings are reused without
+calling the model.
+
+### Suggestion sandbox verifier — `--verify-suggestions`
+
+`reviewmind/sandbox.py` clones the workdir into `tempfile.mkdtemp`
+(`.git` / `__pycache__` / `node_modules` excluded), applies the
+suggestion at the finding's line range with an `original` guardrail,
+and runs `--verify-cmd` under `--verify-timeout` via
+`subprocess.run` with an arg list (never `shell=True`). The original
+repo is never mutated. `SuggestionVerification(status, verify_cmd,
+duration_ms, reason)` is attached to `InlineFinding`; the formatter
+renders `[verified]` / `[FAILED]` / `[skipped]` / `[error]` badges.
+
+### Cross-language API drift — `--api-consistency`
+
+`reviewmind/api_consistency.py` classifies each touched file as
+backend (`.py`) / frontend (`.ts` / `.tsx` / `.js` / `.jsx`) /
+neither. The drift step runs only when the diff is mixed-language
+(`is_mixed_language()` returns true) — no wasted backend call on
+single-language PRs. `ApiDriftFinding` carries six `kind` values
+(`field_renamed` / `field_removed` / `type_changed` / `path_changed`
+/ `method_changed` / `other`); the parser drops drift entries citing
+paths not actually in the diff.
+
+### PR-type adaptive review — `--pr-classify`
+
+`reviewmind/pr_classifier.py` defines six `PRType`s (BUGFIX / FEATURE
+/ REFACTOR / DOCS / CHORE / UNKNOWN) and a `ReviewBudget` per type.
+The classifier step runs first (one backend call per PR using diff +
+title + body); on `DOCS` the pipeline skips `InlineFindingsStep`
+entirely; on `BUGFIX` `max_findings_per_file` shrinks and a focused
+prompt fragment is injected into `dialogue_block`; on `REFACTOR` the
+budget widens and an equivalence-check hint is added. Safe-failure:
+unparseable output → `UNKNOWN` → standard pipeline.
+
+### Reproducibility / disagreement signal — `--reproducibility-check`
+
+`reviewmind/reproducibility.py` runs the inline-findings step twice
+per file (identical prompt; non-zero temperature gives a second
+sample). Match is by `(path, line, normalised-comment)` where
+normalisation collapses whitespace / case / punctuation, so a
+paraphrase still counts as a match. Findings tagged `stable` or
+`low`; findings unique to the second pass are surfaced too. Works
+against any backend without needing per-token logprobs.
+
+### Dependency upgrade impact — `--dep-upgrade-check`
+
+`reviewmind/dep_upgrade.py` detects touches of `requirements.txt` /
+`pyproject.toml` / `package.json` and extracts `(package, old, new)`
+deltas (with a top-level metadata-key filter so `name` / `version`
+in `package.json` don't false-match). For each upgrade it builds a
+prompt that includes the package's actual call-sites visible
+elsewhere in the diff and asks the model whether breaking changes
+between the two versions affect this codebase. No remote changelog
+is fetched at review time.
+
+### Reviewer personas with conflict surfacing — `--personas`
+
+`reviewmind/personas.py` defines five orthogonal `Persona` lenses
+(`SECURITY` / `PERFORMANCE` / `READABILITY` / `API_STABILITY` /
+`MAINTAINABILITY`); each persona's prompt explicitly tells the model
+NOT to comment outside its lens. After N persona passes a
+conflict-finder step is given the N outputs and asked to surface
+cross-persona disagreements only. `PersonaConflict.resolution`
+intentionally does NOT pick a winner — it frames the question for
+the human reviewer.
+
+### Risk-weighted attention — `--risk-weighted`
+
+`reviewmind/risk_score.py` computes per-file risk from three signals:
+**churn** (`git log --since=90.days.ago` for the file), **complexity
+proxy** (line count at HEAD), **bug history** (commits matching
+`fix:` / `bug` / `revert`). Each signal is normalised across the
+files in the PR and combined with documented default weights
+(0.4 / 0.3 / 0.3) — explicitly NOT a calibrated formula. The
+pipeline scales `max_findings_per_file` proportional to the score
+between `floor` (default 2) and `ceiling` (default `2 × base_budget`).
+
+### Diff entropy / "diff bomb" detector — `--diff-entropy`
+
+`reviewmind/diff_entropy.py` is pure-data over the parsed `FileDiff`
+list — no I/O, no backend call. Size component combines file count
+and total +/- lines; dispersion component is the Shannon entropy of
+the top-level-directory distribution normalised by `log2(n_dirs)`.
+Three verdicts (`focused` / `wide` / `bomb`) at configurable
+thresholds; `bomb` opens the PR comment with a "Consider splitting
+this PR" warning. The framework does not block on a high score — the
+point is to make the PR's shape visible.
+
 ---
 
 ## Design patterns

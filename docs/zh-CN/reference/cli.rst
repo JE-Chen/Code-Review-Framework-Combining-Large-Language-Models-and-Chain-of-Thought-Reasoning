@@ -31,6 +31,11 @@ review-pr
        [--rules-dir PATH]
        [--per-file] [--inline-review] [--max-findings-per-file 10]
        [--reply-to-author] [--counterfactual] [--provenance]
+       [--diff-since-last] [--diff-cache-path PATH]
+       [--verify-suggestions] [--verify-cmd CMD] [--verify-timeout 60] [--verify-workdir PATH]
+       [--api-consistency] [--pr-classify] [--reproducibility-check]
+       [--dep-upgrade-check]
+       [--personas LIST] [--risk-weighted] [--risk-workdir PATH] [--diff-entropy]
        [--judge] [--self-correct]
        [--gate-on {none,warning,error}]
        [--include-ci-signals] [--ci-signal-max-jobs 5] [--ci-signal-tail-chars 4000]
@@ -76,6 +81,74 @@ review-pr
    二次降噪：把存活之 findings 列给模型\ ，请它删掉它认为是噪音的条目\ 。
    每文件多一次 backend 调用\ 。安全失败方向：解析失败时保留原清单\ 。
 
+.. option:: --diff-since-last
+
+   把每文件之新侧内容 hash\ ，后续 push 时 hash 未变之文件直接 reuse
+   上次 findings\ 。SQLite 存储体于 ``--diff-cache-path``（默认
+   ``.reviewmind/diff-cache.sqlite``），key 为
+   ``(pr_number, repo, file_path, hunk_sha256)`` —— 跨 PR 隔离\ 。环境变量：
+   ``REVIEWMIND_DIFF_SINCE_LAST``\ 。
+
+.. option:: --verify-suggestions
+
+   把 working tree 复制到 disposable sandbox\ ，于 finding 之 line range
+   套用 ``suggestion`` block\ ，再以 ``--verify-cmd``\（默认
+   ``pytest -x``）于 ``--verify-timeout``\（默认 60s）下执行\ ，把每条
+   finding 标 ``[verified]`` / ``[FAILED]`` / ``[skipped]`` /
+   ``[error]``\ 。原 repo 绝不动\ 。环境变量：
+   ``REVIEWMIND_VERIFY_SUGGESTIONS``\ 。
+
+.. option:: --api-consistency
+
+   当 diff 同时碰到后端（``.py``）与前端（``.ts`` / ``.tsx`` /
+   ``.js`` / ``.jsx``）\ ，新增一个 step 检测\ *跨文件*\ drift（重命名字段、
+   移除路由、类型变更）\ 。单语言 PR 上静默 pass\ 。环境变量：
+   ``REVIEWMIND_API_CONSISTENCY``\ 。
+
+.. option:: --pr-classify
+
+   从 diff + 标题 + body 把 PR 分为 ``bugfix`` / ``feature`` /
+   ``refactor`` / ``docs`` / ``chore`` / ``unknown``\ ，后续 review
+   深度随之调整：docs PR 跳 inline findings\ ；bugfix PR 用 focused
+   prompt + 较小 budget\ 。环境变量：``REVIEWMIND_PR_CLASSIFY``\ 。
+
+.. option:: --reproducibility-check
+
+   同 prompt 跑两次 inline-findings step（非 0 temperature 自然产生
+   第二样本）\ ，每条 finding 按跨 pass match 标 ``stable`` / ``low``\ 。
+   后端通用 uncertainty proxy\ 。环境变量：
+   ``REVIEWMIND_REPRODUCIBILITY_CHECK``\ 。
+
+.. option:: --dep-upgrade-check
+
+   检测 lock-file（``requirements.txt`` / ``pyproject.toml`` /
+   ``package.json``）中之版本 bump\ ，问模型该包之 breaking change
+   是否影响本 repo 之实际用法\ 。环境变量：
+   ``REVIEWMIND_DEP_UPGRADE_CHECK``\ 。
+
+.. option:: --personas <list>
+
+   逗号分隔之 persona 名单（``security``\ 、``performance``\ 、
+   ``readability``\ 、``api_stability``\ 、``maintainability``）── 或
+   ``all`` 跑全 5 个\ 。每个 persona 之 prompt 限定模型只在该 lens 范围内
+   评论\ ；之后一个 conflict-finder step 找出跨 persona 之分歧\ 。空（默认）
+   即停用\ 。环境变量：``REVIEWMIND_PERSONAS``\ 。
+
+.. option:: --risk-weighted
+
+   以 churn（``git log`` 于默认 90 天 lookback）\ 、complexity（HEAD 行数）\ 、
+   bug history（commit message 命中 ``fix:`` / ``bug`` / ``revert``）算
+   每文件风险分\ ；按分数线性缩放 ``max_findings_per_file`` 于 ``floor``
+   （默认 2）到 ``ceiling``（默认 ``2 × base_budget``）之间\ 。
+   ``--risk-workdir`` 指向 git repo\ 。环境变量：
+   ``REVIEWMIND_RISK_WEIGHTED``\ 。
+
+.. option:: --diff-entropy
+
+   计算 diff 之 size + 目录分布 Shannon entropy\ ；分数越过 ``bomb``
+   阈值时于评论顶端贴\ 「\ Consider splitting this PR\ 」\ 警示\ 。纯本机 CPU\ 、
+   无 backend 调用\ 。环境变量：``REVIEWMIND_DIFF_ENTROPY``\ 。
+
 review-file
 -----------
 
@@ -91,6 +164,10 @@ review-file
        [--rules-dir PATH]
        [--per-file] [--inline-review] [--max-findings-per-file 10]
        [--counterfactual] [--provenance] [--judge] [--self-correct]
+       [--diff-since-last] [--verify-suggestions]
+       [--api-consistency] [--pr-classify] [--reproducibility-check]
+       [--dep-upgrade-check] [--personas LIST]
+       [--risk-weighted] [--diff-entropy]
        [--max-new-tokens 32768]
        [--steps a,b,c]
        [--output-dir PATH]

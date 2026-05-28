@@ -48,29 +48,60 @@ exemplars — and can act as a required status check before merges.
 
 ### Research-grade extensions (opt-in)
 
-Four mechanisms most LLM-code-review systems do not ship. All require
-`--inline-review`; per the project's no-fabrication rule we publish
-the framework only — measured benchmark numbers are future work.
+Thirteen mechanisms most LLM-code-review systems do not ship. Most
+require `--inline-review`; per the project's no-fabrication rule we
+publish the framework only — measured benchmark numbers are future
+work.
 
 - **Adversarial robustness** (`reviewmind adversarial-eval`) — runs a
-  prompt-injection corpus across four attack families
-  (direct injection / encoded payload / split injection / role hijack)
-  and records every per-call outcome to SQLite. The bundled
-  `seed.jsonl` is a seed, **not** a benchmark.
-- **Closed-loop multi-turn dialogue** (`--reply-to-author`) — fetches
-  the PR author's replies to the last reviewmind summary comment and
-  injects them as *Prior dialogue* into the inline-findings prompt, so
-  the next review either drops, refines, or rebuts findings the author
-  already addressed.
-- **Counterfactual review** (`--counterfactual`) — for findings that
-  are *design choices* rather than bugs, surfaces competing
-  implementations and a small trade-off matrix instead of one "do X".
-- **Provenance / audit trail** (`--provenance`) — every finding gains
-  a `provenance` payload citing the RAG rule, accepted-example, or
-  diff line(s) that informed it, with an optional model
-  self-confidence in [0, 1]. A bad citation never drops a real finding.
+  prompt-injection corpus across four attack families and records
+  every per-call outcome to SQLite. The bundled `seed.jsonl` is a
+  seed, **not** a benchmark.
+- **Closed-loop multi-turn dialogue** (`--reply-to-author`) — injects
+  the PR author's replies to the last reviewmind comment as *Prior
+  dialogue* so the next review drops, refines, or rebuts findings the
+  author already addressed.
+- **Counterfactual review** (`--counterfactual`) — for design-choice
+  findings, surfaces competing implementations and a trade-off matrix
+  instead of one "do X".
+- **Provenance / audit trail** (`--provenance`) — every finding cites
+  the RAG rule, accepted-example, or diff line(s) that informed it,
+  with optional self-confidence in [0, 1].
+- **Force-push differential** (`--diff-since-last`) — hashes each
+  file's new-side content and reuses cached findings for unchanged
+  files between pushes on the same PR. Saves token cost on iterative
+  PRs.
+- **Suggestion sandbox** (`--verify-suggestions`) — clones the
+  workdir, applies each suggestion in a sandbox, runs `--verify-cmd`,
+  and badges each one `[verified]` / `[FAILED]` / `[skipped]` /
+  `[error]`. Original repo never mutated.
+- **Cross-language API drift** (`--api-consistency`) — when the PR
+  touches both backend `.py` and frontend `.ts` / `.tsx` files, an
+  extra step flags request/response shape drift across the two sides.
+- **PR-type adaptive review** (`--pr-classify`) — classifies the PR
+  (bugfix / feature / refactor / docs / chore / unknown) from the
+  diff + title + body, then adapts review depth and focus. Docs PRs
+  skip inline findings; bugfix PRs get a focused prompt.
+- **Reproducibility signal** (`--reproducibility-check`) — runs the
+  inline-findings step twice per file and labels each finding
+  `[stable]` / `[low-reproducibility]`. Backend-agnostic uncertainty
+  proxy.
+- **Dependency upgrade impact** (`--dep-upgrade-check`) — detects
+  lock-file touches (`requirements.txt` / `pyproject.toml` /
+  `package.json`), extracts version deltas, and asks the model
+  whether breaking changes affect this codebase's actual usage.
+- **Reviewer personas + conflict surfacing** (`--personas`) — runs N
+  orthogonal lenses (security / performance / readability /
+  api_stability / maintainability) and a conflict-finder step
+  surfaces where they disagree.
+- **Risk-weighted attention** (`--risk-weighted`) — per-file score
+  from churn + complexity + bug history (via `git log`); scales the
+  findings budget proportional to risk.
+- **Diff entropy / "diff bomb" detector** (`--diff-entropy`) — scores
+  the PR's size + dispersion entropy; high-entropy PRs get a
+  "Consider splitting this PR" warning at the top of the comment.
 
-See [`docs/concepts/research-extensions.rst`](docs/concepts/research-extensions.rst)
+See [`docs/en/concepts/research-extensions.rst`](docs/en/concepts/research-extensions.rst)
 for the design write-up.
 
 ## Quickstart
@@ -108,6 +139,9 @@ reviewmind review-pr --repo o/r --pr-number 42 \
 reviewmind review-pr --repo o/r --pr-number 42 \
     --per-file --inline-review \
     --reply-to-author --counterfactual --provenance \
+    --diff-since-last --verify-suggestions --api-consistency \
+    --pr-classify --reproducibility-check --dep-upgrade-check \
+    --personas all --risk-weighted --diff-entropy \
     --judge --self-correct
 
 # Stress-test backend robustness against prompt-injection patterns

@@ -490,13 +490,22 @@ no measured benchmark numbers are bundled. See
 [`docs/concepts/research-extensions.rst`](../docs/concepts/research-extensions.rst)
 for the design write-up.
 
-| Flag                  | Env var                         | Default | Extra cost          |
-| --------------------- | ------------------------------- | ------- | ------------------- |
-| `--reply-to-author`   | `REVIEWMIND_REPLY_TO_AUTHOR`    | off     | 1 platform API call |
-| `--counterfactual`    | `REVIEWMIND_COUNTERFACTUAL`     | off     | +1 backend call /file |
-| `--provenance`        | `REVIEWMIND_PROVENANCE`         | off     | larger prompt + output |
-| `--judge`             | `REVIEWMIND_JUDGE`              | off     | +1 backend call /file |
-| `--self-correct`      | `REVIEWMIND_SELF_CORRECT`       | off     | +1 backend call /file |
+| Flag                       | Env var                              | Default | Extra cost              |
+| -------------------------- | ------------------------------------ | ------- | ----------------------- |
+| `--reply-to-author`        | `REVIEWMIND_REPLY_TO_AUTHOR`         | off     | 1 platform API call     |
+| `--counterfactual`         | `REVIEWMIND_COUNTERFACTUAL`          | off     | +1 backend call /file   |
+| `--provenance`             | `REVIEWMIND_PROVENANCE`              | off     | larger prompt + output  |
+| `--judge`                  | `REVIEWMIND_JUDGE`                   | off     | +1 backend call /file   |
+| `--self-correct`           | `REVIEWMIND_SELF_CORRECT`            | off     | +1 backend call /file   |
+| `--diff-since-last`        | `REVIEWMIND_DIFF_SINCE_LAST`         | off     | saves cost on iterative PRs |
+| `--verify-suggestions`     | `REVIEWMIND_VERIFY_SUGGESTIONS`      | off     | 1 sandbox + verify_cmd /suggestion |
+| `--api-consistency`        | `REVIEWMIND_API_CONSISTENCY`         | off     | +1 backend call on mixed-language PRs |
+| `--pr-classify`            | `REVIEWMIND_PR_CLASSIFY`             | off     | +1 backend call /PR     |
+| `--reproducibility-check`  | `REVIEWMIND_REPRODUCIBILITY_CHECK`   | off     | +1 backend call /file   |
+| `--dep-upgrade-check`      | `REVIEWMIND_DEP_UPGRADE_CHECK`       | off     | +1 backend call /upgrade |
+| `--personas`               | `REVIEWMIND_PERSONAS`                | empty   | +N backend calls /PR (N = persona count) + 1 conflict step |
+| `--risk-weighted`          | `REVIEWMIND_RISK_WEIGHTED`           | off     | a few `git log` calls   |
+| `--diff-entropy`           | `REVIEWMIND_DIFF_ENTROPY`            | off     | pure CPU, no backend call |
 
 ### Closed-loop multi-turn dialogue — `--reply-to-author`
 
@@ -627,6 +636,144 @@ sqlite3 .reviewmind/adversarial.sqlite \
     GROUP BY category;"
 ```
 
+### Force-push differential review — `--diff-since-last`
+
+**What it does.** Hashes each file's new-side content
+(`FileDiff.content_sha256`) and caches per-file findings in a small
+SQLite store keyed on `(pr_number, repo, file_path, hunk_sha256)`. On
+the next push, files whose hash hasn't changed reuse the cached
+findings; only genuinely-changed files re-enter the model.
+
+**How to enable.**
+
+```bash
+reviewmind review-pr --pr 42 --per-file --inline-review \
+    --diff-since-last --diff-cache-path .reviewmind/diff-cache.sqlite
+```
+
+Cross-PR isolated by primary key. Close the PR to drop entries
+(`ReviewCache.evict_pr`).
+
+### Suggestion sandbox verifier — `--verify-suggestions`
+
+**What it does.** For each finding with a `suggestion` block, clones
+the workdir into `tempfile.mkdtemp`, applies the suggestion with an
+`original` guardrail, runs `--verify-cmd` (default `pytest -x`) under
+`--verify-timeout` (default 60s), and badges each finding
+`[verified]` / `[FAILED]` / `[skipped]` / `[error]` in the PR comment.
+
+```bash
+reviewmind review-pr --pr 42 --inline-review --verify-suggestions \
+    --verify-cmd "pytest -x tests/" --verify-timeout 60
+```
+
+The original repo is never mutated; the verify command runs with an
+argv list (no `shell=True`).
+
+### Cross-language API drift — `--api-consistency`
+
+**What it does.** When the PR touches both backend (`.py`) and
+frontend (`.ts` / `.tsx` / `.js` / `.jsx`) files, an extra step asks
+the model to surface *cross-file* drift only — renamed fields, removed
+routes, type changes. Skipped silently on single-language PRs (no
+wasted backend call).
+
+```bash
+reviewmind review-pr --pr 42 --inline-review --api-consistency
+```
+
+### PR-type adaptive review — `--pr-classify`
+
+**What it does.** Classifies the PR (bugfix / feature / refactor /
+docs / chore / unknown) from diff + PR title + body, then adapts
+review depth: docs PRs skip inline findings; bugfix PRs use a focused
+prompt with smaller budget; refactor PRs widen the budget and add an
+equivalence-check focus hint.
+
+```bash
+reviewmind review-pr --pr 42 --inline-review --pr-classify
+```
+
+### Reproducibility signal — `--reproducibility-check`
+
+**What it does.** Runs the inline-findings step twice per file
+(identical prompt; non-zero temperature gives a second sample) and
+labels each finding `[stable]` (appeared in both passes by path +
+line + normalised comment) or `[low-reproducibility]` (appeared in
+one). Findings unique to the second pass are surfaced too. Costs one
+extra backend call per file.
+
+```bash
+reviewmind review-pr --pr 42 --inline-review --reproducibility-check
+```
+
+### Dependency upgrade impact — `--dep-upgrade-check`
+
+**What it does.** Detects lock-file touches
+(`requirements.txt` / `pyproject.toml` / `package.json`), extracts
+`(package, old, new)` deltas, and asks the model — using the
+package's actual call-sites visible elsewhere in the diff — whether
+breaking changes between the two versions affect this codebase.
+
+```bash
+reviewmind review-pr --pr 42 --dep-upgrade-check
+```
+
+Surfaces a *Dependency upgrade impact* table at the top of the PR
+comment. No remote changelog is fetched at review time.
+
+### Reviewer personas + conflict surfacing — `--personas`
+
+**What it does.** Runs N orthogonal lenses
+(`security` / `performance` / `readability` / `api_stability` /
+`maintainability`) in series; each persona's prompt explicitly tells
+the model NOT to comment outside its lens. A conflict-finder step
+then surfaces *where the personas disagree*. The PR comment grows a
+*Persona conflicts* table — intentionally without picking a winner.
+
+```bash
+# Subset:
+reviewmind review-pr --pr 42 --personas security,performance,readability
+# All five:
+reviewmind review-pr --pr 42 --personas all
+```
+
+Cost: one backend call per persona + one conflict step.
+
+### Risk-weighted attention — `--risk-weighted`
+
+**What it does.** Computes a per-file risk score from churn
+(`git log` over the lookback window, default 90 days), complexity
+proxy (line count at HEAD), and bug history (commit messages matching
+`fix:` / `bug` / `revert`). Each file's `max_findings_per_file` is
+scaled linearly between `floor` (default 2) and `ceiling` (default
+`2 × base_budget`) proportional to the risk score.
+
+```bash
+reviewmind review-pr --pr 42 --inline-review --risk-weighted \
+    --risk-workdir /path/to/repo
+```
+
+GHA note: `actions/checkout` shallow-clones with `fetch-depth: 1`;
+set `fetch-depth: 0` so the lookback window has commits to count.
+Default weights (0.4 / 0.3 / 0.3) are framework conventions, not a
+calibrated formula — tune per repo before publishing any number.
+
+### Diff entropy / "diff bomb" detector — `--diff-entropy`
+
+**What it does.** Pure-data score from file count, total +/- lines,
+and Shannon entropy of the top-level-directory distribution. Three
+verdicts: `focused` / `wide` / `bomb`. The `bomb` verdict opens the
+PR comment with a "Consider splitting this PR" warning. The framework
+does not block on a high score — the point is to make the PR's shape
+visible.
+
+```bash
+reviewmind review-pr --pr 42 --diff-entropy
+```
+
+No backend call; pure local CPU.
+
 ### Stacking all of them at once
 
 For a research-grade run on a single PR:
@@ -635,6 +782,9 @@ For a research-grade run on a single PR:
 reviewmind review-pr --repo o/r --pr-number 42 \
     --per-file --inline-review \
     --reply-to-author --counterfactual --provenance \
+    --diff-since-last --verify-suggestions --api-consistency \
+    --pr-classify --reproducibility-check --dep-upgrade-check \
+    --personas all --risk-weighted --diff-entropy \
     --judge --self-correct \
     --rules-dir ./team-rules \
     --max-new-tokens 65536

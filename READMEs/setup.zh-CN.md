@@ -471,13 +471,22 @@ reviewmind stats --since-days 7
 **不**\ 随附测得之 benchmark 数字。设计细节见
 [`docs/zh-CN/concepts/research-extensions.rst`](../docs/zh-CN/concepts/research-extensions.rst)\ 。
 
-| Flag                  | 环境变量                         | 默认 | 额外成本             |
-| --------------------- | -------------------------------- | ---- | -------------------- |
-| `--reply-to-author`   | `REVIEWMIND_REPLY_TO_AUTHOR`     | 关闭 | 一次平台 API 调用    |
-| `--counterfactual`    | `REVIEWMIND_COUNTERFACTUAL`      | 关闭 | 每文件多一次 backend |
-| `--provenance`        | `REVIEWMIND_PROVENANCE`          | 关闭 | prompt + 输出变大    |
-| `--judge`             | `REVIEWMIND_JUDGE`               | 关闭 | 每文件多一次 backend |
-| `--self-correct`      | `REVIEWMIND_SELF_CORRECT`        | 关闭 | 每文件多一次 backend |
+| Flag                       | 环境变量                              | 默认 | 额外成本                       |
+| -------------------------- | ------------------------------------ | ---- | ------------------------------ |
+| `--reply-to-author`        | `REVIEWMIND_REPLY_TO_AUTHOR`         | 关闭 | 一次平台 API 调用              |
+| `--counterfactual`         | `REVIEWMIND_COUNTERFACTUAL`          | 关闭 | 每文件多一次 backend           |
+| `--provenance`             | `REVIEWMIND_PROVENANCE`              | 关闭 | prompt + 输出变大              |
+| `--judge`                  | `REVIEWMIND_JUDGE`                   | 关闭 | 每文件多一次 backend           |
+| `--self-correct`           | `REVIEWMIND_SELF_CORRECT`            | 关闭 | 每文件多一次 backend           |
+| `--diff-since-last`        | `REVIEWMIND_DIFF_SINCE_LAST`         | 关闭 | 迭代 PR 之上省 token           |
+| `--verify-suggestions`     | `REVIEWMIND_VERIFY_SUGGESTIONS`      | 关闭 | 每建议多 1× sandbox + verify_cmd |
+| `--api-consistency`        | `REVIEWMIND_API_CONSISTENCY`         | 关闭 | 跨语言 PR 上多 1× backend      |
+| `--pr-classify`            | `REVIEWMIND_PR_CLASSIFY`             | 关闭 | 每 PR 多 1× backend            |
+| `--reproducibility-check`  | `REVIEWMIND_REPRODUCIBILITY_CHECK`   | 关闭 | 每文件多 1× backend            |
+| `--dep-upgrade-check`      | `REVIEWMIND_DEP_UPGRADE_CHECK`       | 关闭 | 每升级包多 1× backend          |
+| `--personas`               | `REVIEWMIND_PERSONAS`                | 空   | 每 PR 多 N× backend + 1 conflict step |
+| `--risk-weighted`          | `REVIEWMIND_RISK_WEIGHTED`           | 关闭 | 少量 `git log` 调用            |
+| `--diff-entropy`           | `REVIEWMIND_DIFF_ENTROPY`            | 关闭 | 纯 CPU，无 backend 调用        |
 
 ### 闭环多轮对话──`--reply-to-author`
 
@@ -595,6 +604,126 @@ sqlite3 .reviewmind/adversarial.sqlite \
     GROUP BY category;"
 ```
 
+### Force-push 差分审查──`--diff-since-last`
+
+**做什么。** 把每文件新侧内容 hash（`FileDiff.content_sha256`），
+findings 存进小型 SQLite cache，key 为
+`(pr_number, repo, file_path, hunk_sha256)`。下次 push 时未动的文件
+直接 reuse 上次 findings；只有真正改动的文件才重新进模型。
+
+```bash
+reviewmind review-pr --pr 42 --per-file --inline-review \
+    --diff-since-last --diff-cache-path .reviewmind/diff-cache.sqlite
+```
+
+跨 PR 以 primary key 隔离。关 PR 时用 `ReviewCache.evict_pr()` 清掉。
+
+### 建议 sandbox 验证──`--verify-suggestions`
+
+**做什么。** 对每条带 `suggestion` 之 finding，把 working tree 复制到
+`tempfile.mkdtemp` 套用 suggestion（用 `original` 守备检查），跑
+`--verify-cmd`（默认 `pytest -x`）于 `--verify-timeout`（默认 60s）下，
+把每条 finding 标 `[verified]` / `[FAILED]` / `[skipped]` / `[error]`。
+
+```bash
+reviewmind review-pr --pr 42 --inline-review --verify-suggestions \
+    --verify-cmd "pytest -x tests/" --verify-timeout 60
+```
+
+原 repo 绝不动；verify 命令以 argv list 跑（无 `shell=True`）。
+
+### 跨语言 API 一致性──`--api-consistency`
+
+**做什么。** 当 PR 同时碰到后端 `.py` 与前端 `.ts` / `.tsx` / `.js` /
+`.jsx`，新增一个 step 问模型\ 「\ 跨文件 drift\ 」── 重命名字段、移除路由、
+类型变更。单语言 PR 上静默 pass，不浪费 backend 调用。
+
+```bash
+reviewmind review-pr --pr 42 --inline-review --api-consistency
+```
+
+### PR 类型自适应──`--pr-classify`
+
+**做什么。** 从 diff + PR 标题 + body 把 PR 分为 bugfix / feature /
+refactor / docs / chore / unknown，后续 review 深度随之调整：docs PR 跳
+inline findings；bugfix PR 用 focused prompt 与较小 budget；refactor PR
+放大 budget 并注入行为等价 hint。
+
+```bash
+reviewmind review-pr --pr 42 --inline-review --pr-classify
+```
+
+### 评论一致性信号──`--reproducibility-check`
+
+**做什么。** 同 prompt 跑两次 inline-findings（非 0 temperature 自然产生
+第二个样本），按 (path, line, 正规化 comment) 比对，标
+`[stable]` / `[low-reproducibility]`。第二次新出现之 finding 也保留。
+每文件多 1× backend 调用。
+
+```bash
+reviewmind review-pr --pr 42 --inline-review --reproducibility-check
+```
+
+### 依赖升级影响──`--dep-upgrade-check`
+
+**做什么。** 检测 lock-file 触碰（`requirements.txt` / `pyproject.toml` /
+`package.json`），抽出 `(package, old, new)` delta，把该包在 diff 其他
+文件中的实际调用点放进 prompt，问模型 breaking change 是否影响本 repo。
+
+```bash
+reviewmind review-pr --pr 42 --dep-upgrade-check
+```
+
+PR 评论顶端多出\ 「\ Dependency upgrade impact\ 」\ 表格。框架\ 不\ 在
+review-time 抓 remote changelog。
+
+### 多角色 + 冲突显化──`--personas`
+
+**做什么。** 跑 N 个正交 lens（`security` / `performance` /
+`readability` / `api_stability` / `maintainability`），每个 lens 之
+prompt 明确要求只在该 lens 范围内评论。最后一个 conflict-finder step
+找出角色间之分歧。PR 评论顶端多出\ 「\ Persona conflicts\ 」\ 表格（刻意
+不替你选边）。
+
+```bash
+# 子集：
+reviewmind review-pr --pr 42 --personas security,performance,readability
+# 全 5 个：
+reviewmind review-pr --pr 42 --personas all
+```
+
+成本：每个角色一次 backend 调用 + conflict step 一次。
+
+### 风险加权注意力──`--risk-weighted`
+
+**做什么。** 以 churn（`git log` 于 lookback window，默认 90 天）+
+complexity proxy（HEAD 行数）+ bug history（commit message 命中
+`fix:` / `bug` / `revert`）算每文件风险分。每文件
+`max_findings_per_file` 随之线性缩放于 `floor`（默认 2）到
+`ceiling`（默认 `2 × base_budget`）。
+
+```bash
+reviewmind review-pr --pr 42 --inline-review --risk-weighted \
+    --risk-workdir /path/to/repo
+```
+
+GHA 注意：`actions/checkout` 默认 shallow clone（`fetch-depth: 1`）；
+请在 workflow 设 `fetch-depth: 0`，lookback window 才有 commit 可数。
+默认权重（0.4 / 0.3 / 0.3）是\ 框架惯例\ ，非校准公式。
+
+### Diff 熵──`--diff-entropy`
+
+**做什么。** 纯 data 算 PR size + 目录分布 Shannon entropy，分为
+`focused` / `wide` / `bomb`。verdict 为 `bomb` 时于评论顶端贴
+\ 「\ Consider splitting this PR\ 」\ 警示。框架\ 不\ 因高分阻挡，目的是
+把 PR 形状显化。
+
+```bash
+reviewmind review-pr --pr 42 --diff-entropy
+```
+
+无 backend 调用，纯本机 CPU。
+
 ### 全部叠起来跑
 
 研究级单 PR 跑法：
@@ -603,6 +732,9 @@ sqlite3 .reviewmind/adversarial.sqlite \
 reviewmind review-pr --repo o/r --pr-number 42 \
     --per-file --inline-review \
     --reply-to-author --counterfactual --provenance \
+    --diff-since-last --verify-suggestions --api-consistency \
+    --pr-classify --reproducibility-check --dep-upgrade-check \
+    --personas all --risk-weighted --diff-entropy \
     --judge --self-correct \
     --rules-dir ./team-rules \
     --max-new-tokens 65536

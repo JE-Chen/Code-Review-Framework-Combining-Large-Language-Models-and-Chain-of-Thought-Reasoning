@@ -33,21 +33,39 @@
 
 ### 研究級擴充（opt-in）
 
-四個多數 LLM code review 系統未實作的機制。皆需搭配 `--inline-review`；
+十三個多數 LLM code review 系統未實作的機制。大多需搭配 `--inline-review`；
 依本專案不謊造原則，我們只交付框架，量化 benchmark 數字屬未來工作。
 
-- **對抗強健性**（`reviewmind adversarial-eval`）──針對四種攻擊類型
-  （direct injection / encoded payload / split injection / role hijack）
-  跑 prompt-injection 語料，把每一筆呼叫結果寫入 SQLite。隨附之
+- **對抗強健性**（`reviewmind adversarial-eval`）──針對四種攻擊類型跑
+  prompt-injection 語料，把每一筆呼叫結果寫入 SQLite。隨附之
   `seed.jsonl` 是種子語料，**不是** benchmark。
 - **閉環多輪對話**（`--reply-to-author`）──讀取 PR 作者對上次 reviewmind
-  摘要評論之回覆，注入為 *Prior dialogue* 區塊。下一次審查可在作者
-  反論下捨棄 / 精煉 / 反駁該評論。
+  摘要評論之回覆，注入為 *Prior dialogue* 區塊。
 - **反事實審查**（`--counterfactual`）──針對屬於 *設計選擇* 之 finding，
-  列出競爭性實作方案與小型 trade-off 矩陣，而非單一「請改成 X」。
+  列出競爭性實作方案與小型 trade-off 矩陣。
 - **評論來源 / 引用稽核**（`--provenance`）──每條 finding 附上 `provenance`
-  payload，標示引用了哪一條 RAG 規則 / accepted-example / diff 行號，
-  並可選自評信心值 ∈ [0, 1]。壞引用絕不拖垮真評論。
+  payload，標示引用了哪一條 RAG 規則 / accepted-example / diff 行號。
+- **Force-push 差分**（`--diff-since-last`）──把每檔新側內容 hash，
+  同一 PR 之下次 push 時未動的檔直接 reuse 上次 findings。
+- **建議 sandbox 驗證**（`--verify-suggestions`）──把 working tree 複製到
+  disposable sandbox 套用 suggestion 後跑 `--verify-cmd`，每條建議標
+  `[verified]` / `[FAILED]` / `[skipped]` / `[error]`。原 repo 絕不動。
+- **跨語言 API 一致性**（`--api-consistency`）──當 PR 同時碰到後端 `.py`
+  與前端 `.ts` / `.tsx`，新增一個 step 偵測兩側 request/response 形狀漂移。
+- **PR 類型自適應**（`--pr-classify`）──從 diff + 標題 + body 把 PR 分為
+  bugfix / feature / refactor / docs / chore / unknown，後續 review 深度
+  隨之調整。
+- **評論一致性訊號**（`--reproducibility-check`）──同 prompt 跑兩次 inline-findings，
+  把 finding 標 `[stable]` / `[low-reproducibility]`。
+- **依賴升級影響**（`--dep-upgrade-check`）──偵測 lock-file 觸碰，
+  抽出版本 delta，問模型 breaking change 是否影響本 repo 之實際用法。
+- **多角色 + 衝突顯化**（`--personas`）──跑 N 個正交 lens（security /
+  performance / readability / api_stability / maintainability），
+  conflict-finder step 把它們的分歧顯化出來。
+- **風險加權注意力**（`--risk-weighted`）──以 churn + complexity + bug
+  history（從 `git log` 抓）算每檔風險分，按比例縮放 finding budget。
+- **Diff 熵 /「Diff bomb」偵測**（`--diff-entropy`）──算 PR size +
+  目錄分布 Shannon entropy；熵高時於留言頂端貼「Consider splitting this PR」警示。
 
 設計細節見 [`docs/zh-TW/concepts/research-extensions.rst`](../docs/zh-TW/concepts/research-extensions.rst)。
 
@@ -86,6 +104,9 @@ reviewmind review-pr --repo o/r --pr-number 42 \
 reviewmind review-pr --repo o/r --pr-number 42 \
     --per-file --inline-review \
     --reply-to-author --counterfactual --provenance \
+    --diff-since-last --verify-suggestions --api-consistency \
+    --pr-classify --reproducibility-check --dep-upgrade-check \
+    --personas all --risk-weighted --diff-entropy \
     --judge --self-correct
 
 # 對 backend 做 prompt-injection 強健性壓測

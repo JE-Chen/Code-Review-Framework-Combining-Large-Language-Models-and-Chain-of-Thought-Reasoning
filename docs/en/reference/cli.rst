@@ -31,6 +31,11 @@ Fetch a PR diff, run the pipeline, post comment + review + gate.
        [--rules-dir PATH]
        [--per-file] [--inline-review] [--max-findings-per-file 10]
        [--reply-to-author] [--counterfactual] [--provenance]
+       [--diff-since-last] [--diff-cache-path PATH]
+       [--verify-suggestions] [--verify-cmd CMD] [--verify-timeout 60] [--verify-workdir PATH]
+       [--api-consistency] [--pr-classify] [--reproducibility-check]
+       [--dep-upgrade-check]
+       [--personas LIST] [--risk-weighted] [--risk-workdir PATH] [--diff-entropy]
        [--judge] [--self-correct]
        [--gate-on {none,warning,error}]
        [--include-ci-signals] [--ci-signal-max-jobs 5] [--ci-signal-tail-chars 4000]
@@ -83,6 +88,80 @@ Research-grade flags (opt-in, ``--inline-review`` required):
    per file. Safe-failure direction: malformed output leaves the list
    unchanged.
 
+.. option:: --diff-since-last
+
+   Hash each file's post-change content and reuse cached findings on
+   subsequent pushes for files whose hash hasn't changed. SQLite store
+   at ``--diff-cache-path`` (default ``.reviewmind/diff-cache.sqlite``),
+   keyed on ``(pr_number, repo, file_path, hunk_sha256)`` — cross-PR
+   isolated. Env: ``REVIEWMIND_DIFF_SINCE_LAST``.
+
+.. option:: --verify-suggestions
+
+   Clone the workdir into a disposable sandbox, apply each finding's
+   ``suggestion`` block at the right line range, and run
+   ``--verify-cmd`` (default ``pytest -x``) under ``--verify-timeout``
+   (default 60s). Badges each finding ``[verified]`` / ``[FAILED]`` /
+   ``[skipped]`` / ``[error]``. Original repo never mutated. Env:
+   ``REVIEWMIND_VERIFY_SUGGESTIONS``.
+
+.. option:: --api-consistency
+
+   When the diff touches both backend (``.py``) and frontend (``.ts`` /
+   ``.tsx`` / ``.js`` / ``.jsx``) files, run an extra step that
+   surfaces *cross-file* drift (renamed fields, removed routes, type
+   changes). Skipped silently on single-language PRs. Env:
+   ``REVIEWMIND_API_CONSISTENCY``.
+
+.. option:: --pr-classify
+
+   Classify the PR (``bugfix`` / ``feature`` / ``refactor`` / ``docs``
+   / ``chore`` / ``unknown``) from diff + title + body, then adapt
+   review depth: docs PRs skip inline findings; bugfix PRs use a
+   focused prompt with smaller budget. Env:
+   ``REVIEWMIND_PR_CLASSIFY``.
+
+.. option:: --reproducibility-check
+
+   Run the inline-findings step twice per file (identical prompt;
+   non-zero temperature gives a second sample) and label each finding
+   ``stable`` / ``low`` based on cross-pass match. Backend-agnostic
+   uncertainty proxy. Env: ``REVIEWMIND_REPRODUCIBILITY_CHECK``.
+
+.. option:: --dep-upgrade-check
+
+   Detect dependency version bumps in lock files
+   (``requirements.txt`` / ``pyproject.toml`` / ``package.json``) and
+   ask the model whether breaking changes between the old and new
+   versions affect this codebase's actual usage. Env:
+   ``REVIEWMIND_DEP_UPGRADE_CHECK``.
+
+.. option:: --personas <list>
+
+   Comma-separated list of review personas (``security``,
+   ``performance``, ``readability``, ``api_stability``,
+   ``maintainability``) — or ``all`` for every persona. Each persona's
+   prompt restricts the model to its lens; a conflict-finder step then
+   surfaces where the personas disagree. Empty (default) disables.
+   Env: ``REVIEWMIND_PERSONAS``.
+
+.. option:: --risk-weighted
+
+   Compute a per-file risk score from churn (``git log`` over the
+   default 90-day window), complexity (line count at HEAD), and bug
+   history (commit messages matching ``fix:`` / ``bug`` / ``revert``).
+   Scales ``max_findings_per_file`` proportional to the score between
+   ``floor`` (default 2) and ``ceiling`` (default ``2 ×
+   base_budget``). Set ``--risk-workdir`` to point at the git repo.
+   Env: ``REVIEWMIND_RISK_WEIGHTED``.
+
+.. option:: --diff-entropy
+
+   Compute the diff's size + dispersion entropy and surface a
+   "Consider splitting this PR" warning at the top of the comment
+   when the score crosses the ``bomb`` threshold. Pure local CPU; no
+   backend call. Env: ``REVIEWMIND_DIFF_ENTROPY``.
+
 review-file
 -----------
 
@@ -98,6 +177,10 @@ Run the pipeline against a local file or stdin.
        [--rules-dir PATH]
        [--per-file] [--inline-review] [--max-findings-per-file 10]
        [--counterfactual] [--provenance] [--judge] [--self-correct]
+       [--diff-since-last] [--verify-suggestions]
+       [--api-consistency] [--pr-classify] [--reproducibility-check]
+       [--dep-upgrade-check] [--personas LIST]
+       [--risk-weighted] [--diff-entropy]
        [--max-new-tokens 32768]
        [--steps a,b,c]
        [--output-dir PATH]
