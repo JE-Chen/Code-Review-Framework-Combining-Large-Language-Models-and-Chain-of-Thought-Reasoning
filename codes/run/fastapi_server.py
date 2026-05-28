@@ -43,7 +43,7 @@ RUN_ON = "Qwen/Qwen3-Coder-30B-A3B-Instruct"
 _LORA_BY_MODEL: dict[str, str] = {
     "Qwen/Qwen3-1.7B": "../train/outputs-lora-qwen3-1.7b",
     "Qwen/Qwen2.5-Coder-7B-Instruct": "../train/outputs-lora-qwen2.5-coder-7b",
-    "Qwen/Qwen3-Coder-30B-A3B-Instruct": "../train/outputs-lora-qwen3-coder-30b",
+    "Qwen/Qwen3-Coder-30B-A3B-Instruct": "/home/nknul40s/LLM_Research/codes/train/outputs-lora-qwen3-coder-30b",
 }
 _DEFAULT_LORA = "../train/outputs-lora-qwen3-30b"
 
