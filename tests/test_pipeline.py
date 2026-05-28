@@ -6,8 +6,8 @@ path, and the ``extra_rules`` merge into RAG docs.
 
 from __future__ import annotations
 
-from reviewmind.pipeline import CoTPipeline
-from reviewmind.rag import NoOpRetriever
+from prthinker.pipeline import CoTPipeline
+from prthinker.rag import NoOpRetriever
 
 from tests.conftest import FakeBackend
 

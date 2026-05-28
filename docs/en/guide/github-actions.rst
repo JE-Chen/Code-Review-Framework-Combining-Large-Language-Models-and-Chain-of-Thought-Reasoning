@@ -2,7 +2,7 @@ GitHub Actions integration
 ==========================
 
 The reviewer ships with a ready-to-use workflow at
-``.github/workflows/reviewmind.yml``. It fires on
+``.github/workflows/prthinker.yml``. It fires on
 ``pull_request`` ``opened`` / ``synchronize`` / ``reopened`` and posts a
 review back through the same PR.
 
@@ -15,10 +15,10 @@ Required secrets
 
    * - Secret
      - Purpose
-   * - ``REVIEWMIND_BACKEND_URL``
+   * - ``PRTHINKER_BACKEND_URL``
      - Base URL of your hosted inference server
        (e.g. ``https://gpu-host.internal:8000``).
-   * - ``REVIEWMIND_BACKEND_API_KEY``
+   * - ``PRTHINKER_BACKEND_API_KEY``
      - Optional bearer token, sent as ``Authorization: Bearer ...``.
 
 Set these in **Settings → Secrets and variables → Actions**.
@@ -52,35 +52,35 @@ behaviour without editing Python:
    * - Variable
      - Default
      - Effect
-   * - ``REVIEWMIND_BACKEND``
+   * - ``PRTHINKER_BACKEND``
      - ``remote``
      - ``local`` to load Qwen on the runner (needs self-hosted GPU runner).
-   * - ``REVIEWMIND_USE_REMOTE_PIPELINE``
+   * - ``PRTHINKER_USE_REMOTE_PIPELINE``
      - ``true``
      - Use ``/review`` (single round trip) vs ``/ask`` per step.
-   * - ``REVIEWMIND_PER_FILE``
+   * - ``PRTHINKER_PER_FILE``
      - ``true``
      - Loop the pipeline per file.
-   * - ``REVIEWMIND_INLINE_REVIEW``
+   * - ``PRTHINKER_INLINE_REVIEW``
      - ``true``
      - Emit inline ``suggestion`` blocks.
-   * - ``REVIEWMIND_MAX_FINDINGS_PER_FILE``
+   * - ``PRTHINKER_MAX_FINDINGS_PER_FILE``
      - ``10``
      - Cap per file.
-   * - ``REVIEWMIND_RAG_ENABLED``
+   * - ``PRTHINKER_RAG_ENABLED``
      - ``true``
      - Toggle RAG entirely.
-   * - ``REVIEWMIND_REMOTE_RAG``
+   * - ``PRTHINKER_REMOTE_RAG``
      - ``true``
      - Use server ``/rag`` instead of local FAISS (saves runner memory).
-   * - ``REVIEWMIND_GATE_ON``
+   * - ``PRTHINKER_GATE_ON``
      - ``error``
      - Severity floor that flips the Check Run to ``failure``:
        ``none`` / ``warning`` / ``error``.
-   * - ``REVIEWMIND_INCLUDE_CI_SIGNALS``
+   * - ``PRTHINKER_INCLUDE_CI_SIGNALS``
      - ``true``
      - Prepend failed-job logs to the diff.
-   * - ``REVIEWMIND_RULES_DIR``
+   * - ``PRTHINKER_RULES_DIR``
      - *(unset)*
      - Path to per-repo ``*.md`` rule files.
 
@@ -92,12 +92,12 @@ Branch protection
 
 To make the reviewer block merges:
 
-1. Run at least one PR with ``REVIEWMIND_GATE_ON=error``. A Check Run named
-   ``reviewmind`` will appear on the PR's Checks tab.
+1. Run at least one PR with ``PRTHINKER_GATE_ON=error``. A Check Run named
+   ``prthinker`` will appear on the PR's Checks tab.
 2. Go to **Settings → Branches → branch protection rule** for ``main``
    (or your target branch).
 3. Enable **Require status checks to pass before merging** and add
-   ``reviewmind`` to the required checks.
+   ``prthinker`` to the required checks.
 
 After that, any PR with at least one ``error``-severity finding cannot be
 merged until either:
@@ -138,18 +138,18 @@ In your workflow:
 .. code-block:: yaml
 
    jobs:
-     reviewmind:
+     prthinker:
        runs-on: [self-hosted, gpu]
        env:
-         REVIEWMIND_BACKEND: local
-         REVIEWMIND_MODEL_NAME: Qwen/Qwen3-Coder-30B-A3B-Instruct
-         REVIEWMIND_LORA_PATH: ../train/outputs-lora-qwen3-coder-30b
-         REVIEWMIND_USE_REMOTE_PIPELINE: "false"
-         REVIEWMIND_REMOTE_RAG: "false"
+         PRTHINKER_BACKEND: local
+         PRTHINKER_MODEL_NAME: Qwen/Qwen3-Coder-30B-A3B-Instruct
+         PRTHINKER_LORA_PATH: ../train/outputs-lora-qwen3-coder-30b
+         PRTHINKER_USE_REMOTE_PIPELINE: "false"
+         PRTHINKER_REMOTE_RAG: "false"
        steps:
          - uses: actions/checkout@v4
          - run: pip install -e ".[local]"
-         - run: python -m reviewmind review-pr
+         - run: python -m prthinker review-pr
 
 The same flags work, but expect 5-10 minutes per file instead of 30
 seconds with a properly sized server.

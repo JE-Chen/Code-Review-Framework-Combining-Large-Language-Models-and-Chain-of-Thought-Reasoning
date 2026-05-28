@@ -61,7 +61,7 @@ POST /rag
 POST /review
 ------------
 
-在服务器端完整跑 CoT pipeline。\ ``reviewmind review-pr --use-remote-pipeline``
+在服务器端完整跑 CoT pipeline。\ ``prthinker review-pr --use-remote-pipeline``
 就是打这个。
 
 **Request body**\ （\ ``ReviewRequest``\ ）：
@@ -115,7 +115,7 @@ POST /review
      ]
    }
 
-服务器端（通过 ``REVIEWMIND_DISMISSED_PATH`` 设置的）dismissed filter 在响应送出
+服务器端（通过 ``PRTHINKER_DISMISSED_PATH`` 设置的）dismissed filter 在响应送出
 之前就会跑完，所以与既有 dismissal 相似的 finding 不会出现在这份响应中。
 
 **错误**
@@ -127,27 +127,27 @@ POST /review
 Schema 定义
 -----------
 
-:mod:`reviewmind.schemas` 内的 Pydantic 模型是 wire format 的单一真实
+:mod:`prthinker.schemas` 内的 Pydantic 模型是 wire format 的单一真实
 来源。服务器（FastAPI 的 ``response_model``\ ）与 runner
 （\ ``model_validate_json``\ ）都引用它，type drift 不可能发生。
 
-.. autoclass:: reviewmind.schemas.AskRequest
+.. autoclass:: prthinker.schemas.AskRequest
    :noindex:
 
-.. autoclass:: reviewmind.schemas.RagRequest
+.. autoclass:: prthinker.schemas.RagRequest
    :noindex:
 
-.. autoclass:: reviewmind.schemas.RagResponse
+.. autoclass:: prthinker.schemas.RagResponse
    :noindex:
 
-.. autoclass:: reviewmind.schemas.ReviewRequest
+.. autoclass:: prthinker.schemas.ReviewRequest
    :noindex:
 
-.. autoclass:: reviewmind.schemas.ReviewResponse
+.. autoclass:: prthinker.schemas.ReviewResponse
    :noindex:
 
-.. autoclass:: reviewmind.schemas.InlineFinding
+.. autoclass:: prthinker.schemas.InlineFinding
    :noindex:
 
-.. autoclass:: reviewmind.schemas.StepOutput
+.. autoclass:: prthinker.schemas.StepOutput
    :noindex:

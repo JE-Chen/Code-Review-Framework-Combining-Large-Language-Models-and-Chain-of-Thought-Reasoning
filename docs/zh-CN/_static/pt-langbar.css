@@ -1,0 +1,32 @@
+/* prthinker language switcher — rendered above the page content. */
+.pt-langbar {
+  padding: 8px 16px;
+  border-bottom: 1px solid #e1e4e5;
+  background: #fafbfc;
+  font-size: 0.85em;
+}
+.pt-langbar-label {
+  font-weight: 600;
+  margin-right: 0.4em;
+  color: #555;
+}
+.pt-langbar a,
+.pt-langbar .pt-langbar-current {
+  display: inline-block;
+  margin-right: 0.5em;
+  padding: 2px 8px;
+  border-radius: 3px;
+  text-decoration: none;
+}
+.pt-langbar a {
+  color: #2980b9;
+}
+.pt-langbar a:hover {
+  background: #eef4f9;
+  text-decoration: none;
+}
+.pt-langbar .pt-langbar-current {
+  background: #2980b9;
+  color: #fff;
+  font-weight: 600;
+}

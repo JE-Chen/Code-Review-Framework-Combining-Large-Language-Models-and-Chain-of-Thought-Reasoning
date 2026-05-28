@@ -1,7 +1,7 @@
 Secret 过滤与 MCP 集成
 ======================
 
-两个彼此无关的扩展，但共享同一个动机：让 reviewmind 在原本的 GHA workflow
+两个彼此无关的扩展，但共享同一个动机：让 prthinker 在原本的 GHA workflow
 之外也安全、便利。
 
 Secret redaction（\ ``--redact-secrets``\ ）
@@ -10,7 +10,7 @@ Secret redaction（\ ``--redact-secrets``\ ）
 Backend 接到付费第三方 API（OpenAI、Anthropic …）时，PR diff 内可能夹带
 被 ``.gitignore`` 漏掉的真实 secret──diff 显示出 ``.env`` 内容、test
 fixture 写死的 token、snapshot test 内的 JWT。开 ``--redact-secrets``
-（env ``REVIEWMIND_REDACT_SECRETS=true``\ ）后，runner 会在送出任何 backend
+（env ``PRTHINKER_REDACT_SECRETS=true``\ ）后，runner 会在送出任何 backend
 call 前对 diff 做 pre-pass，把已知的 secret pattern 换成
 ``<REDACTED:<kind>>``\ 。
 
@@ -68,7 +68,7 @@ Model Context Protocol 集成
 ---------------------------
 
 Model Context Protocol（MCP）是让 LLM client（Claude Desktop、Cursor、
-Continue、Cline、Zed …）调用外部 tool 的开放标准。reviewmind 内附一个
+Continue、Cline、Zed …）调用外部 tool 的开放标准。prthinker 内附一个
 MCP server 适配器，任何 MCP client 都能在 IDE 内直接驱动 review──不必
 通过 GHA。
 
@@ -100,7 +100,7 @@ MCP server 适配器，任何 MCP client 都能在 IDE 内直接驱动 review─
 配置
 ~~~~
 
-Backend 选择用同一组 ``REVIEWMIND_*`` env var；密钥只在 env，不会落到
+Backend 选择用同一组 ``PRTHINKER_*`` env var；密钥只在 env，不会落到
 MCP server 自己的 config 内。
 
 Claude Desktop 配置示例（macOS 路径：
@@ -110,15 +110,15 @@ Claude Desktop 配置示例（macOS 路径：
 
    {
      "mcpServers": {
-       "reviewmind": {
-         "command": "reviewmind",
+       "prthinker": {
+         "command": "prthinker",
          "args": ["mcp"],
          "env": {
-           "REVIEWMIND_BACKEND": "anthropic",
+           "PRTHINKER_BACKEND": "anthropic",
            "ANTHROPIC_API_KEY": "sk-ant-...",
-           "REVIEWMIND_ANTHROPIC_MODEL": "claude-sonnet-4-6",
-           "REVIEWMIND_CACHE_ENABLED": "true",
-           "REVIEWMIND_TELEMETRY_ENABLED": "true"
+           "PRTHINKER_ANTHROPIC_MODEL": "claude-sonnet-4-6",
+           "PRTHINKER_CACHE_ENABLED": "true",
+           "PRTHINKER_TELEMETRY_ENABLED": "true"
          }
        }
      }
@@ -131,7 +131,7 @@ MCP 文档确认文件路径。
 ~~~~~~~~~~~~~
 
 1. 本地 stage 改动：\ ``git add -p``\ 。
-2. 在 IDE 聊天窗口：\ *「Run reviewmind on my staged diff」*\ 。
+2. 在 IDE 聊天窗口：\ *「Run prthinker on my staged diff」*\ 。
 3. Client 的 LLM 调用 ``review_diff``\ ，参数是 ``$(git diff --cached)``\ 。
 4. Markdown review 流式回 chat panel；用户直接决定要不要采纳建议。
 
@@ -142,6 +142,6 @@ MCP 文档确认文件路径。
 
 * MCP 模式默认关掉 RAG（用 ``NoOpRetriever``\ ）。在 stdio 子进程内加载
   FAISS 太重、embedding 模型也很少装在用户笔记本──需要 RAG 时请改用
-  ``REVIEWMIND_BACKEND=remote`` 让 FastAPI server 负责检索。
+  ``PRTHINKER_BACKEND=remote`` 让 FastAPI server 负责检索。
 * MCP server 在跨调用间是 stateless 的；cache 与 telemetry store 跨调用
   仍持久存在，所以 cost visibility 一样有效。

@@ -14,7 +14,7 @@ Read-through cache，key 是
 
 預設：
 
-* 路徑：\ ``.reviewmind/cache.sqlite``\ 。
+* 路徑：\ ``.prthinker/cache.sqlite``\ 。
 * TTL：7 天（\ ``--cache-ttl-days`` 覆寫；\ ``0`` 關閉 TTL）。
 * 啟用 WAL 模式，並發讀不會被擋。
 
@@ -37,7 +37,7 @@ Append-only ``calls`` 表，每次 ``generate()`` 一筆：
 * ``prompt_tokens`` + ``completion_tokens``\ （有 provider 的 ``usage``
   block 時直接取；沒有時用 char count 估算──見 ``tokens_estimated`` 欄）
 * ``latency_ms``
-* ``cost_usd``\ （由 :mod:`reviewmind.pricing` 計算；本機與自架 remote
+* ``cost_usd``\ （由 :mod:`prthinker.pricing` 計算；本機與自架 remote
   backend 為 ``NULL``\ ）
 * ``cache_hit``\ （上游 ``CachingBackend`` 命中時為 1）
 * ``error``\ （上游拋例外時填；成功為 ``NULL``\ ）
@@ -45,7 +45,7 @@ Append-only ``calls`` 表，每次 ``generate()`` 一筆：
 Pricing
 ~~~~~~~
 
-:mod:`reviewmind.pricing` 是 ``(backend, model) → (input_rate, output_rate)``
+:mod:`prthinker.pricing` 是 ``(backend, model) → (input_rate, output_rate)``
 的靜態表，單位 USD 每百萬 token。表中沒有的型號回 ``None``──這一筆會
 記下來但 ``cost_usd`` 留空，方便事後抓 provider 改價漂移。
 
@@ -54,9 +54,9 @@ Pricing
 
 .. code-block:: bash
 
-   reviewmind stats                       # 全時段
-   reviewmind stats --since-days 7        # 過去一週
-   reviewmind stats --since-days 1        # 過去 24 小時
+   prthinker stats                       # 全時段
+   prthinker stats --since-days 7        # 過去一週
+   prthinker stats --since-days 1        # 過去 24 小時
 
 輸出範例見英文版 :doc:`../../en/concepts/cache-and-telemetry`。
 
@@ -71,7 +71,7 @@ cache 那一欄則告訴你把 workflow trigger 從 ``push`` 改成 ``synchroniz
 Wrapping 順序
 -------------
 
-:func:`reviewmind.backends.create_backend` 內 factory 的 wrapper stacking
+:func:`prthinker.backends.create_backend` 內 factory 的 wrapper stacking
 順序是::
 
    InstrumentedBackend(CachingBackend(real_backend))
@@ -84,8 +84,8 @@ Wrapping 順序
 
 兩個 wrapper 都是 flag + env var 開關，預設 **off**\ ：
 
-* ``--cache`` / ``REVIEWMIND_CACHE_ENABLED``
-* ``--telemetry`` / ``REVIEWMIND_TELEMETRY_ENABLED``
+* ``--cache`` / ``PRTHINKER_CACHE_ENABLED``
+* ``--telemetry`` / ``PRTHINKER_TELEMETRY_ENABLED``
 
 關閉時 factory 直接回 concrete backend──不寫 disk、沒有 schema migration
 風險。

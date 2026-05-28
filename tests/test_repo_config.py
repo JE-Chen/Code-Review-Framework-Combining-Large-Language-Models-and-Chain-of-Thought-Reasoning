@@ -1,4 +1,4 @@
-"""``.reviewmind.yaml`` loading.
+"""``.prthinker.yaml`` loading.
 
 Two foot-guns specifically:
 * YAML 1.1 treats unquoted ``on`` as boolean ``True``. The schema uses
@@ -12,7 +12,7 @@ import textwrap
 
 import pytest
 
-from reviewmind.repo_config import (
+from prthinker.repo_config import (
     RepoConfig,
     load_repo_config,
     to_argparse_defaults,
@@ -20,7 +20,7 @@ from reviewmind.repo_config import (
 
 
 def _write(tmp_path, text: str):
-    p = tmp_path / ".reviewmind.yaml"
+    p = tmp_path / ".prthinker.yaml"
     p.write_text(textwrap.dedent(text), encoding="utf-8")
     return p
 

@@ -10,10 +10,10 @@ import urllib.parse
 
 import pytest
 
-from reviewmind.platforms import PlatformKind, create_platform_adapter
-from reviewmind.platforms.base import PlatformAdapter
-from reviewmind.platforms.github import GitHubAdapter
-from reviewmind.platforms.gitlab import GitLabAdapter
+from prthinker.platforms import PlatformKind, create_platform_adapter
+from prthinker.platforms.base import PlatformAdapter
+from prthinker.platforms.github import GitHubAdapter
+from prthinker.platforms.gitlab import GitLabAdapter
 
 
 def test_factory_dispatches_to_github() -> None:

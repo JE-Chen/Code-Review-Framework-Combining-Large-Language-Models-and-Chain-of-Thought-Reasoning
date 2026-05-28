@@ -75,13 +75,13 @@ If you want the reviewer to *wait* for CI:
        types: [completed]
 
 In ``workflow_run`` mode, fetch the PR number from the run payload — see
-the bundled comments in ``reviewmind.yml``.
+the bundled comments in ``prthinker.yml``.
 
 The pre-merge Check Run gate
 ----------------------------
 
 The ``--gate-on`` flag controls a dedicated Check Run named
-``reviewmind`` on the PR head commit. The CLI:
+``prthinker`` on the PR head commit. The CLI:
 
 1. ``POST /check-runs`` at the start of the review with
    ``status: in_progress``.
@@ -107,12 +107,12 @@ team may or may not care about — gating on them creates merge friction.
 Wiring it into branch protection
 --------------------------------
 
-1. Run at least one PR with ``REVIEWMIND_GATE_ON=error`` so the Check Run
+1. Run at least one PR with ``PRTHINKER_GATE_ON=error`` so the Check Run
    appears.
 2. **Settings → Branches → branch protection rule** for your default
    branch.
 3. Enable **Require status checks to pass before merging** and add
-   ``reviewmind`` to required checks.
+   ``prthinker`` to required checks.
 
 After that, any PR with surviving error-severity findings cannot be
 merged. The author sees the gate result inline (the Check Run's

@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from reviewmind.cli import _apply_repo_defaults, _build_parser, _build_config
-from reviewmind.config import BackendKind
+from prthinker.cli import _apply_repo_defaults, _build_parser, _build_config
+from prthinker.config import BackendKind
 
 
 def test_parser_help_lists_all_subcommands() -> None:
@@ -53,7 +53,7 @@ def test_each_backend_choice_is_accepted() -> None:
 
 def test_subparser_defaults_pick_up_yaml(tmp_path: Path) -> None:
     """Regression: set_defaults must propagate to every subparser."""
-    yml = tmp_path / ".reviewmind.yaml"
+    yml = tmp_path / ".prthinker.yaml"
     yml.write_text(textwrap.dedent("""
         backend: openai
         per_file: true
@@ -83,7 +83,7 @@ def test_subparser_defaults_pick_up_yaml(tmp_path: Path) -> None:
 
 
 def test_cli_flag_overrides_yaml(tmp_path: Path) -> None:
-    yml = tmp_path / ".reviewmind.yaml"
+    yml = tmp_path / ".prthinker.yaml"
     yml.write_text("openai:\n  model: gpt-4o\n", encoding="utf-8")
     p = _build_parser()
     _apply_repo_defaults(p, yml)

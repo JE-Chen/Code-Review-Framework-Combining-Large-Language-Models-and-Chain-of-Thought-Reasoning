@@ -3,41 +3,41 @@
 # Consumer repos opt in via their own .pre-commit-config.yaml, e.g.:
 #
 #   repos:
-#     - repo: https://github.com/<your-org>/reviewmind
+#     - repo: https://github.com/<your-org>/prthinker
 #       rev: v0.1.0
 #       hooks:
-#         - id: reviewmind
+#         - id: prthinker
 #           env:
-#             REVIEWMIND_BACKEND: openai
-#             REVIEWMIND_OPENAI_MODEL: gpt-4o-mini
+#             PRTHINKER_BACKEND: openai
+#             PRTHINKER_OPENAI_MODEL: gpt-4o-mini
 #             OPENAI_API_KEY: ${OPENAI_API_KEY}
 #
 # The hook reads `git diff --cached` itself, so `pass_filenames` is false.
 # Exit codes mirror the CLI: 0 = no error findings (commit proceeds);
 # 1 = at least one error-severity finding (commit blocked).
 
-- id: reviewmind
-  name: reviewmind code review (staged diff)
+- id: prthinker
+  name: prthinker code review (staged diff)
   description: |
-    Runs the reviewmind CoT pipeline against the staged diff. Blocks the
+    Runs the prthinker CoT pipeline against the staged diff. Blocks the
     commit if any error-severity finding survives the dismissed filter.
-    Configure backend + cache via REVIEWMIND_* env vars in the consumer
+    Configure backend + cache via PRTHINKER_* env vars in the consumer
     repo's pre-commit config.
-  entry: reviewmind hook
+  entry: prthinker hook
   language: python
   pass_filenames: false
   always_run: true
   stages: [commit]
   require_serial: true
 
-- id: reviewmind-advisory
-  name: reviewmind code review (advisory, never blocks)
+- id: prthinker-advisory
+  name: prthinker code review (advisory, never blocks)
   description: |
-    Same as the `reviewmind` hook, but always exits 0 — findings are
+    Same as the `prthinker` hook, but always exits 0 — findings are
     printed to stderr for the developer to read, but the commit always
     proceeds. Useful as a soft introduction before flipping branch
     protection on.
-  entry: reviewmind hook --advisory
+  entry: prthinker hook --advisory
   language: python
   pass_filenames: false
   always_run: true

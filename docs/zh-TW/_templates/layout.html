@@ -4,10 +4,10 @@
 {% set _up = '../' * _depth %}
 
 {% block document %}
-<div class="rm-langbar" role="navigation" aria-label="Language">
-  <span class="rm-langbar-label">語言：</span>
+<div class="pt-langbar" role="navigation" aria-label="Language">
+  <span class="pt-langbar-label">語言：</span>
   <a href="{{ _up }}../html-en/{{ pagename }}.html">English</a>
-  <span class="rm-langbar-current">繁體中文</span>
+  <span class="pt-langbar-current">繁體中文</span>
   <a href="{{ _up }}../html-zh-CN/{{ pagename }}.html">简体中文</a>
 </div>
 {{ super() }}

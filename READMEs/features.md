@@ -2,7 +2,7 @@
 
 **English** · [繁體中文](features.zh-TW.md) · [简体中文](features.zh-CN.md)
 
-A complete catalog of what reviewmind does. For installation steps see
+A complete catalog of what prthinker does. For installation steps see
 [`setup.md`](setup.md). For the conceptual deep-dives see
 [`docs/`](../docs/).
 
@@ -23,7 +23,7 @@ A complete catalog of what reviewmind does. For installation steps see
 - [Judge step + verdict aggregation](#judge-step--verdict-aggregation)
 - [Streaming](#streaming)
 - [Cache, telemetry, and stats](#cache-telemetry-and-stats)
-- [`.reviewmind.yaml` repo config](#reviewmindyaml-repo-config)
+- [`.prthinker.yaml` repo config](#prthinkeryaml-repo-config)
 - [Secret redaction](#secret-redaction)
 - [MCP integration for IDEs](#mcp-integration-for-ides)
 - [CLI subcommands](#cli-subcommands)
@@ -36,7 +36,7 @@ A complete catalog of what reviewmind does. For installation steps see
 
 ## Overview
 
-reviewmind reads a Pull Request diff, runs a fixed five-step
+prthinker reads a Pull Request diff, runs a fixed five-step
 Chain-of-Thought review, and posts the result back as both a
 collapsible summary comment and inline `suggestion` blocks. It can act
 as a required Check Run, learn from each repo's history, ground its
@@ -105,7 +105,7 @@ cache invalidates automatically.
 
 ## Four interchangeable backends
 
-Strategy pattern under `reviewmind.backends.base.InferenceBackend`:
+Strategy pattern under `prthinker.backends.base.InferenceBackend`:
 
 | Backend kind | Class | What it talks to |
 |---|---|---|
@@ -132,7 +132,7 @@ The prompt's rule slot combines two sources:
   (no threshold, no filtering). One file = one rule, sorted by path.
 
 Three retriever implementations behind a single interface
-(`reviewmind.rag.RAGRetriever`):
+(`prthinker.rag.RAGRetriever`):
 
 - `FaissRAGRetriever` — in-process, needs the embedding model.
 - `RemoteRAGRetriever` — POSTs to the server's `/rag` endpoint; thin
@@ -174,7 +174,7 @@ commit attributed to them.
 
 ### Sanitization is mandatory
 
-`reviewmind.findings.parse_inline_findings` enforces the prompt
+`prthinker.findings.parse_inline_findings` enforces the prompt
 contract:
 
 - Lines outside the diff are dropped.
@@ -197,7 +197,7 @@ GitHub treats `(start_line, line]` as the replaced range.
 
 ## Two learned corpora
 
-reviewmind keeps two JSONL stores that shape future reviews:
+prthinker keeps two JSONL stores that shape future reviews:
 
 | Store | Role | Source |
 |---|---|---|
@@ -211,8 +211,8 @@ signal applied as in-context exemplars at prompt-build time.
 ### Harvesting
 
 ```bash
-reviewmind harvest-dismissed --repo owner/name --max-prs 100
-reviewmind harvest-accepted  --repo owner/name --max-prs 100
+prthinker harvest-dismissed --repo owner/name --max-prs 100
+prthinker harvest-accepted  --repo owner/name --max-prs 100
 ```
 
 Both are append-only. Re-running with `--max-prs 200` after
@@ -263,7 +263,7 @@ lines with concrete test failures. Tunable: `--ci-signal-max-jobs`,
 
 ## Pre-merge Check Run gate
 
-`--gate-on {none,warning,error}` opens a Check Run named `reviewmind`
+`--gate-on {none,warning,error}` opens a Check Run named `prthinker`
 on the PR head commit, then patches it to `completed` with a
 conclusion derived from the surviving finding count:
 
@@ -275,7 +275,7 @@ conclusion derived from the surviving finding count:
 
 `info` findings never trip the gate.
 
-Wire `reviewmind` as a required status check in branch protection and
+Wire `prthinker` as a required status check in branch protection and
 PRs cannot merge with surviving error-severity findings.
 
 The gate and the judge are **independent signals**: the gate is
@@ -314,8 +314,8 @@ Per-file verdicts collapse to a single PR-level decision:
 Because backend selection is per-process, you can run the five CoT
 steps on one backend and the judge on a different one — e.g. local
 Qwen reviews, Anthropic Claude judges. The schema is in
-`reviewmind.schemas.JudgeVerdict`; aggregator + event mapper in
-`reviewmind.judge`.
+`prthinker.schemas.JudgeVerdict`; aggregator + event mapper in
+`prthinker.judge`.
 
 ---
 
@@ -348,7 +348,7 @@ SQLite read-through cache. Key = SHA-256 of
 part of the key, **template edits / model swaps / token-cap changes
 all invalidate automatically** — no manual bust.
 
-Defaults: `.reviewmind/cache.sqlite`, 7-day TTL, WAL mode.
+Defaults: `.prthinker/cache.sqlite`, 7-day TTL, WAL mode.
 
 ### Telemetry (`--telemetry`)
 
@@ -359,15 +359,15 @@ Append-only table — one row per `generate()` call:
   available; char-count estimate otherwise — `tokens_estimated`
   column records which)
 - latency_ms
-- cost_usd (from `reviewmind.pricing`; `NULL` for local + self-hosted
+- cost_usd (from `prthinker.pricing`; `NULL` for local + self-hosted
   remote)
 - cache_hit
 - error
 
-### `reviewmind stats`
+### `prthinker stats`
 
 ```
-reviewmind stats --since-days 7
+prthinker stats --since-days 7
 ```
 
 Renders a per-(backend, model) table: calls, hits, in/out tokens, USD,
@@ -375,16 +375,16 @@ p50 / p95 latency.
 
 ### Pricing table
 
-`reviewmind/pricing.py` holds USD/Mtok rates for OpenAI gpt-4o family,
+`prthinker/pricing.py` holds USD/Mtok rates for OpenAI gpt-4o family,
 o1 series, Claude 4.x family, and older Claude 3.5 / 3 Opus. Models
 not in the table return `None` cost; update the table when providers
 move prices.
 
 ---
 
-## `.reviewmind.yaml` repo config
+## `.prthinker.yaml` repo config
 
-A Pydantic-validated YAML at the repo root pins every reviewmind
+A Pydantic-validated YAML at the repo root pins every prthinker
 setting that isn't a secret. Loaded on every CLI invocation as the
 default layer beneath env vars + CLI flags.
 
@@ -445,7 +445,7 @@ surprising the local-only / self-hosted-remote use cases.
 
 ## MCP integration for IDEs
 
-`reviewmind mcp` runs a Model Context Protocol stdio server so Claude
+`prthinker mcp` runs a Model Context Protocol stdio server so Claude
 Desktop / Cursor / Continue / Cline / Zed can drive reviews from
 inside the IDE.
 
@@ -464,13 +464,13 @@ Config (Claude Desktop on macOS,
 ```json
 {
   "mcpServers": {
-    "reviewmind": {
-      "command": "reviewmind",
+    "prthinker": {
+      "command": "prthinker",
       "args": ["mcp"],
       "env": {
-        "REVIEWMIND_BACKEND": "anthropic",
+        "PRTHINKER_BACKEND": "anthropic",
         "ANTHROPIC_API_KEY": "sk-ant-...",
-        "REVIEWMIND_CACHE_ENABLED": "true"
+        "PRTHINKER_CACHE_ENABLED": "true"
       }
     }
   }
@@ -479,13 +479,13 @@ Config (Claude Desktop on macOS,
 
 The killer flow:
 
-> *In Claude Desktop chat:*  "Run reviewmind on `$(git diff --cached)`"
+> *In Claude Desktop chat:*  "Run prthinker on `$(git diff --cached)`"
 
 LLM invokes the MCP tool → secrets get redacted → review streams back
 into the chat as markdown. No PR, no GHA, no waiting.
 
 RAG is `NoOp` in MCP mode (FAISS doesn't belong in an IDE stdio
-subprocess); use `REVIEWMIND_BACKEND=remote` if RAG matters.
+subprocess); use `PRTHINKER_BACKEND=remote` if RAG matters.
 
 ---
 
@@ -493,15 +493,15 @@ subprocess); use `REVIEWMIND_BACKEND=remote` if RAG matters.
 
 | Command | Purpose |
 |---|---|
-| `reviewmind review-pr` | Fetch PR diff, run pipeline, post comment + inline review + gate |
-| `reviewmind review-file PATH` | Run pipeline on a local file or stdin |
-| `reviewmind harvest-dismissed` | Scan past PRs for dismissed findings → JSONL |
-| `reviewmind harvest-accepted` | Scan past PRs for applied suggestions → JSONL |
-| `reviewmind stats` | Aggregate telemetry into a per-(backend, model) table |
-| `reviewmind mcp` | Run the MCP stdio server |
+| `prthinker review-pr` | Fetch PR diff, run pipeline, post comment + inline review + gate |
+| `prthinker review-file PATH` | Run pipeline on a local file or stdin |
+| `prthinker harvest-dismissed` | Scan past PRs for dismissed findings → JSONL |
+| `prthinker harvest-accepted` | Scan past PRs for applied suggestions → JSONL |
+| `prthinker stats` | Aggregate telemetry into a per-(backend, model) table |
+| `prthinker mcp` | Run the MCP stdio server |
 
-Every flag has a corresponding `REVIEWMIND_*` env var; the
-`.reviewmind.yaml` schema covers the same surface.
+Every flag has a corresponding `PRTHINKER_*` env var; the
+`.prthinker.yaml` schema covers the same surface.
 
 ---
 
@@ -516,7 +516,7 @@ The FastAPI server in `codes/run/fastapi_server.py` exposes:
 | `POST` | `/rag` | Query → list of retrieved rules |
 | `POST` | `/review` | Diff → full structured `ReviewResponse` (server orchestrates RAG + steps + dismissed filter + judge) |
 
-Pydantic schemas in `reviewmind.schemas` are the **single source of
+Pydantic schemas in `prthinker.schemas` are the **single source of
 truth** for the wire format — both server (FastAPI `response_model`)
 and runner (`model_validate_json`) reference them, so type drift is
 impossible.
@@ -549,12 +549,12 @@ no-fabrication rule (`paper_rule.md`), the framework + corpora are
 delivered but **no measured benchmark numbers** are bundled. Design
 write-up: [`docs/concepts/research-extensions.rst`](../docs/concepts/research-extensions.rst).
 
-### Adversarial robustness — `reviewmind adversarial-eval`
+### Adversarial robustness — `prthinker adversarial-eval`
 
 A separate subcommand that runs a prompt-injection corpus against any
 configured backend and records every per-call outcome to SQLite. Four
 attack families are covered by the bundled seed corpus
-(`reviewmind/adversarial_corpus/seed.jsonl`):
+(`prthinker/adversarial_corpus/seed.jsonl`):
 
 | Category             | Description                                                                  |
 | -------------------- | ---------------------------------------------------------------------------- |
@@ -563,7 +563,7 @@ attack families are covered by the bundled seed corpus
 | `split_injection`    | Payload split across multiple files / hunks                                  |
 | `role_hijack`        | Diff redefines the reviewer's role mid-prompt                                |
 
-`detect_bypass()` is a pure function in `reviewmind/adversarial.py`
+`detect_bypass()` is a pure function in `prthinker/adversarial.py`
 with a **conservative bias toward "bypassed"**: case-curated
 `success_markers` win, otherwise default approval markers (`LGTM`,
 `I approve this PR`, …) trigger a bypass classification. Detection
@@ -574,7 +574,7 @@ aggregate detection rate** — that is downstream SQL.
 
 Adds `PlatformAdapter.fetch_author_replies()` to both the GitHub and
 GitLab adapters (issue-comment timeline + notes API respectively).
-Replies posted **after** the most recent reviewmind summary comment,
+Replies posted **after** the most recent prthinker summary comment,
 **not** by the bot user, are rendered into a *Prior dialogue* block
 and injected into the inline-findings prompt.
 

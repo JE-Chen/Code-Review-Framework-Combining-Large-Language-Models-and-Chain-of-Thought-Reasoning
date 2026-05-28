@@ -1,8 +1,8 @@
 Repo-level configuration
 ========================
 
-Drop a ``.reviewmind.yaml`` at the repo root to centralize every
-reviewmind setting that isn't a secret. The CLI loads it on every
+Drop a ``.prthinker.yaml`` at the repo root to centralize every
+prthinker setting that isn't a secret. The CLI loads it on every
 invocation and uses it as the default layer beneath environment
 variables and command-line flags.
 
@@ -10,8 +10,8 @@ Resolution order (highest priority last)
 ----------------------------------------
 
 1. Package built-in defaults.
-2. ``.reviewmind.yaml`` in the current directory (or ``--config PATH``).
-3. Environment variables (``REVIEWMIND_*``, ``OPENAI_API_KEY``, …).
+2. ``.prthinker.yaml`` in the current directory (or ``--config PATH``).
+3. Environment variables (``PRTHINKER_*``, ``OPENAI_API_KEY``, …).
 4. Command-line flags.
 
 **Secrets never live in the YAML.** API keys, tokens, and the GitHub
@@ -23,7 +23,7 @@ Schema
 
 .. code-block:: yaml
 
-   # .reviewmind.yaml — example with everything turned on
+   # .prthinker.yaml — example with everything turned on
    backend: openai                # local | remote | openai | anthropic
    max_new_tokens: 32768
 
@@ -49,16 +49,16 @@ Schema
 
    cache:
      enabled: true
-     path: .reviewmind/cache.sqlite
+     path: .prthinker/cache.sqlite
      ttl_days: 7                  # set null to disable TTL
 
    telemetry:
      enabled: true
-     path: .reviewmind/telemetry.sqlite
+     path: .prthinker/telemetry.sqlite
 
    stores:
-     dismissed: .reviewmind/dismissed.jsonl
-     accepted: .reviewmind/accepted.jsonl
+     dismissed: .prthinker/dismissed.jsonl
+     accepted: .prthinker/accepted.jsonl
 
    local:
      model: Qwen/Qwen3-Coder-30B-A3B-Instruct
@@ -67,14 +67,14 @@ Schema
    openai:
      model: gpt-4o-mini
      base_url: https://api.openai.com/v1
-     # api_key: comes from $OPENAI_API_KEY or $REVIEWMIND_OPENAI_API_KEY
+     # api_key: comes from $OPENAI_API_KEY or $PRTHINKER_OPENAI_API_KEY
      # organization: optional
 
    anthropic:
      model: claude-opus-4-7
      base_url: https://api.anthropic.com
      version: "2023-06-01"
-     # api_key: comes from $ANTHROPIC_API_KEY or $REVIEWMIND_ANTHROPIC_API_KEY
+     # api_key: comes from $ANTHROPIC_API_KEY or $PRTHINKER_ANTHROPIC_API_KEY
 
    remote:
      url: https://my-inference-host:8000
@@ -95,15 +95,15 @@ Validation
 
 The loader is a Pydantic v2 model with ``extra="forbid"``: unknown keys
 raise a clear validation error rather than silently being ignored. Run
-``reviewmind review-file - --config .reviewmind.yaml`` with no stdin to
+``prthinker review-file - --config .prthinker.yaml`` with no stdin to
 get a fast schema check.
 
 Tips
 ----
 
-* Commit ``.reviewmind.yaml`` so reviewers see config changes in PRs
+* Commit ``.prthinker.yaml`` so reviewers see config changes in PRs
   alongside the code change that needed them.
-* Keep ``.reviewmind/cache.sqlite`` and ``.reviewmind/telemetry.sqlite``
+* Keep ``.prthinker/cache.sqlite`` and ``.prthinker/telemetry.sqlite``
   in ``.gitignore`` — they're machine-generated state, not config.
 * The same YAML works for both the runner (in your GHA workflow) and the
   server. Point both at the same file when one host hosts both.

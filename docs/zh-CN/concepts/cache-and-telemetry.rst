@@ -14,7 +14,7 @@ Read-through cache，key 是
 
 默认：
 
-* 路径：\ ``.reviewmind/cache.sqlite``\ 。
+* 路径：\ ``.prthinker/cache.sqlite``\ 。
 * TTL：7 天（\ ``--cache-ttl-days`` 覆盖；\ ``0`` 关闭 TTL）。
 * 启用 WAL 模式，并发读不会被挡。
 
@@ -37,7 +37,7 @@ Append-only ``calls`` 表，每次 ``generate()`` 一条记录：
 * ``prompt_tokens`` + ``completion_tokens``\ （有 provider 的 ``usage``
   block 时直接取；没有时用 char count 估算──见 ``tokens_estimated`` 列）
 * ``latency_ms``
-* ``cost_usd``\ （由 :mod:`reviewmind.pricing` 计算；本地与自建 remote
+* ``cost_usd``\ （由 :mod:`prthinker.pricing` 计算；本地与自建 remote
   backend 为 ``NULL``\ ）
 * ``cache_hit``\ （上游 ``CachingBackend`` 命中时为 1）
 * ``error``\ （上游抛异常时填；成功为 ``NULL``\ ）
@@ -45,7 +45,7 @@ Append-only ``calls`` 表，每次 ``generate()`` 一条记录：
 Pricing
 ~~~~~~~
 
-:mod:`reviewmind.pricing` 是 ``(backend, model) → (input_rate, output_rate)``
+:mod:`prthinker.pricing` 是 ``(backend, model) → (input_rate, output_rate)``
 的静态表，单位 USD 每百万 token。表中没有的型号返回 ``None``──这一条会
 记录但 ``cost_usd`` 留空，方便事后抓 provider 改价漂移。
 
@@ -54,9 +54,9 @@ Pricing
 
 .. code-block:: bash
 
-   reviewmind stats                       # 全时段
-   reviewmind stats --since-days 7        # 过去一周
-   reviewmind stats --since-days 1        # 过去 24 小时
+   prthinker stats                       # 全时段
+   prthinker stats --since-days 7        # 过去一周
+   prthinker stats --since-days 1        # 过去 24 小时
 
 输出示例见英文版 :doc:`../../en/concepts/cache-and-telemetry`。
 
@@ -71,7 +71,7 @@ cache 那一列则告诉你把 workflow trigger 从 ``push`` 改成 ``synchroniz
 Wrapping 顺序
 -------------
 
-:func:`reviewmind.backends.create_backend` 内 factory 的 wrapper stacking
+:func:`prthinker.backends.create_backend` 内 factory 的 wrapper stacking
 顺序是::
 
    InstrumentedBackend(CachingBackend(real_backend))
@@ -84,8 +84,8 @@ Wrapping 顺序
 
 两个 wrapper 都是 flag + env var 开关，默认 **off**\ ：
 
-* ``--cache`` / ``REVIEWMIND_CACHE_ENABLED``
-* ``--telemetry`` / ``REVIEWMIND_TELEMETRY_ENABLED``
+* ``--cache`` / ``PRTHINKER_CACHE_ENABLED``
+* ``--telemetry`` / ``PRTHINKER_TELEMETRY_ENABLED``
 
 关闭时 factory 直接返回 concrete backend──不写 disk、没有 schema migration
 风险。

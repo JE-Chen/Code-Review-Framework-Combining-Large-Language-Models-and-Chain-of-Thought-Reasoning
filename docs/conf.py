@@ -1,4 +1,4 @@
-"""Sphinx configuration for the reviewmind documentation."""
+"""Sphinx configuration for the prthinker documentation."""
 
 from __future__ import annotations
 
@@ -11,12 +11,12 @@ sys.path.insert(0, str(_REPO_ROOT))
 
 # -- Project information -----------------------------------------------------
 
-project = "reviewmind"
+project = "prthinker"
 author = "JeffreyChen"
 copyright = "2026, JeffreyChen"
 
 try:
-    from reviewmind import __version__ as release  # noqa: WPS433
+    from prthinker import __version__ as release  # noqa: WPS433
 except Exception:
     release = "0.1.0"
 
@@ -46,7 +46,7 @@ master_doc = "index"
 
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
-html_title = "reviewmind"
+html_title = "prthinker"
 html_show_sphinx = False
 html_theme_options = {
     "navigation_depth": 3,

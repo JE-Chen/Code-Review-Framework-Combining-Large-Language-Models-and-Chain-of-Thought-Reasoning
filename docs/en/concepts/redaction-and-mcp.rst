@@ -1,7 +1,7 @@
 Secret redaction and MCP integration
 ====================================
 
-Two unrelated additions that share a single concern: making reviewmind
+Two unrelated additions that share a single concern: making prthinker
 safe and convenient to drive from outside the original GHA workflow.
 
 Secret redaction (``--redact-secrets``)
@@ -11,7 +11,7 @@ When the backend is a paid third-party API (OpenAI, Anthropic, …), the
 PR diff payload may contain real secrets that slipped past
 ``.gitignore`` — an ``.env`` file shown in the diff, a hard-coded token
 in a test fixture, a JWT in a snapshot test. With
-``--redact-secrets`` (env ``REVIEWMIND_REDACT_SECRETS=true``) the runner
+``--redact-secrets`` (env ``PRTHINKER_REDACT_SECRETS=true``) the runner
 runs every diff through a pre-pass that replaces well-known secret
 patterns with ``<REDACTED:<kind>>`` before any backend call.
 
@@ -75,7 +75,7 @@ Model Context Protocol integration
 
 The Model Context Protocol (MCP) is an open standard for letting LLM
 clients (Claude Desktop, Cursor, Continue, Cline, Zed, etc.) invoke
-external tools. reviewmind ships an MCP server adapter so any MCP
+external tools. prthinker ships an MCP server adapter so any MCP
 client can drive reviews from inside the IDE — no GHA round-trip
 required.
 
@@ -109,7 +109,7 @@ Tools exposed
 Configuration
 ~~~~~~~~~~~~~
 
-Backend selection uses the same ``REVIEWMIND_*`` env vars as the CLI;
+Backend selection uses the same ``PRTHINKER_*`` env vars as the CLI;
 secrets stay in env vars, never in the MCP server's own config.
 
 Example Claude Desktop entry (``~/Library/Application Support/Claude/
@@ -119,15 +119,15 @@ claude_desktop_config.json`` on macOS):
 
    {
      "mcpServers": {
-       "reviewmind": {
-         "command": "reviewmind",
+       "prthinker": {
+         "command": "prthinker",
          "args": ["mcp"],
          "env": {
-           "REVIEWMIND_BACKEND": "anthropic",
+           "PRTHINKER_BACKEND": "anthropic",
            "ANTHROPIC_API_KEY": "sk-ant-...",
-           "REVIEWMIND_ANTHROPIC_MODEL": "claude-sonnet-4-6",
-           "REVIEWMIND_CACHE_ENABLED": "true",
-           "REVIEWMIND_TELEMETRY_ENABLED": "true"
+           "PRTHINKER_ANTHROPIC_MODEL": "claude-sonnet-4-6",
+           "PRTHINKER_CACHE_ENABLED": "true",
+           "PRTHINKER_TELEMETRY_ENABLED": "true"
          }
        }
      }
@@ -140,7 +140,7 @@ Typical IDE flow
 ~~~~~~~~~~~~~~~~
 
 1. Stage a change locally: ``git add -p``.
-2. In the IDE chat: *"Run reviewmind on my staged diff"*.
+2. In the IDE chat: *"Run prthinker on my staged diff"*.
 3. The client's LLM invokes ``review_diff`` with
    ``$(git diff --cached)``.
 4. The markdown review streams back into the chat panel; the user
@@ -154,7 +154,7 @@ Trade-offs
 
 * RAG is disabled in MCP mode (``NoOpRetriever``). Loading FAISS in a
   stdio subprocess is heavy and the embedding model rarely lives on the
-  user's laptop; if you need RAG, point ``REVIEWMIND_BACKEND=remote``
+  user's laptop; if you need RAG, point ``PRTHINKER_BACKEND=remote``
   and let the FastAPI server own retrieval.
 * The MCP server is intentionally stateless across invocations; cache
   and telemetry stores persist between calls so cost visibility still

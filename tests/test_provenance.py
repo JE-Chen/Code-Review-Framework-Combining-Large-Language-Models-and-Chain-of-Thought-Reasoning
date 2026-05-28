@@ -13,8 +13,8 @@ import json
 
 import pytest
 
-from reviewmind.findings import build_provenance_block, parse_inline_findings
-from reviewmind.schemas import (
+from prthinker.findings import build_provenance_block, parse_inline_findings
+from prthinker.schemas import (
     InlineFinding,
     Provenance,
     ProvenanceCitation,

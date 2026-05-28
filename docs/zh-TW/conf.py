@@ -8,13 +8,13 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
-project = "reviewmind"
+project = "prthinker"
 author = "JeffreyChen"
 copyright = "2026, JeffreyChen"
 language = "zh_TW"
 
 try:
-    from reviewmind import __version__ as release
+    from prthinker import __version__ as release
 except Exception:
     release = "0.1.0"
 
@@ -34,8 +34,8 @@ master_doc = "index"
 
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
-html_css_files = ["rm-langbar.css"]
-html_title = "reviewmind（繁體中文）"
+html_css_files = ["pt-langbar.css"]
+html_title = "prthinker（繁體中文）"
 html_show_sphinx = False
 html_theme_options = {
     "navigation_depth": 3,

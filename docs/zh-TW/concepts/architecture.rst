@@ -1,7 +1,7 @@
 架構
 ====
 
-``reviewmind`` 圍繞著六個被 ``CLAUDE.md`` 明訂為必須遵守的設計模式而組織。
+``prthinker`` 圍繞著六個被 ``CLAUDE.md`` 明訂為必須遵守的設計模式而組織。
 每個擴充點都對應其中之一，加新 step、新 backend、新 retriever 都只是把
 程式碼塞進現有縫隙──不會動到 pipeline。
 
@@ -15,10 +15,10 @@
    * - 模式
      - 對應實作
    * - Strategy
-     - ``reviewmind.backends.base.InferenceBackend`` 加上
+     - ``prthinker.backends.base.InferenceBackend`` 加上
        ``LocalQwen3Backend`` 與 ``RemoteHttpBackend`` 兩個實作。
    * - Factory
-     - ``reviewmind.backends.create_backend(config)`` 是建造 backend 的
+     - ``prthinker.backends.create_backend(config)`` 是建造 backend 的
        唯一入口。耗資源的 import（torch、transformers）延後到 concrete
        backend 內部。
    * - Template Method
@@ -29,7 +29,7 @@
      - ``@register_step`` 把新的 ``ReviewStep`` subclass 追加到模組層級的
        清單。加 step 不需要動 ``pipeline.py``\ 。
    * - Repository
-     - 所有 FAISS 操作都走 ``reviewmind.rag.RAGRetriever`` 的實作。
+     - 所有 FAISS 操作都走 ``prthinker.rag.RAGRetriever`` 的實作。
        Embedding 模型只載一次。
    * - Dependency Injection
      - Backend、retriever、filter、store 都當建構參數傳給 ``CoTPipeline``\ 。
@@ -41,7 +41,7 @@
 ::
 
    ┌────────────────────────────────────────────────────────────┐
-   │ reviewmind/                                              │
+   │ prthinker/                                              │
    │                                                            │
    │  cli.py ────────────┐                                      │
    │                     ▼                                      │
@@ -100,8 +100,8 @@ ML stack 與 FAISS index 都住在伺服器端。這個分工就是為什麼 Git
 
 .. code-block:: python
 
-   # reviewmind/extras/security_audit.py
-   from reviewmind.steps import (
+   # prthinker/extras/security_audit.py
+   from prthinker.steps import (
        ReviewContext, ReviewStep, register_step,
    )
 
@@ -121,8 +121,8 @@ ML stack 與 FAISS index 都住在伺服器端。這個分工就是為什麼 Git
            return _PROMPT.format(code_diff=ctx.code_diff)
 
 在 process 啟動時 import 這個 module 一次（例如在
-``reviewmind/__init__.py``\ ），這樣 ``@register_step`` decorator 才會跑。
-新的 step 就會出現在 ``reviewmind review-file --steps`` 裡，預設的
+``prthinker/__init__.py``\ ），這樣 ``@register_step`` decorator 才會跑。
+新的 step 就會出現在 ``prthinker review-file --steps`` 裡，預設的
 ``--steps ""``\ （全部註冊的）也會把它跑進去。
 
 加新 backend

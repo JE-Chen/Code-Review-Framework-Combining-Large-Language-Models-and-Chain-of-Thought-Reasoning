@@ -2,127 +2,127 @@ Python API
 ==========
 
 The package exposes a stable, small public surface. Everything below is
-re-exported from ``reviewmind`` so the common ``from reviewmind
+re-exported from ``prthinker`` so the common ``from prthinker
 import X`` works.
 
 Top-level package
 -----------------
 
-.. automodule:: reviewmind
+.. automodule:: prthinker
    :members:
    :no-index:
 
 Config
 ------
 
-.. automodule:: reviewmind.config
+.. automodule:: prthinker.config
    :members:
    :show-inheritance:
 
 Backends (Strategy)
 -------------------
 
-.. automodule:: reviewmind.backends.base
+.. automodule:: prthinker.backends.base
    :members:
    :show-inheritance:
 
-.. automodule:: reviewmind.backends.local
+.. automodule:: prthinker.backends.local
    :members:
    :show-inheritance:
 
-.. automodule:: reviewmind.backends.remote
+.. automodule:: prthinker.backends.remote
    :members:
    :show-inheritance:
 
-.. autofunction:: reviewmind.backends.create_backend
+.. autofunction:: prthinker.backends.create_backend
 
 RAG (Repository)
 ----------------
 
-.. automodule:: reviewmind.rag
+.. automodule:: prthinker.rag
    :members:
    :show-inheritance:
 
 Steps (Registry + Template Method)
 ----------------------------------
 
-.. automodule:: reviewmind.steps
+.. automodule:: prthinker.steps
    :members:
    :show-inheritance:
 
 Pipeline
 --------
 
-.. automodule:: reviewmind.pipeline
+.. automodule:: prthinker.pipeline
    :members:
    :show-inheritance:
 
 Diff parsing
 ------------
 
-.. automodule:: reviewmind.diff
+.. automodule:: prthinker.diff
    :members:
    :show-inheritance:
 
 Findings extraction
 -------------------
 
-.. automodule:: reviewmind.findings
+.. automodule:: prthinker.findings
    :members:
    :show-inheritance:
 
 Rule packs
 ----------
 
-.. automodule:: reviewmind.rules
+.. automodule:: prthinker.rules
    :members:
 
 Learned corpora
 ---------------
 
-.. automodule:: reviewmind.dismissed
+.. automodule:: prthinker.dismissed
    :members:
    :show-inheritance:
 
-.. automodule:: reviewmind.accepted
+.. automodule:: prthinker.accepted
    :members:
    :show-inheritance:
 
 Harvesters
 ----------
 
-.. automodule:: reviewmind.harvest
+.. automodule:: prthinker.harvest
    :members:
 
 CI signals
 ----------
 
-.. automodule:: reviewmind.ci_signals
+.. automodule:: prthinker.ci_signals
    :members:
    :show-inheritance:
 
 Checks API gate
 ---------------
 
-.. automodule:: reviewmind.checks
+.. automodule:: prthinker.checks
    :members:
    :show-inheritance:
 
 GitHub integration
 ------------------
 
-.. automodule:: reviewmind.github_api
+.. automodule:: prthinker.github_api
    :members:
 
 Formatters
 ----------
 
-.. automodule:: reviewmind.formatters
+.. automodule:: prthinker.formatters
    :members:
 
 Schemas
 -------
 
-.. automodule:: reviewmind.schemas
+.. automodule:: prthinker.schemas
    :members:
    :show-inheritance:

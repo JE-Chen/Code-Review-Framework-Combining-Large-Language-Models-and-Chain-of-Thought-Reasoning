@@ -1,8 +1,8 @@
-# Project Guidelines — reviewmind
+# Project Guidelines — prthinker
 
 ## Project Overview
 
-`reviewmind` is a Chain-of-Thought code review framework that drives a
+`prthinker` is a Chain-of-Thought code review framework that drives a
 fine-tuned Qwen3-Coder model through a fixed five-step review pipeline,
 augments it with RAG over global + per-repo rule packs, and posts the
 result back to a GitHub PR as both a summary comment and inline
@@ -12,7 +12,7 @@ required Check Run before merges.
 
 ### Key Directories
 
-- `reviewmind/` — the standalone Python package (Strategy / Factory /
+- `prthinker/` — the standalone Python package (Strategy / Factory /
   Registry / Repository / DI patterns).
 - `codes/run/` — original entry points (`cot.py`, `skills.py`,
   `fastapi_server.py`). `cot.py` is now a thin wrapper over the package;
@@ -26,7 +26,7 @@ required Check Run before merges.
 - `datas/` — test data, RAG rule documents, prompt copies.
 - `docs/` — Sphinx documentation (English + zh-TW + zh-CN trees).
 - `paper/` — manuscript and slide build (pptxgenjs Node project).
-- `.github/workflows/` — `reviewmind.yml` GHA integration.
+- `.github/workflows/` — `prthinker.yml` GHA integration.
 
 ### Tech Stack
 
@@ -47,7 +47,7 @@ work stays on the working copy until the gates pass.
 2. `py -m pytest tests/` runs clean (or only skips that already existed
    before the change).
 3. `py -m ruff check .` reports no new errors.
-4. `py -m bandit -c pyproject.toml -r reviewmind/` reports
+4. `py -m bandit -c pyproject.toml -r prthinker/` reports
    `No issues identified`.
 5. `py -m sphinx -b html -q docs docs/_build/html` builds with zero
    errors. (Warnings tolerated — RTD does not fail on warnings — but a
@@ -114,7 +114,7 @@ package. New code that violates these is rejected at review.
 1. **Strategy Pattern** — Pipeline switching (CoT / Skills / Single
    Prompt) and backend selection must be expressed as interchangeable
    strategies. No hardcoded `match/case` branches in execution code.
-   Concrete: `reviewmind.backends.base.InferenceBackend` with four
+   Concrete: `prthinker.backends.base.InferenceBackend` with four
    implementations — `LocalHFBackend` (any HF causal-LM in-process, with
    LoRA + quantization), `RemoteHttpBackend` (the project's own FastAPI
    `/ask` server), `OpenAICompatBackend` (any OpenAI-Chat-Completions
@@ -133,7 +133,7 @@ package. New code that violates these is rejected at review.
    pipelines self-register via `@register_step` and similar decorators.
    Adding one must not require editing existing files (Open/Closed).
 5. **Repository Pattern** — All RAG retrieval routes through
-   `reviewmind.rag.RAGRetriever` implementations. FAISS calls outside
+   `prthinker.rag.RAGRetriever` implementations. FAISS calls outside
    `FaissRAGRetriever` are forbidden.
 6. **Dependency Injection** — Pass backends, retrievers, filters, stores
    as parameters to `CoTPipeline`; do not import singletons inside
@@ -143,7 +143,7 @@ package. New code that violates these is rejected at review.
 
 - **SRP** — One module, one concern. Prompt templates →
   `CoT_Prompts/` or `Skills/`. Model utilities → `util/`. Execution
-  flow → `run/`. Domain orchestration → `reviewmind/`.
+  flow → `run/`. Domain orchestration → `prthinker/`.
 - **OCP** — Add a new CoT step by adding a new prompt file + a step
   class with `@register_step`, not by modifying existing steps.
 - **LSP / ISP** — Pipeline strategies share the same minimal interface
@@ -259,7 +259,7 @@ package. New code that violates these is rejected at review.
 ### Secrets & Credentials
 
 - No hardcoded API keys, tokens, or passwords. Read from environment
-  variables (`REVIEWMIND_REMOTE_API_KEY`, `GITHUB_TOKEN`, etc.) or a secrets
+  variables (`PRTHINKER_REMOTE_API_KEY`, `GITHUB_TOKEN`, etc.) or a secrets
   manager.
 - Never log secrets, full request bodies, or model API keys. Redact
   before logging.
@@ -342,9 +342,9 @@ refactor exposes a previously untested path).
 ### Required test types
 
 - **Pure-helper tests.** Extract pure logic out of network / GPU paths
-  into helper functions (see `reviewmind.diff.parse_unified_diff`,
-  `reviewmind.findings.parse_inline_findings`,
-  `reviewmind.checks.evaluate_gate`) and unit-test those directly. No
+  into helper functions (see `prthinker.diff.parse_unified_diff`,
+  `prthinker.findings.parse_inline_findings`,
+  `prthinker.checks.evaluate_gate`) and unit-test those directly. No
   network, no GPU.
 - **FakeBackend integration test.** Use a stub `InferenceBackend` that
   returns canned strings to exercise `CoTPipeline.run` and
@@ -373,7 +373,7 @@ refactor exposes a previously untested path).
 ### Tests that need GPU / network
 
 GPU-only or network-only tests must be marked with
-`@pytest.mark.skipif` against a `REVIEWMIND_HAS_GPU` / `REVIEWMIND_HAS_NETWORK`
+`@pytest.mark.skipif` against a `PRTHINKER_HAS_GPU` / `PRTHINKER_HAS_NETWORK`
 environment variable check. CI's default profile (no GPU) must still
 report green; the GPU lane is a separate workflow.
 
@@ -406,7 +406,7 @@ ruff, and bandit for Python.
 
 - Do NOT copy-paste blocks of ≥ 3 statements across functions or files
   (SonarQube `common-python:DuplicatedBlocks`). Extract shared logic to
-  `reviewmind/`.
+  `prthinker/`.
 - Do NOT declare the same string literal ≥ 3 times (SonarQube
   `python:S1192`). Assign to a module-level constant. Examples in this
   repo: `_API_ROOT`, `_USER_AGENT`, `_SEVERITY_BADGE`.
@@ -489,7 +489,7 @@ ruff, and bandit for Python.
 - Public modules and classes MUST have a one-line docstring describing
   their purpose.
 - Private helpers may omit docstrings if names are self-explanatory.
-- Pydantic models in `reviewmind.schemas` are the wire-format source
+- Pydantic models in `prthinker.schemas` are the wire-format source
   of truth — when extending them, also update
   `docs/reference/http-api.rst` in the same commit.
 
@@ -538,13 +538,13 @@ The same package targets two install profiles:
   `faiss-cpu`, `numpy`). Used by developers / inference servers.
 
 When adding a new module, check `pip install -e ".[runner]" && python -c
-"import reviewmind.<module>"` does not require torch. The CI gate
+"import prthinker.<module>"` does not require torch. The CI gate
 should verify this.
 
 ### Prompt Templates Are Source of Truth
 
 Prompt files in `codes/run/CoT_Prompts/` are the single source of truth.
-The package's `reviewmind.steps` imports them — never inlines them.
+The package's `prthinker.steps` imports them — never inlines them.
 When changing a prompt:
 
 1. Edit only the file in `codes/run/CoT_Prompts/`.
@@ -563,11 +563,11 @@ file.
 
 ### Wire-Format Compatibility
 
-`reviewmind.schemas` is the wire format between runner and server.
+`prthinker.schemas` is the wire format between runner and server.
 Breaking changes (renaming a field, changing a default) require:
 
 1. A migration note in `docs/reference/http-api.rst`.
-2. A version bump in `reviewmind.__version__`.
+2. A version bump in `prthinker.__version__`.
 3. A migration path documented in the release notes.
 
 Additive changes (new optional field with a default) do not need any of
@@ -575,7 +575,7 @@ the above.
 
 ### GitHub Actions Permissions
 
-The bundled `.github/workflows/reviewmind.yml` lists the **minimum**
+The bundled `.github/workflows/prthinker.yml` lists the **minimum**
 permissions for current features:
 
 - `contents: read` — checkout.
@@ -662,16 +662,16 @@ python -m codes.run.cot
 uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
 
 # Drive a one-off review
-reviewmind review-file path/to/code.py --backend remote --remote-url http://localhost:8000
+prthinker review-file path/to/code.py --backend remote --remote-url http://localhost:8000
 
 # Bootstrap learned corpora
-reviewmind harvest-dismissed --repo owner/name --max-prs 100
-reviewmind harvest-accepted  --repo owner/name --max-prs 100
+prthinker harvest-dismissed --repo owner/name --max-prs 100
+prthinker harvest-accepted  --repo owner/name --max-prs 100
 
 # Pre-commit gates
 py -m pytest tests/
 py -m ruff check .
-py -m bandit -c pyproject.toml -r reviewmind/
+py -m bandit -c pyproject.toml -r prthinker/
 
 # Build docs (single tree, three languages as top-level sidebar sections)
 py -m sphinx -b html -q docs docs/_build/html

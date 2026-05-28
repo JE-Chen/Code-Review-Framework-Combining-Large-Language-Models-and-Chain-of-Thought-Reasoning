@@ -13,7 +13,7 @@ from ``datas/RAG_data/rag_data.py``, using L2-normalised embeddings from
 ``Qwen/Qwen3-Embedding-4B``. The index is built once at module import
 time — querying is cheap.
 
-The retriever interface is in ``reviewmind.rag.RAGRetriever``. Three
+The retriever interface is in ``prthinker.rag.RAGRetriever``. Three
 implementations are provided:
 
 * ``FaissRAGRetriever`` — wraps the FAISS index in-process. Needs the
@@ -35,7 +35,7 @@ unrelated rules; too high and you starve the model of context.
 Per-repo rule packs
 -------------------
 
-The ``--rules-dir`` flag (env ``REVIEWMIND_RULES_DIR``) reads every ``*.md``
+The ``--rules-dir`` flag (env ``PRTHINKER_RULES_DIR``) reads every ``*.md``
 file under the given directory (recursively, sorted) and appends each
 file's content as a rule **after** RAG-retrieved rules in the prompt.
 
@@ -107,7 +107,7 @@ Subclass ``RAGRetriever``:
 
 .. code-block:: python
 
-   from reviewmind.rag import RAGRetriever
+   from prthinker.rag import RAGRetriever
 
    class HybridRetriever(RAGRetriever):
        """Returns BM25 results plus FAISS results, deduplicated."""

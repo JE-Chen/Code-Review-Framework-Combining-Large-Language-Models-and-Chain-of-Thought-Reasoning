@@ -1,10 +1,10 @@
-reviewmind
+prthinker
 ============
 
 A Chain-of-Thought code review framework for GitHub Pull Requests, backed
 by a fine-tuned Qwen3-Coder model with retrieval-augmented prompting.
 
-``reviewmind`` reads a PR diff, runs a five-step Chain-of-Thought review,
+``prthinker`` reads a PR diff, runs a five-step Chain-of-Thought review,
 and posts a structured summary plus one-click ``suggestion`` blocks back
 to the PR. It learns from each repo's history — dismissed comments are
 filtered out next time, accepted suggestions are surfaced as in-context

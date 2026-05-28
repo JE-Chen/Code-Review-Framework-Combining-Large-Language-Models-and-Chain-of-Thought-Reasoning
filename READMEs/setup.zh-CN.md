@@ -17,7 +17,7 @@
 - [场景 4 — Claude Desktop / Cursor / Cline（MCP）](#场景-4--claude-desktop--cursor--clinemcp)
 - [场景 5 — 团队自部署（GPU server + GHA runner）](#场景-5--团队自部署gpu-server--gha-runner)
 - [场景 6 — 研究环境（LoRA 训练 + 本地推理）](#场景-6--研究环境lora-训练--本地推理)
-- [`.reviewmind.yaml` repo 配置](#reviewmindyaml-repo-配置)
+- [`.prthinker.yaml` repo 配置](#prthinkeryaml-repo-配置)
 - [GitHub repo secrets](#github-repo-secrets)
 - [GitHub Actions workflow](#github-actions-workflow)
 - [Branch protection](#branch-protection)
@@ -54,10 +54,10 @@ pip install -e ".[mcp]"      # 多加 `mcp` SDK 给 IDE 集成用
 pip install -e ".[dev]"      # 多加 pytest 给跑测试用
 ```
 
-CLI 入口是 `reviewmind`。装完验证：
+CLI 入口是 `prthinker`。装完验证：
 
 ```bash
-reviewmind --help
+prthinker --help
 ```
 
 ---
@@ -65,9 +65,9 @@ reviewmind --help
 ## 场景 1 — 只用 GitHub Actions（无 GPU）
 
 最便宜的路径：GHA-hosted runner + 付费 API 做推理，全部靠 repo secrets +
-`.reviewmind.yaml`。
+`.prthinker.yaml`。
 
-1. **在 repo 根目录加 `.reviewmind.yaml`\ ：**
+1. **在 repo 根目录加 `.prthinker.yaml`\ ：**
 
    ```yaml
    backend: anthropic
@@ -87,7 +87,7 @@ reviewmind --help
    |---|---|
    | `ANTHROPIC_API_KEY` | `sk-ant-...` |
 
-3. **复制 workflow 文件** `.github/workflows/reviewmind.yml`\ ──本 repo 内
+3. **复制 workflow 文件** `.github/workflows/prthinker.yml`\ ──本 repo 内
    附的版本已经声明必要 permissions（\ `contents: read`\ 、
    `pull-requests: write`\ 、\ `checks: write`\ 、\ `actions: read`\ ）。
 
@@ -109,7 +109,7 @@ export OPENAI_API_KEY="sk-..."
 
 git diff main..HEAD > my-change.diff
 
-reviewmind review-file my-change.diff \
+prthinker review-file my-change.diff \
     --backend openai \
     --openai-model gpt-4o-mini \
     --per-file --inline-review \
@@ -119,7 +119,7 @@ reviewmind review-file my-change.diff \
 或对 staged 变更：
 
 ```bash
-git diff --cached | reviewmind review-file - \
+git diff --cached | prthinker review-file - \
     --backend openai --openai-model gpt-4o-mini \
     --per-file --inline-review --redact-secrets
 ```
@@ -130,7 +130,7 @@ Markdown 结果输出到 stdout，不会贴到任何地方。
 
 ## 场景 3 — 个人开发 + 本地 Ollama
 
-不想按 token 付费的话，把 reviewmind 指到本地的 Ollama（通过它的
+不想按 token 付费的话，把 prthinker 指到本地的 Ollama（通过它的
 OpenAI-compatible endpoint）。
 
 ```bash
@@ -138,10 +138,10 @@ OpenAI-compatible endpoint）。
 ollama pull qwen2.5-coder:7b
 ollama serve   # 监听 :11434
 
-# 2. 用 reviewmind review
+# 2. 用 prthinker review
 pip install -e ".[runner]"
 
-reviewmind review-file my-change.diff \
+prthinker review-file my-change.diff \
     --backend openai \
     --openai-base-url http://localhost:11434/v1 \
     --openai-model qwen2.5-coder:7b \
@@ -170,15 +170,15 @@ pip install -e ".[mcp]"
 ```json
 {
   "mcpServers": {
-    "reviewmind": {
-      "command": "reviewmind",
+    "prthinker": {
+      "command": "prthinker",
       "args": ["mcp"],
       "env": {
-        "REVIEWMIND_BACKEND": "anthropic",
+        "PRTHINKER_BACKEND": "anthropic",
         "ANTHROPIC_API_KEY": "sk-ant-...",
-        "REVIEWMIND_ANTHROPIC_MODEL": "claude-sonnet-4-6",
-        "REVIEWMIND_CACHE_ENABLED": "true",
-        "REVIEWMIND_TELEMETRY_ENABLED": "true"
+        "PRTHINKER_ANTHROPIC_MODEL": "claude-sonnet-4-6",
+        "PRTHINKER_CACHE_ENABLED": "true",
+        "PRTHINKER_TELEMETRY_ENABLED": "true"
       }
     }
   }
@@ -187,7 +187,7 @@ pip install -e ".[mcp]"
 
 重启 Claude Desktop。在 chat：
 
-> Run reviewmind on `$(git diff --cached)`
+> Run prthinker on `$(git diff --cached)`
 
 LLM 调用 `review_diff` MCP tool、secret 在送 API 前被 redact 掉、
 markdown review 流式回 chat。
@@ -210,8 +210,8 @@ config 文件路径。
 ```bash
 pip install -e ".[server]"
 
-export REVIEWMIND_DISMISSED_PATH=./store/dismissed.jsonl
-export REVIEWMIND_ACCEPTED_PATH=./store/accepted.jsonl
+export PRTHINKER_DISMISSED_PATH=./store/dismissed.jsonl
+export PRTHINKER_ACCEPTED_PATH=./store/accepted.jsonl
 uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
 ```
 
@@ -223,7 +223,7 @@ curl https://my-host:8000/healthz   # → {"status": "ok", "model": "..."}
 
 **Repo 内：**
 
-`.reviewmind.yaml`\ ：
+`.prthinker.yaml`\ ：
 
 ```yaml
 backend: remote
@@ -245,8 +245,8 @@ Repo secret：
 
 | Secret | 值 |
 |---|---|
-| `REVIEWMIND_BACKEND_URL` | `https://my-host:8000` |
-| `REVIEWMIND_BACKEND_API_KEY` | （可选）reverse proxy 的 bearer token |
+| `PRTHINKER_BACKEND_URL` | `https://my-host:8000` |
+| `PRTHINKER_BACKEND_API_KEY` | （可选）reverse proxy 的 bearer token |
 
 推 PR。Runner 保持薄（只有 httpx + pydantic）；GPU、FAISS index、
 dismissed/accepted store 都在 server。
@@ -268,15 +268,15 @@ python -m codes.train.qwen3-coder-30b
 python -m codes.run.cot     # 在 cwd 为每个文件产一个目录
 
 # 3. 查 telemetry 对比各次跑的成本/延迟
-reviewmind stats --since-days 7
+prthinker stats --since-days 7
 ```
 
-`codes/run/CoT_Prompts/` 是 prompt templates；reviewmind 重用它们作为
+`codes/run/CoT_Prompts/` 是 prompt templates；prthinker 重用它们作为
 single source of truth。改 prompt → content hash 变 → cache 自动失效。
 
 ---
 
-## `.reviewmind.yaml` repo 配置
+## `.prthinker.yaml` repo 配置
 
 完整 schema 放在 repo 根目录。每个 key 都可省略，默认值都合理。
 
@@ -306,16 +306,16 @@ ci_signals:
 
 cache:
   enabled: true
-  path: .reviewmind/cache.sqlite
+  path: .prthinker/cache.sqlite
   ttl_days: 7
 
 telemetry:
   enabled: true
-  path: .reviewmind/telemetry.sqlite
+  path: .prthinker/telemetry.sqlite
 
 stores:
-  dismissed: .reviewmind/dismissed.jsonl
-  accepted:  .reviewmind/accepted.jsonl
+  dismissed: .prthinker/dismissed.jsonl
+  accepted:  .prthinker/accepted.jsonl
 
 local:
   model: Qwen/Qwen3-Coder-30B-A3B-Instruct
@@ -340,7 +340,7 @@ remote:
 
 ### 优先级
 
-`CLI flag` ≻ `env var` ≻ `.reviewmind.yaml` ≻ `包默认`
+`CLI flag` ≻ `env var` ≻ `.prthinker.yaml` ≻ `包默认`
 
 所以 workflow 内的 flag 盖过 YAML、YAML 又盖过包默认。
 
@@ -352,9 +352,9 @@ remote:
 
 | Backend | 必需 secret |
 |---|---|
-| `remote` | `REVIEWMIND_BACKEND_URL`\ 、可选 `REVIEWMIND_BACKEND_API_KEY` |
-| `openai` | `OPENAI_API_KEY`\ （或 `REVIEWMIND_OPENAI_API_KEY`\ ） |
-| `anthropic` | `ANTHROPIC_API_KEY`\ （或 `REVIEWMIND_ANTHROPIC_API_KEY`\ ） |
+| `remote` | `PRTHINKER_BACKEND_URL`\ 、可选 `PRTHINKER_BACKEND_API_KEY` |
+| `openai` | `OPENAI_API_KEY`\ （或 `PRTHINKER_OPENAI_API_KEY`\ ） |
+| `anthropic` | `ANTHROPIC_API_KEY`\ （或 `PRTHINKER_ANTHROPIC_API_KEY`\ ） |
 | `local` | 无──但需要 self-hosted GPU runner |
 
 `GITHUB_TOKEN` 是 GitHub Actions 自动提供的，不用设。
@@ -363,8 +363,8 @@ remote:
 
 ## GitHub Actions workflow
 
-内附的 `.github/workflows/reviewmind.yml` 已涵盖一般情况。定制请改
-`env:` block──每个 CLI flag 都有对应的 `REVIEWMIND_*` env var。完整列表
+内附的 `.github/workflows/prthinker.yml` 已涵盖一般情况。定制请改
+`env:` block──每个 CLI flag 都有对应的 `PRTHINKER_*` env var。完整列表
 见 [`features.zh-CN.md`](features.zh-CN.md)。
 
 **必要 permissions：**
@@ -391,13 +391,13 @@ on:
 
 ## Branch protection
 
-让 reviewmind 真的能挡 error 严重度的 finding：
+让 prthinker 真的能挡 error 严重度的 finding：
 
-1. 跑至少一次 `REVIEWMIND_GATE_ON=error` 的 PR，让 `reviewmind` 这个
+1. 跑至少一次 `PRTHINKER_GATE_ON=error` 的 PR，让 `prthinker` 这个
    Check Run 出现在 PR 的 Checks 标签页。
 2. **Settings → Branches → branch protection rule**\ ，选默认 branch。
 3. 启用 **Require status checks to pass before merging**\ ，把
-   `reviewmind` 加进列表。
+   `prthinker` 加进列表。
 
 之后，PR 只要有 error 严重度的 finding 就无法合并，直到作者处理（或
 maintainer 强制覆盖）。
@@ -410,23 +410,23 @@ maintainer 强制覆盖）。
 
 ```bash
 # 作者按 👎 或回「false positive」的评论
-reviewmind harvest-dismissed \
+prthinker harvest-dismissed \
     --repo owner/name \
     --max-prs 100 \
-    --out .reviewmind/dismissed.jsonl
+    --out .prthinker/dismissed.jsonl
 
 # 含「Apply suggestion」commit 的 PR
-reviewmind harvest-accepted \
+prthinker harvest-accepted \
     --repo owner/name \
     --max-prs 100 \
-    --out .reviewmind/accepted.jsonl
+    --out .prthinker/accepted.jsonl
 ```
 
 服务器端指过去：
 
 ```bash
-export REVIEWMIND_DISMISSED_PATH=.reviewmind/dismissed.jsonl
-export REVIEWMIND_ACCEPTED_PATH=.reviewmind/accepted.jsonl
+export PRTHINKER_DISMISSED_PATH=.prthinker/dismissed.jsonl
+export PRTHINKER_ACCEPTED_PATH=.prthinker/accepted.jsonl
 uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
 ```
 
@@ -438,19 +438,19 @@ uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
 ## Cache 与 telemetry 首次运行
 
 ```bash
-reviewmind review-file my-change.diff \
+prthinker review-file my-change.diff \
     --backend anthropic --anthropic-api-key "$ANTHROPIC_API_KEY" \
     --cache --telemetry
 ```
 
-两份 SQLite 会生在 `.reviewmind/` 下。请加进 `.gitignore`\ ──它们是
+两份 SQLite 会生在 `.prthinker/` 下。请加进 `.gitignore`\ ──它们是
 runtime state、不是 config：
 
 ```gitignore
-.reviewmind/cache.sqlite
-.reviewmind/cache.sqlite-*
-.reviewmind/telemetry.sqlite
-.reviewmind/telemetry.sqlite-*
+.prthinker/cache.sqlite
+.prthinker/cache.sqlite-*
+.prthinker/telemetry.sqlite
+.prthinker/telemetry.sqlite-*
 ```
 
 （\ `dismissed.jsonl` / `accepted.jsonl` 反过来：是学到的判断，**应该**
@@ -459,7 +459,7 @@ commit。）
 跑几次后查看：
 
 ```bash
-reviewmind stats --since-days 7
+prthinker stats --since-days 7
 ```
 
 ---
@@ -473,16 +473,16 @@ reviewmind stats --since-days 7
 
 | Flag                  | 环境变量                         | 默认 | 额外成本             |
 | --------------------- | -------------------------------- | ---- | -------------------- |
-| `--reply-to-author`   | `REVIEWMIND_REPLY_TO_AUTHOR`     | 关闭 | 一次平台 API 调用    |
-| `--counterfactual`    | `REVIEWMIND_COUNTERFACTUAL`      | 关闭 | 每文件多一次 backend |
-| `--provenance`        | `REVIEWMIND_PROVENANCE`          | 关闭 | prompt + 输出变大    |
-| `--judge`             | `REVIEWMIND_JUDGE`               | 关闭 | 每文件多一次 backend |
-| `--self-correct`      | `REVIEWMIND_SELF_CORRECT`        | 关闭 | 每文件多一次 backend |
+| `--reply-to-author`   | `PRTHINKER_REPLY_TO_AUTHOR`     | 关闭 | 一次平台 API 调用    |
+| `--counterfactual`    | `PRTHINKER_COUNTERFACTUAL`      | 关闭 | 每文件多一次 backend |
+| `--provenance`        | `PRTHINKER_PROVENANCE`          | 关闭 | prompt + 输出变大    |
+| `--judge`             | `PRTHINKER_JUDGE`               | 关闭 | 每文件多一次 backend |
+| `--self-correct`      | `PRTHINKER_SELF_CORRECT`        | 关闭 | 每文件多一次 backend |
 
 ### 闭环多轮对话──`--reply-to-author`
 
 **做什么。** 在产生下一轮审查之前\ ，通过
-`PlatformAdapter.fetch_author_replies()` 取回 PR 作者对上次 reviewmind
+`PlatformAdapter.fetch_author_replies()` 取回 PR 作者对上次 prthinker
 摘要评论之回复\ ，渲染成\ *Prior dialogue*\ 区块\ ，注入 inline-findings
 prompt\ 。模型被要求对作者已回复过的评论\ 「\ 舍弃\ 」、「\ 精炼\ 」或
 「\ 反驳\ 」\ ，但绝不静默重贴\ 。
@@ -493,11 +493,11 @@ prompt\ 。模型被要求对作者已回复过的评论\ 「\ 舍弃\ 」、「
 **怎么开启。**
 
 ```bash
-reviewmind review-pr --repo o/r --pr-number 42 \
+prthinker review-pr --repo o/r --pr-number 42 \
     --per-file --inline-review --reply-to-author
 ```
 
-或于 `.reviewmind.yaml`：
+或于 `.prthinker.yaml`：
 
 ```yaml
 reply_to_author: true
@@ -519,11 +519,11 @@ reply_to_author: true
 **怎么开启。**
 
 ```bash
-reviewmind review-pr --repo o/r --pr-number 42 \
+prthinker review-pr --repo o/r --pr-number 42 \
     --per-file --inline-review --counterfactual
 ```
 
-或于 `.reviewmind.yaml`：
+或于 `.prthinker.yaml`：
 
 ```yaml
 counterfactual: true
@@ -546,11 +546,11 @@ RAG 规则 / accepted-example / diff 行号\ ，并可选自评信心值
 **怎么开启。**
 
 ```bash
-reviewmind review-pr --repo o/r --pr-number 42 \
+prthinker review-pr --repo o/r --pr-number 42 \
     --per-file --inline-review --provenance
 ```
 
-或于 `.reviewmind.yaml`：
+或于 `.prthinker.yaml`：
 
 ```yaml
 provenance: true
@@ -564,7 +564,7 @@ provenance: true
   模型无法虚构引用\ 。
 - `confidence` 只供人类参考\ ，**绝不**\ 被用来静默过滤 finding\ 。
 
-### 对抗鲁棒性──`reviewmind adversarial-eval`
+### 对抗鲁棒性──`prthinker adversarial-eval`
 
 **做什么。** 将 prompt-injection 语料送入当前 backend\ ，把每笔调用
 之结果（bypass / detected / 命中 markers / 原始输出）写入 SQLite\ 。
@@ -580,16 +580,16 @@ benchmark —— 它是涵盖四种攻击类型（`direct_injection`、
 **怎么跑。**
 
 ```bash
-reviewmind adversarial-eval \
-    --corpus reviewmind/adversarial_corpus/seed.jsonl \
-    --outcomes-path .reviewmind/adversarial.sqlite \
+prthinker adversarial-eval \
+    --corpus prthinker/adversarial_corpus/seed.jsonl \
+    --outcomes-path .prthinker/adversarial.sqlite \
     --backend openai --openai-model gpt-4o-mini
 ```
 
 **检视结果。** 用 SQL 即可：
 
 ```bash
-sqlite3 .reviewmind/adversarial.sqlite \
+sqlite3 .prthinker/adversarial.sqlite \
   "SELECT category, COUNT(*), SUM(bypassed), SUM(detected)
      FROM outcomes
     GROUP BY category;"
@@ -600,7 +600,7 @@ sqlite3 .reviewmind/adversarial.sqlite \
 研究级单 PR 跑法：
 
 ```bash
-reviewmind review-pr --repo o/r --pr-number 42 \
+prthinker review-pr --repo o/r --pr-number 42 \
     --per-file --inline-review \
     --reply-to-author --counterfactual --provenance \
     --judge --self-correct \
@@ -609,7 +609,7 @@ reviewmind review-pr --repo o/r --pr-number 42 \
 ```
 
 预期约为素 review 的 4–6× token 预算\ 。搭配
-`--cache --cache-path .reviewmind/cache.sqlite` 可在同 PR 多次迭代
+`--cache --cache-path .prthinker/cache.sqlite` 可在同 PR 多次迭代
 时摊平成本\ 。
 
 ---
@@ -640,7 +640,7 @@ py -m sphinx -b html docs docs/_build/html
 ### Windows 上 `bitsandbytes` import 失败
 
 bitsandbytes 官方只出 Linux wheel；Windows 请用上游
-`bitsandbytes-windows-webui` wheel，或直接在 WSL2 内跑 reviewmind。或者
+`bitsandbytes-windows-webui` wheel，或直接在 WSL2 内跑 prthinker。或者
 完全跳过量化（local config 内 `quantization: false`\ ）──VRAM 用量会
 飙，但不需要 bitsandbytes。
 
@@ -655,7 +655,7 @@ local:
   lora_path: ../train/outputs-lora-qwen2.5-coder-7b
 ```
 
-### 「REVIEWMIND_BACKEND_URL secret is not configured」
+### 「PRTHINKER_BACKEND_URL secret is not configured」
 
 Workflow 启动检查失败，因为 secret 没设。Settings → Secrets and variables
 → Actions 补上。
@@ -665,7 +665,7 @@ Workflow 启动检查失败，因为 secret 没设。Settings → Secrets and va
 Qwen3-Embedding-4B 约 8 GB VRAM。默认 GitHub-hosted runner 加载不动。
 依优先级：
 
-1. `.reviewmind.yaml` 内设 `rag.remote: true`\ ──runner 改打 server 的
+1. `.prthinker.yaml` 内设 `rag.remote: true`\ ──runner 改打 server 的
    `/rag` endpoint，不在本地加载 FAISS。
 2. `rag.enabled: false`\ ──整个关掉 RAG。会失去全局规则，但能在最小硬件
    上跑。
@@ -676,10 +676,10 @@ Qwen3-Embedding-4B 约 8 GB VRAM。默认 GitHub-hosted runner 加载不动。
 （永不过期）。手动 prune：
 
 ```bash
-sqlite3 .reviewmind/cache.sqlite "DELETE FROM prompt_cache WHERE created_at < strftime('%s','now','-7 days');"
+sqlite3 .prthinker/cache.sqlite "DELETE FROM prompt_cache WHERE created_at < strftime('%s','now','-7 days');"
 ```
 
-### `reviewmind mcp` 报「The `mcp` package is not installed」
+### `prthinker mcp` 报「The `mcp` package is not installed」
 
 装了 runner profile 但没装 MCP extras：
 

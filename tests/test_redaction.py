@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from reviewmind.redaction import has_secrets, redact
+from prthinker.redaction import has_secrets, redact
 
 
 # ----- positive cases (must redact) --------------------------------------

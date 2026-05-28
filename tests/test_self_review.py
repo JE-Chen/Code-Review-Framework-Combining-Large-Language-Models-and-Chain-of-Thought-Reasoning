@@ -9,8 +9,8 @@ ignore.
 from __future__ import annotations
 
 
-from reviewmind.schemas import InlineFinding
-from reviewmind.self_review import (
+from prthinker.schemas import InlineFinding
+from prthinker.self_review import (
     apply_self_review,
     parse_drop_indices,
     render_findings_block,

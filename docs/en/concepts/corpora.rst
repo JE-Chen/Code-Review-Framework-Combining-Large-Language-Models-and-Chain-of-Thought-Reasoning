@@ -63,17 +63,17 @@ Harvesting
 .. code-block:: bash
 
    # Pulls 👎 reactions and dismissal-keyword replies
-   reviewmind harvest-dismissed \
+   prthinker harvest-dismissed \
        --repo owner/name \
        --max-prs 100 \
-       --out .reviewmind/dismissed.jsonl
+       --out .prthinker/dismissed.jsonl
 
    # Scans PRs containing "Apply suggestion" commits, keeps any
    # review comment that includes a ```suggestion``` block on those PRs
-   reviewmind harvest-accepted \
+   prthinker harvest-accepted \
        --repo owner/name \
        --max-prs 100 \
-       --out .reviewmind/accepted.jsonl
+       --out .prthinker/accepted.jsonl
 
 The dismissal keyword list is hard-coded for now (mix of English and
 Chinese): *false positive, wontfix, not relevant, ignore this,
@@ -99,7 +99,7 @@ similarity. The finding is dropped when:
    \max_{e \in \text{store}} \langle \mathrm{emb}(f.\text{comment}),
    \mathrm{emb}(e.\text{comment}) \rangle \geq \tau
 
-Default ``τ = 0.85``. Override via ``REVIEWMIND_DISMISSED_THRESHOLD``.
+Default ``τ = 0.85``. Override via ``PRTHINKER_DISMISSED_THRESHOLD``.
 
 Top-K exemplars (accepted)
 --------------------------
@@ -110,8 +110,8 @@ selected examples are rendered into the ``inline_findings`` prompt as a
 ``## Examples of past advice that was accepted in this repo`` block,
 positioned before the diff itself.
 
-Defaults: ``K = 3``, ``τ = 0.6``. Override via ``REVIEWMIND_ACCEPTED_TOP_K``,
-``REVIEWMIND_ACCEPTED_THRESHOLD``.
+Defaults: ``K = 3``, ``τ = 0.6``. Override via ``PRTHINKER_ACCEPTED_TOP_K``,
+``PRTHINKER_ACCEPTED_THRESHOLD``.
 
 Cold-start
 ----------

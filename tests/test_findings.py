@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 
-from reviewmind.findings import parse_inline_findings
+from prthinker.findings import parse_inline_findings
 
 
 def test_empty_array_returns_no_findings() -> None:

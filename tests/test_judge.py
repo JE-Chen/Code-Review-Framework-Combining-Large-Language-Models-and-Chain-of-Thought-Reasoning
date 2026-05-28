@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from reviewmind.judge import aggregate, parse_verdict, to_github_event
-from reviewmind.schemas import JudgeVerdict
+from prthinker.judge import aggregate, parse_verdict, to_github_event
+from prthinker.schemas import JudgeVerdict
 
 
 def test_parse_clean_json() -> None:

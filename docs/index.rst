@@ -1,4 +1,4 @@
-reviewmind
+prthinker
 ==========
 
 This documentation set is published in three languages. Each language is

@@ -1,0 +1,88 @@
+name: PRThinker
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  actions: read
+
+concurrency:
+  group: prthinker-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  prthinker:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.pull_request.draft == false }}
+    timeout-minutes: 30
+    steps:
+      - name: Check out PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install runner dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[runner]"
+
+      - name: Run PRThinker
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PRTHINKER_PR_NUMBER: ${{ github.event.pull_request.number }}
+
+          # ----- Backend selection -----------------------------------------
+          # `remote` is the project's own FastAPI inference server. Swap to
+          # `openai` to drive any OpenAI-Chat-Completions endpoint (OpenAI,
+          # Azure, vLLM, Ollama /v1, LM Studio, Together, Groq, …), or to
+          # `anthropic` for Claude. See docs/guide/configuration.rst.
+          PRTHINKER_BACKEND: remote
+          PRTHINKER_REMOTE_URL: ${{ secrets.PRTHINKER_BACKEND_URL }}
+          PRTHINKER_REMOTE_API_KEY: ${{ secrets.PRTHINKER_BACKEND_API_KEY }}
+          PRTHINKER_USE_REMOTE_PIPELINE: "true"
+
+          # For --backend openai (uncomment + set secrets):
+          # PRTHINKER_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # PRTHINKER_OPENAI_MODEL: gpt-4o-mini
+          # PRTHINKER_OPENAI_BASE_URL: https://api.openai.com/v1
+
+          # For --backend anthropic (uncomment + set secrets):
+          # PRTHINKER_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # PRTHINKER_ANTHROPIC_MODEL: claude-sonnet-4-6
+
+          PRTHINKER_PER_FILE: "true"
+          PRTHINKER_INLINE_REVIEW: "true"
+          PRTHINKER_MAX_FINDINGS_PER_FILE: "10"
+
+          PRTHINKER_RAG_ENABLED: "true"
+          PRTHINKER_REMOTE_RAG: "true"
+
+          # Pre-merge gate. Set to "warning" to also fail on warnings, or
+          # "none" to disable gating entirely (advisory mode).
+          PRTHINKER_GATE_ON: "error"
+
+          # Pull failed-job tail logs from the PR head into the prompt.
+          PRTHINKER_INCLUDE_CI_SIGNALS: "true"
+
+          # Optional per-repo coding standards: ./team-rules/*.md
+          # PRTHINKER_RULES_DIR: ./team-rules
+        run: |
+          if [ "$PRTHINKER_BACKEND" = "remote" ] && [ -z "$PRTHINKER_REMOTE_URL" ]; then
+            echo "::error::PRTHINKER_BACKEND_URL secret is not configured."
+            echo "Set it in repo Settings → Secrets → Actions to point at your"
+            echo "FastAPI inference server (e.g. https://my-host:8000)."
+            exit 1
+          fi
+          python -m prthinker review-pr
