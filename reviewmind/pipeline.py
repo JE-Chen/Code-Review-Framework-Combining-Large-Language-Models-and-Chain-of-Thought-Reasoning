@@ -16,7 +16,14 @@ from pathlib import Path
 
 from reviewmind.accepted import AcceptedExamplesRetriever, format_examples_block
 from reviewmind.backends.base import InferenceBackend
-from reviewmind import api_consistency, dep_upgrade, pr_classifier
+from reviewmind import (
+    api_consistency,
+    dep_upgrade,
+    diff_entropy,
+    personas,
+    pr_classifier,
+    risk_score,
+)
 from reviewmind.counterfactual import parse_counterfactuals
 from reviewmind.diff import FileDiff, parse_unified_diff
 from reviewmind.dismissed import DismissedFilter
@@ -29,8 +36,11 @@ from reviewmind.schemas import (
     ApiDriftFinding,
     CounterfactualBlock,
     DependencyUpgradeFinding,
+    DiffEntropySummary,
     InlineFinding,
     JudgeVerdict,
+    PersonaConflict,
+    PersonaReview,
     PRClassification,
 )
 from reviewmind.self_review import (
@@ -61,6 +71,9 @@ class ReviewResult:
     api_drift: list[ApiDriftFinding] = field(default_factory=list)
     pr_classification: PRClassification | None = None
     dep_upgrades: list[DependencyUpgradeFinding] = field(default_factory=list)
+    persona_reviews: list[PersonaReview] = field(default_factory=list)
+    persona_conflicts: list[PersonaConflict] = field(default_factory=list)
+    diff_entropy: DiffEntropySummary | None = None
 
     @property
     def total_summary(self) -> str | None:
@@ -190,6 +203,10 @@ class CoTPipeline:
         pr_body: str = "",
         reproducibility_check: bool = False,
         dep_upgrade_check: bool = False,
+        persona_set: tuple[str, ...] = (),
+        risk_weighted: bool = False,
+        risk_workdir: Path | None = None,
+        diff_entropy_check: bool = False,
     ) -> ReviewResult:
         """Run the full step sequence once per file in the diff.
 
@@ -251,6 +268,35 @@ class CoTPipeline:
             extra += (JudgeStep,)
         all_steps = self._step_classes + extra
 
+        entropy_summary: DiffEntropySummary | None = None
+        if diff_entropy_check:
+            e = diff_entropy.compute_entropy(file_diffs)
+            entropy_summary = DiffEntropySummary(
+                file_count=e.file_count,
+                added_lines=e.added_lines,
+                removed_lines=e.removed_lines,
+                dispersion_entropy=e.dispersion_entropy,
+                score=e.score,
+                verdict=e.verdict,
+            )
+            log.info(
+                "diff_entropy: %d file(s) +%d/-%d score=%.2f verdict=%s",
+                e.file_count, e.added_lines, e.removed_lines,
+                e.score, e.verdict,
+            )
+
+        risk_by_path: dict[str, risk_score.RiskScore] = {}
+        if risk_weighted and risk_workdir is not None:
+            paths = [fd.path for fd in file_diffs if not fd.is_binary and not fd.is_deleted]
+            scores = risk_score.compute_risk_scores(paths, workdir=risk_workdir)
+            risk_by_path = {s.path: s for s in scores}
+            log.info(
+                "risk_score: computed for %d file(s); top: %s",
+                len(scores),
+                [(s.path, round(s.score, 2))
+                 for s in sorted(scores, key=lambda x: -x.score)[:3]],
+            )
+
         per_file_results: list[FileReviewResult] = []
         aggregated_findings: list[InlineFinding] = []
         aggregated_counterfactuals: list[CounterfactualBlock] = []
@@ -293,10 +339,20 @@ class CoTPipeline:
             file_out_dir = (
                 output_dir / _sanitize(fd.path) if output_dir else None
             )
+            effective_max = max_findings_per_file
+            if fd.path in risk_by_path:
+                effective_max = risk_score.budget_for_file(
+                    risk_by_path[fd.path].score,
+                    base_budget=max_findings_per_file,
+                )
+                log.debug(
+                    "risk_score: %s score=%.2f budget=%d",
+                    fd.path, risk_by_path[fd.path].score, effective_max,
+                )
             file_result = self._run_one_file(
                 fd,
                 all_steps,
-                max_findings_per_file=max_findings_per_file,
+                max_findings_per_file=effective_max,
                 output_dir=file_out_dir,
                 self_correct=self_correct,
                 dialogue_block=dialogue_block,
@@ -341,6 +397,32 @@ class CoTPipeline:
                 aggregated_steps[key] = raw
                 dep_upgrades.extend(dep_upgrade.parse_impact(raw, upgrade=up))
 
+        persona_reviews: list[PersonaReview] = []
+        persona_conflicts: list[PersonaConflict] = []
+        if persona_set:
+            selected = self._resolve_personas(persona_set)
+            log.info("personas: running %s", [p.value for p in selected])
+            persona_outputs: dict[personas.Persona, str] = {}
+            for p in selected:
+                parts = personas.build_persona_prompt(p, diff_text=diff_text)
+                raw = self._backend.generate(
+                    parts.prompt, max_new_tokens=self._max_new_tokens,
+                )
+                persona_outputs[p] = raw
+                aggregated_steps[f"persona::{p.value}"] = raw
+                persona_reviews.append(
+                    PersonaReview(persona=p.value, output=raw)
+                )
+            if len(selected) >= 2:
+                conflict_prompt = personas.build_conflict_prompt(persona_outputs)
+                conflict_raw = self._backend.generate(
+                    conflict_prompt, max_new_tokens=self._max_new_tokens,
+                )
+                aggregated_steps["persona::conflicts"] = conflict_raw
+                persona_conflicts = personas.parse_conflicts(
+                    conflict_raw, valid_personas=set(selected),
+                )
+
         api_drift: list[ApiDriftFinding] = []
         if api_consistency_check and api_consistency.is_mixed_language(file_diffs):
             log.info("Mixed-language PR detected → running api-consistency step")
@@ -362,6 +444,9 @@ class CoTPipeline:
             api_drift=api_drift,
             pr_classification=classification,
             dep_upgrades=dep_upgrades,
+            persona_reviews=persona_reviews,
+            persona_conflicts=persona_conflicts,
+            diff_entropy=entropy_summary,
         )
 
     # ---------- internals ---------------------------------------------------
@@ -459,6 +544,30 @@ class CoTPipeline:
             is_deleted=fd.is_deleted,
             counterfactuals=counterfactuals,
         )
+
+    def _resolve_personas(
+        self, persona_set: tuple[str, ...],
+    ) -> list["personas.Persona"]:
+        """Translate user-supplied persona names into the enum.
+
+        ``("all",)`` expands to every persona; unknown names raise
+        ``ValueError`` so a typo doesn't silently cost a backend call.
+        """
+        if not persona_set:
+            return []
+        if len(persona_set) == 1 and persona_set[0].lower() == "all":
+            return list(personas.Persona)
+        by_value = {p.value: p for p in personas.Persona}
+        out: list[personas.Persona] = []
+        for raw in persona_set:
+            key = raw.strip().lower()
+            if key not in by_value:
+                raise ValueError(
+                    f"Unknown persona {raw!r}. "
+                    f"Known: {sorted(by_value)}"
+                )
+            out.append(by_value[key])
+        return out
 
     def _verify_suggestions(
         self,

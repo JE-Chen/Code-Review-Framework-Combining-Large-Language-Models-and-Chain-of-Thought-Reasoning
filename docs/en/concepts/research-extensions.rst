@@ -345,10 +345,97 @@ its training data and the diff itself. Future work could plug in a
 cached changelog source.
 
 
+Reviewer personas with conflict surfacing (``--personas``)
+----------------------------------------------------------
+
+Existing ensemble reviewers usually run N copies of the same lens and
+average their findings. ``--personas`` runs N *orthogonal* lenses
+(``security``, ``performance``, ``readability``, ``api_stability``,
+``maintainability`` — or ``all``) in series; each persona's prompt
+explicitly tells the model NOT to comment outside its lens. After all
+personas have spoken, a conflict-finder step asks where the personas
+*disagree* (security says X but readability says ¬X) — surfacing the
+tensions a human reviewer must actually resolve rather than averaging
+them away.
+
+.. code-block:: bash
+
+   reviewmind review-pr --pr 42 --personas security,performance,readability
+   reviewmind review-pr --pr 42 --personas all
+
+The PR comment gains a *Persona conflicts* table near the top listing
+the lenses that disagree, the tension in one sentence, and a
+resolution-framing column that intentionally does NOT pick a winner.
+Cost: one backend call per persona + one for the conflict step.
+
+
+Risk-weighted attention (``--risk-weighted``)
+---------------------------------------------
+
+Most reviewers treat every file in a diff equally. In practice the
+file that breaks production usually has three properties: it has been
+churned a lot recently, it is large / complex, and it has appeared in
+many past bug-fix commits. ``--risk-weighted`` computes a per-file
+risk score:
+
+* **churn** — number of commits touching the file in the lookback
+  window (default 90 days), via ``git log``.
+* **complexity proxy** — total line count at HEAD (no radon import in
+  the runner profile; the actual cyclomatic value can be plugged in
+  later).
+* **bug history** — count of commits whose message matches
+  ``fix:`` / ``bug`` / ``revert`` (case-insensitive).
+
+The three components are normalised across the files in the PR and
+combined with documented default weights (0.4 / 0.3 / 0.3); each
+file's ``max_findings_per_file`` budget is then scaled linearly
+between ``floor`` (default 2) and ``ceiling`` (default ``2 *
+base_budget``).
+
+.. code-block:: bash
+
+   reviewmind review-pr --pr 42 \
+       --inline-review --risk-weighted \
+       --risk-workdir /path/to/repo
+
+Setup notes:
+
+* GHA's default ``actions/checkout`` shallow-clones with
+  ``fetch-depth: 1``. Set ``fetch-depth: 0`` in the workflow so the
+  lookback window has commits to count.
+* The default weights are framework conventions, not a calibrated
+  formula — tune per repo before publishing any number.
+
+
+Diff entropy / "diff bomb" detector (``--diff-entropy``)
+--------------------------------------------------------
+
+The PR most likely to slip a bug past human review is the 60-file
+mixed-purpose diff: reviewers eyes glaze over and the model loses the
+thread. ``--diff-entropy`` makes the PR's *shape* a first-class review
+signal:
+
+* **size** — file count + total added / removed lines.
+* **dispersion** — Shannon entropy of the top-level-directory
+  distribution. One feature directory ⇒ low; ten unrelated
+  directories ⇒ high.
+* **verdict** — one of ``focused`` / ``wide`` / ``bomb`` based on
+  configurable thresholds.
+
+When the verdict is ``bomb``, the consolidated PR comment opens with
+a "**Consider splitting this PR**" warning. The framework does not
+block on a high score — the point is to make the shape visible so
+human reviewers can decide whether to merge or split.
+
+.. code-block:: bash
+
+   reviewmind review-pr --pr 42 --diff-entropy
+
+
 Status
 ------
 
-All nine mechanisms ship as framework code, unit tests, and prompt
+All twelve mechanisms ship as framework code, unit tests, and prompt
 templates. Per ``paper_rule.md`` the project intentionally publishes
 no benchmark numbers here; the corpora and outcome stores exist so
 that measurements can be taken honestly when they are taken.

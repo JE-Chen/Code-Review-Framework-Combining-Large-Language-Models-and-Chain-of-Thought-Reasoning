@@ -344,6 +344,44 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     common.add_argument(
+        "--personas",
+        default=env_str("REVIEWMIND_PERSONAS", ""),
+        help=(
+            "Comma-separated list of review personas to run against "
+            "the diff (security, performance, readability, api_stability, "
+            "maintainability) — or 'all' for every persona. After the "
+            "per-persona passes a conflict-finder step surfaces "
+            "disagreements between them. Empty (default) disables."
+        ),
+    )
+    common.add_argument(
+        "--risk-weighted",
+        action="store_true",
+        default=env_bool("REVIEWMIND_RISK_WEIGHTED", False),
+        help=(
+            "Compute a per-file risk score (churn + complexity + bug "
+            "history over the last 90 days) and scale the inline "
+            "findings budget proportional to the score. Requires a git "
+            "working directory."
+        ),
+    )
+    common.add_argument(
+        "--risk-workdir",
+        type=Path,
+        default=Path(env_str("REVIEWMIND_RISK_WORKDIR") or "."),
+        help="Git working directory used to compute risk scores (default: cwd).",
+    )
+    common.add_argument(
+        "--diff-entropy",
+        action="store_true",
+        default=env_bool("REVIEWMIND_DIFF_ENTROPY", False),
+        help=(
+            "Compute the diff's size + dispersion entropy and surface a "
+            "'split this PR' warning at the top of the comment when the "
+            "score crosses the 'bomb' threshold."
+        ),
+    )
+    common.add_argument(
         "--rules-dir",
         type=Path,
         default=Path(env_str("REVIEWMIND_RULES_DIR") or "") if env_str("REVIEWMIND_RULES_DIR") else None,
@@ -899,6 +937,13 @@ def _review_via_pipeline(
                 pr_body=getattr(args, "pr_body", "") or "",
                 reproducibility_check=bool(getattr(args, "reproducibility_check", False)),
                 dep_upgrade_check=bool(getattr(args, "dep_upgrade_check", False)),
+                persona_set=tuple(
+                    s.strip() for s in (getattr(args, "personas", "") or "").split(",")
+                    if s.strip()
+                ),
+                risk_weighted=bool(getattr(args, "risk_weighted", False)),
+                risk_workdir=getattr(args, "risk_workdir", None),
+                diff_entropy_check=bool(getattr(args, "diff_entropy", False)),
             )
         return pipeline.run(diff_text, output_dir=output_dir)
     finally:

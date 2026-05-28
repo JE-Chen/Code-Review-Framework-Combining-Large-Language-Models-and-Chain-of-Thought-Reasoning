@@ -88,6 +88,12 @@ def _format_per_file(result: ReviewResult, marker: str) -> str:
         parts.append(f"Posted **{total_findings}** inline finding(s).")
         parts.append("")
 
+    if result.diff_entropy is not None:
+        parts += _format_diff_entropy_block(result.diff_entropy)
+
+    if result.persona_conflicts:
+        parts += _format_persona_conflicts_block(result.persona_conflicts)
+
     if result.dep_upgrades:
         parts += _format_dep_upgrade_block(result.dep_upgrades)
 
@@ -98,6 +104,52 @@ def _format_per_file(result: ReviewResult, marker: str) -> str:
         parts += _format_file_block(fr)
 
     return "\n".join(parts).rstrip() + "\n"
+
+
+_ENTROPY_NOTE: dict[str, str] = {
+    "focused": "PR is focused; no concerns from the diff-shape side.",
+    "wide":    "PR is wide — touches many directories. Consider whether "
+               "it could be split for easier review.",
+    "bomb":    "**Consider splitting this PR.** It is large *and* spread "
+               "across many areas; reviews of diffs this shape tend to "
+               "miss issues regardless of the model used.",
+}
+
+
+def _format_diff_entropy_block(summary) -> list[str]:
+    """Render the diff-shape header."""
+    block: list[str] = [
+        "### Diff shape",
+        "",
+        "| Files | +Lines | -Lines | Score | Verdict |",
+        "| ---: | ---: | ---: | ---: | --- |",
+        f"| {summary.file_count} | {summary.added_lines} | "
+        f"{summary.removed_lines} | {summary.score:.2f} | "
+        f"`{summary.verdict}` |",
+        "",
+        _ENTROPY_NOTE.get(summary.verdict, ""),
+        "",
+    ]
+    return block
+
+
+def _format_persona_conflicts_block(conflicts: list) -> list[str]:
+    """Render the cross-persona tension table at the top of the PR
+    comment. Resolutions intentionally do NOT pick a winner.
+    """
+    block: list[str] = [
+        "### Persona conflicts (tensions to resolve)",
+        "",
+        "| Personas | Tension | Resolution framing |",
+        "| --- | --- | --- |",
+    ]
+    for c in conflicts:
+        personas = ", ".join(f"`{p}`" for p in c.personas)
+        summary = c.summary.replace("|", "\\|").strip()
+        resolution = (c.resolution or "").replace("|", "\\|").strip()
+        block.append(f"| {personas} | {summary} | {resolution} |")
+    block += ["", ""]
+    return block
 
 
 def _format_dep_upgrade_block(upgrades: list) -> list[str]:

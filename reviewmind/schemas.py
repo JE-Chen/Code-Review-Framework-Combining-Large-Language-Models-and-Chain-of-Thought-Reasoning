@@ -146,6 +146,48 @@ class JudgeVerdict(BaseModel):
     reasons: list[str] = Field(default_factory=list)
 
 
+class DiffEntropySummary(BaseModel):
+    """Diff-shape summary attached to the consolidated review.
+
+    Surfaces in the PR comment header when ``--diff-entropy`` is on.
+    The framework intentionally does not block on a high score; the
+    point is to make the PR's shape visible to human reviewers.
+    """
+
+    file_count: int = 0
+    added_lines: int = 0
+    removed_lines: int = 0
+    dispersion_entropy: float = 0.0
+    score: float = 0.0
+    verdict: str = "focused"
+
+
+class PersonaReview(BaseModel):
+    """One persona's raw review output.
+
+    Stored verbatim — no parsing — so a future analysis can mine the
+    per-persona text directly. The conflict-finder step works off
+    these.
+    """
+
+    persona: str
+    output: str
+
+
+class PersonaConflict(BaseModel):
+    """One cross-persona tension surfaced by the conflict step.
+
+    ``personas`` lists the two-or-more lenses that disagree;
+    ``resolution`` is the suggested framing for the human reviewer's
+    decision — explicitly NOT a winner pick, since pick-a-winner would
+    defeat the point of surfacing the tension.
+    """
+
+    personas: list[str]
+    summary: str
+    resolution: str = ""
+
+
 class DependencyUpgradeFinding(BaseModel):
     """One finding from the dependency-upgrade impact step.
 
@@ -257,6 +299,9 @@ class ReviewResponse(BaseModel):
     api_drift: list[ApiDriftFinding] = Field(default_factory=list)
     pr_classification: PRClassification | None = None
     dep_upgrades: list[DependencyUpgradeFinding] = Field(default_factory=list)
+    persona_reviews: list[PersonaReview] = Field(default_factory=list)
+    persona_conflicts: list[PersonaConflict] = Field(default_factory=list)
+    diff_entropy: DiffEntropySummary | None = None
 
     def step_map(self) -> dict[str, str]:
         return {s.name: s.output for s in self.steps}
@@ -270,10 +315,13 @@ __all__ = [
     "CounterfactualBlock",
     "CounterfactualOption",
     "DependencyUpgradeFinding",
+    "DiffEntropySummary",
     "InlineFinding",
     "JudgeVerdict",
     "PRClassification",
     "PRTypeLiteral",
+    "PersonaConflict",
+    "PersonaReview",
     "Provenance",
     "ProvenanceCitation",
     "RagRequest",

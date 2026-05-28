@@ -298,9 +298,82 @@ package、版本 bump、一句摘要\ 。框架\ 不在 review-time 抓 remote c
 插入有快取的 changelog source\ 。
 
 
+多角色審查 + 衝突顯化（``--personas``）
+---------------------------------------------
+
+現有 ensemble reviewer 多半是同一個 lens 跑 N 次平均\ 。
+``--personas`` 跑正交的 N 個 lens（``security`` / ``performance``
+/ ``readability`` / ``api_stability`` / ``maintainability`` ── 或
+``all``）\ ；每個角色的 prompt 明確要求\ 「\ 不要評論本 lens 範圍外
+之事項\ 」\ 。所有角色發言後\ ，由 conflict-finder step 找出角色間
+之分歧（security 說 X、readability 說 ¬X）\ ──把人類審查者真正需要
+決策的張力顯化出來\ ，而不是把分歧平均掉\ 。
+
+.. code-block:: bash
+
+   reviewmind review-pr --pr 42 --personas security,performance,readability
+   reviewmind review-pr --pr 42 --personas all
+
+PR 留言頂端多出 Persona conflicts 表格\ ：哪些 lens 衝突、一句話
+描述張力、以及一欄 resolution framing（刻意不替你選邊）\ 。
+成本：每個角色一次 backend 呼叫 + conflict step 一次\ 。
+
+
+風險加權注意力（``--risk-weighted``）
+----------------------------------------
+
+多數審查器把每個檔案視同仁\ 。實務上會出大事的檔案通常三性質都有：
+近期 churn 高、檔案大 / 複雜、過去出現在許多 bug-fix commit\ 中\ 。
+``--risk-weighted`` 計算每檔風險分：
+
+* **churn**\ ── lookback window（預設 90 天）內觸碰該檔之 commit 數\ ，
+  從 ``git log`` 抓\ 。
+* **complexity proxy**\ ──HEAD 上該檔之行數（runner profile 不引入
+  radon\ ；真實 cyclomatic 可日後 plug-in）\ 。
+* **bug history**\ ──commit message 命中 ``fix:`` / ``bug`` /
+  ``revert``\ （case-insensitive）之數\ 。
+
+三項在 PR 內 normalise 後以預設權重（0.4 / 0.3 / 0.3）線性結合\ ；
+每檔之 ``max_findings_per_file`` budget 隨之線性縮放於
+``floor``（預設 2）到 ``ceiling``（預設 ``2 * base_budget``）之間\ 。
+
+.. code-block:: bash
+
+   reviewmind review-pr --pr 42 \
+       --inline-review --risk-weighted \
+       --risk-workdir /path/to/repo
+
+設置注意：
+
+* GHA 之 ``actions/checkout`` 預設是 shallow clone（``fetch-depth: 1``）\ 。
+  在 workflow 設 ``fetch-depth: 0``\ ，lookback window 才有 commit 可數\ 。
+* 預設權重是\ 框架慣例\ ，不是校準公式 ──發表任何數字之前\ ，請先 per-repo 調校\ 。
+
+
+Diff 熵 /「Diff bomb」偵測（``--diff-entropy``）
+---------------------------------------------------
+
+最容易讓 bug 滑過人類審查的\ ，是 60 檔混合用途的大 diff：人類眼神
+渙散\ 、模型也迷路\ 。``--diff-entropy``\ 把 PR 之\ *形狀*\ 提升為
+first-class review signal：
+
+* **size**\ ──檔案數 + 總 +/- 行數\ 。
+* **dispersion**\ ──top-level 目錄分布之 Shannon entropy\ 。一個
+  feature 目錄 ⇒ 低\ ；十個不相關目錄 ⇒ 高\ 。
+* **verdict**\ ── ``focused`` / ``wide`` / ``bomb`` 三類\ ，閾值可設\ 。
+
+verdict 為 ``bomb`` 時\ ，留言頂端會以\ 「\ **Consider splitting this PR**\ 」\
+警示開頭\ 。框架\ 不\ 因高分阻擋\ ──目的是把 PR 形狀顯化\ ，由人類
+決定該 merge 或拆\ 。
+
+.. code-block:: bash
+
+   reviewmind review-pr --pr 42 --diff-entropy
+
+
 狀態
 ----
 
-九個機制皆已交付為框架程式碼、單元測試與 prompt 樣板\ 。依
+十二個機制皆已交付為框架程式碼、單元測試與 prompt 樣板\ 。依
 ``paper_rule.md``\ ，本專案有意不在此頁提供 benchmark 數字；語料與
 outcome 儲存體均已就位\ ，量測之時\ ，將以可審計之方式為之\ 。
