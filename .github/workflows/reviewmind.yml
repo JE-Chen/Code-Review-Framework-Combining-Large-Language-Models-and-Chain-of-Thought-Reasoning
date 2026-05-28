@@ -79,10 +79,48 @@ jobs:
           # Optional per-repo coding standards: ./team-rules/*.md
           # REVIEWMIND_RULES_DIR: ./team-rules
         run: |
-          if [ "$REVIEWMIND_BACKEND" = "remote" ] && [ -z "$REVIEWMIND_REMOTE_URL" ]; then
-            echo "::error::REVIEWMIND_BACKEND_URL secret is not configured."
-            echo "Set it in repo Settings → Secrets → Actions to point at your"
-            echo "FastAPI inference server (e.g. https://my-host:8000)."
-            exit 1
+          # Preflight: if the remote backend is unreachable, skip the
+          # review gracefully — post a single upserted PR comment and
+          # exit 0 so the PR isn't blocked. The marker matches the one
+          # the reviewer would use, so a subsequent real run replaces
+          # this notice in place.
+          MARKER='<!-- reviewmind:summary -->'
+          SKIP_REASON=""
+
+          if [ "$REVIEWMIND_BACKEND" = "remote" ]; then
+            if [ -z "$REVIEWMIND_REMOTE_URL" ]; then
+              SKIP_REASON="REVIEWMIND_BACKEND_URL secret is not configured"
+            else
+              AUTH_HEADER=()
+              if [ -n "$REVIEWMIND_REMOTE_API_KEY" ]; then
+                AUTH_HEADER=(-H "Authorization: Bearer $REVIEWMIND_REMOTE_API_KEY")
+              fi
+              if ! curl -fsS --max-time 5 "${AUTH_HEADER[@]}" \
+                       "$REVIEWMIND_REMOTE_URL/healthz" > /dev/null; then
+                SKIP_REASON="backend $REVIEWMIND_REMOTE_URL unreachable from the GitHub Actions runner"
+              fi
+            fi
           fi
+
+          if [ -n "$SKIP_REASON" ]; then
+            echo "::warning::ReviewMind skipped — $SKIP_REASON"
+            BODY=$(printf '%s\n' \
+              "$MARKER" \
+              "" \
+              "## ReviewMind — skipped" \
+              "" \
+              "The automated review did not run on this push: **$SKIP_REASON**." \
+              "" \
+              "To enable reviews:" \
+              "" \
+              "- Point \`REVIEWMIND_BACKEND_URL\` at a reachable inference server, or" \
+              "- Switch \`REVIEWMIND_BACKEND\` in \`.github/workflows/reviewmind.yml\`" \
+              "  to \`openai\` / \`anthropic\` and configure the matching API key secret." \
+              "" \
+              "Re-pushing after the backend is reachable will overwrite this notice with a real review.")
+            gh pr comment "$REVIEWMIND_PR_NUMBER" --body "$BODY" --edit-last \
+              || gh pr comment "$REVIEWMIND_PR_NUMBER" --body "$BODY"
+            exit 0
+          fi
+
           python -m reviewmind review-pr
