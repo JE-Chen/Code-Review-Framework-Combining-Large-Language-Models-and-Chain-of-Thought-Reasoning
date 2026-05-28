@@ -14,6 +14,19 @@ required Check Run before merges.
 
 - `prthinker/` — the standalone Python package (Strategy / Factory /
   Registry / Repository / DI patterns).
+- `prthinker/backends/` — four interchangeable backends
+  (LocalHFBackend / RemoteHttpBackend / OpenAICompatBackend /
+  AnthropicBackend) behind a single `InferenceBackend` ABC.
+- `prthinker/platforms/` — GitHub + GitLab adapters behind
+  `PlatformAdapter` (diff / comments / inline review / gate / dialogue).
+- `prthinker/{adversarial,counterfactual,dialogue,findings,sandbox,
+  review_cache,reproducibility,personas,risk_score,diff_entropy,
+  dep_upgrade,api_consistency,pr_classifier}.py` — research-grade
+  extension modules. Each is opt-in behind a CLI flag (see
+  `docs/en/concepts/research-extensions.rst`).
+- `prthinker/adversarial_corpus/` — hand-authored seed corpus for the
+  prompt-injection robustness suite (`seed.jsonl` — labelled "seed,
+  NOT a benchmark" per `paper_rule.md`).
 - `codes/run/` — original entry points (`cot.py`, `skills.py`,
   `fastapi_server.py`). `cot.py` is now a thin wrapper over the package;
   `fastapi_server.py` is the inference server.
@@ -24,14 +37,41 @@ required Check Run before merges.
 - `codes/util/` — `qwen3_util.py` (model loading), `faiss_util.py`
   (FAISS-backed RAG).
 - `datas/` — test data, RAG rule documents, prompt copies.
-- `docs/` — Sphinx documentation (English + zh-TW + zh-CN trees).
+- `docs/` — Sphinx documentation, single tree containing all three
+  languages under `docs/{en,zh-TW,zh-CN}/`.
 - `paper/` — manuscript and slide build (pptxgenjs Node project).
-- `.github/workflows/` — `prthinker.yml` GHA integration.
+- `.github/workflows/` — `prthinker.yml` GHA integration with a
+  preflight ping + graceful skip when the backend is unreachable.
 
 ### Tech Stack
 
 Python 3.12+, PyTorch, Transformers, PEFT (LoRA), FAISS, FastAPI,
 Pydantic v2, httpx, Sphinx + Read the Docs.
+
+### Research-grade extensions (opt-in, framework only)
+
+Thirteen mechanisms most LLM-code-review systems do not ship. Per
+`paper_rule.md`'s no-fabrication rule, code + corpora + unit tests
+are delivered; **no benchmark numbers are bundled**.
+
+- Adversarial robustness (`prthinker adversarial-eval`).
+- Closed-loop multi-turn dialogue (`--reply-to-author`).
+- Counterfactual review (`--counterfactual`).
+- Provenance / audit trail (`--provenance`).
+- Force-push differential review (`--diff-since-last`).
+- Suggestion sandbox verifier (`--verify-suggestions`).
+- Cross-language API drift detection (`--api-consistency`).
+- PR-type adaptive review (`--pr-classify`).
+- Reproducibility signal (`--reproducibility-check`).
+- Dependency-upgrade impact (`--dep-upgrade-check`).
+- Reviewer personas + conflict surfacing (`--personas`).
+- Risk-weighted attention (`--risk-weighted`).
+- Diff entropy / "diff bomb" detector (`--diff-entropy`).
+
+When extending: every new mechanism must (1) be opt-in behind a CLI
+flag, (2) ship pure-logic unit tests, (3) update
+`docs/en/concepts/research-extensions.rst` in the same commit, and
+(4) make NO empirical claim in the docs.
 
 ---
 
@@ -491,7 +531,28 @@ ruff, and bandit for Python.
 - Private helpers may omit docstrings if names are self-explanatory.
 - Pydantic models in `prthinker.schemas` are the wire-format source
   of truth — when extending them, also update
-  `docs/reference/http-api.rst` in the same commit.
+  `docs/en/reference/http-api.rst` in the same commit.
+- Multi-line docstrings follow the **D212 convention**: the summary
+  line lives on the FIRST line, not the second. The mutually-exclusive
+  D213 is disabled in both `pyproject.toml` `[tool.pydocstyle]` and
+  `.prospector.yaml` so Codacy / Prospector / local pydocstyle all
+  agree.
+
+### Codacy / Prospector
+
+The repo is wired to Codacy. After every push to `dev` / `main` and on
+every PR, Codacy re-runs Prospector (which bundles pydocstyle, pylint,
+mypy, Lizard) over the diff. Local config:
+
+- `[tool.pydocstyle]` in `pyproject.toml` — D212 convention, D213
+  disabled.
+- `.prospector.yaml` at the repo root — same disable list plus a few
+  pylint relaxations for the runner-profile lazy imports.
+
+When Codacy flags a complexity issue (CCN > 8 or function > 50 LoC)
+**do not** add a suppression comment — refactor by extracting helper
+functions. The recent Codacy-fix commit (see `git log --grep=Codacy`)
+is the reference pattern.
 
 ### Enforcement
 

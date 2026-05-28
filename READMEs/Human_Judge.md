@@ -1,6 +1,17 @@
 # 人工評分流程與標準
 
-## 📂 評分步驟
+> **適用範圍。** 本文件為論文章節「人類評估（Human-as-Judge）」之
+> 評分手冊，僅用於 `datas/Results/` 之三個對照組之比較\ ：
+> Qwen3-Coder-30B（CoT + RAG + LoRA）vs. *no-fine-tuning-no-rag* vs.
+> *no-any-steps*\ 。五個評分維度對應 [architecture.md](architecture.md)
+> 中之 LLM-as-Judge 維度（Readability / Constructiveness /
+> Correctness / Coverage & Extractability / Comprehensiveness）\ 。
+> 評分結果回填到論文 Table 3（Human Judge）\ 。
+>
+> 與 PRThinker 之 runtime CI gate **無關**\ ──runtime 評分由
+> `prthinker.judge.JudgeStep` 自動產生\ ，本手冊只用於離線之人工對照\ 。
+
+## 評分步驟
 1. 開啟 **datas** 資料夾  
 2. 進入 **Results** 資料夾  
 3. 開啟 **2026-02-15-qwen3-coder-30b** 資料夾  
@@ -14,7 +25,7 @@
 
 ---
 
-## 📝 評分標準
+## 評分標準
 需針對以下五個維度進行評分，每個維度分數範圍為 **1–100**。
 
 ### 1. Readability（可讀性）
@@ -71,5 +82,5 @@
 
 ---
 
-## 📊 評分流程
+## 評分流程
 - 為每個維度給出 **1–100** 分數
