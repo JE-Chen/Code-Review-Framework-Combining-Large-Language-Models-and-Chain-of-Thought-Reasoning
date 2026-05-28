@@ -137,9 +137,7 @@ workflow 会在 `pull_request` opened / synchronize / reopened 时触发，
 
 ```bash
 pip install -r docs/requirements.txt
-py -m sphinx -b html docs            docs/_build/html-en
-py -m sphinx -b html docs/zh-TW      docs/_build/html-zh-TW
-py -m sphinx -b html docs/zh-CN      docs/_build/html-zh-CN
+py -m sphinx -b html docs docs/_build/html
 ```
 
 ## 仓库结构

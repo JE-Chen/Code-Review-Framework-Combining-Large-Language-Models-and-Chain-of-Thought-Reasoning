@@ -58,7 +58,7 @@ Pricing
    reviewmind stats --since-days 7        # 过去一周
    reviewmind stats --since-days 1        # 过去 24 小时
 
-输出示例见英文版 :doc:`/concepts/cache-and-telemetry`。
+输出示例见英文版 :doc:`../../en/concepts/cache-and-telemetry`。
 
 为什么这个重要
 ~~~~~~~~~~~~~~

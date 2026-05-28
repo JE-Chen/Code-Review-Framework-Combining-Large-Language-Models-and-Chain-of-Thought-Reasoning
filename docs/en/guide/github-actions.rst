@@ -85,7 +85,7 @@ behaviour without editing Python:
      - Path to per-repo ``*.md`` rule files.
 
 A complete list of vars and their CLI counterparts is in
-:doc:`/guide/configuration` and :doc:`/reference/cli`.
+:doc:`configuration` and :doc:`../reference/cli`.
 
 Branch protection
 -----------------

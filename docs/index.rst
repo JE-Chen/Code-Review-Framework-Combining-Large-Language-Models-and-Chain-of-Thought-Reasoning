@@ -1,62 +1,34 @@
 reviewmind
-============
+==========
 
-A Chain-of-Thought code review framework for GitHub Pull Requests, backed
-by a fine-tuned Qwen3-Coder model with retrieval-augmented prompting.
+This documentation set is published in three languages. Each language is
+a top-level section in the sidebar with its own guide / concepts /
+reference sub-chapters — pick whichever you prefer, all of the content
+is in this single tree.
 
-``reviewmind`` reads a PR diff, runs a five-step Chain-of-Thought review,
-and posts a structured summary plus one-click ``suggestion`` blocks back
-to the PR. It learns from each repo's history — dismissed comments are
-filtered out next time, accepted suggestions are surfaced as in-context
-exemplars — and can act as a required status check before merges.
+本文件以三種語言發佈\ ，每種語言為側邊欄一個大章節\ ，內含 guide / concepts /
+reference 三類子章節 —— 任選一種使用\ ，所有內容皆位於同一份文件樹中\ 。
 
-What you get
-------------
-
-* **Five-step CoT pipeline** — ``first_summary`` → ``first_code_review`` →
-  ``linter`` → ``code_smell`` → ``total_summary``, plus an optional
-  per-file inline-findings step that emits structured JSON.
-* **Per-file inline review** with GitHub ``suggestion`` blocks.
-* **RAG over global rules + per-repo rule packs** via ``--rules-dir``.
-* **Two learned corpora**: ``dismissed.jsonl`` (filters repeats),
-  ``accepted.jsonl`` (top-K exemplars in the prompt).
-* **CI failure signals** prepended to the diff for grounded review.
-* **Pre-merge Check Run gate** — wire as a required status check.
-* **Pluggable backends**: local in-process Qwen + LoRA, or HTTP remote.
+本文档以三种语言发布\ ，每种语言为侧边栏一个大章节\ ，内含 guide / concepts /
+reference 三类子章节 —— 任选一种使用\ ，所有内容均位于同一份文档树中\ 。
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Guide
+   :caption: English
+   :maxdepth: 3
 
-   guide/installation
-   guide/quickstart
-   guide/github-actions
-   guide/configuration
-   guide/repo-config
+   en/index
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Concepts
+   :caption: 繁體中文
+   :maxdepth: 3
 
-   concepts/architecture
-   concepts/pipeline
-   concepts/rag-and-rules
-   concepts/corpora
-   concepts/ci-and-gate
-   concepts/cache-and-telemetry
-   concepts/judge-and-streaming
-   concepts/redaction-and-mcp
-   concepts/hook-self-correct-auto-fix
-   concepts/docker-platforms-report
-   concepts/research-extensions
+   zh-TW/index
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Reference
+   :caption: 简体中文
+   :maxdepth: 3
 
-   reference/cli
-   reference/http-api
-   reference/python-api
+   zh-CN/index
 
 Indices
 -------

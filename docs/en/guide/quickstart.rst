@@ -93,4 +93,4 @@ Then point the server at them:
    export REVIEWMIND_ACCEPTED_PATH=.reviewmind/accepted.jsonl
    uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
 
-See :doc:`/concepts/corpora` for the semantics.
+See :doc:`../concepts/corpora` for the semantics.

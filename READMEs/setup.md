@@ -659,12 +659,12 @@ Build the docs locally (all three languages):
 
 ```bash
 pip install -r docs/requirements.txt
-py -m sphinx -b html docs        docs/_build/html-en
-py -m sphinx -b html docs/zh-TW  docs/_build/html-zh-TW
-py -m sphinx -b html docs/zh-CN  docs/_build/html-zh-CN
+py -m sphinx -b html docs docs/_build/html
 ```
 
-All three should report zero errors and zero warnings.
+The build emits a single HTML tree containing all three languages as
+top-level sidebar sections (English / 繁體中文 / 简体中文). Should report
+zero errors and zero warnings.
 
 ---
 

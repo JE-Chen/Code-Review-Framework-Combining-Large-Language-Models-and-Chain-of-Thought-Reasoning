@@ -37,8 +37,6 @@ exclude_patterns = [
     "_build",
     "Thumbs.db",
     ".DS_Store",
-    "zh-TW",
-    "zh-CN",
 ]
 
 # Use the first heading on a page as the document title.
@@ -48,7 +46,6 @@ master_doc = "index"
 
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
-html_css_files = ["rm-langbar.css"]
 html_title = "reviewmind"
 html_show_sphinx = False
 html_theme_options = {

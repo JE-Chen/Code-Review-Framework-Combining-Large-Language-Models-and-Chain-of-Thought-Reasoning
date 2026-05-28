@@ -640,11 +640,10 @@ When changing user-visible behaviour:
 2. Translate the same change into `docs/zh-TW/` and `docs/zh-CN/` in the
    **same commit**. Stale Chinese docs are not allowed — they mislead
    readers and lose trust.
-3. Build all three locally:
-   `py -m sphinx -b html -q docs docs/_build/html-en`
-   `py -m sphinx -b html -q docs/zh-TW docs/_build/html-zh-TW`
-   `py -m sphinx -b html -q docs/zh-CN docs/_build/html-zh-CN`
-4. Verify zero errors in each (warnings OK).
+3. Build the unified docs tree locally:
+   `py -m sphinx -b html -q docs docs/_build/html`
+4. Verify zero errors (warnings OK). All three languages live in the
+   same tree under `docs/{en,zh-TW,zh-CN}/`; one build covers them all.
 
 ---
 
@@ -674,8 +673,6 @@ py -m pytest tests/
 py -m ruff check .
 py -m bandit -c pyproject.toml -r reviewmind/
 
-# Build docs (all three languages)
-py -m sphinx -b html -q docs            docs/_build/html-en
-py -m sphinx -b html -q docs/zh-TW      docs/_build/html-zh-TW
-py -m sphinx -b html -q docs/zh-CN      docs/_build/html-zh-CN
+# Build docs (single tree, three languages as top-level sidebar sections)
+py -m sphinx -b html -q docs docs/_build/html
 ```

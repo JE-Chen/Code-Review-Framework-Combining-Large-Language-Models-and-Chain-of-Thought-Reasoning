@@ -90,7 +90,7 @@ The dismissed filter
 
 After parsing, an optional ``DismissedFilter`` removes findings whose
 *comment text* is too similar to a stored dismissed example. See
-:doc:`/concepts/corpora` for the store shape.
+:doc:`corpora` for the store shape.
 
 Output channels
 ---------------

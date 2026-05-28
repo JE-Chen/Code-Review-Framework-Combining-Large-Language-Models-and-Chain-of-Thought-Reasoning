@@ -627,12 +627,11 @@ py -m pytest tests/ -q
 
 ```bash
 pip install -r docs/requirements.txt
-py -m sphinx -b html docs        docs/_build/html-en
-py -m sphinx -b html docs/zh-TW  docs/_build/html-zh-TW
-py -m sphinx -b html docs/zh-CN  docs/_build/html-zh-CN
+py -m sphinx -b html docs docs/_build/html
 ```
 
-三個應該都 zero error / zero warning。
+只會跑一次 build；輸出單一 HTML 樹\ ，三語在側邊欄各自為一個大章節
+（English / 繁體中文 / 简体中文）\ 。應 zero error / zero warning\ 。
 
 ---
 

@@ -61,7 +61,7 @@ Embedding 模型
 
 RAG 检索使用 ``Qwen/Qwen3-Embedding-4B``\ （约 8 GB VRAM）。CI runner 上不要
 加载它──请改用服务器端的 ``/rag`` endpoint，详见
-:doc:`/concepts/rag-and-rules`。
+:doc:`../concepts/rag-and-rules`。
 
 验证安装
 --------

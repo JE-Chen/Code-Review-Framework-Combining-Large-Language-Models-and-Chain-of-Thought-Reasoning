@@ -81,8 +81,8 @@ Workflow 把最常用的 flag 都暴露成环境变量，这样不用改 Python 
      - *(未设)*
      - Per-repo ``*.md`` 规则文件的路径。
 
-完整变量与对应 CLI flag 在 :doc:`/guide/configuration` 与
-:doc:`/reference/cli`。
+完整变量与对应 CLI flag 在 :doc:`configuration` 与
+:doc:`../reference/cli`。
 
 Branch protection
 -----------------

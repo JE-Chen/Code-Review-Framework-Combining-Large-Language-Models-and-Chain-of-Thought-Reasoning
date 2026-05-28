@@ -162,7 +162,7 @@ Pre-merge gate
      - ``REVIEWMIND_GATE_ON``
      - ``none``
 
-See :doc:`/concepts/ci-and-gate`. Set to ``none`` for advisory mode,
+See :doc:`../concepts/ci-and-gate`. Set to ``none`` for advisory mode,
 ``error`` to fail the Check Run when any error-severity finding exists.
 
 CI signals

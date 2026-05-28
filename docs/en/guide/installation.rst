@@ -57,7 +57,7 @@ Embedding model
 
 The RAG retriever uses ``Qwen/Qwen3-Embedding-4B`` (~ 8 GB VRAM). On CI
 runners you should leave the embedding model off and use the remote ``/rag``
-endpoint instead — see :doc:`/concepts/rag-and-rules`.
+endpoint instead — see :doc:`../concepts/rag-and-rules`.
 
 Verifying the install
 ---------------------

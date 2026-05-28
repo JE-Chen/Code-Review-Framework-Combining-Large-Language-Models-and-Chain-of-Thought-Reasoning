@@ -81,7 +81,7 @@ Dismissed filter
 ----------------
 
 解析後，可選的 ``DismissedFilter`` 會把 comment 文本與既有 dismissed 範例
-太相似的 finding 丟掉。store 的 schema 請見 :doc:`/concepts/corpora`。
+太相似的 finding 丟掉。store 的 schema 請見 :doc:`corpora`。
 
 輸出通道
 --------
