@@ -1,0 +1,21 @@
+{# Language switcher injected on every page.
+
+   The three doc trees are built into sibling directories
+   (docs/_build/html-en, html-zh-TW, html-zh-CN); the link to a sibling
+   language for the *same* page is computed from ``pagename`` so a deep
+   page like ``concepts/architecture`` lands on the same path in the
+   other language, not the localised index.
+#}
+{% extends "!layout.html" %}
+{% set _depth = pagename.split('/') | length - 1 %}
+{% set _up = '../' * _depth %}
+
+{% block document %}
+<div class="rm-langbar" role="navigation" aria-label="Language">
+  <span class="rm-langbar-label">Language:</span>
+  <span class="rm-langbar-current">English</span>
+  <a href="{{ _up }}../html-zh-TW/{{ pagename }}.html">繁體中文</a>
+  <a href="{{ _up }}../html-zh-CN/{{ pagename }}.html">简体中文</a>
+</div>
+{{ super() }}
+{% endblock %}

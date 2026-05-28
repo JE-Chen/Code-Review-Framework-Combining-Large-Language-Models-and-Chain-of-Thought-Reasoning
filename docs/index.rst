@@ -1,10 +1,6 @@
 reviewmind
 ============
 
-Language: **English** ·
-`繁體中文 <../html-zh-TW/index.html>`_ ·
-`简体中文 <../html-zh-CN/index.html>`_
-
 A Chain-of-Thought code review framework for GitHub Pull Requests, backed
 by a fine-tuned Qwen3-Coder model with retrieval-augmented prompting.
 

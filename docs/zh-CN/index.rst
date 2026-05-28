@@ -1,10 +1,6 @@
 reviewmind（简体中文）
 ========================
 
-语言切换： `English <../../html-en/index.html>`_ ·
-`繁體中文 <../../html-zh-TW/index.html>`_ ·
-**简体中文**
-
 为 GitHub Pull Request 设计的思维链（Chain-of-Thought）代码审查框架，
 底层由微调后的 Qwen3-Coder 模型加上检索增强（RAG）提示驱动。
 
