@@ -1,0 +1,71 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reviewmind"
+version = "0.1.0"
+description = "Chain-of-Thought code review pipeline with pluggable inference backends (local HF / OpenAI-compat / Anthropic / project FastAPI server) and GitHub PR integration"
+requires-python = ">=3.12"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "JeffreyChen" }]
+dependencies = [
+    "httpx>=0.27",
+    "pydantic>=2",
+    "PyYAML>=6",
+]
+
+[project.optional-dependencies]
+runner = []
+dev = [
+    "pytest>=8",
+]
+local = [
+    "transformers",
+    "torch",
+    "accelerate",
+    "bitsandbytes",
+    "peft",
+    "faiss-cpu",
+    "numpy",
+]
+server = [
+    "fastapi",
+    "uvicorn",
+    "pydantic>=2",
+]
+mcp = [
+    "mcp>=1.0",
+]
+
+[project.scripts]
+reviewmind = "reviewmind.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["reviewmind*"]
+exclude = ["codes*", "datas*", "paper*", "gen-paper*"]
+
+[tool.bandit]
+# Project-wide skips for systemic false positives. Each entry below MUST
+# be paired with a justification per the suppression-conventions rule in
+# READMEs/CLAUDE.md. Add a per-line `# nosec B<NNN>` for one-off
+# exceptions instead of extending this list.
+skips = [
+    # B101 — `assert` used. Only used for type-narrowing in factory
+    # branches AFTER Config.__post_init__ has already validated the
+    # matching sub-config is non-None. These asserts inform mypy/pyright
+    # and are stripped under `python -O` without changing safety.
+    "B101",
+    # B404 — `import subprocess`. Used to shell out to `git` / `gh` with
+    # arg lists (never shell=True, never with untrusted input).
+    "B404",
+    # B603 — subprocess call without shell=True. That is the *safe*
+    # pattern; bandit flags any subprocess call for review.
+    "B603",
+    # B607 — partial executable path (`git`, `gh`). Intentional reliance
+    # on $PATH so the user's installed git is used; pinning to an
+    # absolute path would break cross-platform installs.
+    "B607",
+]

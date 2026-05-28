@@ -4,36 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c7802227-67ad-4e04-beaf-4bd7338f9cbd" name="Changes" comment="* Add results">
-      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3.1/LLM-as-a-Judge流程.drawio" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3.1/LLM-as-a-Judge流程.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3.1/程式碼審查流程.drawio" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3.1/程式碼審查流程.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3.1/訓練流程.drawio" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3.1/訓練流程.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3/LLM-as-a-Judge流程.drawio" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3/LLM-as-a-Judge流程.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3/程式碼審查流程.drawio" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3/程式碼審查流程.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3/訓練流程.drawio" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Architecture/v3/訓練流程.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/paper/TCSE_v1.8.docx" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/paper/slides.pptx" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/paper/論文_v1.7.docx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/output/cot_code_review_detailed_flow.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/output/cot_code_review_detailed_flow.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/output/knowledge_distillation_training_flow.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/output/knowledge_distillation_training_flow.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/output/results_summary.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/output/system_overview.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/output/system_overview.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/output/table1_crscore_overall.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/output/table2_prompt_design_llm_judge.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/output/table3_prompt_design_human_judge.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/paper/TCSE_v1.6.docx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/paper/論文_v1.6.docx" beforeDir="false" />
-    </list>
+    <list default="true" id="c7802227-67ad-4e04-beaf-4bd7338f9cbd" name="Changes" comment="* Add results" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -134,7 +105,7 @@
     &quot;git-widget-placeholder&quot;: &quot;docs/strengthen-claude-md-and-results-output&quot;,
     &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
     &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;D:/Codes/Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning/datas/Architecture/v3.1&quot;,
+    &quot;last_opened_file_path&quot;: &quot;D:/Codes/Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning/paper&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -187,9 +158,9 @@
   </component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="D:\Codes\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\paper" />
       <recent name="D:\Codes\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\datas\Architecture\v3.1" />
       <recent name="D:\Codes\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\datas\Architecture\v3" />
-      <recent name="D:\Codes\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\paper" />
       <recent name="$PROJECT_DIR$/datas/Prompts" />
       <recent name="$PROJECT_DIR$/codes/run" />
     </key>
@@ -329,11 +300,11 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.mermaid_to_png" />
-        <item itemvalue="Python.qwen3_quickstart" />
-        <item itemvalue="Python.build_our_llm_judge" />
         <item itemvalue="Python.remove_our_llm_judge" />
+        <item itemvalue="Python.qwen3_quickstart" />
+        <item itemvalue="Python.mermaid_to_png" />
         <item itemvalue="Python.build_our_llm_judge_single_prompt" />
+        <item itemvalue="Python.build_our_llm_judge" />
       </list>
     </recent_temporary>
   </component>
@@ -423,6 +394,14 @@
       <workItem from="1778995071730" duration="4637000" />
       <workItem from="1779192814142" duration="3969000" />
       <workItem from="1779248985618" duration="1204000" />
+      <workItem from="1779256285204" duration="8120000" />
+      <workItem from="1779264917330" duration="310000" />
+      <workItem from="1779265394396" duration="430000" />
+      <workItem from="1779390611019" duration="3755000" />
+      <workItem from="1779534249258" duration="3288000" />
+      <workItem from="1779550963892" duration="7717000" />
+      <workItem from="1779796268870" duration="3241000" />
+      <workItem from="1779879237029" duration="2433000" />
     </task>
     <task id="LOCAL-00001" summary="Edit rag rules">
       <option name="closed" value="true" />

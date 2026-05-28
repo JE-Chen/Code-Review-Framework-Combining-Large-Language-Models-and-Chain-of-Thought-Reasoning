@@ -1,0 +1,75 @@
+# reviewmind self-hosted deployment.
+#
+# Usage:
+#   cp .env.example .env       # then edit REVIEWMIND_BACKEND_TOKEN + cert paths
+#   docker compose up -d
+#   curl https://localhost/healthz -H "Authorization: Bearer <token>"
+#
+# Two services:
+#   - reviewmind  the FastAPI inference server (GPU)
+#   - nginx       TLS termination + bearer-token gate
+#
+# Three named volumes keep state across image rebuilds:
+#   - hf_cache    HuggingFace model weights (~80 GB for Qwen3-Coder-30B)
+#   - data        dismissed.jsonl + accepted.jsonl + SQLite stores
+#   - tls         TLS cert + key (bind-mount your own from a host path)
+
+services:
+  reviewmind:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.server
+      args:
+        CUDA_VERSION: ${CUDA_VERSION:-12.2.0}
+    image: reviewmind:server-latest
+    restart: unless-stopped
+    runtime: nvidia
+    environment:
+      # All REVIEWMIND_* are picked up by the server at boot. See
+      # READMEs/setup.md for the full list.
+      REVIEWMIND_DISMISSED_PATH: /data/dismissed.jsonl
+      REVIEWMIND_ACCEPTED_PATH:  /data/accepted.jsonl
+      REVIEWMIND_CACHE_PATH:     /data/cache.sqlite
+      REVIEWMIND_TELEMETRY_PATH: /data/telemetry.sqlite
+      REVIEWMIND_CACHE_ENABLED:    "true"
+      REVIEWMIND_TELEMETRY_ENABLED: "true"
+      HF_HOME: /cache/huggingface
+    volumes:
+      - hf_cache:/cache/huggingface
+      - data:/data
+    expose:
+      - "8000"          # internal only — nginx is the public face
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - internal
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - reviewmind
+    environment:
+      REVIEWMIND_BACKEND_TOKEN: ${REVIEWMIND_BACKEND_TOKEN:?REVIEWMIND_BACKEND_TOKEN is required}
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./entrypoint-nginx.sh:/entrypoint.sh:ro
+      - ${TLS_CERT_DIR:-./tls}:/etc/nginx/tls:ro
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    ports:
+      - "${REVIEWMIND_HOST_PORT:-443}:443"
+    networks:
+      - internal
+
+volumes:
+  hf_cache:
+  data:
+
+networks:
+  internal:
+    driver: bridge

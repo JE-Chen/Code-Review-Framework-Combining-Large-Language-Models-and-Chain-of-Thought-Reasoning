@@ -1,0 +1,55 @@
+# reviewmind inference server image.
+#
+# Built on the NVIDIA CUDA runtime so bitsandbytes + the 4-bit Qwen weights
+# load on the GPU; the matching host driver must expose `--gpus all` (set
+# via `runtime: nvidia` in docker-compose).
+#
+# Heavy ML deps (torch, transformers, bitsandbytes, peft, faiss-cpu) come
+# from the `[server]` extra which itself transitively includes `[local]`.
+# Model weights are NOT baked into the image — they are pulled at first
+# run into the mounted HuggingFace cache volume so an image rebuild does
+# not invalidate ~80 GB of weights.
+
+ARG CUDA_VERSION=12.2.0
+FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu22.04 AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    HF_HOME=/cache/huggingface \
+    TRANSFORMERS_CACHE=/cache/huggingface \
+    REVIEWMIND_DISMISSED_PATH=/data/dismissed.jsonl \
+    REVIEWMIND_ACCEPTED_PATH=/data/accepted.jsonl
+
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        python3.12 python3.12-venv python3-pip git ca-certificates curl \
+ && update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1 \
+ && ln -sf /usr/bin/pip3 /usr/bin/pip \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy only metadata first so dependency layer caches across code changes.
+COPY pyproject.toml ./
+COPY reviewmind/ ./reviewmind/
+COPY codes/ ./codes/
+COPY datas/RAG_data/ ./datas/RAG_data/
+
+RUN pip install --upgrade pip \
+ && pip install -e ".[server]"
+
+# Cache + JSONL stores live on a mounted volume so they survive image rebuilds.
+RUN mkdir -p /cache/huggingface /data
+
+EXPOSE 8000
+
+# Healthcheck hits the bundled /healthz endpoint.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:8000/healthz || exit 1
+
+# uvicorn binds 0.0.0.0 inside the container; nginx is the only external
+# attack surface (see docker/nginx.conf).
+CMD ["uvicorn", "codes.run.fastapi_server:app", "--host", "0.0.0.0", "--port", "8000"]
