@@ -81,10 +81,48 @@ def _format_per_file(result: ReviewResult, marker: str) -> str:
         parts.append(f"Posted **{total_findings}** inline finding(s).")
         parts.append("")
 
+    if result.api_drift:
+        parts += _format_api_drift_block(result.api_drift)
+
     for fr in result.per_file:
         parts += _format_file_block(fr)
 
     return "\n".join(parts).rstrip() + "\n"
+
+
+_API_DRIFT_KIND_LABEL: dict[str, str] = {
+    "field_renamed":  "field renamed",
+    "field_removed":  "field removed",
+    "type_changed":   "type changed",
+    "path_changed":   "path / route changed",
+    "method_changed": "HTTP method changed",
+    "other":          "other",
+}
+
+
+def _format_api_drift_block(drift: "list") -> list[str]:
+    """Render the cross-language API-drift section near the top of the
+    consolidated PR comment.
+    """
+    block: list[str] = [
+        "### Cross-language API drift",
+        "",
+        "| Kind | Backend | Frontend | Summary |",
+        "| --- | --- | --- | --- |",
+    ]
+    for df in drift:
+        kind = _API_DRIFT_KIND_LABEL.get(df.kind, df.kind)
+        summary = df.summary.replace("|", "\\|").strip()
+        block.append(
+            f"| {kind} | `{df.backend_path}` | `{df.frontend_path}` | {summary} |"
+        )
+    block += [
+        "",
+        "Evidence is preserved in the raw ``api_consistency`` step output "
+        "for traceability.",
+        "",
+    ]
+    return block
 
 
 def _format_file_block(fr: FileReviewResult) -> list[str]:
@@ -104,6 +142,10 @@ def _format_file_block(fr: FileReviewResult) -> list[str]:
     cited = [f for f in fr.inline_findings if f.provenance is not None]
     if cited:
         block += _format_provenance_block(cited)
+
+    verified = [f for f in fr.inline_findings if f.verification is not None]
+    if verified:
+        block += _format_verification_block(verified)
 
     detail_steps = [
         name for name in fr.step_outputs
@@ -170,6 +212,35 @@ def _format_provenance_block(findings: list[InlineFinding]) -> list[str]:
     block += ["</details>", ""]
     if not rendered_any:
         return []  # caller appended the opener; signal nothing to render
+    return block
+
+
+_VERIFICATION_BADGE: dict[str, str] = {  # nosec B105 — display labels keyed on VerificationStatus literal, not credentials
+    "pass":  "**[verified]**",
+    "fail":  "**[FAILED]**",
+    "skip":  "_[skipped]_",
+    "error": "**[error]**",
+}
+
+
+def _format_verification_block(findings: list[InlineFinding]) -> list[str]:
+    """Render the sandbox-verification badges for any finding whose
+    ``suggestion`` block went through ``--verify-suggestions``."""
+    block: list[str] = [
+        "<details><summary>Suggestion verification (sandbox)</summary>",
+        "",
+        "| Line | Verdict | Verify cmd | Reason |",
+        "| ---: | --- | --- | --- |",
+    ]
+    for f in findings:
+        v = f.verification
+        if v is None:
+            continue
+        badge = _VERIFICATION_BADGE.get(v.status, v.status)
+        reason = (v.reason or "").replace("|", "\\|").strip()
+        cmd = v.verify_cmd.replace("|", "\\|")
+        block.append(f"| {f.line} | {badge} | `{cmd}` | {reason} |")
+    block += ["", "</details>", ""]
     return block
 
 

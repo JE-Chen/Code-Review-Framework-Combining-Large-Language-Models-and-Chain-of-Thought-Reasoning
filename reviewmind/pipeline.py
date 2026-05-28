@@ -16,13 +16,20 @@ from pathlib import Path
 
 from reviewmind.accepted import AcceptedExamplesRetriever, format_examples_block
 from reviewmind.backends.base import InferenceBackend
+from reviewmind import api_consistency
 from reviewmind.counterfactual import parse_counterfactuals
 from reviewmind.diff import FileDiff, parse_unified_diff
 from reviewmind.dismissed import DismissedFilter
 from reviewmind.findings import build_provenance_block, parse_inline_findings
+from reviewmind.review_cache import CacheKey, ReviewCache
 from reviewmind.judge import parse_verdict
 from reviewmind.rag import RAGRetriever
-from reviewmind.schemas import CounterfactualBlock, InlineFinding, JudgeVerdict
+from reviewmind.schemas import (
+    ApiDriftFinding,
+    CounterfactualBlock,
+    InlineFinding,
+    JudgeVerdict,
+)
 from reviewmind.self_review import (
     apply_self_review,
     parse_drop_indices,
@@ -48,6 +55,7 @@ class ReviewResult:
     inline_findings: list[InlineFinding] = field(default_factory=list)
     per_file: list["FileReviewResult"] = field(default_factory=list)
     counterfactuals: list[CounterfactualBlock] = field(default_factory=list)
+    api_drift: list[ApiDriftFinding] = field(default_factory=list)
 
     @property
     def total_summary(self) -> str | None:
@@ -160,10 +168,18 @@ class CoTPipeline:
         self_correct: bool = False,
         counterfactual: bool = False,
         provenance: bool = False,
+        api_consistency_check: bool = False,
         max_findings_per_file: int = 10,
         skip_binary: bool = True,
         output_dir: Path | None = None,
         dialogue_block: str = "",
+        review_cache: "ReviewCache | None" = None,
+        cache_repo: str = "",
+        cache_pr_number: int = 0,
+        verify_suggestions: bool = False,
+        verify_workdir: Path | None = None,
+        verify_cmd: str = "",
+        verify_timeout: float = 60.0,
     ) -> ReviewResult:
         """Run the full step sequence once per file in the diff.
 
@@ -202,6 +218,32 @@ class CoTPipeline:
                 log.info("Skipping deleted file %s", fd.path)
                 continue
 
+            cache_key: CacheKey | None = None
+            if review_cache is not None and cache_pr_number > 0 and inline_review:
+                cache_key = CacheKey(
+                    pr_number=cache_pr_number,
+                    repo=cache_repo,
+                    file_path=fd.path,
+                    hunk_sha256=fd.content_sha256(),
+                )
+                cached = review_cache.get(cache_key)
+                if cached is not None:
+                    log.info(
+                        "Differential review: reusing %d cached finding(s) for %s",
+                        len(cached), fd.path,
+                    )
+                    file_result = FileReviewResult(
+                        path=fd.path,
+                        rag_docs=[],
+                        step_outputs={},
+                        inline_findings=cached,
+                        is_binary=fd.is_binary,
+                        is_deleted=fd.is_deleted,
+                    )
+                    per_file_results.append(file_result)
+                    aggregated_findings.extend(cached)
+                    continue
+
             file_out_dir = (
                 output_dir / _sanitize(fd.path) if output_dir else None
             )
@@ -214,6 +256,20 @@ class CoTPipeline:
                 dialogue_block=dialogue_block,
                 provenance=provenance,
             )
+            if cache_key is not None:
+                review_cache.put(
+                    cache_key,
+                    file_result.inline_findings,
+                    backend=self._backend.backend_kind(),
+                    model=self._backend.model_name(),
+                )
+            if verify_suggestions and verify_workdir is not None and verify_cmd:
+                file_result = self._verify_suggestions(
+                    file_result,
+                    workdir=verify_workdir,
+                    verify_cmd=verify_cmd,
+                    timeout_seconds=verify_timeout,
+                )
             per_file_results.append(file_result)
             aggregated_findings.extend(file_result.inline_findings)
             aggregated_counterfactuals.extend(file_result.counterfactuals)
@@ -222,6 +278,17 @@ class CoTPipeline:
                 key = f"{fd.path}::{name}"
                 aggregated_steps[key] = output
 
+        api_drift: list[ApiDriftFinding] = []
+        if api_consistency_check and api_consistency.is_mixed_language(file_diffs):
+            log.info("Mixed-language PR detected → running api-consistency step")
+            prompt = api_consistency.build_prompt(file_diffs)
+            raw = self._backend.generate(prompt, max_new_tokens=self._max_new_tokens)
+            aggregated_steps["api_consistency"] = raw
+            allowed = {fd.path for fd in file_diffs}
+            api_drift = api_consistency.parse_drift_findings(
+                raw, allowed_paths=allowed,
+            )
+
         return ReviewResult(
             code_diff=diff_text,
             rag_docs=[],
@@ -229,6 +296,7 @@ class CoTPipeline:
             inline_findings=aggregated_findings,
             per_file=per_file_results,
             counterfactuals=aggregated_counterfactuals,
+            api_drift=api_drift,
         )
 
     # ---------- internals ---------------------------------------------------
@@ -307,6 +375,57 @@ class CoTPipeline:
             is_binary=fd.is_binary,
             is_deleted=fd.is_deleted,
             counterfactuals=counterfactuals,
+        )
+
+    def _verify_suggestions(
+        self,
+        file_result: "FileReviewResult",
+        *,
+        workdir: Path,
+        verify_cmd: str,
+        timeout_seconds: float,
+    ) -> "FileReviewResult":
+        """Run each finding's ``suggestion`` block in a sandbox and
+        attach the verification result to the finding.
+
+        Side-effect surface is fenced inside :mod:`reviewmind.sandbox`;
+        this method just walks the findings and merges the results back
+        into the per-file payload.
+        """
+        from reviewmind.sandbox import verify_suggestion
+        from reviewmind.schemas import SuggestionVerification
+
+        new_findings: list[InlineFinding] = []
+        for f in file_result.inline_findings:
+            if f.suggestion is None:
+                new_findings.append(f)
+                continue
+            outcome = verify_suggestion(
+                f,
+                workdir=workdir,
+                verify_cmd=verify_cmd,
+                timeout_seconds=timeout_seconds,
+            )
+            verification = SuggestionVerification(
+                status=outcome.status,
+                verify_cmd=outcome.verify_cmd,
+                duration_ms=outcome.duration_ms,
+                reason=outcome.reason,
+            )
+            new_findings.append(f.model_copy(update={"verification": verification}))
+            log.info(
+                "verify_suggestions: %s:%d -> %s (%dms)",
+                f.path, f.line, outcome.status, outcome.duration_ms,
+            )
+        return FileReviewResult(
+            path=file_result.path,
+            rag_docs=file_result.rag_docs,
+            step_outputs=file_result.step_outputs,
+            inline_findings=new_findings,
+            verdict=file_result.verdict,
+            is_binary=file_result.is_binary,
+            is_deleted=file_result.is_deleted,
+            counterfactuals=file_result.counterfactuals,
         )
 
     def _self_correct(

@@ -147,10 +147,122 @@ correlates with finding quality is future work and is not measured
 here.
 
 
+Force-push differential review (``--diff-since-last``)
+------------------------------------------------------
+
+Iterative PRs typically leave 60 - 80% of the diff unchanged between
+pushes. Existing LLM reviewers re-run the full inline review every
+time, paying for tokens to regenerate the same findings on the
+unchanged hunks. With ``--diff-since-last``, each file's post-change
+content is hashed (``content_sha256()``), and the per-hunk findings
+are cached in a small SQLite store keyed on
+``(pr_number, repo, file_path, hunk_sha256)``. The next push computes
+the same hashes and only the genuinely-changed files go through the
+model; unchanged files reuse the cached findings.
+
+.. code-block:: bash
+
+   reviewmind review-pr --pr 42 \
+       --inline-review --diff-since-last \
+       --diff-cache-path .reviewmind/diff-cache.sqlite
+
+Design notes:
+
+* The hash covers the *new side only* — added lines + unchanged
+  context. Removed lines and diff metadata are excluded so a no-op
+  force-push that only reorders hunks still hits the cache.
+* Cross-PR isolation is by primary key — PR #43 cannot accidentally
+  read PR #42's cache (the prompt context is PR-specific via dialogue
+  + accepted-corpus examples, so cross-PR reuse would silently change
+  behaviour).
+* The cache persists across runs; close the PR to evict via
+  ``ReviewCache.evict_pr()``.
+
+Whether the cache cuts real-world cost by 60% or 80% depends on push
+patterns and is not measured here.
+
+
+Suggestion sandbox verifier (``--verify-suggestions``)
+------------------------------------------------------
+
+Reviewers emit ``suggestion`` blocks and hope the author applies them
+without breaking the tests. This extension turns each suggestion into
+a *hypothesis with empirical evidence*: clone the working tree into a
+disposable sandbox, apply the suggestion with a guarded splice that
+checks ``original`` matches, then run ``--verify-cmd`` (default
+``pytest -x``) under a timeout. The PR comment renders a small badge
+per suggestion:
+
+* ``[verified]`` — verify command exited 0 after the splice.
+* ``[FAILED]`` — verify command exited non-zero (the suggestion
+  broke something).
+* ``[skipped]`` — couldn't apply safely (e.g. line range out of
+  bounds, ``original`` did not match) — never blindly splices.
+* ``[error]`` — verifier timed out or wasn't runnable.
+
+.. code-block:: bash
+
+   reviewmind review-pr --pr 42 \
+       --inline-review --verify-suggestions \
+       --verify-cmd "pytest -x tests/" \
+       --verify-timeout 60
+
+Safety:
+
+* ``shutil.copytree`` clones the workdir into ``tempfile.mkdtemp``;
+  the original repo is never mutated.
+* The verify command runs with an arg list (no ``shell=True``) so
+  string-injected payloads are not interpreted as shell.
+* ``original`` is used as a guardrail — if the line range no longer
+  matches the file (line numbers drift after a force-push), the
+  splice is skipped rather than corrupting the file.
+
+Whether verified suggestions are *better* than unverified ones is a
+human-judgement question outside this module's scope.
+
+
+Cross-language API drift detection (``--api-consistency``)
+----------------------------------------------------------
+
+When a PR touches both backend (``.py``) and frontend (``.ts`` /
+``.tsx`` / ``.js`` / ``.jsx``) files, per-file review can miss the
+cross-file case where backend renames ``user_id`` to ``userId`` but
+the frontend still uses the old name. ``--api-consistency`` adds a
+final step that runs *after* the per-file inline findings:
+
+1. Classify each touched file as backend / frontend / neither.
+2. If at least one of each side is touched, build a whole-diff prompt
+   listing both sides separately and ask the model for *cross-file*
+   drift only.
+3. Parse the JSON reply into :class:`ApiDriftFinding` objects; each
+   one cites two paths (one each side) and a ``kind`` from
+   ``field_renamed`` / ``field_removed`` / ``type_changed`` /
+   ``path_changed`` / ``method_changed`` / ``other``.
+
+The PR comment grows a small *Cross-language API drift* table near
+the top showing kind, backend path, frontend path, and a one-sentence
+summary per drift.
+
+.. code-block:: bash
+
+   reviewmind review-pr --pr 42 \
+       --inline-review --api-consistency
+
+Safety:
+
+* The detector silently passes when the diff isn't mixed-language —
+  no wasted backend call.
+* The parser drops drift entries whose ``backend_path`` or
+  ``frontend_path`` isn't a path that actually appears in the diff
+  (the model cannot invent files).
+* All evidence is preserved in the raw ``api_consistency`` step
+  output so a future analysis can audit precision.
+
+
 Status
 ------
 
-All three mechanisms ship as framework code, unit tests, and prompt
+All six mechanisms ship as framework code, unit tests, and prompt
 templates. Per ``paper_rule.md`` the project intentionally publishes
 no benchmark numbers here; the corpora and outcome stores exist so
 that measurements can be taken honestly when they are taken.

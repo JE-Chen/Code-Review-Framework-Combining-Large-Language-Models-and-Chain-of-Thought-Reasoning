@@ -255,6 +255,62 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     common.add_argument(
+        "--diff-since-last",
+        action="store_true",
+        default=env_bool("REVIEWMIND_DIFF_SINCE_LAST", False),
+        help=(
+            "Force-push differential review: hash each file's post-change "
+            "content and look up cached findings keyed on "
+            "(pr_number, repo, file, hash). Cache hits are reused; only "
+            "files whose hash changed re-enter the model. Requires "
+            "--inline-review."
+        ),
+    )
+    common.add_argument(
+        "--diff-cache-path",
+        default=env_str("REVIEWMIND_DIFF_CACHE_PATH", ".reviewmind/diff-cache.sqlite"),
+        help="SQLite file for the differential-review cache.",
+    )
+    common.add_argument(
+        "--verify-suggestions",
+        action="store_true",
+        default=env_bool("REVIEWMIND_VERIFY_SUGGESTIONS", False),
+        help=(
+            "Apply each finding's ``suggestion`` block in a sandboxed copy "
+            "of the working tree, run --verify-cmd, and badge the result "
+            "(pass/fail/skip/error) in the PR comment. Requires "
+            "--inline-review and a clean working tree."
+        ),
+    )
+    common.add_argument(
+        "--verify-cmd",
+        default=env_str("REVIEWMIND_VERIFY_CMD", "pytest -x"),
+        help="Command run inside the sandbox to verify each suggestion.",
+    )
+    common.add_argument(
+        "--verify-timeout",
+        type=float,
+        default=float(env_str("REVIEWMIND_VERIFY_TIMEOUT", "60") or 60),
+        help="Seconds before the verify command is killed.",
+    )
+    common.add_argument(
+        "--verify-workdir",
+        type=Path,
+        default=Path(env_str("REVIEWMIND_VERIFY_WORKDIR") or "."),
+        help="Source tree the sandbox is cloned from (default: cwd).",
+    )
+    common.add_argument(
+        "--api-consistency",
+        action="store_true",
+        default=env_bool("REVIEWMIND_API_CONSISTENCY", False),
+        help=(
+            "When the PR touches both backend (.py) and frontend "
+            "(.ts/.tsx/.js/.jsx) files, run an extra cross-language step "
+            "that flags request/response shape drift (renamed fields, "
+            "removed routes, type changes)."
+        ),
+    )
+    common.add_argument(
         "--rules-dir",
         type=Path,
         default=Path(env_str("REVIEWMIND_RULES_DIR") or "") if env_str("REVIEWMIND_RULES_DIR") else None,
@@ -779,6 +835,14 @@ def _review_via_pipeline(
     )
     try:
         if args.per_file:
+            review_cache_obj = None
+            cache_repo = ""
+            cache_pr_number = 0
+            if getattr(args, "diff_since_last", False) and args.inline_review:
+                from reviewmind.review_cache import ReviewCache
+                review_cache_obj = ReviewCache(Path(args.diff_cache_path))
+                cache_repo = getattr(args, "repo", "") or ""
+                cache_pr_number = int(getattr(args, "pr_number", 0) or 0)
             return pipeline.run_per_file(
                 diff_text,
                 inline_review=args.inline_review,
@@ -789,6 +853,14 @@ def _review_via_pipeline(
                 max_findings_per_file=args.max_findings_per_file,
                 output_dir=output_dir,
                 dialogue_block=dialogue_block,
+                review_cache=review_cache_obj,
+                cache_repo=cache_repo,
+                cache_pr_number=cache_pr_number,
+                verify_suggestions=bool(getattr(args, "verify_suggestions", False)),
+                verify_workdir=getattr(args, "verify_workdir", None),
+                verify_cmd=getattr(args, "verify_cmd", "") or "",
+                verify_timeout=float(getattr(args, "verify_timeout", 60.0) or 60.0),
+                api_consistency_check=bool(getattr(args, "api_consistency", False)),
             )
         return pipeline.run(diff_text, output_dir=output_dir)
     finally:

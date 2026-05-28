@@ -76,6 +76,25 @@ class Provenance(BaseModel):
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
+VerificationStatus = Literal["pass", "fail", "skip", "error"]
+
+
+class SuggestionVerification(BaseModel):
+    """Outcome of running ``suggestion`` in a sandbox.
+
+    Attached to an :class:`InlineFinding` when ``--verify-suggestions``
+    is enabled. ``status`` distinguishes verify-cmd PASS / FAIL from
+    "could not apply" (skip) and "verifier crashed" (error). The
+    PR-comment formatter renders a small green / red / yellow badge
+    next to the suggestion based on this.
+    """
+
+    status: VerificationStatus
+    verify_cmd: str
+    duration_ms: int = 0
+    reason: str = ""
+
+
 class InlineFinding(BaseModel):
     """A single line-level review remark, intended for an inline PR comment.
 
@@ -93,6 +112,7 @@ class InlineFinding(BaseModel):
     start_line: int | None = Field(default=None, ge=1)
     original: str | None = None
     provenance: Provenance | None = None
+    verification: SuggestionVerification | None = None
 
     @property
     def is_multiline(self) -> bool:
@@ -150,6 +170,33 @@ class CounterfactualOption(BaseModel):
     )
 
 
+ApiDriftKind = Literal[
+    "field_renamed",
+    "field_removed",
+    "type_changed",
+    "path_changed",
+    "method_changed",
+    "other",
+]
+
+
+class ApiDriftFinding(BaseModel):
+    """One cross-language API drift finding.
+
+    Produced by the cross-language consistency step when a PR touches
+    both backend (Python) and frontend (TypeScript / JavaScript) files
+    and the model flags that the two sides have diverged. Always cites
+    *two* paths (one each side); per-file findings live in
+    :class:`InlineFinding` instead.
+    """
+
+    backend_path: str
+    frontend_path: str
+    kind: ApiDriftKind = "other"
+    summary: str
+    evidence: str = ""
+
+
 class CounterfactualBlock(BaseModel):
     """A finding + its competing alternative implementations."""
 
@@ -170,12 +217,15 @@ class ReviewResponse(BaseModel):
     inline_findings: list[InlineFinding] = Field(default_factory=list)
     verdict: JudgeVerdict | None = None
     counterfactuals: list[CounterfactualBlock] = Field(default_factory=list)
+    api_drift: list[ApiDriftFinding] = Field(default_factory=list)
 
     def step_map(self) -> dict[str, str]:
         return {s.name: s.output for s in self.steps}
 
 
 __all__ = [
+    "ApiDriftFinding",
+    "ApiDriftKind",
     "AskRequest",
     "CitationKind",
     "CounterfactualBlock",
@@ -190,5 +240,7 @@ __all__ = [
     "ReviewResponse",
     "Severity",
     "StepOutput",
+    "SuggestionVerification",
     "Verdict",
+    "VerificationStatus",
 ]
