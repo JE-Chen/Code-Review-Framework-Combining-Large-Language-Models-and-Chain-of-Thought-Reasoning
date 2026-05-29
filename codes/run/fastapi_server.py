@@ -12,9 +12,16 @@ Model + RAG index load once at import time per the project's perf rules.
 
 from __future__ import annotations
 
+import gc
 import logging
 import os
+import threading
+import time
+import uuid
+from dataclasses import dataclass, field
 from pathlib import Path
+
+import torch
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
@@ -30,8 +37,11 @@ from prthinker.pipeline import CoTPipeline
 from prthinker.rag import FaissRAGRetriever
 from prthinker.schemas import (
     AskRequest,
+    JobStatus,
     RagRequest,
     RagResponse,
+    ReviewJobStatusResponse,
+    ReviewJobSubmitResponse,
     ReviewRequest,
     ReviewResponse,
     StepOutput,
@@ -114,10 +124,37 @@ def rag(req: RagRequest) -> RagResponse:
     return RagResponse(docs=docs)
 
 
-@app.post("/review", response_model=ReviewResponse)
-def review(req: ReviewRequest) -> ReviewResponse:
-    if not req.code_diff.strip():
-        raise HTTPException(status_code=400, detail="code_diff is empty")
+# Cap the diff sent to the pipeline so KV cache + activations stay
+# within ~3-4 GiB headroom on a single L40S. CoT prompts wrap the diff
+# with system instructions + RAG docs + extra rules; total context is
+# bounded above by tokens-in-diff + ~1.5x for the wrapping. 6000 keeps
+# the worst case under 16K total context.
+_MAX_DIFF_TOKENS = 6000
+_TRUNCATION_NOTICE = (
+    "\n\n... [diff truncated server-side to fit GPU memory budget;"
+    " review covers the prefix above only]\n"
+)
+
+
+def _truncate_diff(diff: str) -> str:
+    tokenizer = getattr(_backend, "_tokenizer", None)
+    if tokenizer is None:
+        return diff
+    encoded = tokenizer(diff, add_special_tokens=False).input_ids
+    if len(encoded) <= _MAX_DIFF_TOKENS:
+        return diff
+    kept = tokenizer.decode(encoded[:_MAX_DIFF_TOKENS], skip_special_tokens=True)
+    log.warning(
+        "Diff truncated from %d to %d tokens",
+        len(encoded),
+        _MAX_DIFF_TOKENS,
+    )
+    return kept + _TRUNCATION_NOTICE
+
+
+def _execute_review(req: ReviewRequest) -> ReviewResponse:
+    """Synchronous CoT review. Shared by `/review` and the async job worker."""
+    code_diff = _truncate_diff(req.code_diff)
 
     retriever = (
         FaissRAGRetriever(threshold=req.rag_threshold)
@@ -135,22 +172,134 @@ def review(req: ReviewRequest) -> ReviewResponse:
     )
 
     if req.file_path is not None:
-        file_result = pipeline.run_for_file(req.file_path, req.code_diff)
+        file_result = pipeline.run_for_file(req.file_path, code_diff)
         return ReviewResponse(
-            code_diff=req.code_diff,
+            code_diff=code_diff,
             rag_docs=file_result.rag_docs,
             steps=[StepOutput(name=k, output=v)
                    for k, v in file_result.step_outputs.items()],
             inline_findings=file_result.inline_findings,
         )
 
-    result = pipeline.run(req.code_diff)
+    result = pipeline.run(code_diff)
     return ReviewResponse(
         code_diff=result.code_diff,
         rag_docs=result.rag_docs,
         steps=[StepOutput(name=k, output=v) for k, v in result.step_outputs.items()],
         inline_findings=[],
     )
+
+
+@app.post("/review", response_model=ReviewResponse)
+def review(req: ReviewRequest) -> ReviewResponse:
+    if not req.code_diff.strip():
+        raise HTTPException(status_code=400, detail="code_diff is empty")
+    try:
+        return _execute_review(req)
+    finally:
+        _release_gpu_memory()
+
+
+# ---------------------------------------------------------------------------
+# Async job pattern for long-running reviews.
+#
+# Cloudflare's free/pro/business proxy aborts any single HTTP request at
+# 100s. A 30B MoE CoT review runs for minutes, so the synchronous /review
+# endpoint cannot survive the edge. Clients behind such a proxy submit
+# the job, then poll for the result — each individual HTTP call returns
+# in well under the 100s budget.
+# ---------------------------------------------------------------------------
+
+_JOB_TTL_SECONDS = 3600
+
+
+@dataclass
+class _Job:
+    status: JobStatus = "pending"
+    result: ReviewResponse | None = None
+    error: str | None = None
+    created_at: float = field(default_factory=time.time)
+
+
+_JOBS: dict[str, _Job] = {}
+_JOBS_LOCK = threading.Lock()
+
+
+def _evict_stale_jobs_locked() -> None:
+    """Drop jobs older than the TTL. Caller must hold _JOBS_LOCK."""
+    now = time.time()
+    stale = [
+        jid for jid, j in _JOBS.items()
+        if now - j.created_at > _JOB_TTL_SECONDS
+    ]
+    for jid in stale:
+        del _JOBS[jid]
+
+
+def _release_gpu_memory() -> None:
+    """Drop intermediate tensors and return reserved CUDA blocks to the OS.
+
+    Per-file review accumulates KV cache + activations on the GPU; without
+    this the cache hangs on between jobs and the next allocation OOMs even
+    when free VRAM looks adequate.
+    """
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
+def _run_review_job(job_id: str, req: ReviewRequest) -> None:
+    with _JOBS_LOCK:
+        job = _JOBS.get(job_id)
+        if job is None:
+            return
+        job.status = "running"
+    try:
+        result = _execute_review(req)
+        with _JOBS_LOCK:
+            job = _JOBS.get(job_id)
+            if job is not None:
+                job.status = "done"
+                job.result = result
+    except Exception as exc:
+        log.exception("Review job %s failed", job_id)
+        with _JOBS_LOCK:
+            job = _JOBS.get(job_id)
+            if job is not None:
+                job.status = "error"
+                job.error = f"{type(exc).__name__}: {exc}"
+    finally:
+        _release_gpu_memory()
+
+
+@app.post("/review/submit", response_model=ReviewJobSubmitResponse)
+def review_submit(req: ReviewRequest) -> ReviewJobSubmitResponse:
+    if not req.code_diff.strip():
+        raise HTTPException(status_code=400, detail="code_diff is empty")
+    job_id = uuid.uuid4().hex
+    with _JOBS_LOCK:
+        _evict_stale_jobs_locked()
+        _JOBS[job_id] = _Job()
+    threading.Thread(
+        target=_run_review_job,
+        args=(job_id, req),
+        daemon=True,
+    ).start()
+    return ReviewJobSubmitResponse(job_id=job_id)
+
+
+@app.get("/review/result/{job_id}", response_model=ReviewJobStatusResponse)
+def review_result(job_id: str) -> ReviewJobStatusResponse:
+    with _JOBS_LOCK:
+        job = _JOBS.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="job not found")
+        return ReviewJobStatusResponse(
+            job_id=job_id,
+            status=job.status,
+            result=job.result,
+            error=job.error,
+        )
 
 
 class _NoOpRetriever:
