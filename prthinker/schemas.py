@@ -130,7 +130,7 @@ class ReviewRequest(BaseModel):
     extra_rules: list[str] = Field(default_factory=list)
 
 
-JobStatus = Literal["pending", "running", "done", "error"]
+JobStatus = Literal["pending", "running", "done", "error", "cancelled"]
 
 
 class ReviewJobSubmitResponse(BaseModel):

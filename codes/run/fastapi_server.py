@@ -33,7 +33,7 @@ from prthinker.accepted import (
 from prthinker.backends.local import LocalQwen3Backend
 from prthinker.config import LocalBackendConfig
 from prthinker.dismissed import DismissedExamplesStore, DismissedFilter
-from prthinker.pipeline import CoTPipeline
+from prthinker.pipeline import CoTPipeline, ReviewCancelledError
 from prthinker.rag import FaissRAGRetriever
 from prthinker.schemas import (
     AskRequest,
@@ -152,7 +152,10 @@ def _truncate_diff(diff: str) -> str:
     return kept + _TRUNCATION_NOTICE
 
 
-def _execute_review(req: ReviewRequest) -> ReviewResponse:
+def _execute_review(
+    req: ReviewRequest,
+    cancel_event: "threading.Event | None" = None,
+) -> ReviewResponse:
     """Synchronous CoT review. Shared by `/review` and the async job worker."""
     code_diff = _truncate_diff(req.code_diff)
 
@@ -169,6 +172,7 @@ def _execute_review(req: ReviewRequest) -> ReviewResponse:
         extra_rules=tuple(req.extra_rules),
         dismissed_filter=_dismissed_filter,
         accepted_retriever=_accepted_retriever,
+        cancel_event=cancel_event,
     )
 
     if req.file_path is not None:
@@ -211,6 +215,12 @@ def review(req: ReviewRequest) -> ReviewResponse:
 # ---------------------------------------------------------------------------
 
 _JOB_TTL_SECONDS = 3600
+# A running job whose result endpoint has not been polled for this long
+# is presumed abandoned (matrix runner was cancelled, lost network, etc.).
+# The sweeper sets its cancel_event so the worker bails out at the next
+# step boundary instead of finishing inference no one will read.
+_IDLE_TIMEOUT_SECONDS = 180
+_SWEEPER_INTERVAL_SECONDS = 30
 
 
 @dataclass
@@ -219,6 +229,8 @@ class _Job:
     result: ReviewResponse | None = None
     error: str | None = None
     created_at: float = field(default_factory=time.time)
+    last_polled_at: float = field(default_factory=time.time)
+    cancel_event: threading.Event = field(default_factory=threading.Event)
 
 
 _JOBS: dict[str, _Job] = {}
@@ -234,6 +246,35 @@ def _evict_stale_jobs_locked() -> None:
     ]
     for jid in stale:
         del _JOBS[jid]
+
+
+def _sweep_idle_jobs() -> None:
+    """Background sweeper: cancel running jobs that nobody is polling.
+
+    The matrix runner polls every 5 seconds, so 180 s of silence almost
+    certainly means the runner was cancelled (concurrency
+    cancel-in-progress, manual cancel, hung CI) and there is no point
+    burning GPU on a review nobody will read.
+    """
+    while True:
+        time.sleep(_SWEEPER_INTERVAL_SECONDS)
+        now = time.time()
+        with _JOBS_LOCK:
+            for jid, job in _JOBS.items():
+                if job.status != "running":
+                    continue
+                if job.cancel_event.is_set():
+                    continue
+                if now - job.last_polled_at > _IDLE_TIMEOUT_SECONDS:
+                    log.warning(
+                        "Job %s idle for %.0fs; setting cancel_event",
+                        jid,
+                        now - job.last_polled_at,
+                    )
+                    job.cancel_event.set()
+
+
+threading.Thread(target=_sweep_idle_jobs, daemon=True).start()
 
 
 def _release_gpu_memory() -> None:
@@ -254,13 +295,20 @@ def _run_review_job(job_id: str, req: ReviewRequest) -> None:
         if job is None:
             return
         job.status = "running"
+        cancel_event = job.cancel_event
     try:
-        result = _execute_review(req)
+        result = _execute_review(req, cancel_event=cancel_event)
         with _JOBS_LOCK:
             job = _JOBS.get(job_id)
             if job is not None:
                 job.status = "done"
                 job.result = result
+    except ReviewCancelledError:
+        log.info("Review job %s cancelled by client", job_id)
+        with _JOBS_LOCK:
+            job = _JOBS.get(job_id)
+            if job is not None:
+                job.status = "cancelled"
     except Exception as exc:
         log.exception("Review job %s failed", job_id)
         with _JOBS_LOCK:
@@ -294,12 +342,34 @@ def review_result(job_id: str) -> ReviewJobStatusResponse:
         job = _JOBS.get(job_id)
         if job is None:
             raise HTTPException(status_code=404, detail="job not found")
+        # Heartbeat for the idle sweeper — as long as a client polls
+        # within _IDLE_TIMEOUT_SECONDS the worker keeps running.
+        job.last_polled_at = time.time()
         return ReviewJobStatusResponse(
             job_id=job_id,
             status=job.status,
             result=job.result,
             error=job.error,
         )
+
+
+@app.post("/review/cancel/{job_id}")
+def review_cancel(job_id: str) -> dict[str, str | bool]:
+    """Mark a running job for cancellation.
+
+    Sets the worker's ``cancel_event``; the pipeline picks it up at the
+    next step boundary (inference itself is uninterruptible) and the
+    job ends with ``status="cancelled"``. Already-terminal jobs are
+    left alone and the endpoint reports the current status.
+    """
+    with _JOBS_LOCK:
+        job = _JOBS.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="job not found")
+        if job.status in ("done", "error", "cancelled"):
+            return {"job_id": job_id, "cancelled": False, "status": job.status}
+        job.cancel_event.set()
+        return {"job_id": job_id, "cancelled": True, "status": job.status}
 
 
 class _NoOpRetriever:
