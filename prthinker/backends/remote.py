@@ -75,7 +75,16 @@ class RemoteHttpBackend(InferenceBackend):
         # The server picks the model at boot time; the runner does not know it.
         return "remote"
 
-    def generate(self, prompt: str, max_new_tokens: int) -> str:
+    def generate(
+        self,
+        prompt: str,
+        max_new_tokens: int,
+        *,
+        cancel_event: "object | None" = None,
+    ) -> str:
+        # Remote /ask is a single round-trip; mid-stream cancellation
+        # would need a streaming endpoint and isn't implemented yet.
+        del cancel_event
         response = self._client.post(
             "/ask",
             json={"prompt": prompt, "max_new_tokens": max_new_tokens},
