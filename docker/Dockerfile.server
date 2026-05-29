@@ -24,9 +24,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        python3.12 python3.12-venv python3-pip git ca-certificates curl \
+        software-properties-common ca-certificates curl git gnupg \
+ && add-apt-repository -y ppa:deadsnakes/ppa \
+ && apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        python3.12 python3.12-venv python3.12-dev python3-pip \
  && update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1 \
- && ln -sf /usr/bin/pip3 /usr/bin/pip \
+ && curl -fsS https://bootstrap.pypa.io/get-pip.py | python3.12 \
+ && ln -sf /usr/local/bin/pip /usr/bin/pip \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
