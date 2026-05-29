@@ -291,7 +291,7 @@ Code-Review-Framework/
 │   └── util/                         #   qwen3_util.py + faiss_util.py
 ├── datas/                            # RAG rules + experiment fixtures
 ├── docs/                             # Sphinx (en + zh-TW + zh-CN, single tree)
-├── docker/                           # Self-host: Dockerfile + compose + nginx
+├── docker/                           # Self-host: Dockerfile + compose (port 9000)
 ├── paper/                            # Manuscript + pptxgenjs slide build
 ├── .github/workflows/prthinker.yml   # GHA: review-pr with graceful skip
 ├── .prospector.yaml                  # D213 disabled, D212 selected

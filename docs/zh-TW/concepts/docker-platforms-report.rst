@@ -11,13 +11,16 @@ Docker、多平台、縱向報告
 以 Docker compose 自架部署
 --------------------------
 
-``docker/`` 目錄下之 bundle 一指令即可部署 FastAPI 推論伺服器（含 TLS
-與 bearer-token 驗證）。三項主機需求：
+``docker/`` 目錄下之 bundle 一指令即可部署 FastAPI 推論伺服器，預設直接
+exposed 在 port ``9000`` 上。正式部署可疊用 TLS overlay，加上 nginx 做
+TLS termination + bearer-token 驗證。兩項主機需求（使用 overlay 才需要
+TLS 憑證）：
 
 * NVIDIA GPU 加上與設定之 CUDA 版本相容之驅動（預設 ``12.2.0``\ ）。
 * Docker 24+ 並配置 NVIDIA container runtime（\ ``docker-compose.yml``
   內 ``runtime: nvidia``\ ）。
-* TLS 憑證（Let's Encrypt 或 self-signed），mount 進 nginx container。
+* （Overlay 才需）TLS 憑證（Let's Encrypt 或 self-signed），mount 進
+  nginx container。
 
 檔案清單：
 
@@ -31,28 +34,43 @@ Docker、多平台、縱向報告
      - CUDA-runtime base + Python 3.12 + ``pip install -e .[server]``\ 。
        模型權重\ **不**\ 烤進 image，於首次執行時拉到 volume 中。
    * - ``docker/docker-compose.yml``
-     - 兩個 service（\ ``prthinker`` + ``nginx``\ ）、三個 volume
-       （\ ``hf_cache``\ 、\ ``data``\ 、host TLS 目錄）。
+     - 預設部署：單一 service（\ ``prthinker``\ ），exposed 在
+       ``${PRTHINKER_HOST_PORT:-9000}``\ ；兩個 volume（\ ``hf_cache``\ 、
+       ``data``\ ）。HTTP only，無 TLS\ 。
+   * - ``docker/docker-compose.tls.yml``
+     - 可選 overlay：加上 ``nginx`` service 做 TLS + bearer-token 驗證，
+       把 ``prthinker`` 藏在內網後面\ 。
    * - ``docker/nginx.conf``
-     - TLS termination；\ ``/healthz`` 不檢查 auth，其他路徑要求
-       ``Authorization: Bearer <PRTHINKER_BACKEND_TOKEN>``\ 。
+     - Overlay 使用\ 。TLS termination；\ ``/healthz`` 不檢查 auth，
+       其他路徑要求 ``Authorization: Bearer <PRTHINKER_BACKEND_TOKEN>``\ 。
    * - ``docker/entrypoint-nginx.sh``
-     - container 啟動時把 token 注入 ``nginx.conf``\ ；env 變數缺失
-       時拒絕啟動（fail-fast）。
+     - Overlay 使用\ 。container 啟動時把 token 注入 ``nginx.conf``\ ；
+       env 變數缺失時拒絕啟動（fail-fast）\ 。
    * - ``docker/.env.example``
-     - bearer token、TLS 憑證目錄、host port、CUDA tag 之範本。
+     - host port、CUDA tag 範本，以及可選之 overlay 用 bearer token /
+       TLS 憑證目錄\ 。
 
-啟動：
+啟動（預設 — HTTP on :9000）：
 
 .. code-block:: bash
 
    cd docker
-   cp .env.example .env
-   # 編輯：PRTHINKER_BACKEND_TOKEN=$(openssl rand -hex 32)
-   #       TLS_CERT_DIR=/etc/letsencrypt/live/your-host
+   cp .env.example .env       # PRTHINKER_HOST_PORT 預設 9000
    docker compose up -d
 
    # 驗證
+   curl http://your-host:9000/healthz
+
+啟動（overlay — TLS + bearer token on :443）：
+
+.. code-block:: bash
+
+   cd docker
+   # 編輯 .env：
+   #   PRTHINKER_BACKEND_TOKEN=$(openssl rand -hex 32)
+   #   TLS_CERT_DIR=/etc/letsencrypt/live/your-host
+   docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
+
    curl https://your-host/healthz \
        -H "Authorization: Bearer $PRTHINKER_BACKEND_TOKEN"
 

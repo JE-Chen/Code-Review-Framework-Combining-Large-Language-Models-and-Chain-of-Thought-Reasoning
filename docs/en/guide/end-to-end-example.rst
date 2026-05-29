@@ -24,8 +24,8 @@ Step 1 — Inference server (GPU host)
 -------------------------------------
 
 Two equivalent paths: bare ``uvicorn`` for the simplest setup, or
-``docker compose`` for production with TLS termination + bearer-token
-gating.
+``docker compose`` (default deploys on ``:9000`` HTTP — see the optional
+TLS overlay below for production with nginx + bearer-token gating).
 
 1a. uvicorn
 ~~~~~~~~~~~
@@ -51,7 +51,7 @@ gating.
    export PRTHINKER_TELEMETRY_ENABLED=true
 
    uvicorn codes.run.fastapi_server:app \
-       --host 0.0.0.0 --port 8000 --workers 1
+       --host 0.0.0.0 --port 9000 --workers 1
 
 ``--workers 1`` is required — the model must load exactly once.
 
@@ -64,21 +64,35 @@ Health check:
 
 .. code-block:: bash
 
-   curl http://localhost:8000/healthz
+   curl http://localhost:9000/healthz
    # {"status":"ok","model":"Qwen/Qwen3-Coder-30B-A3B-Instruct"}
 
 
-1b. Docker compose with nginx + bearer-token gate
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1b. Docker compose (default — HTTP on :9000)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
    cd prthinker/docker
-   cp .env.example .env
-   # edit .env:
-   #   PRTHINKER_BACKEND_TOKEN=<long random string>
-   #   TLS_CERT_DIR=/etc/letsencrypt/live/your-host
+   cp .env.example .env       # PRTHINKER_HOST_PORT defaults to 9000
    docker compose up -d
+
+   curl http://your-host:9000/healthz
+
+Optional: TLS + bearer-token overlay
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For production, layer ``docker-compose.tls.yml`` on top — it adds an
+nginx reverse proxy with TLS termination and a bearer-token gate, and
+hides the prthinker container behind it.
+
+.. code-block:: bash
+
+   cd prthinker/docker
+   # edit .env:
+   #   PRTHINKER_BACKEND_TOKEN=<long random string>   # openssl rand -hex 32
+   #   TLS_CERT_DIR=/etc/letsencrypt/live/your-host
+   docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
 
    curl https://your-host/healthz \
        -H "Authorization: Bearer $PRTHINKER_BACKEND_TOKEN"
@@ -193,7 +207,7 @@ Set two repo secrets under *Settings → Secrets and variables → Actions*:
    * - Secret
      - Value
    * - ``PRTHINKER_BACKEND_URL``
-     - ``https://your-host`` (docker path) or ``http://your-host:8000``
+     - ``https://your-host`` (docker path) or ``http://your-host:9000``
        (uvicorn path)
    * - ``PRTHINKER_BACKEND_API_KEY``
      - The ``PRTHINKER_BACKEND_TOKEN`` set in Step 1b; may be empty for

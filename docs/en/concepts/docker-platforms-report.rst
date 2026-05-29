@@ -11,15 +11,17 @@ Three additions that take prthinker from "library you import" to
 Self-hosted deployment with Docker compose
 ------------------------------------------
 
-The bundle in ``docker/`` deploys the FastAPI inference server with TLS
-termination + bearer-token auth in one command. Three host requirements:
+The bundle in ``docker/`` deploys the FastAPI inference server directly
+on port ``9000`` in one command. An optional TLS overlay adds nginx with
+TLS termination + bearer-token auth for production. Two host requirements
+(plus a TLS certificate if you use the overlay):
 
 * NVIDIA GPU with a driver that matches the configured CUDA version
   (default ``12.2.0``).
 * Docker 24+ with the NVIDIA container runtime
   (``runtime: nvidia`` declared in ``docker-compose.yml``).
-* A TLS certificate (Let's Encrypt or self-signed) mounted into the
-  nginx container.
+* (Overlay only) A TLS certificate (Let's Encrypt or self-signed)
+  mounted into the nginx container.
 
 Files:
 
@@ -33,28 +35,45 @@ Files:
      - CUDA-runtime base + Python 3.12 + ``pip install -e .[server]``.
        Model weights NOT baked in — pulled into a volume at first run.
    * - ``docker/docker-compose.yml``
-     - Two services (``prthinker`` + ``nginx``), three volumes
-       (``hf_cache``, ``data``, host TLS dir).
+     - Default deploy: one service (``prthinker``), exposed on
+       ``${PRTHINKER_HOST_PORT:-9000}``, two volumes (``hf_cache``,
+       ``data``). HTTP only — no TLS.
+   * - ``docker/docker-compose.tls.yml``
+     - Optional overlay: adds an ``nginx`` service for TLS + bearer-token
+       auth, hides ``prthinker`` behind it on the internal network.
    * - ``docker/nginx.conf``
-     - TLS termination, ``/healthz`` bypasses auth, all other paths
-       require ``Authorization: Bearer <PRTHINKER_BACKEND_TOKEN>``.
+     - Used by the overlay. TLS termination, ``/healthz`` bypasses auth,
+       all other paths require ``Authorization: Bearer
+       <PRTHINKER_BACKEND_TOKEN>``.
    * - ``docker/entrypoint-nginx.sh``
-     - Substitutes the token into ``nginx.conf`` at container start;
-       refuses to boot if the env var is missing (fail-fast).
+     - Used by the overlay. Substitutes the token into ``nginx.conf`` at
+       container start; refuses to boot if the env var is missing
+       (fail-fast).
    * - ``docker/.env.example``
-     - Template for the bearer token, TLS cert dir, host port, CUDA tag.
+     - Template for host port, CUDA tag, plus optional bearer token +
+       TLS cert dir for the overlay.
 
-Bring-up:
+Bring-up (default — HTTP on :9000):
 
 .. code-block:: bash
 
    cd docker
-   cp .env.example .env
-   # edit: PRTHINKER_BACKEND_TOKEN=$(openssl rand -hex 32)
-   #       TLS_CERT_DIR=/etc/letsencrypt/live/your-host
+   cp .env.example .env       # PRTHINKER_HOST_PORT defaults to 9000
    docker compose up -d
 
    # verify
+   curl http://your-host:9000/healthz
+
+Bring-up (overlay — TLS + bearer token on :443):
+
+.. code-block:: bash
+
+   cd docker
+   # edit .env:
+   #   PRTHINKER_BACKEND_TOKEN=$(openssl rand -hex 32)
+   #   TLS_CERT_DIR=/etc/letsencrypt/live/your-host
+   docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
+
    curl https://your-host/healthz \
        -H "Authorization: Bearer $PRTHINKER_BACKEND_TOKEN"
 

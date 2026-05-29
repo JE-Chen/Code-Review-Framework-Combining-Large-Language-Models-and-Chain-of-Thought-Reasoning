@@ -113,13 +113,13 @@ pip install -e ".[runner]"
 # Review a local diff against a remote inference server
 prthinker review-file my-change.diff \
     --backend remote \
-    --remote-url https://my-host:8000 \
+    --remote-url http://my-host:9000 \
     --per-file --inline-review
 
 # Review a PR end-to-end (used by the GitHub Action)
 prthinker review-pr \
     --repo owner/name --pr-number 42 \
-    --backend remote --remote-url https://my-host:8000 \
+    --backend remote --remote-url http://my-host:9000 \
     --gate-on error --include-ci-signals
 
 # …or use OpenAI / Azure / vLLM / Ollama via the OpenAI-compat backend
@@ -155,7 +155,7 @@ To deploy the inference server (requires a GPU and the heavier extras):
 
 ```bash
 pip install -e ".[server]"
-uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
+uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 9000
 ```
 
 ## GitHub Actions

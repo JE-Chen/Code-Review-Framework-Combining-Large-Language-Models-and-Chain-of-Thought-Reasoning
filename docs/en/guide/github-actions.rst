@@ -17,7 +17,7 @@ Required secrets
      - Purpose
    * - ``PRTHINKER_BACKEND_URL``
      - Base URL of your hosted inference server
-       (e.g. ``https://gpu-host.internal:8000``).
+       (e.g. ``https://gpu-host.internal:9000``).
    * - ``PRTHINKER_BACKEND_API_KEY``
      - Optional bearer token, sent as ``Authorization: Bearer ...``.
 

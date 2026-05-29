@@ -22,8 +22,9 @@ Solo developer 擁有一台 GPU 機器（≥ 18 GB VRAM）\ 。在 GPU host 跑
 Step 1 — 推論伺服器（GPU host）
 --------------------------------
 
-兩條等價路徑：最小化用 ``uvicorn``\ ，或為正式部署用 ``docker compose``
-加上 nginx TLS 與 bearer token 閘門\ 。
+兩條等價路徑：最小化用 ``uvicorn``\ ，或用 ``docker compose``\ （預設
+跑在 ``:9000`` HTTP；若正式部署需 TLS + bearer token，可疊用下面的
+overlay\ ）\ 。
 
 1a. uvicorn
 ~~~~~~~~~~~
@@ -48,7 +49,7 @@ Step 1 — 推論伺服器（GPU host）
    export PRTHINKER_TELEMETRY_ENABLED=true
 
    uvicorn codes.run.fastapi_server:app \
-       --host 0.0.0.0 --port 8000 --workers 1
+       --host 0.0.0.0 --port 9000 --workers 1
 
 ``--workers 1`` 必要 —— 模型只該載入一份\ 。
 
@@ -60,21 +61,34 @@ Step 1 — 推論伺服器（GPU host）
 
 .. code-block:: bash
 
-   curl http://localhost:8000/healthz
+   curl http://localhost:9000/healthz
    # {"status":"ok","model":"Qwen/Qwen3-Coder-30B-A3B-Instruct"}
 
 
-1b. Docker compose + nginx + bearer token
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1b. Docker compose（預設 — HTTP on :9000）
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
    cd prthinker/docker
-   cp .env.example .env
-   # 編輯 .env：
-   #   PRTHINKER_BACKEND_TOKEN=<長隨機字串>
-   #   TLS_CERT_DIR=/etc/letsencrypt/live/your-host
+   cp .env.example .env       # PRTHINKER_HOST_PORT 預設 9000
    docker compose up -d
+
+   curl http://your-host:9000/healthz
+
+可選：TLS + bearer token overlay
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+正式部署可疊上 ``docker-compose.tls.yml``\ ──加上 nginx 反向代理做 TLS
+termination 與 bearer-token 閘門\ ，prthinker container 藏在它後面\ 。
+
+.. code-block:: bash
+
+   cd prthinker/docker
+   # 編輯 .env：
+   #   PRTHINKER_BACKEND_TOKEN=<長隨機字串>   # openssl rand -hex 32
+   #   TLS_CERT_DIR=/etc/letsencrypt/live/your-host
+   docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
 
    curl https://your-host/healthz \
        -H "Authorization: Bearer $PRTHINKER_BACKEND_TOKEN"
@@ -190,7 +204,7 @@ Repo Settings → Secrets → Actions 設兩個 secrets：
      - Value
    * - ``PRTHINKER_BACKEND_URL``
      - ``https://your-host``\ （docker 路徑）或
-       ``http://your-host:8000``\ （uvicorn 路徑）
+       ``http://your-host:9000``\ （uvicorn 路徑）
    * - ``PRTHINKER_BACKEND_API_KEY``
      - Step 1b 設的 ``PRTHINKER_BACKEND_TOKEN``\ ；走 uvicorn 路徑可空\ 。
 

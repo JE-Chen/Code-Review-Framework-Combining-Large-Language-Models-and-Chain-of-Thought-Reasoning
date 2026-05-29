@@ -78,13 +78,13 @@ pip install -e ".[runner]"
 # 對本機 diff 跑審查（指向遠端推論伺服器）
 prthinker review-file my-change.diff \
     --backend remote \
-    --remote-url https://my-host:8000 \
+    --remote-url http://my-host:9000 \
     --per-file --inline-review
 
 # 完整審查 PR（GitHub Action 內部用的就是這個）
 prthinker review-pr \
     --repo owner/name --pr-number 42 \
-    --backend remote --remote-url https://my-host:8000 \
+    --backend remote --remote-url http://my-host:9000 \
     --gate-on error --include-ci-signals
 
 # …或透過 OpenAI-compat backend 使用 OpenAI / Azure / vLLM / Ollama
@@ -120,7 +120,7 @@ prthinker adversarial-eval \
 
 ```bash
 pip install -e ".[server]"
-uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
+uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 9000
 ```
 
 ## GitHub Actions

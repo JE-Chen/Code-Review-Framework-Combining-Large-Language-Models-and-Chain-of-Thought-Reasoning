@@ -220,13 +220,13 @@ pip install -e ".[server]"
 
 export PRTHINKER_DISMISSED_PATH=./store/dismissed.jsonl
 export PRTHINKER_ACCEPTED_PATH=./store/accepted.jsonl
-uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
+uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 9000
 ```
 
-Reverse-proxy this behind nginx / Cloudflare Access with TLS. Confirm:
+Confirm:
 
 ```bash
-curl https://my-host:8000/healthz   # → {"status": "ok", "model": "..."}
+curl http://my-host:9000/healthz   # → {"status": "ok", "model": "..."}
 ```
 
 **In the repo:**
@@ -236,7 +236,7 @@ Add `.prthinker.yaml`:
 ```yaml
 backend: remote
 remote:
-  url: https://my-host:8000
+  url: http://my-host:9000
   use_pipeline_endpoint: true
 per_file: true
 inline_review: true
@@ -253,7 +253,7 @@ Set repo secrets:
 
 | Secret | Value |
 |---|---|
-| `PRTHINKER_BACKEND_URL` | `https://my-host:8000` |
+| `PRTHINKER_BACKEND_URL` | `http://my-host:9000` |
 | `PRTHINKER_BACKEND_API_KEY` | (optional) Bearer token for your reverse proxy |
 
 Push a PR. The runner stays thin (httpx + pydantic only); the server
@@ -342,7 +342,7 @@ anthropic:
   version: "2023-06-01"
 
 remote:
-  url: https://my-host:8000
+  url: http://my-host:9000
   timeout_seconds: 600
   use_pipeline_endpoint: true
 ```
@@ -444,7 +444,7 @@ Then on the server:
 ```bash
 export PRTHINKER_DISMISSED_PATH=.prthinker/dismissed.jsonl
 export PRTHINKER_ACCEPTED_PATH=.prthinker/accepted.jsonl
-uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
+uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 9000
 ```
 
 Both stores are no-ops when empty — the server logs `filter disabled` /

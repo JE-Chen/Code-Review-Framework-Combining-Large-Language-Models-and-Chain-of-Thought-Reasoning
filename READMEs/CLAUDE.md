@@ -720,10 +720,10 @@ pip install -e ".[server]"   # FastAPI server
 python -m codes.run.cot
 
 # Start the FastAPI server
-uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
+uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 9000
 
 # Drive a one-off review
-prthinker review-file path/to/code.py --backend remote --remote-url http://localhost:8000
+prthinker review-file path/to/code.py --backend remote --remote-url http://localhost:9000
 
 # Bootstrap learned corpora
 prthinker harvest-dismissed --repo owner/name --max-prs 100

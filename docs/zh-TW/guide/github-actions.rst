@@ -16,7 +16,7 @@ Reviewer 內附一份可直接用的 workflow：\ ``.github/workflows/prthinker.
      - 用途
    * - ``PRTHINKER_BACKEND_URL``
      - 你自架的推論伺服器基底 URL
-       （例如 ``https://gpu-host.internal:8000``\ ）。
+       （例如 ``https://gpu-host.internal:9000``\ ）。
    * - ``PRTHINKER_BACKEND_API_KEY``
      - 可選的 bearer token，會以 ``Authorization: Bearer ...`` 發送。
 
