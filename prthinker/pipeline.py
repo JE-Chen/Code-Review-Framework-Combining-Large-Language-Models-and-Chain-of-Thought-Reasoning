@@ -721,7 +721,9 @@ class CoTPipeline:
                 output = self._generate_streaming(step.name, prompt, ctx.file_path)
             else:
                 output = self._backend.generate(
-                    prompt, max_new_tokens=self._max_new_tokens
+                    prompt,
+                    max_new_tokens=self._max_new_tokens,
+                    cancel_event=self._cancel_event,
                 )
             ctx.results[step.name] = output
             if output_dir is not None:

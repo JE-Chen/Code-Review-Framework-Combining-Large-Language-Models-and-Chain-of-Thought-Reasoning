@@ -47,7 +47,15 @@ class AnthropicBackend(InferenceBackend):
     def last_usage(self) -> Usage | None:
         return self._last_usage
 
-    def generate(self, prompt: str, max_new_tokens: int) -> str:
+    def generate(
+        self,
+        prompt: str,
+        max_new_tokens: int,
+        *,
+        cancel_event: "object | None" = None,
+    ) -> str:
+        # Remote network call; mid-stream cancellation not implemented.
+        del cancel_event
         self._last_usage = None
         payload = {
             "model": self._config.model,

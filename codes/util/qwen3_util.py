@@ -1,8 +1,31 @@
 import datetime
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+    StoppingCriteria,
+    StoppingCriteriaList,
+)
 from peft import PeftModel
+
+from prthinker.pipeline import ReviewCancelledError
+
+
+class _CancelStoppingCriteria(StoppingCriteria):
+    """Stops generation when ``cancel_event`` flips. Polled every token
+    so cancellation lands within ~one token (~50-100ms on L40S)."""
+
+    def __init__(self, cancel_event):
+        super().__init__()
+        self._cancel_event = cancel_event
+
+    def __call__(self, input_ids, scores, **kwargs):
+        return (
+            self._cancel_event is not None
+            and self._cancel_event.is_set()
+        )
 
 
 def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3B-Thinking-2507", quantization: bool = True):
@@ -47,7 +70,7 @@ def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3
 
     return model, tokenizer
 
-def qwen3_ask(prompt: str, model, tokenizer, max_new_tokens: int = 16784):
+def qwen3_ask(prompt: str, model, tokenizer, max_new_tokens: int = 16784, cancel_event=None):
     messages = [
         {"role": "user", "content": prompt}
     ]
@@ -58,10 +81,27 @@ def qwen3_ask(prompt: str, model, tokenizer, max_new_tokens: int = 16784):
     )
     model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
 
+    stopping_criteria = None
+    if cancel_event is not None:
+        stopping_criteria = StoppingCriteriaList(
+            [_CancelStoppingCriteria(cancel_event)]
+        )
+
     generated_ids = model.generate(
         **model_inputs,
-        max_new_tokens=max_new_tokens
+        max_new_tokens=max_new_tokens,
+        stopping_criteria=stopping_criteria,
     )
+
+    # If the stopping criterion fired because the cancel_event was set,
+    # bail out before decoding — the partial output is useless to the
+    # caller and the worker's exception handler needs to see this as a
+    # cancellation, not a truncated success.
+    if cancel_event is not None and cancel_event.is_set():
+        raise ReviewCancelledError(
+            "Generation interrupted mid-stream by cancel_event"
+        )
+
     output_ids = generated_ids[0][len(model_inputs.input_ids[0]):].tolist()
 
     try:
