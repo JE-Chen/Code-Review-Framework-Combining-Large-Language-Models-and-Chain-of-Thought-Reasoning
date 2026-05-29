@@ -124,8 +124,38 @@ def rag(req: RagRequest) -> RagResponse:
     return RagResponse(docs=docs)
 
 
+# Cap the diff sent to the pipeline so KV cache + activations stay
+# within ~3-4 GiB headroom on a single L40S. CoT prompts wrap the diff
+# with system instructions + RAG docs + extra rules; total context is
+# bounded above by tokens-in-diff + ~1.5x for the wrapping. 6000 keeps
+# the worst case under 16K total context.
+_MAX_DIFF_TOKENS = 6000
+_TRUNCATION_NOTICE = (
+    "\n\n... [diff truncated server-side to fit GPU memory budget;"
+    " review covers the prefix above only]\n"
+)
+
+
+def _truncate_diff(diff: str) -> str:
+    tokenizer = getattr(_backend, "_tokenizer", None)
+    if tokenizer is None:
+        return diff
+    encoded = tokenizer(diff, add_special_tokens=False).input_ids
+    if len(encoded) <= _MAX_DIFF_TOKENS:
+        return diff
+    kept = tokenizer.decode(encoded[:_MAX_DIFF_TOKENS], skip_special_tokens=True)
+    log.warning(
+        "Diff truncated from %d to %d tokens",
+        len(encoded),
+        _MAX_DIFF_TOKENS,
+    )
+    return kept + _TRUNCATION_NOTICE
+
+
 def _execute_review(req: ReviewRequest) -> ReviewResponse:
     """Synchronous CoT review. Shared by `/review` and the async job worker."""
+    code_diff = _truncate_diff(req.code_diff)
+
     retriever = (
         FaissRAGRetriever(threshold=req.rag_threshold)
         if req.rag_enabled
@@ -142,16 +172,16 @@ def _execute_review(req: ReviewRequest) -> ReviewResponse:
     )
 
     if req.file_path is not None:
-        file_result = pipeline.run_for_file(req.file_path, req.code_diff)
+        file_result = pipeline.run_for_file(req.file_path, code_diff)
         return ReviewResponse(
-            code_diff=req.code_diff,
+            code_diff=code_diff,
             rag_docs=file_result.rag_docs,
             steps=[StepOutput(name=k, output=v)
                    for k, v in file_result.step_outputs.items()],
             inline_findings=file_result.inline_findings,
         )
 
-    result = pipeline.run(req.code_diff)
+    result = pipeline.run(code_diff)
     return ReviewResponse(
         code_diff=result.code_diff,
         rag_docs=result.rag_docs,
