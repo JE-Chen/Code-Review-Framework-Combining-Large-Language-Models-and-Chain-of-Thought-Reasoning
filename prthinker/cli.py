@@ -20,6 +20,7 @@ RAG selection:
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 from pathlib import Path
@@ -221,6 +222,43 @@ def _build_parser() -> argparse.ArgumentParser:
         "--max-findings-per-file",
         type=int,
         default=int(env_str("PRTHINKER_MAX_FINDINGS_PER_FILE", "10") or 10),
+    )
+    common.add_argument(
+        "--exclude-globs",
+        default=env_str("PRTHINKER_EXCLUDE_GLOBS", ""),
+        help=(
+            "Comma-separated fnmatch patterns; files in the PR diff that "
+            "match any pattern are skipped in --per-file mode. Useful for "
+            "noisy paths (IDE config, generated data, *.md). Example: "
+            "'.idea/*,datas/*,*.md,*.lock'."
+        ),
+    )
+    common.add_argument(
+        "--target-file",
+        default=env_str("PRTHINKER_TARGET_FILE", ""),
+        help=(
+            "When set, --per-file mode reviews only this exact diff path "
+            "and skips every other file. Lets a CI matrix runner own a "
+            "single file's review so each file gets its own job timeout."
+        ),
+    )
+    common.add_argument(
+        "--output-json",
+        default=env_str("PRTHINKER_OUTPUT_JSON", ""),
+        help=(
+            "Write a JSON-encoded partial ReviewResult to this path and "
+            "skip posting to GitHub. Lets a matrix runner stash its "
+            "findings as an artifact for a later `aggregate` job to merge."
+        ),
+    )
+    common.add_argument(
+        "--aggregate-from",
+        default=env_str("PRTHINKER_AGGREGATE_FROM", ""),
+        help=(
+            "Directory of partial-review JSONs (produced by --output-json) "
+            "to merge and post as a single summary + inline review. Used "
+            "by the `aggregate` subcommand only."
+        ),
     )
     common.add_argument(
         "--reply-to-author",
@@ -577,6 +615,42 @@ def _build_parser() -> argparse.ArgumentParser:
     p_file = sub.add_parser("review-file", parents=[common])
     p_file.add_argument("path", help="Path to a code/diff file, or '-' for stdin")
     p_file.add_argument("--output-dir", type=Path, default=None)
+
+    p_agg = sub.add_parser(
+        "aggregate",
+        parents=[common],
+        help=(
+            "Merge partial review JSONs (from `review-pr --output-json` "
+            "runners in a matrix) and post a single summary + inline "
+            "review + gate close to the PR."
+        ),
+    )
+    p_agg.add_argument(
+        "--platform",
+        choices=["github", "gitlab"],
+        default=env_str("PRTHINKER_PLATFORM", "github"),
+    )
+    p_agg.add_argument(
+        "--platform-base-url",
+        default=env_str("PRTHINKER_PLATFORM_BASE_URL"),
+    )
+    p_agg.add_argument(
+        "--repo",
+        default=env_str("GITHUB_REPOSITORY") or env_str("CI_PROJECT_PATH"),
+    )
+    p_agg.add_argument(
+        "--pr-number",
+        type=int,
+        default=int(
+            env_str("PRTHINKER_PR_NUMBER")
+            or env_str("CI_MERGE_REQUEST_IID", "0")
+            or 0
+        ),
+    )
+    p_agg.add_argument(
+        "--github-token",
+        default=env_str("GITHUB_TOKEN") or env_str("GITLAB_TOKEN"),
+    )
 
     p_harvest = sub.add_parser(
         "harvest-dismissed",
@@ -942,6 +1016,99 @@ def _read_stdin_or_file(path: str) -> str:
 # Server-orchestrated path: call /review per file.
 # ----------------------------------------------------------------------------
 
+def _serialize_partial_review(result: ReviewResult) -> dict:
+    """Pack a ReviewResult into a JSON-safe dict for the aggregate job.
+
+    Only the fields the aggregate step actually merges are kept —
+    inline_findings, per-file findings + verdict, and step_outputs.
+    Fancy add-ons (counterfactuals, persona reviews, api_drift) are
+    out of scope here; they can be added when the matrix workflow
+    exercises them.
+    """
+    return {
+        "code_diff": result.code_diff,
+        "rag_docs": list(result.rag_docs),
+        "step_outputs": dict(result.step_outputs),
+        "inline_findings": [f.model_dump() for f in result.inline_findings],
+        "per_file": [
+            {
+                "path": fr.path,
+                "rag_docs": list(fr.rag_docs),
+                "step_outputs": dict(fr.step_outputs),
+                "inline_findings": [f.model_dump() for f in fr.inline_findings],
+                "verdict": fr.verdict.model_dump() if fr.verdict else None,
+                "is_binary": fr.is_binary,
+                "is_deleted": fr.is_deleted,
+            }
+            for fr in result.per_file
+        ],
+    }
+
+
+def _deserialize_partial_review(data: dict) -> ReviewResult:
+    """Reconstruct a ReviewResult from the dict produced above."""
+    from prthinker.schemas import JudgeVerdict
+
+    inline_findings = [
+        InlineFinding.model_validate(f) for f in data.get("inline_findings", [])
+    ]
+    per_file: list[FileReviewResult] = []
+    for fr in data.get("per_file", []):
+        verdict_dict = fr.get("verdict")
+        per_file.append(
+            FileReviewResult(
+                path=fr["path"],
+                rag_docs=list(fr.get("rag_docs", [])),
+                step_outputs=dict(fr.get("step_outputs", {})),
+                inline_findings=[
+                    InlineFinding.model_validate(f)
+                    for f in fr.get("inline_findings", [])
+                ],
+                verdict=(
+                    JudgeVerdict.model_validate(verdict_dict)
+                    if verdict_dict
+                    else None
+                ),
+                is_binary=fr.get("is_binary", False),
+                is_deleted=fr.get("is_deleted", False),
+            )
+        )
+    return ReviewResult(
+        code_diff=data.get("code_diff", ""),
+        rag_docs=list(data.get("rag_docs", [])),
+        step_outputs=dict(data.get("step_outputs", {})),
+        inline_findings=inline_findings,
+        per_file=per_file,
+    )
+
+
+def _filter_per_file_targets(
+    files: list, args: argparse.Namespace
+) -> list:
+    """Apply --target-file / --exclude-globs to the parsed file list.
+
+    Lets a CI matrix runner pick a single path (--target-file) so per-file
+    review can be sharded across jobs, and lets the caller skip noisy paths
+    (--exclude-globs) so generated data / IDE config doesn't waste model
+    capacity. Both filters are no-ops when their args are empty.
+    """
+    import fnmatch
+
+    target = (getattr(args, "target_file", "") or "").strip()
+    if target:
+        files = [fd for fd in files if fd.path == target]
+
+    excludes_raw = (getattr(args, "exclude_globs", "") or "").strip()
+    if excludes_raw:
+        patterns = [p.strip() for p in excludes_raw.split(",") if p.strip()]
+        if patterns:
+            def _matches_any(path: str) -> bool:
+                return any(fnmatch.fnmatch(path, p) for p in patterns)
+            files = [fd for fd in files if not _matches_any(fd.path)]
+
+    return files
+
+
 def _review_via_server(
     args: argparse.Namespace, config: Config, diff_text: str
 ) -> ReviewResult:
@@ -968,6 +1135,7 @@ def _review_via_server(
             )
 
         files = parse_unified_diff(diff_text)
+        files = _filter_per_file_targets(files, args)
         all_findings: list[InlineFinding] = []
         aggregated_steps: dict[str, str] = {}
         per_file: list[FileReviewResult] = []
@@ -1191,7 +1359,14 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
                      platform_kind.value)
 
     gate_handle = None
-    if args.gate_on != "none" and not args.dry_run and head_sha is not None:
+    # Output-json mode skips gate too: the matrix runner that produces
+    # the partial review does not own the gate; the aggregate job does.
+    if (
+        args.gate_on != "none"
+        and not args.dry_run
+        and not getattr(args, "output_json", "")
+        and head_sha is not None
+    ):
         gate_handle = adapter.open_gate(head_sha)
 
     dialogue_block = ""
@@ -1255,6 +1430,21 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
             sys.stdout.write(
                 f"\n[would post {len(result.inline_findings)} inline findings]\n"
             )
+        return 0
+
+    output_json = getattr(args, "output_json", "")
+    if output_json:
+        Path(output_json).parent.mkdir(parents=True, exist_ok=True)
+        Path(output_json).write_text(
+            json.dumps(_serialize_partial_review(result), indent=2),
+            encoding="utf-8",
+        )
+        log.info(
+            "Wrote partial review (files=%d, findings=%d) to %s",
+            len(result.per_file),
+            len(result.inline_findings),
+            output_json,
+        )
         return 0
 
     comment_id = adapter.upsert_summary_comment(body)
@@ -1358,6 +1548,144 @@ def _maybe_open_auto_fix_pr(
         auto_result.total_findings_skipped,
         len(auto_result.files_changed),
     )
+
+
+def _cmd_aggregate(args: argparse.Namespace) -> int:
+    """Merge partial review JSONs and post a single review to the PR.
+
+    Counterpart to `review-pr --output-json`: a CI matrix that shards
+    per-file review across multiple runners can stash each runner's
+    partial result as an artifact, then call this command in a final
+    job to do the GitHub-side posting exactly once.
+    """
+    if not args.repo:
+        raise SystemExit("--repo or $GITHUB_REPOSITORY / $CI_PROJECT_PATH is required")
+    if not args.pr_number:
+        raise SystemExit("--pr-number is required")
+    if not args.github_token:
+        raise SystemExit("--github-token / $GITHUB_TOKEN / $GITLAB_TOKEN is required")
+    input_dir_raw = (getattr(args, "aggregate_from", "") or "").strip()
+    if not input_dir_raw:
+        raise SystemExit(
+            "--aggregate-from or $PRTHINKER_AGGREGATE_FROM is required"
+        )
+    input_dir = Path(input_dir_raw)
+    if not input_dir.is_dir():
+        raise SystemExit(f"{input_dir} is not a directory")
+
+    # Walk the dir recursively so artifact-download layouts (which often
+    # nest one folder per matrix iteration) are handled without extra
+    # wiring on the workflow side.
+    json_paths = sorted(input_dir.rglob("*.json"))
+    if not json_paths:
+        log.warning("No *.json found under %s — nothing to aggregate", input_dir)
+        return 0
+
+    merged_findings: list[InlineFinding] = []
+    merged_per_file: list[FileReviewResult] = []
+    merged_step_outputs: dict[str, str] = {}
+    rag_docs_seen: set[str] = set()
+    rag_docs: list[str] = []
+    paths_seen: set[str] = set()
+    for jp in json_paths:
+        try:
+            payload = json.loads(jp.read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001 — surface the offending file
+            log.warning("Skipping %s — not valid JSON (%s)", jp, exc)
+            continue
+        partial = _deserialize_partial_review(payload)
+        merged_findings.extend(partial.inline_findings)
+        merged_step_outputs.update(partial.step_outputs)
+        for d in partial.rag_docs:
+            if d not in rag_docs_seen:
+                rag_docs_seen.add(d)
+                rag_docs.append(d)
+        for fr in partial.per_file:
+            # Dedupe by path so re-runs of the same matrix shard don't
+            # double-up. Last-write-wins on duplicate paths.
+            if fr.path in paths_seen:
+                merged_per_file = [x for x in merged_per_file if x.path != fr.path]
+            paths_seen.add(fr.path)
+            merged_per_file.append(fr)
+
+    merged = ReviewResult(
+        code_diff="",  # the aggregate doesn't need the raw diff
+        rag_docs=rag_docs,
+        step_outputs=merged_step_outputs,
+        inline_findings=merged_findings,
+        per_file=merged_per_file,
+    )
+    log.info(
+        "Aggregated %d partial(s): files=%d findings=%d",
+        len(json_paths),
+        len(merged_per_file),
+        len(merged_findings),
+    )
+
+    from prthinker.platforms import PlatformKind, create_platform_adapter
+
+    platform_kind = PlatformKind(args.platform)
+    adapter = create_platform_adapter(
+        platform_kind,
+        repo=args.repo,
+        token=args.github_token,
+        pr_number=args.pr_number,
+        comment_marker=args.marker,
+        base_url=args.platform_base_url,
+    )
+
+    head_sha: str | None = None
+    needs_head_sha = args.gate_on != "none" and not args.dry_run
+    if needs_head_sha:
+        try:
+            head_sha = adapter.fetch_head_sha()
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Could not fetch head SHA (%s); skipping gate", exc)
+
+    gate_handle = None
+    if args.gate_on != "none" and not args.dry_run and head_sha is not None:
+        gate_handle = adapter.open_gate(head_sha)
+
+    body = format_pr_comment(merged, marker=args.marker)
+    if args.dry_run:
+        sys.stdout.write(body)
+        if merged.inline_findings:
+            sys.stdout.write(
+                f"\n[would post {len(merged.inline_findings)} inline findings]\n"
+            )
+        return 0
+
+    comment_id = adapter.upsert_summary_comment(body)
+    log.info("Posted summary comment id=%d", comment_id)
+
+    review_event = "COMMENT"
+    if args.judge and merged.per_file:
+        from prthinker.judge import aggregate as judge_aggregate
+        from prthinker.judge import to_github_event
+        verdicts = [fr.verdict for fr in merged.per_file if fr.verdict is not None]
+        if verdicts:
+            review_event = to_github_event(judge_aggregate(verdicts))
+            log.info("Judge verdict aggregated → %s", review_event)
+
+    if args.inline_review and merged.inline_findings:
+        review_id = adapter.submit_inline_review(
+            merged.inline_findings,
+            summary_body="prthinker — inline findings",
+            event=review_event,
+        )
+        log.info("Posted inline review id=%s (event=%s)", review_id, review_event)
+
+    if gate_handle is not None:
+        gate_result = evaluate_gate(merged.inline_findings, gate_on=args.gate_on)
+        adapter.close_gate(gate_handle, gate_result)
+        log.info(
+            "Gate conclusion=%s (errors=%d warnings=%d info=%d, floor=%s)",
+            gate_result.conclusion,
+            gate_result.error_count, gate_result.warning_count,
+            gate_result.info_count, args.gate_on,
+        )
+
+    return 0
 
 
 def _cmd_harvest(args: argparse.Namespace) -> int:
@@ -1717,6 +2045,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_review_file(args)
     if args.command == "review-pr":
         return _cmd_review_pr(args)
+    if args.command == "aggregate":
+        return _cmd_aggregate(args)
     if args.command == "stats":
         return _cmd_stats(args)
     if args.command == "report":
