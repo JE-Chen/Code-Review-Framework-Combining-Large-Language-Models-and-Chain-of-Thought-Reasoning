@@ -1,18 +1,16 @@
 # prthinker self-hosted deployment.
 #
 # Usage:
-#   cp .env.example .env       # then edit PRTHINKER_BACKEND_TOKEN + cert paths
+#   cp .env.example .env       # then edit values
 #   docker compose up -d
-#   curl https://localhost/healthz -H "Authorization: Bearer <token>"
+#   curl http://localhost:9000/healthz
 #
-# Two services:
-#   - prthinker  the FastAPI inference server (GPU)
-#   - nginx       TLS termination + bearer-token gate
+# Single service:
+#   - prthinker  the FastAPI inference server (GPU), exposed directly on :9000
 #
-# Three named volumes keep state across image rebuilds:
+# Two named volumes keep state across image rebuilds:
 #   - hf_cache    HuggingFace model weights (~80 GB for Qwen3-Coder-30B)
 #   - data        dismissed.jsonl + accepted.jsonl + SQLite stores
-#   - tls         TLS cert + key (bind-mount your own from a host path)
 
 services:
   prthinker:
@@ -37,8 +35,8 @@ services:
     volumes:
       - hf_cache:/cache/huggingface
       - data:/data
-    expose:
-      - "8000"          # internal only — nginx is the public face
+    ports:
+      - "${PRTHINKER_HOST_PORT:-9000}:9000"
     deploy:
       resources:
         reservations:
@@ -46,30 +44,7 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-    networks:
-      - internal
-
-  nginx:
-    image: nginx:1.27-alpine
-    restart: unless-stopped
-    depends_on:
-      - prthinker
-    environment:
-      PRTHINKER_BACKEND_TOKEN: ${PRTHINKER_BACKEND_TOKEN:?PRTHINKER_BACKEND_TOKEN is required}
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./entrypoint-nginx.sh:/entrypoint.sh:ro
-      - ${TLS_CERT_DIR:-./tls}:/etc/nginx/tls:ro
-    entrypoint: ["/bin/sh", "/entrypoint.sh"]
-    ports:
-      - "${PRTHINKER_HOST_PORT:-443}:443"
-    networks:
-      - internal
 
 volumes:
   hf_cache:
   data:
-
-networks:
-  internal:
-    driver: bridge

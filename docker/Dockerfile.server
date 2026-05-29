@@ -44,12 +44,10 @@ RUN pip install --upgrade pip \
 # Cache + JSONL stores live on a mounted volume so they survive image rebuilds.
 RUN mkdir -p /cache/huggingface /data
 
-EXPOSE 8000
+EXPOSE 9000
 
 # Healthcheck hits the bundled /healthz endpoint.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
-  CMD curl -fsS http://127.0.0.1:8000/healthz || exit 1
+  CMD curl -fsS http://127.0.0.1:9000/healthz || exit 1
 
-# uvicorn binds 0.0.0.0 inside the container; nginx is the only external
-# attack surface (see docker/nginx.conf).
-CMD ["uvicorn", "codes.run.fastapi_server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "codes.run.fastapi_server:app", "--host", "0.0.0.0", "--port", "9000"]
