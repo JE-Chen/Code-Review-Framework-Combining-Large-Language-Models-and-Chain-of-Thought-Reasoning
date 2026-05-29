@@ -20,6 +20,7 @@ RAG selection:
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 from pathlib import Path
@@ -223,6 +224,43 @@ def _build_parser() -> argparse.ArgumentParser:
         default=int(env_str("PRTHINKER_MAX_FINDINGS_PER_FILE", "10") or 10),
     )
     common.add_argument(
+        "--exclude-globs",
+        default=env_str("PRTHINKER_EXCLUDE_GLOBS", ""),
+        help=(
+            "Comma-separated fnmatch patterns; files in the PR diff that "
+            "match any pattern are skipped in --per-file mode. Useful for "
+            "noisy paths (IDE config, generated data, *.md). Example: "
+            "'.idea/*,datas/*,*.md,*.lock'."
+        ),
+    )
+    common.add_argument(
+        "--target-file",
+        default=env_str("PRTHINKER_TARGET_FILE", ""),
+        help=(
+            "When set, --per-file mode reviews only this exact diff path "
+            "and skips every other file. Lets a CI matrix runner own a "
+            "single file's review so each file gets its own job timeout."
+        ),
+    )
+    common.add_argument(
+        "--output-json",
+        default=env_str("PRTHINKER_OUTPUT_JSON", ""),
+        help=(
+            "Write a JSON-encoded partial ReviewResult to this path and "
+            "skip posting to GitHub. Lets a matrix runner stash its "
+            "findings as an artifact for a later `aggregate` job to merge."
+        ),
+    )
+    common.add_argument(
+        "--aggregate-from",
+        default=env_str("PRTHINKER_AGGREGATE_FROM", ""),
+        help=(
+            "Directory of partial-review JSONs (produced by --output-json) "
+            "to merge and post as a single summary + inline review. Used "
+            "by the `aggregate` subcommand only."
+        ),
+    )
+    common.add_argument(
         "--reply-to-author",
         action="store_true",
         default=env_bool("PRTHINKER_REPLY_TO_AUTHOR", False),
@@ -252,6 +290,174 @@ def _build_parser() -> argparse.ArgumentParser:
             "evidence that informed each finding, and surface those "
             "citations as an audit-trail footer under the finding in the "
             "PR comment. Requires --inline-review."
+        ),
+    )
+    common.add_argument(
+        "--kg-ground",
+        action="store_true",
+        default=env_bool("PRTHINKER_KG_GROUND", False),
+        help=(
+            "Inject the workdir's Known-symbols table (built via "
+            "`prthinker build-kg`) into the inline-findings prompt, "
+            "so the model cannot hallucinate symbol names. Read-only "
+            "lookup; safe-failure if the store is empty or missing."
+        ),
+    )
+    common.add_argument(
+        "--kg-store",
+        type=Path,
+        default=Path(env_str("PRTHINKER_KG_STORE",
+                              ".prthinker/repo-kg.sqlite") or
+                     ".prthinker/repo-kg.sqlite"),
+    )
+    common.add_argument(
+        "--kg-workdir",
+        type=Path,
+        default=Path(env_str("PRTHINKER_KG_WORKDIR") or "."),
+        help="Workdir scope the KG was built against.",
+    )
+    common.add_argument(
+        "--lessons",
+        action="store_true",
+        default=env_bool("PRTHINKER_LESSONS", False),
+        help=(
+            "Inject the top-K derived review rules from "
+            "`--lessons-path` (default `.prthinker/lessons.jsonl`) "
+            "into the inline-findings prompt as 'Repo-derived review "
+            "lessons'. Populate the store via `prthinker derive-lessons`."
+        ),
+    )
+    common.add_argument(
+        "--lessons-top-k",
+        type=int,
+        default=int(env_str("PRTHINKER_LESSONS_TOP_K", "5") or 5),
+        help="Number of lessons to inject per file (most recent first).",
+    )
+    common.add_argument(
+        "--diff-since-last",
+        action="store_true",
+        default=env_bool("REVIEWMIND_DIFF_SINCE_LAST", False),
+        help=(
+            "Force-push differential review: hash each file's post-change "
+            "content and look up cached findings keyed on "
+            "(pr_number, repo, file, hash). Cache hits are reused; only "
+            "files whose hash changed re-enter the model. Requires "
+            "--inline-review."
+        ),
+    )
+    common.add_argument(
+        "--diff-cache-path",
+        default=env_str("REVIEWMIND_DIFF_CACHE_PATH", ".reviewmind/diff-cache.sqlite"),
+        help="SQLite file for the differential-review cache.",
+    )
+    common.add_argument(
+        "--verify-suggestions",
+        action="store_true",
+        default=env_bool("REVIEWMIND_VERIFY_SUGGESTIONS", False),
+        help=(
+            "Apply each finding's ``suggestion`` block in a sandboxed copy "
+            "of the working tree, run --verify-cmd, and badge the result "
+            "(pass/fail/skip/error) in the PR comment. Requires "
+            "--inline-review and a clean working tree."
+        ),
+    )
+    common.add_argument(
+        "--verify-cmd",
+        default=env_str("REVIEWMIND_VERIFY_CMD", "pytest -x"),
+        help="Command run inside the sandbox to verify each suggestion.",
+    )
+    common.add_argument(
+        "--verify-timeout",
+        type=float,
+        default=float(env_str("REVIEWMIND_VERIFY_TIMEOUT", "60") or 60),
+        help="Seconds before the verify command is killed.",
+    )
+    common.add_argument(
+        "--verify-workdir",
+        type=Path,
+        default=Path(env_str("REVIEWMIND_VERIFY_WORKDIR") or "."),
+        help="Source tree the sandbox is cloned from (default: cwd).",
+    )
+    common.add_argument(
+        "--api-consistency",
+        action="store_true",
+        default=env_bool("REVIEWMIND_API_CONSISTENCY", False),
+        help=(
+            "When the PR touches both backend (.py) and frontend "
+            "(.ts/.tsx/.js/.jsx) files, run an extra cross-language step "
+            "that flags request/response shape drift (renamed fields, "
+            "removed routes, type changes)."
+        ),
+    )
+    common.add_argument(
+        "--pr-classify",
+        action="store_true",
+        default=env_bool("REVIEWMIND_PR_CLASSIFY", False),
+        help=(
+            "Classify the PR (bugfix / feature / refactor / docs / chore "
+            "/ unknown) before reviewing, then adapt review depth + "
+            "focus to the type. Docs-only PRs skip inline findings; "
+            "bugfix PRs use a focused prompt with smaller budget."
+        ),
+    )
+    common.add_argument(
+        "--reproducibility-check",
+        action="store_true",
+        default=env_bool("REVIEWMIND_REPRODUCIBILITY_CHECK", False),
+        help=(
+            "Run the inline-findings step twice per file and label each "
+            "finding stable / low-reproducibility based on whether it "
+            "appeared in both passes. Backend-agnostic uncertainty "
+            "proxy; costs one extra backend call per file."
+        ),
+    )
+    common.add_argument(
+        "--dep-upgrade-check",
+        action="store_true",
+        default=env_bool("REVIEWMIND_DEP_UPGRADE_CHECK", False),
+        help=(
+            "Detect dependency version bumps in lock files "
+            "(requirements / pyproject / package.json / etc.) and "
+            "ask the model whether breaking changes between the old and "
+            "new versions affect this codebase's actual usage."
+        ),
+    )
+    common.add_argument(
+        "--personas",
+        default=env_str("REVIEWMIND_PERSONAS", ""),
+        help=(
+            "Comma-separated list of review personas to run against "
+            "the diff (security, performance, readability, api_stability, "
+            "maintainability) — or 'all' for every persona. After the "
+            "per-persona passes a conflict-finder step surfaces "
+            "disagreements between them. Empty (default) disables."
+        ),
+    )
+    common.add_argument(
+        "--risk-weighted",
+        action="store_true",
+        default=env_bool("REVIEWMIND_RISK_WEIGHTED", False),
+        help=(
+            "Compute a per-file risk score (churn + complexity + bug "
+            "history over the last 90 days) and scale the inline "
+            "findings budget proportional to the score. Requires a git "
+            "working directory."
+        ),
+    )
+    common.add_argument(
+        "--risk-workdir",
+        type=Path,
+        default=Path(env_str("REVIEWMIND_RISK_WORKDIR") or "."),
+        help="Git working directory used to compute risk scores (default: cwd).",
+    )
+    common.add_argument(
+        "--diff-entropy",
+        action="store_true",
+        default=env_bool("REVIEWMIND_DIFF_ENTROPY", False),
+        help=(
+            "Compute the diff's size + dispersion entropy and surface a "
+            "'split this PR' warning at the top of the comment when the "
+            "score crosses the 'bomb' threshold."
         ),
     )
     common.add_argument(
@@ -410,6 +616,57 @@ def _build_parser() -> argparse.ArgumentParser:
     p_file.add_argument("path", help="Path to a code/diff file, or '-' for stdin")
     p_file.add_argument("--output-dir", type=Path, default=None)
 
+    p_agg = sub.add_parser(
+        "aggregate",
+        parents=[common],
+        help=(
+            "Merge partial review JSONs (from `review-pr --output-json` "
+            "runners in a matrix) and post a single summary + inline "
+            "review + gate close to the PR."
+        ),
+    )
+    p_agg.add_argument(
+        "--platform",
+        choices=["github", "gitlab"],
+        default=env_str("PRTHINKER_PLATFORM", "github"),
+    )
+    p_agg.add_argument(
+        "--platform-base-url",
+        default=env_str("PRTHINKER_PLATFORM_BASE_URL"),
+    )
+    p_agg.add_argument(
+        "--repo",
+        default=env_str("GITHUB_REPOSITORY") or env_str("CI_PROJECT_PATH"),
+    )
+    p_agg.add_argument(
+        "--pr-number",
+        type=int,
+        default=int(
+            env_str("PRTHINKER_PR_NUMBER")
+            or env_str("CI_MERGE_REQUEST_IID", "0")
+            or 0
+        ),
+    )
+    p_agg.add_argument(
+        "--github-token",
+        default=env_str("GITHUB_TOKEN") or env_str("GITLAB_TOKEN"),
+    )
+    p_agg.add_argument(
+        "--marker",
+        default=env_str("PRTHINKER_COMMENT_MARKER", "<!-- prthinker:summary -->"),
+    )
+    p_agg.add_argument(
+        "--dry-run",
+        action="store_true",
+    )
+    p_agg.add_argument(
+        "--gate-on",
+        choices=["none", "warning", "error"],
+        default=env_str("PRTHINKER_GATE_ON", "none"),
+        help="Open a Check Run; conclude as 'failure' when findings of this "
+             "severity or higher exist. Required for branch-protection gating.",
+    )
+
     p_harvest = sub.add_parser(
         "harvest-dismissed",
         help="Scan PR review comments for dismissed findings; append to JSONL",
@@ -551,6 +808,95 @@ def _build_parser() -> argparse.ArgumentParser:
                      ".prthinker/adversarial-outcomes.sqlite"),
     )
 
+    p_build_kg = sub.add_parser(
+        "build-kg",
+        help="Walk the repo and persist a {symbol: file:line} table to "
+             "SQLite. Run once per repo (or when symbol surface drifts) "
+             "before using --kg-ground on review-pr / review-file.",
+    )
+    p_build_kg.add_argument(
+        "--workdir",
+        type=Path,
+        default=Path(env_str("PRTHINKER_KG_WORKDIR") or "."),
+    )
+    p_build_kg.add_argument(
+        "--kg-store",
+        type=Path,
+        default=Path(env_str("PRTHINKER_KG_STORE",
+                              ".prthinker/repo-kg.sqlite") or
+                     ".prthinker/repo-kg.sqlite"),
+    )
+
+    p_discover = sub.add_parser(
+        "discover-rules",
+        parents=[common],
+        help="Cluster persisted finding fingerprints across PRs and "
+             "print the families that recur ≥ N times. Use to identify "
+             "candidate rules for --rules-dir.",
+    )
+    p_discover.add_argument(
+        "--cluster-store",
+        type=Path,
+        default=Path(env_str("PRTHINKER_CLUSTER_STORE",
+                              ".prthinker/findings-index.sqlite") or
+                     ".prthinker/findings-index.sqlite"),
+    )
+    p_discover.add_argument(
+        "--similarity-threshold",
+        type=float,
+        default=float(env_str("PRTHINKER_CLUSTER_THRESHOLD", "0.85") or 0.85),
+    )
+    p_discover.add_argument(
+        "--min-cluster-size",
+        type=int,
+        default=int(env_str("PRTHINKER_CLUSTER_MIN_SIZE", "5") or 5),
+    )
+    p_discover.add_argument(
+        "--repo",
+        default=env_str("GITHUB_REPOSITORY", ""),
+        help="Filter to one repo. Empty (default) clusters across all.",
+    )
+
+    p_lessons = sub.add_parser(
+        "derive-lessons",
+        parents=[common],
+        help="Batch recent dismissed + accepted examples and ask the "
+             "model to distil general review rules; append to "
+             "lessons.jsonl. Run weekly via cron or GHA schedule.",
+    )
+    p_lessons.add_argument(
+        "--dismissed-path",
+        type=Path,
+        default=Path(env_str("PRTHINKER_DISMISSED_PATH",
+                              ".prthinker/dismissed.jsonl") or
+                     ".prthinker/dismissed.jsonl"),
+    )
+    p_lessons.add_argument(
+        "--accepted-path",
+        type=Path,
+        default=Path(env_str("PRTHINKER_ACCEPTED_PATH",
+                              ".prthinker/accepted.jsonl") or
+                     ".prthinker/accepted.jsonl"),
+    )
+    p_lessons.add_argument(
+        "--lessons-path",
+        type=Path,
+        default=Path(env_str("PRTHINKER_LESSONS_PATH",
+                              ".prthinker/lessons.jsonl") or
+                     ".prthinker/lessons.jsonl"),
+    )
+    p_lessons.add_argument(
+        "--lookback-recent",
+        type=int,
+        default=int(env_str("PRTHINKER_LESSONS_LOOKBACK", "200") or 200),
+        help="Take the most recent N entries from each corpus.",
+    )
+    p_lessons.add_argument(
+        "--max-rules",
+        type=int,
+        default=int(env_str("PRTHINKER_LESSONS_MAX_RULES", "5") or 5),
+    )
+
     p_hook = sub.add_parser(
         "hook",
         parents=[common],
@@ -685,6 +1031,99 @@ def _read_stdin_or_file(path: str) -> str:
 # Server-orchestrated path: call /review per file.
 # ----------------------------------------------------------------------------
 
+def _serialize_partial_review(result: ReviewResult) -> dict:
+    """Pack a ReviewResult into a JSON-safe dict for the aggregate job.
+
+    Only the fields the aggregate step actually merges are kept —
+    inline_findings, per-file findings + verdict, and step_outputs.
+    Fancy add-ons (counterfactuals, persona reviews, api_drift) are
+    out of scope here; they can be added when the matrix workflow
+    exercises them.
+    """
+    return {
+        "code_diff": result.code_diff,
+        "rag_docs": list(result.rag_docs),
+        "step_outputs": dict(result.step_outputs),
+        "inline_findings": [f.model_dump() for f in result.inline_findings],
+        "per_file": [
+            {
+                "path": fr.path,
+                "rag_docs": list(fr.rag_docs),
+                "step_outputs": dict(fr.step_outputs),
+                "inline_findings": [f.model_dump() for f in fr.inline_findings],
+                "verdict": fr.verdict.model_dump() if fr.verdict else None,
+                "is_binary": fr.is_binary,
+                "is_deleted": fr.is_deleted,
+            }
+            for fr in result.per_file
+        ],
+    }
+
+
+def _deserialize_partial_review(data: dict) -> ReviewResult:
+    """Reconstruct a ReviewResult from the dict produced above."""
+    from prthinker.schemas import JudgeVerdict
+
+    inline_findings = [
+        InlineFinding.model_validate(f) for f in data.get("inline_findings", [])
+    ]
+    per_file: list[FileReviewResult] = []
+    for fr in data.get("per_file", []):
+        verdict_dict = fr.get("verdict")
+        per_file.append(
+            FileReviewResult(
+                path=fr["path"],
+                rag_docs=list(fr.get("rag_docs", [])),
+                step_outputs=dict(fr.get("step_outputs", {})),
+                inline_findings=[
+                    InlineFinding.model_validate(f)
+                    for f in fr.get("inline_findings", [])
+                ],
+                verdict=(
+                    JudgeVerdict.model_validate(verdict_dict)
+                    if verdict_dict
+                    else None
+                ),
+                is_binary=fr.get("is_binary", False),
+                is_deleted=fr.get("is_deleted", False),
+            )
+        )
+    return ReviewResult(
+        code_diff=data.get("code_diff", ""),
+        rag_docs=list(data.get("rag_docs", [])),
+        step_outputs=dict(data.get("step_outputs", {})),
+        inline_findings=inline_findings,
+        per_file=per_file,
+    )
+
+
+def _filter_per_file_targets(
+    files: list, args: argparse.Namespace
+) -> list:
+    """Apply --target-file / --exclude-globs to the parsed file list.
+
+    Lets a CI matrix runner pick a single path (--target-file) so per-file
+    review can be sharded across jobs, and lets the caller skip noisy paths
+    (--exclude-globs) so generated data / IDE config doesn't waste model
+    capacity. Both filters are no-ops when their args are empty.
+    """
+    import fnmatch
+
+    target = (getattr(args, "target_file", "") or "").strip()
+    if target:
+        files = [fd for fd in files if fd.path == target]
+
+    excludes_raw = (getattr(args, "exclude_globs", "") or "").strip()
+    if excludes_raw:
+        patterns = [p.strip() for p in excludes_raw.split(",") if p.strip()]
+        if patterns:
+            def _matches_any(path: str) -> bool:
+                return any(fnmatch.fnmatch(path, p) for p in patterns)
+            files = [fd for fd in files if not _matches_any(fd.path)]
+
+    return files
+
+
 def _review_via_server(
     args: argparse.Namespace, config: Config, diff_text: str
 ) -> ReviewResult:
@@ -711,6 +1150,7 @@ def _review_via_server(
             )
 
         files = parse_unified_diff(diff_text)
+        files = _filter_per_file_targets(files, args)
         all_findings: list[InlineFinding] = []
         aggregated_steps: dict[str, str] = {}
         per_file: list[FileReviewResult] = []
@@ -779,6 +1219,14 @@ def _review_via_pipeline(
     )
     try:
         if args.per_file:
+            review_cache_obj = None
+            cache_repo = ""
+            cache_pr_number = 0
+            if getattr(args, "diff_since_last", False) and args.inline_review:
+                from reviewmind.review_cache import ReviewCache
+                review_cache_obj = ReviewCache(Path(args.diff_cache_path))
+                cache_repo = getattr(args, "repo", "") or ""
+                cache_pr_number = int(getattr(args, "pr_number", 0) or 0)
             return pipeline.run_per_file(
                 diff_text,
                 inline_review=args.inline_review,
@@ -789,6 +1237,26 @@ def _review_via_pipeline(
                 max_findings_per_file=args.max_findings_per_file,
                 output_dir=output_dir,
                 dialogue_block=dialogue_block,
+                review_cache=review_cache_obj,
+                cache_repo=cache_repo,
+                cache_pr_number=cache_pr_number,
+                verify_suggestions=bool(getattr(args, "verify_suggestions", False)),
+                verify_workdir=getattr(args, "verify_workdir", None),
+                verify_cmd=getattr(args, "verify_cmd", "") or "",
+                verify_timeout=float(getattr(args, "verify_timeout", 60.0) or 60.0),
+                api_consistency_check=bool(getattr(args, "api_consistency", False)),
+                pr_classify=bool(getattr(args, "pr_classify", False)),
+                pr_title=getattr(args, "pr_title", "") or "",
+                pr_body=getattr(args, "pr_body", "") or "",
+                reproducibility_check=bool(getattr(args, "reproducibility_check", False)),
+                dep_upgrade_check=bool(getattr(args, "dep_upgrade_check", False)),
+                persona_set=tuple(
+                    s.strip() for s in (getattr(args, "personas", "") or "").split(",")
+                    if s.strip()
+                ),
+                risk_weighted=bool(getattr(args, "risk_weighted", False)),
+                risk_workdir=getattr(args, "risk_workdir", None),
+                diff_entropy_check=bool(getattr(args, "diff_entropy", False)),
             )
         return pipeline.run(diff_text, output_dir=output_dir)
     finally:
@@ -868,6 +1336,17 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
         log.warning("Empty diff — skipping review")
         return 0
 
+    if getattr(args, "pr_classify", False):
+        try:
+            pr_title, pr_body = adapter.fetch_pr_meta()
+            args.pr_title = pr_title
+            args.pr_body = pr_body
+            log.info("Fetched PR meta: title=%r body_len=%d",
+                     pr_title[:60], len(pr_body))
+        except Exception as exc:
+            log.warning("Could not fetch PR meta for classifier (%s); "
+                        "classifier will run on diff only", exc)
+
     head_sha: str | None = None
     needs_head_sha = (
         (args.gate_on != "none" and not args.dry_run)
@@ -895,7 +1374,14 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
                      platform_kind.value)
 
     gate_handle = None
-    if args.gate_on != "none" and not args.dry_run and head_sha is not None:
+    # Output-json mode skips gate too: the matrix runner that produces
+    # the partial review does not own the gate; the aggregate job does.
+    if (
+        args.gate_on != "none"
+        and not args.dry_run
+        and not getattr(args, "output_json", "")
+        and head_sha is not None
+    ):
         gate_handle = adapter.open_gate(head_sha)
 
     dialogue_block = ""
@@ -910,6 +1396,34 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
             dialogue_block = render_dialogue_block(replies)
             log.info("Injecting %d author reply(ies) into inline-findings prompt",
                      len(replies))
+
+    if getattr(args, "lessons", False) and args.inline_review:
+        from prthinker.lessons import LessonsStore, format_lessons_block
+        lessons_path = Path(getattr(args, "lessons_path", "") or
+                            ".prthinker/lessons.jsonl")
+        if lessons_path.exists():
+            store = LessonsStore(lessons_path)
+            top_k = int(getattr(args, "lessons_top_k", 5) or 5)
+            recent = list(store)[-top_k:]
+            block = format_lessons_block(recent)
+            if block:
+                dialogue_block = (block + "\n\n" + dialogue_block).strip()
+                log.info("Injecting %d derived lesson(s) into inline-findings prompt",
+                         len(recent))
+
+    if getattr(args, "kg_ground", False) and args.inline_review:
+        from prthinker.repo_kg import KnowledgeGraphStore, format_kg_block
+        kg_store_path = Path(getattr(args, "kg_store", "") or
+                             ".prthinker/repo-kg.sqlite")
+        kg_workdir = Path(getattr(args, "kg_workdir", "") or ".")
+        if kg_store_path.exists():
+            kg_store = KnowledgeGraphStore(kg_store_path)
+            symbols = kg_store.all_symbols(kg_workdir)
+            block = format_kg_block(symbols)
+            if block:
+                dialogue_block = (block + "\n\n" + dialogue_block).strip()
+                log.info("Injecting %d known symbol(s) into inline-findings prompt",
+                         len(symbols))
 
     try:
         result = _run_review(args, config, diff, dialogue_block=dialogue_block)
@@ -931,6 +1445,21 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
             sys.stdout.write(
                 f"\n[would post {len(result.inline_findings)} inline findings]\n"
             )
+        return 0
+
+    output_json = getattr(args, "output_json", "")
+    if output_json:
+        Path(output_json).parent.mkdir(parents=True, exist_ok=True)
+        Path(output_json).write_text(
+            json.dumps(_serialize_partial_review(result), indent=2),
+            encoding="utf-8",
+        )
+        log.info(
+            "Wrote partial review (files=%d, findings=%d) to %s",
+            len(result.per_file),
+            len(result.inline_findings),
+            output_json,
+        )
         return 0
 
     comment_id = adapter.upsert_summary_comment(body)
@@ -1036,6 +1565,144 @@ def _maybe_open_auto_fix_pr(
     )
 
 
+def _cmd_aggregate(args: argparse.Namespace) -> int:
+    """Merge partial review JSONs and post a single review to the PR.
+
+    Counterpart to `review-pr --output-json`: a CI matrix that shards
+    per-file review across multiple runners can stash each runner's
+    partial result as an artifact, then call this command in a final
+    job to do the GitHub-side posting exactly once.
+    """
+    if not args.repo:
+        raise SystemExit("--repo or $GITHUB_REPOSITORY / $CI_PROJECT_PATH is required")
+    if not args.pr_number:
+        raise SystemExit("--pr-number is required")
+    if not args.github_token:
+        raise SystemExit("--github-token / $GITHUB_TOKEN / $GITLAB_TOKEN is required")
+    input_dir_raw = (getattr(args, "aggregate_from", "") or "").strip()
+    if not input_dir_raw:
+        raise SystemExit(
+            "--aggregate-from or $PRTHINKER_AGGREGATE_FROM is required"
+        )
+    input_dir = Path(input_dir_raw)
+    if not input_dir.is_dir():
+        raise SystemExit(f"{input_dir} is not a directory")
+
+    # Walk the dir recursively so artifact-download layouts (which often
+    # nest one folder per matrix iteration) are handled without extra
+    # wiring on the workflow side.
+    json_paths = sorted(input_dir.rglob("*.json"))
+    if not json_paths:
+        log.warning("No *.json found under %s — nothing to aggregate", input_dir)
+        return 0
+
+    merged_findings: list[InlineFinding] = []
+    merged_per_file: list[FileReviewResult] = []
+    merged_step_outputs: dict[str, str] = {}
+    rag_docs_seen: set[str] = set()
+    rag_docs: list[str] = []
+    paths_seen: set[str] = set()
+    for jp in json_paths:
+        try:
+            payload = json.loads(jp.read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001 — surface the offending file
+            log.warning("Skipping %s — not valid JSON (%s)", jp, exc)
+            continue
+        partial = _deserialize_partial_review(payload)
+        merged_findings.extend(partial.inline_findings)
+        merged_step_outputs.update(partial.step_outputs)
+        for d in partial.rag_docs:
+            if d not in rag_docs_seen:
+                rag_docs_seen.add(d)
+                rag_docs.append(d)
+        for fr in partial.per_file:
+            # Dedupe by path so re-runs of the same matrix shard don't
+            # double-up. Last-write-wins on duplicate paths.
+            if fr.path in paths_seen:
+                merged_per_file = [x for x in merged_per_file if x.path != fr.path]
+            paths_seen.add(fr.path)
+            merged_per_file.append(fr)
+
+    merged = ReviewResult(
+        code_diff="",  # the aggregate doesn't need the raw diff
+        rag_docs=rag_docs,
+        step_outputs=merged_step_outputs,
+        inline_findings=merged_findings,
+        per_file=merged_per_file,
+    )
+    log.info(
+        "Aggregated %d partial(s): files=%d findings=%d",
+        len(json_paths),
+        len(merged_per_file),
+        len(merged_findings),
+    )
+
+    from prthinker.platforms import PlatformKind, create_platform_adapter
+
+    platform_kind = PlatformKind(args.platform)
+    adapter = create_platform_adapter(
+        platform_kind,
+        repo=args.repo,
+        token=args.github_token,
+        pr_number=args.pr_number,
+        comment_marker=args.marker,
+        base_url=args.platform_base_url,
+    )
+
+    head_sha: str | None = None
+    needs_head_sha = args.gate_on != "none" and not args.dry_run
+    if needs_head_sha:
+        try:
+            head_sha = adapter.fetch_head_sha()
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Could not fetch head SHA (%s); skipping gate", exc)
+
+    gate_handle = None
+    if args.gate_on != "none" and not args.dry_run and head_sha is not None:
+        gate_handle = adapter.open_gate(head_sha)
+
+    body = format_pr_comment(merged, marker=args.marker)
+    if args.dry_run:
+        sys.stdout.write(body)
+        if merged.inline_findings:
+            sys.stdout.write(
+                f"\n[would post {len(merged.inline_findings)} inline findings]\n"
+            )
+        return 0
+
+    comment_id = adapter.upsert_summary_comment(body)
+    log.info("Posted summary comment id=%d", comment_id)
+
+    review_event = "COMMENT"
+    if args.judge and merged.per_file:
+        from prthinker.judge import aggregate as judge_aggregate
+        from prthinker.judge import to_github_event
+        verdicts = [fr.verdict for fr in merged.per_file if fr.verdict is not None]
+        if verdicts:
+            review_event = to_github_event(judge_aggregate(verdicts))
+            log.info("Judge verdict aggregated → %s", review_event)
+
+    if args.inline_review and merged.inline_findings:
+        review_id = adapter.submit_inline_review(
+            merged.inline_findings,
+            summary_body="prthinker — inline findings",
+            event=review_event,
+        )
+        log.info("Posted inline review id=%s (event=%s)", review_id, review_event)
+
+    if gate_handle is not None:
+        gate_result = evaluate_gate(merged.inline_findings, gate_on=args.gate_on)
+        adapter.close_gate(gate_handle, gate_result)
+        log.info(
+            "Gate conclusion=%s (errors=%d warnings=%d info=%d, floor=%s)",
+            gate_result.conclusion,
+            gate_result.error_count, gate_result.warning_count,
+            gate_result.info_count, args.gate_on,
+        )
+
+    return 0
+
+
 def _cmd_harvest(args: argparse.Namespace) -> int:
     if not args.repo:
         raise SystemExit("--repo or $GITHUB_REPOSITORY is required")
@@ -1101,6 +1768,102 @@ def _cmd_adversarial_eval(args: argparse.Namespace) -> int:
         f"Raw outcomes written to {args.outcomes_path}.\n"
         f"Per the no-fabrication rule, no aggregate detection-rate is "
         f"reported here — query the `outcomes` table directly.\n"
+    )
+    return 0
+
+
+def _cmd_build_kg(args: argparse.Namespace) -> int:
+    """Scan workdir + persist symbols to SQLite."""
+    from prthinker.repo_kg import KnowledgeGraphStore, scan_workdir
+
+    workdir = args.workdir.resolve()
+    if not workdir.exists():
+        raise SystemExit(f"build-kg: workdir does not exist: {workdir}")
+    symbols = scan_workdir(workdir)
+    store = KnowledgeGraphStore(args.kg_store)
+    n = store.rebuild(workdir, symbols)
+    sys.stdout.write(
+        f"build-kg: extracted {n} symbol(s) from {workdir} "
+        f"into {args.kg_store}.\n"
+    )
+    return 0
+
+
+def _cmd_discover_rules(args: argparse.Namespace) -> int:
+    """List finding clusters above the configured size threshold."""
+    from prthinker.finding_clusters import (
+        FindingClusterStore, greedy_cluster,
+    )
+
+    store = FindingClusterStore(args.cluster_store)
+    if len(store) == 0:
+        sys.stdout.write(
+            "discover-rules: index is empty. Run review-pr with "
+            "--cluster-store-path set on a few PRs first to populate it.\n"
+        )
+        return 0
+    fingerprints = store.load(repo=args.repo or None)
+    clusters = greedy_cluster(
+        fingerprints,
+        similarity_threshold=args.similarity_threshold,
+        min_cluster_size=args.min_cluster_size,
+    )
+    if not clusters:
+        sys.stdout.write(
+            f"discover-rules: no clusters of size >= "
+            f"{args.min_cluster_size} at similarity >= "
+            f"{args.similarity_threshold:.2f}.\n"
+        )
+        return 0
+    for i, c in enumerate(clusters, start=1):
+        sys.stdout.write(
+            f"#{i}  size={c.size}  files={len({m.file_path for m in c.members})}\n"
+            f"    rep: {c.representative[:160]}\n"
+        )
+    return 0
+
+
+def _cmd_derive_lessons(args: argparse.Namespace) -> int:
+    """Batch dismissed + accepted, call backend, append to lessons.jsonl."""
+    from prthinker.accepted import AcceptedExamplesStore
+    from prthinker.dismissed import DismissedExamplesStore
+    from prthinker.lessons import LessonsStore, derive_lessons
+
+    dismissed_store = DismissedExamplesStore(args.dismissed_path)
+    accepted_store = AcceptedExamplesStore(args.accepted_path)
+    lessons_store = LessonsStore(args.lessons_path)
+
+    if len(dismissed_store) == 0 and len(accepted_store) == 0:
+        sys.stdout.write(
+            "derive-lessons: both corpora are empty — nothing to learn from.\n"
+        )
+        return 0
+
+    dismissed_recent = list(dismissed_store)[-args.lookback_recent:]
+    accepted_recent = list(accepted_store)[-args.lookback_recent:]
+    source_prs = tuple(sorted({
+        getattr(ex, "pr_number", 0) for ex in accepted_recent
+        if getattr(ex, "pr_number", 0)
+    }))
+
+    config = _build_config(args)
+    backend = create_backend(config)
+    try:
+        rules = derive_lessons(
+            backend=backend,
+            dismissed=dismissed_recent,
+            accepted=accepted_recent,
+            source_prs=source_prs,
+            max_rules=args.max_rules,
+            max_new_tokens=config.max_new_tokens,
+        )
+    finally:
+        backend.close()
+
+    for r in rules:
+        lessons_store.append(r)
+    sys.stdout.write(
+        f"derive-lessons: appended {len(rules)} rule(s) to {args.lessons_path}.\n"
     )
     return 0
 
@@ -1297,12 +2060,20 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_review_file(args)
     if args.command == "review-pr":
         return _cmd_review_pr(args)
+    if args.command == "aggregate":
+        return _cmd_aggregate(args)
     if args.command == "stats":
         return _cmd_stats(args)
     if args.command == "report":
         return _cmd_report(args)
     if args.command == "adversarial-eval":
         return _cmd_adversarial_eval(args)
+    if args.command == "derive-lessons":
+        return _cmd_derive_lessons(args)
+    if args.command == "discover-rules":
+        return _cmd_discover_rules(args)
+    if args.command == "build-kg":
+        return _cmd_build_kg(args)
     if args.command == "mcp":
         from prthinker.mcp_server import run as run_mcp
         return run_mcp()

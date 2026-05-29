@@ -26,11 +26,12 @@ local = [
     "torch",
     "accelerate",
     "bitsandbytes",
-    "peft",
+    "peft==0.18.0",
     "faiss-cpu",
     "numpy",
 ]
 server = [
+    "prthinker[local]",
     "fastapi",
     "uvicorn",
     "pydantic>=2",
@@ -69,3 +70,14 @@ skips = [
     # absolute path would break cross-platform installs.
     "B607",
 ]
+
+[tool.pydocstyle]
+# The project follows the D212 convention: the summary of a multi-line
+# docstring lives on the FIRST line, not the second. D213 says the
+# opposite and is mutually exclusive with D212; ignore it so the two
+# styles don't collide. Other defaults from the `pep257` convention
+# stay enabled.
+convention = "pep257"
+add-ignore = ["D213"]
+add-select = ["D212"]
+match-dir = "^(?!codes|paper|gen-paper|docs|datas).*"

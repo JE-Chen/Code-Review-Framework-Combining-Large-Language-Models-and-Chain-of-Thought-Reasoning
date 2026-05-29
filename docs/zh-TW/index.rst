@@ -29,6 +29,7 @@ prompt──並且可以充當合併前的必要狀態檢查。
 
    guide/installation
    guide/quickstart
+   guide/end-to-end-example
    guide/github-actions
    guide/configuration
    guide/repo-config

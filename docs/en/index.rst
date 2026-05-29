@@ -30,6 +30,7 @@ What you get
 
    guide/installation
    guide/quickstart
+   guide/end-to-end-example
    guide/github-actions
    guide/configuration
    guide/repo-config

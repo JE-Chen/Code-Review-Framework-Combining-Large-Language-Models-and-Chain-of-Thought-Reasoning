@@ -31,8 +31,21 @@ class InferenceBackend(ABC):
     """
 
     @abstractmethod
-    def generate(self, prompt: str, max_new_tokens: int) -> str:
-        ...
+    def generate(
+        self,
+        prompt: str,
+        max_new_tokens: int,
+        *,
+        cancel_event: "object | None" = None,
+    ) -> str:
+        """Generate text for ``prompt``.
+
+        ``cancel_event`` is an optional threading.Event-like object that
+        backends supporting mid-stream cancellation (the local HF
+        backend) install as a stopping criterion checked between
+        tokens. Remote / OpenAI / Anthropic backends accept and ignore
+        the argument — the network call itself is uninterruptible.
+        """
 
     def stream_generate(
         self, prompt: str, max_new_tokens: int

@@ -31,6 +31,11 @@ Fetch a PR diff, run the pipeline, post comment + review + gate.
        [--rules-dir PATH]
        [--per-file] [--inline-review] [--max-findings-per-file 10]
        [--reply-to-author] [--counterfactual] [--provenance]
+       [--diff-since-last] [--diff-cache-path PATH]
+       [--verify-suggestions] [--verify-cmd CMD] [--verify-timeout 60] [--verify-workdir PATH]
+       [--api-consistency] [--pr-classify] [--reproducibility-check]
+       [--dep-upgrade-check]
+       [--personas LIST] [--risk-weighted] [--risk-workdir PATH] [--diff-entropy]
        [--judge] [--self-correct]
        [--gate-on {none,warning,error}]
        [--include-ci-signals] [--ci-signal-max-jobs 5] [--ci-signal-tail-chars 4000]
@@ -43,6 +48,20 @@ Notable flags:
   it; also skips opening the Check Run.
 * ``--marker`` — sentinel HTML comment used to upsert the PR comment.
   Override only if you need multiple reviewers in one repo.
+* ``--exclude-globs`` — comma-separated fnmatch patterns; in
+  ``--per-file`` mode, files matching any pattern are skipped.
+  Cheap defence against wasting GPU minutes on IDE config, generated
+  data, or large markdown changes. Env: ``PRTHINKER_EXCLUDE_GLOBS``.
+* ``--target-file`` — when set, ``--per-file`` mode reviews only this
+  exact diff path and skips every other file. Lets a CI matrix runner
+  own a single file's review so each file gets its own job timeout;
+  see :doc:`../guide/github-actions` for the matrix workflow. Env:
+  ``PRTHINKER_TARGET_FILE``.
+* ``--output-json`` — write a JSON-encoded partial ``ReviewResult`` to
+  this path and skip posting to GitHub. Pair with ``--target-file`` in
+  a matrix runner so each shard stashes its findings as an artifact
+  for a later ``aggregate`` job to merge. Env:
+  ``PRTHINKER_OUTPUT_JSON``.
 
 Research-grade flags (opt-in, ``--inline-review`` required):
 
@@ -83,6 +102,80 @@ Research-grade flags (opt-in, ``--inline-review`` required):
    per file. Safe-failure direction: malformed output leaves the list
    unchanged.
 
+.. option:: --diff-since-last
+
+   Hash each file's post-change content and reuse cached findings on
+   subsequent pushes for files whose hash hasn't changed. SQLite store
+   at ``--diff-cache-path`` (default ``.prthinker/diff-cache.sqlite``),
+   keyed on ``(pr_number, repo, file_path, hunk_sha256)`` — cross-PR
+   isolated. Env: ``PRTHINKER_DIFF_SINCE_LAST``.
+
+.. option:: --verify-suggestions
+
+   Clone the workdir into a disposable sandbox, apply each finding's
+   ``suggestion`` block at the right line range, and run
+   ``--verify-cmd`` (default ``pytest -x``) under ``--verify-timeout``
+   (default 60s). Badges each finding ``[verified]`` / ``[FAILED]`` /
+   ``[skipped]`` / ``[error]``. Original repo never mutated. Env:
+   ``PRTHINKER_VERIFY_SUGGESTIONS``.
+
+.. option:: --api-consistency
+
+   When the diff touches both backend (``.py``) and frontend (``.ts`` /
+   ``.tsx`` / ``.js`` / ``.jsx``) files, run an extra step that
+   surfaces *cross-file* drift (renamed fields, removed routes, type
+   changes). Skipped silently on single-language PRs. Env:
+   ``PRTHINKER_API_CONSISTENCY``.
+
+.. option:: --pr-classify
+
+   Classify the PR (``bugfix`` / ``feature`` / ``refactor`` / ``docs``
+   / ``chore`` / ``unknown``) from diff + title + body, then adapt
+   review depth: docs PRs skip inline findings; bugfix PRs use a
+   focused prompt with smaller budget. Env:
+   ``PRTHINKER_PR_CLASSIFY``.
+
+.. option:: --reproducibility-check
+
+   Run the inline-findings step twice per file (identical prompt;
+   non-zero temperature gives a second sample) and label each finding
+   ``stable`` / ``low`` based on cross-pass match. Backend-agnostic
+   uncertainty proxy. Env: ``PRTHINKER_REPRODUCIBILITY_CHECK``.
+
+.. option:: --dep-upgrade-check
+
+   Detect dependency version bumps in lock files
+   (``requirements.txt`` / ``pyproject.toml`` / ``package.json``) and
+   ask the model whether breaking changes between the old and new
+   versions affect this codebase's actual usage. Env:
+   ``PRTHINKER_DEP_UPGRADE_CHECK``.
+
+.. option:: --personas <list>
+
+   Comma-separated list of review personas (``security``,
+   ``performance``, ``readability``, ``api_stability``,
+   ``maintainability``) — or ``all`` for every persona. Each persona's
+   prompt restricts the model to its lens; a conflict-finder step then
+   surfaces where the personas disagree. Empty (default) disables.
+   Env: ``PRTHINKER_PERSONAS``.
+
+.. option:: --risk-weighted
+
+   Compute a per-file risk score from churn (``git log`` over the
+   default 90-day window), complexity (line count at HEAD), and bug
+   history (commit messages matching ``fix:`` / ``bug`` / ``revert``).
+   Scales ``max_findings_per_file`` proportional to the score between
+   ``floor`` (default 2) and ``ceiling`` (default ``2 ×
+   base_budget``). Set ``--risk-workdir`` to point at the git repo.
+   Env: ``PRTHINKER_RISK_WEIGHTED``.
+
+.. option:: --diff-entropy
+
+   Compute the diff's size + dispersion entropy and surface a
+   "Consider splitting this PR" warning at the top of the comment
+   when the score crosses the ``bomb`` threshold. Pure local CPU; no
+   backend call. Env: ``PRTHINKER_DIFF_ENTROPY``.
+
 review-file
 -----------
 
@@ -98,6 +191,10 @@ Run the pipeline against a local file or stdin.
        [--rules-dir PATH]
        [--per-file] [--inline-review] [--max-findings-per-file 10]
        [--counterfactual] [--provenance] [--judge] [--self-correct]
+       [--diff-since-last] [--verify-suggestions]
+       [--api-consistency] [--pr-classify] [--reproducibility-check]
+       [--dep-upgrade-check] [--personas LIST]
+       [--risk-weighted] [--diff-entropy]
        [--max-new-tokens 32768]
        [--steps a,b,c]
        [--output-dir PATH]
@@ -109,6 +206,47 @@ incrementally — useful for batch experiments and debugging long runs.
 
 ``--steps`` accepts a comma-separated list of step names; empty (the
 default) runs every registered step.
+
+aggregate
+---------
+
+Merge partial-review JSONs produced by ``review-pr --output-json``
+runners and post a single summary + inline review + gate close.
+Counterpart to the matrix workflow documented in
+:doc:`../guide/github-actions`.
+
+.. code-block:: text
+
+   prthinker aggregate
+       --repo OWNER/NAME
+       --pr-number N
+       --github-token TOKEN
+       --aggregate-from DIR
+       [--marker '<!-- prthinker:summary -->']
+       [--inline-review] [--judge]
+       [--gate-on {none,warning,error}]
+       [--platform {github,gitlab}]
+       [--dry-run]
+
+The aggregator walks ``--aggregate-from`` recursively for ``*.json``
+files (so the typical ``actions/download-artifact`` layout with one
+folder per matrix iteration works without extra wiring), deserialises
+each partial back into a ``ReviewResult``, dedupes ``per_file`` entries
+by path (last-write-wins on duplicates), and merges
+``inline_findings`` + ``step_outputs`` + ``rag_docs`` across shards.
+The post-merge path is identical to ``review-pr``'s — same comment
+upsert marker, same ``submit_inline_review`` event mapping (with
+``--judge`` aggregation when enabled), same gate close.
+
+If the directory holds zero JSONs (e.g. every matrix shard skipped
+because the backend was unreachable), the command logs a warning and
+exits 0; the workflow's fallback shell step posts a "skipped" notice
+under the same marker.
+
+Env equivalents: ``PRTHINKER_AGGREGATE_FROM`` (input dir),
+``PRTHINKER_COMMENT_MARKER`` (marker), ``PRTHINKER_GATE_ON`` (gate
+floor). The standard ``GITHUB_REPOSITORY``, ``PRTHINKER_PR_NUMBER``,
+and ``GITHUB_TOKEN`` cover the rest.
 
 harvest-dismissed
 -----------------

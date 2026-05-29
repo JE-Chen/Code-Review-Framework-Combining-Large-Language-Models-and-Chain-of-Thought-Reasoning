@@ -109,6 +109,12 @@ class GitLabAdapter(PlatformAdapter):
         with self._client() as client:
             return str(self._mr(client).get("target_branch") or "")
 
+    def fetch_pr_meta(self) -> tuple[str, str]:
+        """Pull ``(title, body)`` from the MR endpoint we already cache."""
+        with self._client() as client:
+            mr = self._mr(client)
+        return (str(mr.get("title") or ""), str(mr.get("description") or ""))
+
     # ----- summary comment ----------------------------------------------
 
     def upsert_summary_comment(self, body: str) -> int:

@@ -24,9 +24,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        python3.12 python3.12-venv python3-pip git ca-certificates curl \
+        software-properties-common ca-certificates curl git gnupg \
+ && add-apt-repository -y ppa:deadsnakes/ppa \
+ && apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        python3.12 python3.12-venv python3.12-dev python3-pip \
  && update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1 \
- && ln -sf /usr/bin/pip3 /usr/bin/pip \
+ && curl -fsS https://bootstrap.pypa.io/get-pip.py | python3.12 \
+ && ln -sf /usr/local/bin/pip /usr/bin/pip \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
@@ -44,12 +49,10 @@ RUN pip install --upgrade pip \
 # Cache + JSONL stores live on a mounted volume so they survive image rebuilds.
 RUN mkdir -p /cache/huggingface /data
 
-EXPOSE 8000
+EXPOSE 9000
 
 # Healthcheck hits the bundled /healthz endpoint.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
-  CMD curl -fsS http://127.0.0.1:8000/healthz || exit 1
+  CMD curl -fsS http://127.0.0.1:9000/healthz || exit 1
 
-# uvicorn binds 0.0.0.0 inside the container; nginx is the only external
-# attack surface (see docker/nginx.conf).
-CMD ["uvicorn", "codes.run.fastapi_server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "codes.run.fastapi_server:app", "--host", "0.0.0.0", "--port", "9000"]

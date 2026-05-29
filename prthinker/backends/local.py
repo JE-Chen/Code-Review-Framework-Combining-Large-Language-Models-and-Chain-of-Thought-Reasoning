@@ -38,7 +38,13 @@ class LocalHFBackend(InferenceBackend):
     def model_name(self) -> str:
         return self._config.model_name
 
-    def generate(self, prompt: str, max_new_tokens: int) -> str:
+    def generate(
+        self,
+        prompt: str,
+        max_new_tokens: int,
+        *,
+        cancel_event: "object | None" = None,
+    ) -> str:
         from codes.util.qwen3_util import qwen3_ask
 
         content, _thinking = qwen3_ask(
@@ -46,6 +52,7 @@ class LocalHFBackend(InferenceBackend):
             self._model,
             self._tokenizer,
             max_new_tokens=max_new_tokens,
+            cancel_event=cancel_event,
         )
         return content
 

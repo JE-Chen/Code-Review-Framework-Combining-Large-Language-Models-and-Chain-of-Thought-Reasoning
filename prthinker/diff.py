@@ -13,6 +13,7 @@ the input format is simple enough.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass, field
 
@@ -33,6 +34,26 @@ class FileDiff:
     def commentable_lines(self) -> set[int]:
         """Lines on the new side that GitHub will accept for inline review."""
         return set(self.new_lines)
+
+    def content_sha256(self) -> str:
+        """Stable hash of the post-change content of this file's diff.
+
+        Used by the differential-review cache to decide whether the
+        model needs to re-review this file on a force-push. We hash
+        only the lines that survive on the *new* side (added or
+        unchanged-context) — formatting whitespace, removed lines and
+        diff metadata are excluded so a no-op force-push that only
+        re-orders hunks still hits the cache.
+        """
+        h = hashlib.sha256()
+        new_side: list[str] = []
+        for line in self.raw.splitlines():
+            if line.startswith("+") and not line.startswith("+++"):
+                new_side.append(line[1:])
+            elif line.startswith(" "):
+                new_side.append(line[1:])
+        h.update("\n".join(new_side).encode("utf-8"))
+        return h.hexdigest()
 
 
 def _starts_file(line: str) -> bool:

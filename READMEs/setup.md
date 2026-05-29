@@ -220,13 +220,13 @@ pip install -e ".[server]"
 
 export PRTHINKER_DISMISSED_PATH=./store/dismissed.jsonl
 export PRTHINKER_ACCEPTED_PATH=./store/accepted.jsonl
-uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
+uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 9000
 ```
 
-Reverse-proxy this behind nginx / Cloudflare Access with TLS. Confirm:
+Confirm:
 
 ```bash
-curl https://my-host:8000/healthz   # → {"status": "ok", "model": "..."}
+curl http://my-host:9000/healthz   # → {"status": "ok", "model": "..."}
 ```
 
 **In the repo:**
@@ -236,7 +236,7 @@ Add `.prthinker.yaml`:
 ```yaml
 backend: remote
 remote:
-  url: https://my-host:8000
+  url: http://my-host:9000
   use_pipeline_endpoint: true
 per_file: true
 inline_review: true
@@ -253,7 +253,7 @@ Set repo secrets:
 
 | Secret | Value |
 |---|---|
-| `PRTHINKER_BACKEND_URL` | `https://my-host:8000` |
+| `PRTHINKER_BACKEND_URL` | `http://my-host:9000` |
 | `PRTHINKER_BACKEND_API_KEY` | (optional) Bearer token for your reverse proxy |
 
 Push a PR. The runner stays thin (httpx + pydantic only); the server
@@ -342,7 +342,7 @@ anthropic:
   version: "2023-06-01"
 
 remote:
-  url: https://my-host:8000
+  url: http://my-host:9000
   timeout_seconds: 600
   use_pipeline_endpoint: true
 ```
@@ -382,6 +382,16 @@ Customize by editing the `env:` block — every CLI flag has a matching
 `PRTHINKER_*` env var. See [`features.md`](features.md) for the
 complete list.
 
+**Three-job structure:** `enumerate` → `review` (matrix,
+`max-parallel: 1`, 60 min per shard) → `aggregate`. Each PR file gets
+its own runner and its own timeout budget, so a single slow file can't
+starve the whole review. The matrix runners write partial
+`ReviewResult` JSON to artifacts; the aggregate job merges them and
+posts exactly one summary comment + one inline review + one gate
+close. Full details (skip / fallback behaviour, env vars, fan-in
+contract) in the
+[GitHub Actions guide](../docs/en/guide/github-actions.rst).
+
 **Required permissions:**
 
 ```yaml
@@ -401,6 +411,19 @@ on:
     workflows: ["CI"]
     types: [completed]
 ```
+
+**Filtering noise paths.** The workflow's top-level `env:` block
+defines `PRTHINKER_EXCLUDE_GLOBS` (comma-separated fnmatch patterns).
+Both the `enumerate` job and the CLI's per-file loop read it, so
+generated data, IDE state, and large markdown changes never burn GPU
+minutes. Adjust the list to fit your repo.
+
+**Backend timeout safety.** The matrix runners drive the inference
+server via `POST /review/submit` + `GET /review/result/{id}` (5 s
+poll) so each individual HTTP call returns in well under a second.
+That keeps the workflow safe behind reverse proxies with short HTTP
+idle timeouts (Cloudflare's free / pro / business plans cap at ~100
+s, which a 30B MoE per-file review would otherwise trip).
 
 ---
 
@@ -444,7 +467,7 @@ Then on the server:
 ```bash
 export PRTHINKER_DISMISSED_PATH=.prthinker/dismissed.jsonl
 export PRTHINKER_ACCEPTED_PATH=.prthinker/accepted.jsonl
-uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
+uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 9000
 ```
 
 Both stores are no-ops when empty — the server logs `filter disabled` /
@@ -490,13 +513,22 @@ no measured benchmark numbers are bundled. See
 [`docs/concepts/research-extensions.rst`](../docs/concepts/research-extensions.rst)
 for the design write-up.
 
-| Flag                  | Env var                         | Default | Extra cost          |
-| --------------------- | ------------------------------- | ------- | ------------------- |
-| `--reply-to-author`   | `PRTHINKER_REPLY_TO_AUTHOR`    | off     | 1 platform API call |
-| `--counterfactual`    | `PRTHINKER_COUNTERFACTUAL`     | off     | +1 backend call /file |
-| `--provenance`        | `PRTHINKER_PROVENANCE`         | off     | larger prompt + output |
-| `--judge`             | `PRTHINKER_JUDGE`              | off     | +1 backend call /file |
-| `--self-correct`      | `PRTHINKER_SELF_CORRECT`       | off     | +1 backend call /file |
+| Flag                       | Env var                              | Default | Extra cost              |
+| -------------------------- | ------------------------------------ | ------- | ----------------------- |
+| `--reply-to-author`        | `PRTHINKER_REPLY_TO_AUTHOR`         | off     | 1 platform API call     |
+| `--counterfactual`         | `PRTHINKER_COUNTERFACTUAL`          | off     | +1 backend call /file   |
+| `--provenance`             | `PRTHINKER_PROVENANCE`              | off     | larger prompt + output  |
+| `--judge`                  | `PRTHINKER_JUDGE`                   | off     | +1 backend call /file   |
+| `--self-correct`           | `PRTHINKER_SELF_CORRECT`            | off     | +1 backend call /file   |
+| `--diff-since-last`        | `PRTHINKER_DIFF_SINCE_LAST`         | off     | saves cost on iterative PRs |
+| `--verify-suggestions`     | `PRTHINKER_VERIFY_SUGGESTIONS`      | off     | 1 sandbox + verify_cmd /suggestion |
+| `--api-consistency`        | `PRTHINKER_API_CONSISTENCY`         | off     | +1 backend call on mixed-language PRs |
+| `--pr-classify`            | `PRTHINKER_PR_CLASSIFY`             | off     | +1 backend call /PR     |
+| `--reproducibility-check`  | `PRTHINKER_REPRODUCIBILITY_CHECK`   | off     | +1 backend call /file   |
+| `--dep-upgrade-check`      | `PRTHINKER_DEP_UPGRADE_CHECK`       | off     | +1 backend call /upgrade |
+| `--personas`               | `PRTHINKER_PERSONAS`                | empty   | +N backend calls /PR (N = persona count) + 1 conflict step |
+| `--risk-weighted`          | `PRTHINKER_RISK_WEIGHTED`           | off     | a few `git log` calls   |
+| `--diff-entropy`           | `PRTHINKER_DIFF_ENTROPY`            | off     | pure CPU, no backend call |
 
 ### Closed-loop multi-turn dialogue — `--reply-to-author`
 
@@ -627,6 +659,144 @@ sqlite3 .prthinker/adversarial.sqlite \
     GROUP BY category;"
 ```
 
+### Force-push differential review — `--diff-since-last`
+
+**What it does.** Hashes each file's new-side content
+(`FileDiff.content_sha256`) and caches per-file findings in a small
+SQLite store keyed on `(pr_number, repo, file_path, hunk_sha256)`. On
+the next push, files whose hash hasn't changed reuse the cached
+findings; only genuinely-changed files re-enter the model.
+
+**How to enable.**
+
+```bash
+prthinker review-pr --pr 42 --per-file --inline-review \
+    --diff-since-last --diff-cache-path .prthinker/diff-cache.sqlite
+```
+
+Cross-PR isolated by primary key. Close the PR to drop entries
+(`ReviewCache.evict_pr`).
+
+### Suggestion sandbox verifier — `--verify-suggestions`
+
+**What it does.** For each finding with a `suggestion` block, clones
+the workdir into `tempfile.mkdtemp`, applies the suggestion with an
+`original` guardrail, runs `--verify-cmd` (default `pytest -x`) under
+`--verify-timeout` (default 60s), and badges each finding
+`[verified]` / `[FAILED]` / `[skipped]` / `[error]` in the PR comment.
+
+```bash
+prthinker review-pr --pr 42 --inline-review --verify-suggestions \
+    --verify-cmd "pytest -x tests/" --verify-timeout 60
+```
+
+The original repo is never mutated; the verify command runs with an
+argv list (no `shell=True`).
+
+### Cross-language API drift — `--api-consistency`
+
+**What it does.** When the PR touches both backend (`.py`) and
+frontend (`.ts` / `.tsx` / `.js` / `.jsx`) files, an extra step asks
+the model to surface *cross-file* drift only — renamed fields, removed
+routes, type changes. Skipped silently on single-language PRs (no
+wasted backend call).
+
+```bash
+prthinker review-pr --pr 42 --inline-review --api-consistency
+```
+
+### PR-type adaptive review — `--pr-classify`
+
+**What it does.** Classifies the PR (bugfix / feature / refactor /
+docs / chore / unknown) from diff + PR title + body, then adapts
+review depth: docs PRs skip inline findings; bugfix PRs use a focused
+prompt with smaller budget; refactor PRs widen the budget and add an
+equivalence-check focus hint.
+
+```bash
+prthinker review-pr --pr 42 --inline-review --pr-classify
+```
+
+### Reproducibility signal — `--reproducibility-check`
+
+**What it does.** Runs the inline-findings step twice per file
+(identical prompt; non-zero temperature gives a second sample) and
+labels each finding `[stable]` (appeared in both passes by path +
+line + normalised comment) or `[low-reproducibility]` (appeared in
+one). Findings unique to the second pass are surfaced too. Costs one
+extra backend call per file.
+
+```bash
+prthinker review-pr --pr 42 --inline-review --reproducibility-check
+```
+
+### Dependency upgrade impact — `--dep-upgrade-check`
+
+**What it does.** Detects lock-file touches
+(`requirements.txt` / `pyproject.toml` / `package.json`), extracts
+`(package, old, new)` deltas, and asks the model — using the
+package's actual call-sites visible elsewhere in the diff — whether
+breaking changes between the two versions affect this codebase.
+
+```bash
+prthinker review-pr --pr 42 --dep-upgrade-check
+```
+
+Surfaces a *Dependency upgrade impact* table at the top of the PR
+comment. No remote changelog is fetched at review time.
+
+### Reviewer personas + conflict surfacing — `--personas`
+
+**What it does.** Runs N orthogonal lenses
+(`security` / `performance` / `readability` / `api_stability` /
+`maintainability`) in series; each persona's prompt explicitly tells
+the model NOT to comment outside its lens. A conflict-finder step
+then surfaces *where the personas disagree*. The PR comment grows a
+*Persona conflicts* table — intentionally without picking a winner.
+
+```bash
+# Subset:
+prthinker review-pr --pr 42 --personas security,performance,readability
+# All five:
+prthinker review-pr --pr 42 --personas all
+```
+
+Cost: one backend call per persona + one conflict step.
+
+### Risk-weighted attention — `--risk-weighted`
+
+**What it does.** Computes a per-file risk score from churn
+(`git log` over the lookback window, default 90 days), complexity
+proxy (line count at HEAD), and bug history (commit messages matching
+`fix:` / `bug` / `revert`). Each file's `max_findings_per_file` is
+scaled linearly between `floor` (default 2) and `ceiling` (default
+`2 × base_budget`) proportional to the risk score.
+
+```bash
+prthinker review-pr --pr 42 --inline-review --risk-weighted \
+    --risk-workdir /path/to/repo
+```
+
+GHA note: `actions/checkout` shallow-clones with `fetch-depth: 1`;
+set `fetch-depth: 0` so the lookback window has commits to count.
+Default weights (0.4 / 0.3 / 0.3) are framework conventions, not a
+calibrated formula — tune per repo before publishing any number.
+
+### Diff entropy / "diff bomb" detector — `--diff-entropy`
+
+**What it does.** Pure-data score from file count, total +/- lines,
+and Shannon entropy of the top-level-directory distribution. Three
+verdicts: `focused` / `wide` / `bomb`. The `bomb` verdict opens the
+PR comment with a "Consider splitting this PR" warning. The framework
+does not block on a high score — the point is to make the PR's shape
+visible.
+
+```bash
+prthinker review-pr --pr 42 --diff-entropy
+```
+
+No backend call; pure local CPU.
+
 ### Stacking all of them at once
 
 For a research-grade run on a single PR:
@@ -635,6 +805,9 @@ For a research-grade run on a single PR:
 prthinker review-pr --repo o/r --pr-number 42 \
     --per-file --inline-review \
     --reply-to-author --counterfactual --provenance \
+    --diff-since-last --verify-suggestions --api-consistency \
+    --pr-classify --reproducibility-check --dep-upgrade-check \
+    --personas all --risk-weighted --diff-entropy \
     --judge --self-correct \
     --rules-dir ./team-rules \
     --max-new-tokens 65536

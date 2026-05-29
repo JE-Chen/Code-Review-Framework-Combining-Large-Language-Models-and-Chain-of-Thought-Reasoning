@@ -1,0 +1,19 @@
+strictness: medium
+
+# Match the [tool.pydocstyle] block in pyproject.toml so codacy /
+# prospector / local pre-commit all agree: the project follows D212,
+# not D213.
+pydocstyle:
+  disable:
+    - D213
+  enable:
+    - D212
+
+# Pyflakes / pylint are noisy on the runner-profile lazy imports; the
+# real correctness gates are pytest + ruff, both already wired into
+# CLAUDE.md's Definition of Done.
+pylint:
+  disable:
+    - too-few-public-methods
+    - too-many-arguments
+    - too-many-locals

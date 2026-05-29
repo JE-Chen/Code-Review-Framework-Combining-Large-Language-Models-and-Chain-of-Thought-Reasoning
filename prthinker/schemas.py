@@ -76,6 +76,25 @@ class Provenance(BaseModel):
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
+VerificationStatus = Literal["pass", "fail", "skip", "error"]
+
+
+class SuggestionVerification(BaseModel):
+    """Outcome of running ``suggestion`` in a sandbox.
+
+    Attached to an :class:`InlineFinding` when ``--verify-suggestions``
+    is enabled. ``status`` distinguishes verify-cmd PASS / FAIL from
+    "could not apply" (skip) and "verifier crashed" (error). The
+    PR-comment formatter renders a small green / red / yellow badge
+    next to the suggestion based on this.
+    """
+
+    status: VerificationStatus
+    verify_cmd: str
+    duration_ms: int = 0
+    reason: str = ""
+
+
 class InlineFinding(BaseModel):
     """A single line-level review remark, intended for an inline PR comment.
 
@@ -93,6 +112,8 @@ class InlineFinding(BaseModel):
     start_line: int | None = Field(default=None, ge=1)
     original: str | None = None
     provenance: Provenance | None = None
+    verification: SuggestionVerification | None = None
+    reproducibility: Literal["stable", "low"] | None = None
 
     @property
     def is_multiline(self) -> bool:
@@ -109,6 +130,20 @@ class ReviewRequest(BaseModel):
     extra_rules: list[str] = Field(default_factory=list)
 
 
+JobStatus = Literal["pending", "running", "done", "error", "cancelled"]
+
+
+class ReviewJobSubmitResponse(BaseModel):
+    job_id: str
+
+
+class ReviewJobStatusResponse(BaseModel):
+    job_id: str
+    status: JobStatus
+    result: "ReviewResponse | None" = None
+    error: str | None = None
+
+
 Verdict = Literal["approve", "request_changes", "comment"]
 
 
@@ -123,6 +158,66 @@ class JudgeVerdict(BaseModel):
     verdict: Verdict = "comment"
     score: int = Field(ge=0, le=10)
     reasons: list[str] = Field(default_factory=list)
+
+
+class DiffEntropySummary(BaseModel):
+    """Diff-shape summary attached to the consolidated review.
+
+    Surfaces in the PR comment header when ``--diff-entropy`` is on.
+    The framework intentionally does not block on a high score; the
+    point is to make the PR's shape visible to human reviewers.
+    """
+
+    file_count: int = 0
+    added_lines: int = 0
+    removed_lines: int = 0
+    dispersion_entropy: float = 0.0
+    score: float = 0.0
+    verdict: str = "focused"
+
+
+class PersonaReview(BaseModel):
+    """One persona's raw review output.
+
+    Stored verbatim — no parsing — so a future analysis can mine the
+    per-persona text directly. The conflict-finder step works off
+    these.
+    """
+
+    persona: str
+    output: str
+
+
+class PersonaConflict(BaseModel):
+    """One cross-persona tension surfaced by the conflict step.
+
+    ``personas`` lists the two-or-more lenses that disagree;
+    ``resolution`` is the suggested framing for the human reviewer's
+    decision — explicitly NOT a winner pick, since pick-a-winner would
+    defeat the point of surfacing the tension.
+    """
+
+    personas: list[str]
+    summary: str
+    resolution: str = ""
+
+
+class DependencyUpgradeFinding(BaseModel):
+    """One finding from the dependency-upgrade impact step.
+
+    Each entry corresponds to one (package, old, new) tuple. ``severity``
+    follows the same ``info`` / ``warning`` / ``error`` ladder used in
+    :class:`InlineFinding` so the gate can score it uniformly.
+    """
+
+    file_path: str
+    package: str
+    old_version: str
+    new_version: str
+    ecosystem: str = "unknown"
+    severity: Severity = "info"
+    summary: str
+    evidence: str = ""
 
 
 class CounterfactualOption(BaseModel):
@@ -150,6 +245,51 @@ class CounterfactualOption(BaseModel):
     )
 
 
+PRTypeLiteral = Literal[
+    "bugfix", "feature", "refactor", "docs", "chore", "unknown",
+]
+
+
+class PRClassification(BaseModel):
+    """The PR-type-classifier's output.
+
+    Attached to :class:`ReviewResponse` when ``--pr-classify`` is set.
+    ``reason`` is the model's one-sentence justification; it's surfaced
+    in the PR comment header for transparency but never used to
+    re-classify the PR.
+    """
+
+    pr_type: PRTypeLiteral = "unknown"
+    reason: str = ""
+
+
+ApiDriftKind = Literal[
+    "field_renamed",
+    "field_removed",
+    "type_changed",
+    "path_changed",
+    "method_changed",
+    "other",
+]
+
+
+class ApiDriftFinding(BaseModel):
+    """One cross-language API drift finding.
+
+    Produced by the cross-language consistency step when a PR touches
+    both backend (Python) and frontend (TypeScript / JavaScript) files
+    and the model flags that the two sides have diverged. Always cites
+    *two* paths (one each side); per-file findings live in
+    :class:`InlineFinding` instead.
+    """
+
+    backend_path: str
+    frontend_path: str
+    kind: ApiDriftKind = "other"
+    summary: str
+    evidence: str = ""
+
+
 class CounterfactualBlock(BaseModel):
     """A finding + its competing alternative implementations."""
 
@@ -170,25 +310,47 @@ class ReviewResponse(BaseModel):
     inline_findings: list[InlineFinding] = Field(default_factory=list)
     verdict: JudgeVerdict | None = None
     counterfactuals: list[CounterfactualBlock] = Field(default_factory=list)
+    api_drift: list[ApiDriftFinding] = Field(default_factory=list)
+    pr_classification: PRClassification | None = None
+    dep_upgrades: list[DependencyUpgradeFinding] = Field(default_factory=list)
+    persona_reviews: list[PersonaReview] = Field(default_factory=list)
+    persona_conflicts: list[PersonaConflict] = Field(default_factory=list)
+    diff_entropy: DiffEntropySummary | None = None
 
     def step_map(self) -> dict[str, str]:
         return {s.name: s.output for s in self.steps}
 
 
+ReviewJobStatusResponse.model_rebuild()
+
+
 __all__ = [
+    "ApiDriftFinding",
+    "ApiDriftKind",
     "AskRequest",
     "CitationKind",
     "CounterfactualBlock",
     "CounterfactualOption",
+    "DependencyUpgradeFinding",
+    "DiffEntropySummary",
     "InlineFinding",
     "JudgeVerdict",
+    "PRClassification",
+    "PRTypeLiteral",
+    "PersonaConflict",
+    "PersonaReview",
     "Provenance",
     "ProvenanceCitation",
+    "JobStatus",
     "RagRequest",
     "RagResponse",
+    "ReviewJobStatusResponse",
+    "ReviewJobSubmitResponse",
     "ReviewRequest",
     "ReviewResponse",
     "Severity",
     "StepOutput",
+    "SuggestionVerification",
     "Verdict",
+    "VerificationStatus",
 ]

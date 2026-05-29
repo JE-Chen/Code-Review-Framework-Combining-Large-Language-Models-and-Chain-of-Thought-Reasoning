@@ -14,11 +14,77 @@ concurrency:
   group: prthinker-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
+env:
+  # fnmatch patterns (comma-separated) for paths that should not be
+  # reviewed. Shared with the prthinker CLI via PRTHINKER_EXCLUDE_GLOBS
+  # so the enumerate job and the runner agree on the same filter.
+  PRTHINKER_EXCLUDE_GLOBS: ".idea/*,.idea/**/*,datas/*,datas/**/*,*.md,*.lock,*.json,docs/**/*"
+
 jobs:
-  prthinker:
-    runs-on: ubuntu-latest
+  # 1. List PR files (after dropping noise paths) and emit JSON for
+  #    the per-file matrix.
+  enumerate:
     if: ${{ github.event.pull_request.draft == false }}
-    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      files: ${{ steps.list.outputs.files }}
+      empty: ${{ steps.list.outputs.empty }}
+    steps:
+      - name: List PR files
+        id: list
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          # Pull every file in the PR (status != removed; keep adds,
+          # modifications, renames). per_page=100 covers the common
+          # case; very large PRs would need paging.
+          ALL=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/files?per_page=100" \
+            --jq '[.[] | select(.status != "removed") | .filename]')
+          # Filter via Python so the workflow and CLI use the same
+          # fnmatch semantics. ALL is forwarded via the env so the
+          # heredoc stays single-quoted (no shell expansion inside).
+          FILES=$(ALL="$ALL" python3 <<'PY'
+          import fnmatch, json, os
+          data = json.loads(os.environ["ALL"])
+          patterns = [
+              p.strip()
+              for p in os.environ.get("PRTHINKER_EXCLUDE_GLOBS", "").split(",")
+              if p.strip()
+          ]
+          kept = [
+              f for f in data
+              if not any(fnmatch.fnmatch(f, pat) for pat in patterns)
+          ]
+          print(json.dumps(kept))
+          PY
+          )
+          echo "files=$FILES" >> "$GITHUB_OUTPUT"
+          if [ "$FILES" = "[]" ]; then
+            echo "empty=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "empty=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Reviewable files: $FILES"
+
+  # 2. Per-file review. Each matrix iteration owns ONE path and has
+  #    its own 60-min budget, so a single slow file can't starve the
+  #    whole PR. max-parallel: 1 because the backend serialises on
+  #    one GPU — parallel runners would just queue at /review/submit
+  #    and burn CI minutes for nothing.
+  review:
+    needs: enumerate
+    if: ${{ needs.enumerate.outputs.empty == 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        file: ${{ fromJSON(needs.enumerate.outputs.files) }}
     steps:
       - name: Check out PR head
         uses: actions/checkout@v4
@@ -37,7 +103,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[runner]"
 
-      - name: Run PRThinker
+      - name: Run PRThinker for ${{ matrix.file }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -53,36 +119,119 @@ jobs:
           PRTHINKER_REMOTE_API_KEY: ${{ secrets.PRTHINKER_BACKEND_API_KEY }}
           PRTHINKER_USE_REMOTE_PIPELINE: "true"
 
-          # For --backend openai (uncomment + set secrets):
-          # PRTHINKER_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # PRTHINKER_OPENAI_MODEL: gpt-4o-mini
-          # PRTHINKER_OPENAI_BASE_URL: https://api.openai.com/v1
-
-          # For --backend anthropic (uncomment + set secrets):
-          # PRTHINKER_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # PRTHINKER_ANTHROPIC_MODEL: claude-sonnet-4-6
-
           PRTHINKER_PER_FILE: "true"
           PRTHINKER_INLINE_REVIEW: "true"
           PRTHINKER_MAX_FINDINGS_PER_FILE: "10"
+          # The CLI loops over the PR diff but skips every path except
+          # this one — so the matrix iteration only spends GPU time on
+          # the file it owns.
+          PRTHINKER_TARGET_FILE: ${{ matrix.file }}
+          # Write a partial ReviewResult instead of posting to GitHub.
+          # The aggregate job downloads all partials and posts one
+          # combined summary + inline review + gate close.
+          PRTHINKER_OUTPUT_JSON: ${{ runner.temp }}/partial.json
 
           PRTHINKER_RAG_ENABLED: "true"
           PRTHINKER_REMOTE_RAG: "true"
-
-          # Pre-merge gate. Set to "warning" to also fail on warnings, or
-          # "none" to disable gating entirely (advisory mode).
-          PRTHINKER_GATE_ON: "error"
-
-          # Pull failed-job tail logs from the PR head into the prompt.
+          # Gate is owned by the aggregate job — see PRTHINKER_GATE_ON
+          # in that job's env.
+          PRTHINKER_GATE_ON: "none"
           PRTHINKER_INCLUDE_CI_SIGNALS: "true"
-
-          # Optional per-repo coding standards: ./team-rules/*.md
-          # PRTHINKER_RULES_DIR: ./team-rules
         run: |
-          if [ "$PRTHINKER_BACKEND" = "remote" ] && [ -z "$PRTHINKER_REMOTE_URL" ]; then
-            echo "::error::PRTHINKER_BACKEND_URL secret is not configured."
-            echo "Set it in repo Settings → Secrets → Actions to point at your"
-            echo "FastAPI inference server (e.g. https://my-host:8000)."
-            exit 1
+          # Preflight: if the remote backend is unreachable, skip this
+          # file. The aggregate job still runs and reports whatever
+          # other matrix shards produced; if all shards skipped, it
+          # posts a "backend unreachable" notice.
+          if [ -z "$PRTHINKER_REMOTE_URL" ]; then
+            echo "::warning::PRThinker skipped ${{ matrix.file }} — backend not configured"
+            exit 0
           fi
+          AUTH_HEADER=()
+          if [ -n "$PRTHINKER_REMOTE_API_KEY" ]; then
+            AUTH_HEADER=(-H "Authorization: Bearer $PRTHINKER_REMOTE_API_KEY")
+          fi
+          if ! curl -fsS --max-time 5 "${AUTH_HEADER[@]}" \
+                   "$PRTHINKER_REMOTE_URL/healthz" > /dev/null; then
+            echo "::warning::PRThinker skipped ${{ matrix.file }} — backend unreachable"
+            exit 0
+          fi
+
           python -m prthinker review-pr
+
+      - name: Upload partial review JSON
+        # always() so a skipped review (backend down) doesn't break
+        # artifact collection — the upload step itself just no-ops if
+        # the file is missing.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: partial-${{ strategy.job-index }}
+          path: ${{ runner.temp }}/partial.json
+          if-no-files-found: ignore
+          retention-days: 1
+
+  # 3. Aggregate: download every matrix shard's partial JSON, merge
+  #    them, post ONE summary + ONE inline review, and close the
+  #    pre-merge gate exactly once.
+  aggregate:
+    needs: [enumerate, review]
+    # Run even if some matrix shards failed; we still want to post
+    # whatever findings the successful shards produced.
+    if: ${{ always() && needs.enumerate.outputs.empty == 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install runner dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[runner]"
+
+      - name: Download all partial review artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/partials
+          pattern: partial-*
+          merge-multiple: false
+
+      - name: Aggregate and post
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PRTHINKER_PR_NUMBER: ${{ github.event.pull_request.number }}
+          PRTHINKER_INLINE_REVIEW: "true"
+          PRTHINKER_GATE_ON: "error"
+          PRTHINKER_AGGREGATE_FROM: ${{ runner.temp }}/partials
+        run: |
+          # If no matrix shard produced a partial (e.g. backend was
+          # unreachable for the whole run), post a single skip notice
+          # under the standard marker so reviewers know why the PR has
+          # no review.
+          if ! find "$PRTHINKER_AGGREGATE_FROM" -name "*.json" -print -quit | grep -q .; then
+            MARKER='<!-- prthinker:summary -->'
+            BODY=$(printf '%s\n' \
+              "$MARKER" \
+              "" \
+              "## PRThinker — skipped" \
+              "" \
+              "The automated review did not run on this push: **no partial reviews were produced**." \
+              "" \
+              "This usually means the inference backend was unreachable from every matrix runner." \
+              "Re-pushing after the backend is reachable will overwrite this notice with a real review.")
+            gh pr comment "$PRTHINKER_PR_NUMBER" --body "$BODY" --edit-last \
+              || gh pr comment "$PRTHINKER_PR_NUMBER" --body "$BODY"
+            exit 0
+          fi
+
+          python -m prthinker aggregate

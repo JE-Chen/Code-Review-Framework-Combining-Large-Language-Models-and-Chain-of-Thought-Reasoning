@@ -31,6 +31,11 @@ review-pr
        [--rules-dir PATH]
        [--per-file] [--inline-review] [--max-findings-per-file 10]
        [--reply-to-author] [--counterfactual] [--provenance]
+       [--diff-since-last] [--diff-cache-path PATH]
+       [--verify-suggestions] [--verify-cmd CMD] [--verify-timeout 60] [--verify-workdir PATH]
+       [--api-consistency] [--pr-classify] [--reproducibility-check]
+       [--dep-upgrade-check]
+       [--personas LIST] [--risk-weighted] [--risk-workdir PATH] [--diff-entropy]
        [--judge] [--self-correct]
        [--gate-on {none,warning,error}]
        [--include-ci-signals] [--ci-signal-max-jobs 5] [--ci-signal-tail-chars 4000]
@@ -76,6 +81,74 @@ review-pr
    二次降噪：把存活之 findings 列給模型\ ，請它刪掉它認為是噪音的條目\ 。
    每檔多一次 backend 呼叫\ 。安全失敗方向：解析失敗時保留原清單\ 。
 
+.. option:: --diff-since-last
+
+   把每檔之新側內容 hash\ ，後續 push 時 hash 未變之檔直接 reuse 上次
+   findings\ 。SQLite 儲存體於 ``--diff-cache-path``（預設
+   ``.prthinker/diff-cache.sqlite``），key 為
+   ``(pr_number, repo, file_path, hunk_sha256)`` —— 跨 PR 隔離\ 。環境變數：
+   ``PRTHINKER_DIFF_SINCE_LAST``\ 。
+
+.. option:: --verify-suggestions
+
+   把 working tree 複製到 disposable sandbox\ ，於 finding 之 line range
+   套用 ``suggestion`` block\ ，再以 ``--verify-cmd``\（預設
+   ``pytest -x``）於 ``--verify-timeout``\（預設 60s）下執行\ ，把每條
+   finding 標 ``[verified]`` / ``[FAILED]`` / ``[skipped]`` /
+   ``[error]``\ 。原 repo 絕不動\ 。環境變數：
+   ``PRTHINKER_VERIFY_SUGGESTIONS``\ 。
+
+.. option:: --api-consistency
+
+   當 diff 同時碰到後端（``.py``）與前端（``.ts`` / ``.tsx`` /
+   ``.js`` / ``.jsx``）\ ，新增一個 step 偵測\ *跨檔*\ drift（重命名欄位、
+   移除路由、類型變更）\ 。單語言 PR 上靜默 pass\ 。環境變數：
+   ``PRTHINKER_API_CONSISTENCY``\ 。
+
+.. option:: --pr-classify
+
+   從 diff + 標題 + body 把 PR 分為 ``bugfix`` / ``feature`` /
+   ``refactor`` / ``docs`` / ``chore`` / ``unknown``\ ，後續 review
+   深度隨之調整：docs PR 跳 inline findings\ ；bugfix PR 用 focused
+   prompt + 較小 budget\ 。環境變數：``PRTHINKER_PR_CLASSIFY``\ 。
+
+.. option:: --reproducibility-check
+
+   同 prompt 跑兩次 inline-findings step（非 0 temperature 自然產生
+   第二樣本）\ ，每條 finding 按跨 pass match 標 ``stable`` / ``low``\ 。
+   後端通用 uncertainty proxy\ 。環境變數：
+   ``PRTHINKER_REPRODUCIBILITY_CHECK``\ 。
+
+.. option:: --dep-upgrade-check
+
+   偵測 lock-file（``requirements.txt`` / ``pyproject.toml`` /
+   ``package.json``）中之版本 bump\ ，問模型該套件\ 之 breaking change
+   是否影響本 repo 之實際用法\ 。環境變數：
+   ``PRTHINKER_DEP_UPGRADE_CHECK``\ 。
+
+.. option:: --personas <list>
+
+   逗號分隔之 persona 名單（``security``\ 、``performance``\ 、
+   ``readability``\ 、``api_stability``\ 、``maintainability``）── 或
+   ``all`` 跑全 5 個\ 。每個 persona 之 prompt 限定模型只在該 lens 範圍內
+   評論\ ；之後一個 conflict-finder step 找出跨 persona 之分歧\ 。空（預設）
+   即停用\ 。環境變數：``PRTHINKER_PERSONAS``\ 。
+
+.. option:: --risk-weighted
+
+   以 churn（``git log`` 於預設 90 天 lookback）\ 、complexity（HEAD 行數）\ 、
+   bug history（commit message 命中 ``fix:`` / ``bug`` / ``revert``）算
+   每檔風險分\ ；按分數線性縮放 ``max_findings_per_file`` 於 ``floor``
+   （預設 2）到 ``ceiling``（預設 ``2 × base_budget``）之間\ 。
+   ``--risk-workdir`` 指向 git repo\ 。環境變數：
+   ``PRTHINKER_RISK_WEIGHTED``\ 。
+
+.. option:: --diff-entropy
+
+   計算 diff 之 size + 目錄分布 Shannon entropy\ ；分數越過 ``bomb``
+   閾值時於留言頂端貼\ 「\ Consider splitting this PR\ 」\ 警示\ 。純本機 CPU\ 、
+   無 backend 呼叫\ 。環境變數：``PRTHINKER_DIFF_ENTROPY``\ 。
+
 review-file
 -----------
 
@@ -91,6 +164,10 @@ review-file
        [--rules-dir PATH]
        [--per-file] [--inline-review] [--max-findings-per-file 10]
        [--counterfactual] [--provenance] [--judge] [--self-correct]
+       [--diff-since-last] [--verify-suggestions]
+       [--api-consistency] [--pr-classify] [--reproducibility-check]
+       [--dep-upgrade-check] [--personas LIST]
+       [--risk-weighted] [--diff-entropy]
        [--max-new-tokens 32768]
        [--steps a,b,c]
        [--output-dir PATH]

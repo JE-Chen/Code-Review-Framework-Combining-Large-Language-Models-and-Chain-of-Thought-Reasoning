@@ -29,6 +29,7 @@ prthinker（简体中文）
 
    guide/installation
    guide/quickstart
+   guide/end-to-end-example
    guide/github-actions
    guide/configuration
    guide/repo-config

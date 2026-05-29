@@ -1,8 +1,32 @@
-# 論文補充內容（drop-in 段落集 — v2 修正版）
+# 論文補充內容（drop-in 段落集 — v3 修正版）
 
 ## 修正聲明
 
-本版相對於 v1 之關鍵差異：
+本版相對於 v2 之關鍵差異（v3）：
+
+- **新增框架設計貢獻段落 §3.7**：v2 完成後，隨附之開源框架（`prthinker`）
+  另實作十四項「框架層」之研究級擴充機制，分別對應 prompt-injection
+  robustness、closed-loop 多輪對話、counterfactual 審查、provenance
+  稽核、force-push 差分、suggestion sandbox 驗證、cross-language API
+  drift、PR 類型自適應、reproducibility 訊號、dependency upgrade impact、
+  reviewer personas + conflict surfacing、risk-weighted attention、
+  diff entropy 偵測，以及部署層之 CI matrix 分片 + 非同步 job-pattern
+  endpoint。其量化效益本論文\ **未予評估**，全部列為設計貢獻
+  並於 §6.4 補上對應之未來工作。
+- **§1.5 第六項貢獻擴寫**：原 v2 僅提「四類推論後端與 IDE 整合」，
+  v3 加入 §3.7 所述之十三項擴充機制條目，逐項註明本論文未予評估。
+- **§6.4 增列 6.4.5**：新增「研究級擴充機制之實證評估」之未來工作項，
+  對十三項機制逐項給出最小可驗證實驗骨架（語料規模、對照變項、評估
+  指標），確保未來補實驗時有可遵循之骨架。
+- 不變項目（沿用 v2）：仍\ **不謊造、不新增 RQ、不新增參考文獻**\ ；
+  既有 §5 之表 1 / 表 2 / 表 3 不更動；§3.5 / §3.6 / §5.3 / §6.4.1–4 沿用。
+
+本檔每段插入皆對應「實際實驗結果」或「framework 設計／未來工作」二
+類之一；前者引用既有表格之數字，後者僅描述機制不附數字。
+
+---
+
+## v1 → v2 修正紀錄（保留）
 
 - **移除全部捏造之實驗數據**：v1 內出現之「跨後端 0.86 / 0.84 / 0.78」、
   「dismissed filter precision 0.71 → 0.83」、「👎 比率 0.18 → 0.06」、
@@ -21,9 +45,6 @@
   跑過，不可寫入論文。本研究實際進行之比較為：Ours vs CRSCORE++ 基準
   （表 1）、Ours-30B vs Ours-7B vs Ours-Coder-7B（表 1 後三欄）、
   多階段提示詞 + 微調之消融（表 2 LLM 評分、表 3 人工評分）。
-
-本檔每段插入皆對應「實際實驗結果」或「framework 設計／未來工作」二
-類之一；前者引用既有表格之數字，後者僅描述機制不附數字。
 
 ---
 
@@ -44,6 +65,16 @@
 > （`APPROVE` / `REQUEST_CHANGES` / `COMMENT`）作為 PR 合併狀態之控制
 > 端點，並提供合併前 Check Run gate 與作者反饋語料學習等設計，皆屬本
 > 框架之設計貢獻；其量化驗證須累積實際 PR 流量後另行進行。
+
+> 本研究隨附之開源框架另實作十三項研究級擴充機制（涵蓋 prompt-injection
+> robustness、closed-loop 多輪對話、counterfactual / mutation-style
+> 審查、provenance 稽核、force-push 差分、suggestion sandbox 驗證、
+> cross-language API drift、PR 類型自適應、reproducibility 訊號、
+> dependency upgrade impact、reviewer personas + conflict surfacing、
+> risk-weighted attention 與 diff entropy 偵測），均以 CLI flag 之
+> opt-in 形式提供；其端到端品質效益本研究均未予量化評估，詳細之設計
+> 說明與後續實驗骨架見學位論文 §3.7 與 §6.4.5（對應本框架之 GitHub
+> 倉庫之 `docs/en/concepts/research-extensions.rst`）。
 
 > 標示說明：上述段落僅描述機制設計，不附效益數字；本研究實際驗證之
 > 結果見 §5。
@@ -131,6 +162,16 @@
 >    端點與 Anthropic Messages API 四種具體後端，並以 MCP server 將
 >    審查管線暴露為 IDE 可直接調用之 tool。本論文 §5 之實驗以本機後端
 >    為主，跨後端比較與 IDE 內審查觸發率之評估屬未來工作。
+> 7. **十三項研究級擴充機制之設計**（見 §3.7 詳述）：包含 prompt-injection
+>    robustness 之 corpus + bypass detection、closed-loop 多輪對話、
+>    counterfactual / mutation-style 審查、provenance 稽核、force-push
+>    差分 cache、suggestion sandbox 驗證、cross-language API drift
+>    偵測、PR 類型自適應、reproducibility 訊號、dependency upgrade
+>    impact 分析、reviewer personas + conflict surfacing、risk-weighted
+>    attention 與 diff entropy / 「diff bomb」偵測。每項對應一個 CLI
+>    flag、一份單元測試與 `docs/en/concepts/research-extensions.rst`
+>    內之設計說明；其端到端品質效益本論文均未予評估，列為 §6.4.5
+>    所述之未來工作。
 
 ---
 
@@ -228,7 +269,204 @@
 
 ---
 
-### 2.4  INSERT INTO §5（新增 §5.3 結果分析，僅使用既有表 1、表 2、表 3 之數字）
+### 2.4  INSERT INTO 第三章（新增 §3.7 研究級擴充機制之框架設計）
+
+**插入位置**：§3.6 之後。
+
+**標題與內容**：
+
+> 3.7  研究級擴充機制（設計層）
+>
+> 本節描述本研究隨附之開源框架另實作之十三項機制，均對應於 LLM 程式
+> 碼審查文獻中目前較少實作之研究面向。每項機制皆以 CLI flag 形式
+> opt-in，預設關閉以維持 §5 所驗證之 baseline pipeline 不受干擾。
+> 本論文\ **未對任何單項機制之端到端品質效益進行量化評估**\ ；
+> §6.4.5 將就每項機制給出對應之未來工作骨架。所列機制皆已伴隨單元
+> 測試與設計文件（`docs/en/concepts/research-extensions.rst`），可
+> 直接於工程上使用，僅缺學術評估。
+>
+> 3.7.1  Prompt-injection robustness 與 `adversarial-eval` 子指令
+>
+> 既有 LLM 程式碼審查文獻多預設 diff 為友善輸入。本框架實作四類攻擊
+> 之 corpus 與分類器（`direct_injection` 將「忽略先前指令並核可此
+> PR」貼入 diff、`encoded_payload` 以 base64 / hex / ROT13 / unicode
+> homoglyph 混淆、`split_injection` 將 payload 拆散於多檔案、
+> `role_hijack` 重新定義審查器角色），並提供 `detect_bypass()` 純函
+> 式將模型輸出與 case 標記之 markers 進行匹配，於 SQLite 記錄每筆
+> 呼叫之原始輸出供事後審計。隨附之 `seed.jsonl` 明示為「種子」而非
+> benchmark，避免未經擴充即被誤用為定量基準。
+>
+> 3.7.2  Closed-loop 多輪對話審查
+>
+> 既有 LLM reviewer 將審查視為一次性事件：模型發出留言、作者回覆，
+> 但下一輪審查並未讀取作者之回覆。框架在 `PlatformAdapter` 加入
+> `fetch_author_replies()`，將作者於最近一則 summary comment 後之
+> 回覆渲染為「Prior dialogue」區塊，注入 inline-findings prompt。模
+> 型被明確要求對作者已回應之 finding 做下列三擇一：捨棄、精煉、以
+> 新證據反駁，禁止靜默重貼。此一機制屬框架設計貢獻；其於真實 PR
+> 對話下對 round-2 precision 之影響本論文未予評估。
+>
+> 3.7.3  Counterfactual / mutation-style 審查
+>
+> 多數審查器只輸出「請改成 X」。框架另實作 `CounterfactualStep`，於
+> per-file inline findings 之後針對被視為「設計選擇」之 finding，
+> 要求模型列出最多三個競爭性實作與 trade-off 矩陣（axes 為
+> `performance` / `readability` / `testability` / `memory` /
+> `idiomaticity` / `dependency` 等）。Parser 丟棄選項少於 2 或
+> `finding_index` 越界之區塊；本機制屬框架設計貢獻，其對人類審查
+> 者決策品質之影響本論文未予評估。
+>
+> 3.7.4  Provenance 稽核：每條 finding 之引用鏈
+>
+> 框架定義 `Provenance(citations, confidence)` schema 並要求模型對
+> 每條 finding 引用其依據（`rag_rule` 編號、`accepted_example` 編號、
+> 或 `diff_evidence` 行號），可選附自評信心值 ∈ [0, 1]。Parser 對
+> 越界引用做靜默丟棄但不丟 finding；`confidence` 僅供人類參考，
+> 不作為自動過濾依據。本機制使審查行為從「黑盒」變為可審計，屬框架
+> 設計貢獻；其與 finding 正確率之相關性本論文未予評估。
+>
+> 3.7.5  Force-push 差分審查
+>
+> 迭代型 PR 在多次 push 間之 diff 通常 60–80% 不變。框架實作
+> `FileDiff.content_sha256()`（僅 hash 新側內容，排除 diff metadata
+> 與被刪除行），並提供 SQLite cache 以
+> `(pr_number, repo, file_path, hunk_sha256)` 為 key 儲存 findings。
+> 下次 push 時 hash 未變之檔直接 reuse 上次結論。本機制屬框架設計
+> 貢獻；其於真實 PR 流量下節省之 token 成本本論文未予評估。
+>
+> 3.7.6  Suggestion sandbox 驗證
+>
+> 框架實作 `verify_suggestion()`，把 working tree 複製到
+> `tempfile.mkdtemp` 後以 `original` 守備檢查套用 suggestion，再以
+> `verify_cmd`（預設 `pytest -x`）於 timeout 之內執行，將每條建議
+> 標 `pass` / `fail` / `skip` / `error`。原 repo 絕不動；verify 指
+> 令以 argv list 跑（無 `shell=True`）。將 suggestion 由「盲射建議」
+> 升級為「有經驗證據之假設」之設計貢獻；其於開發者採納率上之效益本
+> 論文未予評估。
+>
+> 3.7.7  Cross-language API drift 偵測
+>
+> 當 PR 同時碰到後端（`.py`）與前端（`.ts` / `.tsx` / `.js` /
+> `.jsx`），per-file review 看不到「後端把 `user_id` 改名 `userId`、
+> 前端仍用舊名」之跨檔 drift。框架以 `is_mixed_language()` 偵測
+> 跨語言 PR，組裝跨檔 prompt 並解析為 `ApiDriftFinding`（kinds：
+> `field_renamed` / `field_removed` / `type_changed` / `path_changed`
+> / `method_changed` / `other`）。Parser 丟棄引用了非 diff 路徑之
+> drift（模型無法虛構檔名）。本機制屬框架設計貢獻；其 precision /
+> recall 本論文未予評估。
+>
+> 3.7.8  PR 類型自適應審查
+>
+> 多數 LLM 審查器對所有 PR 一視同仁。框架實作前置之 PR-type
+> classifier（`PRType ∈ {bugfix, feature, refactor, docs, chore,
+> unknown}`），用 diff + 標題 + body 將 PR 分類後，按 `ReviewBudget`
+> 表調整後續 review 深度：DOCS 跳整個 inline findings、BUGFIX 縮
+> `max_findings_per_file` 並注入 focused prompt 片段、REFACTOR 放
+> 大 budget 並注入等價檢查 hint。安全失敗方向：解析失敗 → UNKNOWN
+> → 走標準 pipeline。本機制屬框架設計貢獻；其分類正確率與品質提升
+> 本論文未予評估。
+>
+> 3.7.9  Reproducibility / 評論一致性訊號
+>
+> 多數 backend 並未透過統一 API 暴露穩定之 per-token logprob。框架
+> 提供後端通用之 uncertainty proxy：對同一檔以同 prompt 跑兩次
+> inline-findings step（非 0 temperature 自然產生第二樣本），按
+> `(path, line, 正規化 comment)` 比對；正規化壓掉空白 / 大小寫 /
+> 標點以涵蓋 paraphrase。findings 標 `stable` / `low`；第二次新出
+> 現之 finding 亦保留為 `low`。本機制屬框架設計貢獻；其與真實正確
+> 率之相關性本論文未予評估。
+>
+> 3.7.10  Dependency upgrade impact 分析
+>
+> 最容易被人類審查者迅速放行之 PR，往往是不顯眼之 dependency bump。
+> 框架偵測 `requirements.txt` / `pyproject.toml` / `package.json`
+> 之觸碰，抽出 `(package, old_version, new_version)` delta，並以
+> 該套件於 diff 其他檔案中之實際呼叫點為附加 prompt 上下文，問模
+> 型 breaking change 是否影響本 repo 之用法，解析為
+> `DependencyUpgradeFinding(severity, summary, evidence)`。框架於
+> review-time 不抓 remote changelog（CI 不穩 + 隱私問題）。本機制
+> 屬框架設計貢獻；其偵測精度與漏報率本論文未予評估。
+>
+> 3.7.11  Reviewer personas + conflict surfacing
+>
+> 既有 ensemble reviewer 多半是同一 lens 跑 N 次平均。框架實作
+> 五個正交 `Persona`（`SECURITY` / `PERFORMANCE` / `READABILITY` /
+> `API_STABILITY` / `MAINTAINABILITY`），每個 persona prompt 明確
+> 要求模型只在該 lens 範圍內評論。N 個角色發言後，conflict-finder
+> step 拿 N 個輸出找跨角色之分歧並輸出 `PersonaConflict(personas,
+> summary, resolution)`；`resolution` 刻意不替決策者選邊，將張力
+> 顯化而非平均化。本機制屬框架設計貢獻；其對人類審查者決策成本之
+> 影響本論文未予評估。
+>
+> 3.7.12  Risk-weighted attention：以 git 訊號分配 findings budget
+>
+> 多數審查器將 PR 內每檔視同仁。框架實作以三項 git-derived 訊號計
+> 算之每檔風險分：churn（`git log --since=90.days.ago` 之 commit
+> 數）、complexity proxy（HEAD 行數）、bug history（commit message
+> 命中 `fix:` / `bug` / `revert`）。三項在 PR 內 normalise 後以權
+> 重 (0.4, 0.3, 0.3) 線性結合（明示為\ **框架慣例而非校準公式**），
+> 並按分數線性縮放 `max_findings_per_file` 於 `floor` 與 `ceiling`
+> 之間。本機制屬框架設計貢獻；權重之校準與 budget 配置之品質影響
+> 本論文未予評估。
+>
+> 3.7.13  Diff entropy 與「diff bomb」偵測
+>
+> 多數 LLM 審查器照單全收地處理千檔大 PR，產出灌洗版式之 review。
+> 框架將 PR 之形狀視為 first-class review signal：以檔案數 + 總
+> +/- 行為 size 分量，以頂層目錄分布之 Shannon entropy 經
+> `log2(n_dirs)` 正規化為 dispersion 分量，分類為 `focused` /
+> `wide` / `bomb`。verdict 為 `bomb` 時於留言頂端貼「Consider
+> splitting this PR」警示。框架\ **不**\ 因高分阻擋合併，目的僅為
+> 將 PR 形狀顯化以利人類決策。本機制屬框架設計貢獻；其與真實 PR
+> 缺陷漏報率之相關性本論文未予評估。
+>
+> 3.7.14  部署層工程：CI 矩陣分片、非同步 job-pattern endpoint
+>
+> 在以反向代理（Cloudflare 免費 / Pro / Business 方案套用 100 秒
+> 之 HTTP idle timeout）對外暴露之 30B MoE 推論伺服器上，單一
+> per-file CoT 審查之單 round-trip 推論時間可超過該上限，並隨
+> per-file mode 對大 PR 之 序列化處理累積觸發 GitHub Actions 預設之
+> 30 分鐘 job 上限與 GPU 累積 KV cache 之 OOM。框架在不更動審查
+> 流程之前提下，於部署層提出四項工程設計：
+>
+> (a) **非同步 job-pattern endpoint**：將 `/review` 同步端點補上
+> `POST /review/submit`（回傳 ``job_id``）與 ``GET /review/result/{id}``
+> 兩個 endpoint，搭配 5 秒輪詢之 client 設計，使任一 HTTP round-trip
+> 之 wall-clock 時間落於 reverse-proxy idle timeout 之內，與 backend
+> 端實際推論時間解耦。
+>
+> (b) **CI matrix 分片**：將原 single-job `review-pr` 重構為
+> `enumerate` → `review` matrix（``max-parallel: 1``，每 shard 60
+> 分鐘 budget）→ `aggregate` 三 job pipeline，使每個 file 享有獨立
+> timeout budget。`max-parallel: 1` 屬刻意設計，避免並行 shard 在
+> backend 排隊浪費 CI 分鐘而無 wall-clock 收益（單 GPU 仍為瓶頸）。
+>
+> (c) **noise-path 過濾與 single-file 模式**：新增
+> `--exclude-globs` / `--target-file` 兩 flag，使 matrix shard 能以
+> matrix.file 之精確路徑接管單一 file 之審查，並透過共享
+> `PRTHINKER_EXCLUDE_GLOBS` 確保 workflow 與 CLI 使用同一份 fnmatch
+> 規則跳過 IDE 設定 / 生成資料 / 文件變更，避免將 GPU 預算消耗於
+> 與審查目標無關之檔案。
+>
+> (d) **partial-result aggregation**：新增 ``--output-json`` flag 與
+> `aggregate` 子指令，使 matrix shard 將其 partial ``ReviewResult``
+> 序列化為 JSON artifact，由 aggregate job 將 ``inline_findings`` /
+> ``per_file`` / ``step_outputs`` 合一後僅 post 一次 summary 留言、
+> 一次 inline review、開 / 關 pre-merge gate 各一次。
+>
+> 另搭配兩項 GPU 端記憶體工程：每個 job 結束以
+> ``torch.cuda.empty_cache() + gc.collect()`` 釋出 caching allocator
+> 之保留區塊；於 inference 路徑前以 backend tokenizer 切上限
+> （預設 6000 tokens）之 diff truncation，避免單一過長 diff 在
+> attention 計算階段觸發 OOM。本機制屬部署層設計貢獻，其對端到
+> 端 PR 流量之穩定性與 wall-clock 改善之量化本論文未予評估，列為
+> §6.4.5 之未來工作。
+
+---
+
+### 2.5  INSERT INTO §5（新增 §5.3 結果分析，僅使用既有表 1、表 2、表 3 之數字）
+
+<!-- (Renumbered from §2.4 in v2 → §2.5 in v3 due to insertion of new §3.7 block above.) -->
 
 > v1.8 學位論文目前 §5 僅有 5.1 各方法比較 與 5.2 消融實驗 兩個小節，
 > 缺少 paper_rule §4.5 所要求之「結果分析」段落。本節僅基於 §5.1 表 1、
@@ -278,7 +516,7 @@
 
 ---
 
-### 2.5  INSERT INTO §6.4 未來工作（擴充原段為四點）
+### 2.6  INSERT INTO §6.4 未來工作（擴充原段為四點，並於 v3 追加第 5 點）
 
 **插入位置**：替換現行 §6.4 之單段。
 
@@ -323,6 +561,73 @@
 > telemetry 遷移至 Redis 與 PostgreSQL 以擴及多 server 共享之企業環境，
 > 並補上 drift watcher：以固定之 golden PR 集合定期重跑審查，比對輸出
 > 相似度，一旦偏離既有 baseline 即觸發告警。
+>
+> 6.4.5  §3.7 所述十三項研究級擴充機制之實證評估
+>
+> §3.7 所述十三項機制目前僅完成框架實作；其端到端品質效益需後續以
+> 真實 PR 流量驗證。為避免日後補實驗時設計分歧，本節為各機制標示最
+> 小可驗證實驗骨架；所列指標皆為公開可重現之量度，避免引入新主觀
+> 量表。
+>
+> (a) Prompt-injection robustness（§3.7.1）：擴充 `seed.jsonl` 至每
+> 攻擊類別 ≥ 30 例，於四類後端各跑一遍，以 SQLite 表格內之
+> `bypassed` / `detected` 欄聚合為 detection rate 與 false-alarm rate
+> 之偏序對照。
+>
+> (b) Closed-loop 多輪對話（§3.7.2）：於同一 PR 連續推 ≥ 5 次提交，
+> 比較啟用 `--reply-to-author` 與否之 round-k 重複 finding 比率與作者
+> 採納率。
+>
+> (c) Counterfactual 審查（§3.7.3）：抽 ≥ 50 個 design-choice 類
+> finding，請 ≥ 3 名人工審查者就「呈現替代方案是否影響其最終決策」
+> 之 Likert 5 點評分作為效益指標。
+>
+> (d) Provenance 稽核（§3.7.4）：以人工標記 ≥ 100 條 finding 之
+> 「正確 / 誤判」標籤，比較有引用 vs 無引用兩組之 precision，並用
+> `confidence` 與真實正確率之 ROC AUC 量化自評之校準度。
+>
+> (e) Force-push 差分（§3.7.5）：於連續 30 天之 PR 流量上比較啟用
+> `--diff-since-last` 與否之 token 用量、cache hit 比率與 false-reuse
+> 比率（cache hit 但模型若實際重跑會產出不同 finding 之比例）。
+>
+> (f) Suggestion sandbox 驗證（§3.7.6）：以 ≥ 100 條 suggestion 在
+> sandbox 內套用後跑 `pytest -x`，計算 `pass` / `fail` / `skip` /
+> `error` 四類比例；另以人工標記真實正確性，計算 sandbox 之 verdict
+> 與人工判斷之 Cohen's κ。
+>
+> (g) Cross-language API drift（§3.7.7）：構造 ≥ 30 個 mixed-language
+> PR（後端 rename、欄位刪除、type 變更）作為 ground-truth，計算
+> precision / recall。
+>
+> (h) PR 類型自適應（§3.7.8）：在 ≥ 200 個公開 PR 上以 commit msg
+> prefix / labels 為 ground-truth 計算分類 accuracy / macro-F1；
+> 並比較啟用 `--pr-classify` 前後之每類 PR finding 精確率。
+>
+> (i) Reproducibility 訊號（§3.7.9）：對固定 PR 集合各跑 5 trials，
+> 以兩兩之 `(path, line, normalised-comment)` 重合率作為內部一致性
+> 指標；驗證 `stable` 標記與真實正確率之相關性。
+>
+> (j) Dependency upgrade impact（§3.7.10）：以公開 advisory（GHSA /
+> CVE）作為 ground-truth breaking change 之來源，於 ≥ 50 個歷史
+> dependency bump PR 上計算 precision / recall。
+>
+> (k) Reviewer personas + conflict surfacing（§3.7.11）：於 ≥ 50 個
+> design-heavy PR 上比較單 lens 與 personas（含 conflict step）兩設
+> 定下，人類審查者「需介入決策」之留言數與最終 PR 之 revert 率。
+>
+> (l) Risk-weighted attention（§3.7.12）：以歷史 bug-fix PR 之檔案
+> 分布為 ground-truth，建立 risk score 與「該檔於下一季出現 bug fix
+> commit 之機率」之相關係數；並對權重 (0.4, 0.3, 0.3) 進行敏感度分
+> 析。
+>
+> (m) Diff entropy（§3.7.13）：以公開「PR 被拆」事件作為 ground-
+> truth，計算 verdict ∈ {focused, wide, bomb} 與「該 PR 後續被拆」
+> 之關聯。
+>
+> 上列十三組實驗皆需累積實際語料；本論文之主要貢獻仍為 §5.1 / §5.2
+> 所述之多階段 CoT + LoRA 微調 + RAG 之整合設計與驗證，§3.7 與
+> §6.4.5 之內容明示為框架設計貢獻與後續工作之承接介面，不影響本論
+> 文之核心主張。
 
 ---
 
@@ -340,20 +645,37 @@
       引入 `[23]+`。
 - [ ] 兩篇引文格式統一為 IEEE `[N]`，未殘留 `(Author, Year)`。
 - [ ] 每個新增之技術名詞於首次出現處附括弧解釋。
-- [ ] 新增之子章節（§3.5.1–4、§3.6.1–2、§5.3.1–3、§6.4.1–4）在 docx
-      內已以加粗 + 略大字級之段落呈現，不僅以段落換行示意。
-- [ ] §1.5 條列之六項貢獻：前三項已對應 §5 表 1 / 表 2 / 表 3 之實驗
-      結果；後三項已明示為「框架設計貢獻、量化驗證屬未來工作」。
-- [ ] §3.5 / §3.6 全部段落內含「本論文未予評估」或等義之免責標示。
+- [ ] 新增之子章節（§3.5.1–4、§3.6.1–2、**§3.7.1–13**、§5.3.1–3、
+      §6.4.1–5）在 docx 內已以加粗 + 略大字級之段落呈現，不僅以段落
+      換行示意。
+- [ ] §1.5 條列之七項貢獻：前三項已對應 §5 表 1 / 表 2 / 表 3 之實驗
+      結果；第 4–7 項已明示為「框架設計貢獻、量化驗證屬未來工作」。
+- [ ] §3.5 / §3.6 / **§3.7** 全部段落內含「本論文未予評估」或等義之
+      免責標示；§3.7 內提及「框架設計貢獻」之頻次 ≥ 13 次（每子節
+      至少一次）。
+- [ ] **§3.7 之十三項機制每項皆對應 §6.4.5 之一個未來工作骨架（a)–(m)**，
+      不漏項；§6.4.5 內每項皆給出具體之 ground-truth 來源、語料規模
+      下限、與不依賴人類主觀量表之量化指標。
 - [ ] §5.3 之三段分析所引之每個數字皆可於表 1 / 表 2 / 表 3 中找到。
-- [ ] §6.4 之四項未來工作皆對應到 §1.5 中已明示為「框架設計貢獻」之項目。
+- [ ] §6.4 之五項未來工作皆對應到 §1.5 中已明示為「框架設計貢獻」之
+      項目（6.4.1 ↔ 第 6 項後端 / 6.4.2 ↔ 第 5 項語料 / 6.4.3 ↔ 第 6
+      項平台與多模型 / 6.4.4 ↔ 第 6 項 MCP / 6.4.5 ↔ 第 7 項十三項
+      機制）。
 - [ ] 文中所有「該方法」「上述」「此」之代名詞，往前 3 行內可找到具
       體指稱。
 - [ ] 全文未出現「賦能 / 打造 / 全方位 / 深入探討 / 值得注意的是 /
       綜上所述（於結論章內）」等 AI 口頭禪。
+- [ ] **十三項擴充機制之名稱於論文與隨附之 `docs/en/concepts/
+      research-extensions.rst` 完全一致**（避免 `--reply-to-author`
+      於論文內被翻為「多輪對話」、於 docs 內被翻為「閉環對話」之
+      不一致）。
 - [ ] 已驗證每個 `<w:rPr>` 之 `<w:rFonts>` 元素四個 slot 皆設為標楷體 /
       Times New Roman。
-- [ ] TCSE v2.3 之插入後總字元數仍可控制於 6 頁 Word 上限內。
+- [ ] TCSE v2.3 之插入後總字元數仍可控制於 6 頁 Word 上限內；§3.7
+      與 §6.4.5 主要針對學位論文 v1.8，TCSE 短文版本可僅於 §1.3 之
+      末句後追加一句「本研究隨附之開源框架另實作十三項研究級擴充機
+      制，詳見學位論文 §3.7 與 §6.4.5；該等機制之量化評估均屬未來
+      工作」以同步而不超頁。
 
 > 若任一項回答為「否」，於 commit 進 docx 之前先處理；尤其第一項
 > （不謊造）為硬規則，違反即構成研究不當行為。

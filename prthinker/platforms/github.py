@@ -54,6 +54,29 @@ class GitHubAdapter(PlatformAdapter):
     def fetch_base_branch(self) -> str:
         return fetch_pr_base_branch(self._gh())
 
+    def fetch_pr_meta(self) -> tuple[str, str]:
+        """Pull ``(title, body)`` from ``GET /repos/{repo}/pulls/{n}``."""
+        import httpx
+
+        with httpx.Client(
+            base_url=self.base_url.rstrip("/"),
+            timeout=30.0,
+            headers={
+                "Authorization": f"Bearer {self.token}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+                "User-Agent": "reviewmind/0.1",
+            },
+        ) as client:
+            response = client.get(
+                f"/repos/{self.repo}/pulls/{self.pr_number}"
+            )
+            response.raise_for_status()
+            data = response.json()
+        title = str(data.get("title") or "")
+        body = str(data.get("body") or "")
+        return (title, body)
+
     # ----- comments ------------------------------------------------------
 
     def upsert_summary_comment(self, body: str) -> int:

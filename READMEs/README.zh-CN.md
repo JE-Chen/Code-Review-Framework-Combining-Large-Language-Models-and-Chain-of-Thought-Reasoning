@@ -33,21 +33,39 @@
 
 ### 研究级扩展（opt-in）
 
-四个多数 LLM code review 系统未实作的机制。均需搭配 `--inline-review`；
+十三个多数 LLM code review 系统未实作的机制。大多需搭配 `--inline-review`；
 依本项目不臆造原则，我们只交付框架，量化 benchmark 数字属于未来工作。
 
-- **对抗鲁棒性**（`prthinker adversarial-eval`）──针对四种攻击类型
-  （direct injection / encoded payload / split injection / role hijack）
-  跑 prompt-injection 语料，把每一笔调用结果写入 SQLite。随附之
+- **对抗鲁棒性**（`prthinker adversarial-eval`）──针对四种攻击类型跑
+  prompt-injection 语料，把每一笔调用结果写入 SQLite。随附之
   `seed.jsonl` 是种子语料，**不是** benchmark。
 - **闭环多轮对话**（`--reply-to-author`）──读取 PR 作者对上次 prthinker
-  摘要评论之回复，注入为 *Prior dialogue* 区块。下一次审查可在作者
-  反论下舍弃 / 精炼 / 反驳该评论。
+  摘要评论之回复，注入为 *Prior dialogue* 区块。
 - **反事实审查**（`--counterfactual`）──针对属于 *设计选择* 之 finding，
-  列出竞争性实现方案与小型 trade-off 矩阵，而非单一「请改成 X」。
+  列出竞争性实现方案与小型 trade-off 矩阵。
 - **评论来源 / 引用审计**（`--provenance`）──每条 finding 附上 `provenance`
-  payload，标注引用了哪一条 RAG 规则 / accepted-example / diff 行号，
-  并可选自评信心值 ∈ [0, 1]。坏引用绝不拖垮真评论。
+  payload，标注引用了哪一条 RAG 规则 / accepted-example / diff 行号。
+- **Force-push 差分**（`--diff-since-last`）──把每文件新侧内容 hash，
+  同一 PR 之下次 push 时未动的文件直接 reuse 上次 findings。
+- **建议 sandbox 验证**（`--verify-suggestions`）──把 working tree 复制到
+  disposable sandbox 套用 suggestion 后跑 `--verify-cmd`，每条建议标
+  `[verified]` / `[FAILED]` / `[skipped]` / `[error]`。原 repo 绝不动。
+- **跨语言 API 一致性**（`--api-consistency`）──当 PR 同时碰到后端 `.py`
+  与前端 `.ts` / `.tsx`，新增一个 step 检测两侧 request/response 形状漂移。
+- **PR 类型自适应**（`--pr-classify`）──从 diff + 标题 + body 把 PR 分为
+  bugfix / feature / refactor / docs / chore / unknown，后续 review 深度
+  随之调整。
+- **评论一致性信号**（`--reproducibility-check`）──同 prompt 跑两次 inline-findings，
+  把 finding 标 `[stable]` / `[low-reproducibility]`。
+- **依赖升级影响**（`--dep-upgrade-check`）──检测 lock-file 触碰，
+  抽出版本 delta，问模型 breaking change 是否影响本 repo 之实际用法。
+- **多角色 + 冲突显化**（`--personas`）──跑 N 个正交 lens（security /
+  performance / readability / api_stability / maintainability），
+  conflict-finder step 把它们的分歧显化出来。
+- **风险加权注意力**（`--risk-weighted`）──以 churn + complexity + bug
+  history（从 `git log` 抓）算每文件风险分，按比例缩放 finding budget。
+- **Diff 熵 /「Diff bomb」检测**（`--diff-entropy`）──算 PR size +
+  目录分布 Shannon entropy；熵高时于评论顶端贴「Consider splitting this PR」警示。
 
 设计细节见 [`docs/zh-CN/concepts/research-extensions.rst`](../docs/zh-CN/concepts/research-extensions.rst)。
 
@@ -60,13 +78,13 @@ pip install -e ".[runner]"
 # 对本地 diff 跑审查（指向远程推理服务器）
 prthinker review-file my-change.diff \
     --backend remote \
-    --remote-url https://my-host:8000 \
+    --remote-url http://my-host:9000 \
     --per-file --inline-review
 
 # 完整审查 PR（GitHub Action 内部用的就是这个）
 prthinker review-pr \
     --repo owner/name --pr-number 42 \
-    --backend remote --remote-url https://my-host:8000 \
+    --backend remote --remote-url http://my-host:9000 \
     --gate-on error --include-ci-signals
 
 # …或通过 OpenAI-compat backend 使用 OpenAI / Azure / vLLM / Ollama
@@ -86,6 +104,9 @@ prthinker review-pr --repo o/r --pr-number 42 \
 prthinker review-pr --repo o/r --pr-number 42 \
     --per-file --inline-review \
     --reply-to-author --counterfactual --provenance \
+    --diff-since-last --verify-suggestions --api-consistency \
+    --pr-classify --reproducibility-check --dep-upgrade-check \
+    --personas all --risk-weighted --diff-entropy \
     --judge --self-correct
 
 # 对 backend 做 prompt-injection 鲁棒性压测
@@ -99,7 +120,7 @@ prthinker adversarial-eval \
 
 ```bash
 pip install -e ".[server]"
-uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
+uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 9000
 ```
 
 ## GitHub Actions

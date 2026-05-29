@@ -1,9 +1,16 @@
 HTTP API
 ========
 
-The FastAPI server in ``codes/run/fastapi_server.py`` exposes four
+The FastAPI server in ``codes/run/fastapi_server.py`` exposes six
 endpoints. All accept and return JSON (``/ask`` returns plain text for
 backward compatibility).
+
+``/review/submit`` + ``/review/result/{job_id}`` are the async job
+pattern recommended for any deployment that fronts the server with a
+reverse proxy that enforces an HTTP idle timeout (Cloudflare's
+free/pro/business proxy aborts at 100s, which a 30B MoE review trivially
+exceeds). The synchronous ``/review`` endpoint stays for clients that
+own their own timeout.
 
 All requests support an optional ``Authorization: Bearer <token>``
 header. The server does not validate the token itself — wrap it behind a
@@ -130,6 +137,60 @@ findings that match prior dismissals are already filtered out.
 * ``500`` — generation or RAG failure. Logged server-side; clients
   should retry with backoff.
 
+POST /review/submit
+-------------------
+
+Asynchronous counterpart to ``/review``. Returns immediately with a
+job id; the server runs the CoT pipeline in a daemon thread. Use this
+endpoint whenever the connection between client and server passes
+through a proxy with a short HTTP idle timeout — Cloudflare's free /
+pro / business plans abort proxied requests at ~100 s, far below the
+several-minute run time of a per-file CoT review on a 30B base.
+
+**Request body** (``ReviewRequest``) — identical to ``/review``.
+
+**Response 200** (``ReviewJobSubmitResponse``):
+
+.. code-block:: json
+
+   {"job_id": "fa3d996466ee4666baae72b842d3b149"}
+
+The job is held in a process-local dict with a 1 h TTL; restarting the
+server drops in-flight jobs.
+
+GET /review/result/{job_id}
+---------------------------
+
+Poll for the result of a submitted job. The client should call this
+on a short interval (e.g. 5 s) — each round trip is fast and cannot
+trip the proxy's idle timeout. Overall wait time is bounded by the
+client's own deadline.
+
+**Response 200** (``ReviewJobStatusResponse``):
+
+.. code-block:: json
+
+   {
+     "job_id": "fa3d996466ee4666baae72b842d3b149",
+     "status": "running",
+     "result": null,
+     "error": null
+   }
+
+``status`` is one of:
+
+* ``pending`` — submitted but the worker thread has not started yet.
+* ``running`` — worker thread is in ``_execute_review``.
+* ``done`` — ``result`` is populated with the same ``ReviewResponse``
+  shape ``/review`` returns.
+* ``error`` — ``error`` is populated with ``"<ExceptionClass>: <msg>"``.
+  Clients should surface this directly; no retry will help unless
+  the underlying cause (OOM, model load, etc.) is fixed.
+
+**Errors**
+
+* ``404`` — unknown ``job_id`` (or it expired past the TTL).
+
 Schema definitions
 ------------------
 
@@ -151,6 +212,12 @@ them, so type drift is impossible.
    :noindex:
 
 .. autoclass:: prthinker.schemas.ReviewResponse
+   :noindex:
+
+.. autoclass:: prthinker.schemas.ReviewJobSubmitResponse
+   :noindex:
+
+.. autoclass:: prthinker.schemas.ReviewJobStatusResponse
    :noindex:
 
 .. autoclass:: prthinker.schemas.InlineFinding

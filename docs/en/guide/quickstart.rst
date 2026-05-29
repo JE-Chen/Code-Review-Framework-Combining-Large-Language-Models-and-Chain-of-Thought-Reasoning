@@ -15,7 +15,7 @@ server and feed it a diff file.
 
    prthinker review-file my-change.diff \
        --backend remote \
-       --remote-url https://my-host:8000 \
+       --remote-url https://my-host:9000 \
        --per-file --inline-review
 
 This prints the consolidated markdown comment and a count of inline
@@ -29,7 +29,7 @@ This is what the GitHub Action runs under the hood:
 .. code-block:: bash
 
    export GITHUB_TOKEN=ghp_...
-   export PRTHINKER_REMOTE_URL=https://my-host:8000
+   export PRTHINKER_REMOTE_URL=https://my-host:9000
 
    prthinker review-pr \
        --repo owner/name \
@@ -91,6 +91,6 @@ Then point the server at them:
 
    export PRTHINKER_DISMISSED_PATH=.prthinker/dismissed.jsonl
    export PRTHINKER_ACCEPTED_PATH=.prthinker/accepted.jsonl
-   uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
+   uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 9000
 
 See :doc:`../concepts/corpora` for the semantics.

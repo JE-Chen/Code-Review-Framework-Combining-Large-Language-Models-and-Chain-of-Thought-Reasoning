@@ -159,53 +159,148 @@ graph TB
     linkStyle default stroke:#37474f,stroke-width:4px
 ```
 
+## PRThinker Runtime Architecture
+
+```mermaid
+%%{init: {'themeVariables': {'fontSize': '52px', 'fontFamily': 'Arial, "Microsoft JhengHei", sans-serif'}, 'flowchart': {'padding': 36, 'nodeSpacing': 100, 'rankSpacing': 110}}}%%
+graph TB
+    subgraph CLI["① CLI surface"]
+        REVIEW["review-pr / review-file"]
+        HARV["harvest-dismissed<br/>harvest-accepted"]
+        ADV["adversarial-eval"]
+        HOOK["hook / mcp / stats / report"]
+    end
+
+    subgraph PIPE["② CoTPipeline (orchestrator)"]
+        STEPS["5 CoT steps<br/>+ optional<br/>InlineFindings · Judge"]
+        EXT["Research-grade extensions (opt-in)<br/>13 mechanisms"]
+    end
+
+    subgraph BACKENDS["③ Pluggable backends (Strategy)"]
+        BLOCAL["LocalHFBackend<br/>Qwen3-Coder-30B + LoRA<br/>(NF4 4-bit)"]
+        BREMOTE["RemoteHttpBackend<br/>FastAPI /ask · /review"]
+        BOAI["OpenAICompatBackend<br/>OpenAI · Azure · vLLM · Ollama"]
+        BANT["AnthropicBackend<br/>Claude Messages API"]
+    end
+
+    subgraph PLAT["④ PlatformAdapter (Strategy)"]
+        GH["GitHubAdapter<br/>diff · comments · gate"]
+        GL["GitLabAdapter<br/>raw_diffs · notes · status"]
+    end
+
+    subgraph CORPORA["⑤ Learned corpora (Repository)"]
+        DISMISSED["dismissed.jsonl"]
+        ACCEPTED["accepted.jsonl"]
+        RAG["FAISS RAG index"]
+        DIFFCACHE["diff-cache.sqlite"]
+    end
+
+    REVIEW --> PIPE
+    ADV --> BACKENDS
+    PIPE --> BACKENDS
+    PIPE --> EXT
+    PIPE --> PLAT
+    PIPE --> CORPORA
+
+    style CLI fill:#e1f5fe,stroke:#01579b,stroke-width:6px,color:#1a1a1a
+    style PIPE fill:#fff3e0,stroke:#e65100,stroke-width:6px,color:#1a1a1a
+    style BACKENDS fill:#f3e5f5,stroke:#4a148c,stroke-width:6px,color:#1a1a1a
+    style PLAT fill:#fce4ec,stroke:#b71c1c,stroke-width:6px,color:#1a1a1a
+    style CORPORA fill:#efebe9,stroke:#3e2723,stroke-width:6px,color:#1a1a1a
+    style EXT fill:#e8f5e9,stroke:#1b5e20,stroke-width:5px,color:#1a1a1a
+
+    style REVIEW fill:#ffffff,stroke:#01579b,stroke-width:5px,color:#1a1a1a
+    style HARV fill:#ffffff,stroke:#01579b,stroke-width:5px,color:#1a1a1a
+    style ADV fill:#ffffff,stroke:#01579b,stroke-width:5px,color:#1a1a1a
+    style HOOK fill:#ffffff,stroke:#01579b,stroke-width:5px,color:#1a1a1a
+    style STEPS fill:#ffffff,stroke:#e65100,stroke-width:5px,color:#1a1a1a
+    style BLOCAL fill:#ffffff,stroke:#4a148c,stroke-width:5px,color:#1a1a1a
+    style BREMOTE fill:#ffffff,stroke:#4a148c,stroke-width:5px,color:#1a1a1a
+    style BOAI fill:#ffffff,stroke:#4a148c,stroke-width:5px,color:#1a1a1a
+    style BANT fill:#ffffff,stroke:#4a148c,stroke-width:5px,color:#1a1a1a
+    style GH fill:#ffffff,stroke:#b71c1c,stroke-width:5px,color:#1a1a1a
+    style GL fill:#ffffff,stroke:#b71c1c,stroke-width:5px,color:#1a1a1a
+    style DISMISSED fill:#ffffff,stroke:#3e2723,stroke-width:5px,color:#1a1a1a
+    style ACCEPTED fill:#ffffff,stroke:#3e2723,stroke-width:5px,color:#1a1a1a
+    style RAG fill:#ffffff,stroke:#3e2723,stroke-width:5px,color:#1a1a1a
+    style DIFFCACHE fill:#ffffff,stroke:#3e2723,stroke-width:5px,color:#1a1a1a
+    linkStyle default stroke:#37474f,stroke-width:4px
+```
+
 ## Project Directory Structure
 
 ```
 Code-Review-Framework/
-├── codes/
-│   ├── run/                          # Main Execution
-│   │   ├── cot.py                    # CoT Pipeline Entry Point
-│   │   ├── skills.py                 # Skills Pipeline Entry Point
-│   │   ├── single_prompt.py          # Single Prompt Baseline
-│   │   ├── run_single_prompt.py      # Single Prompt Runner
-│   │   ├── fastapi_server.py         # FastAPI /ask Endpoint
-│   │   ├── ask_functions.py          # RAG Query Helper
-│   │   ├── build_our_llm_judge.py    # Build Judge Prompts
-│   │   ├── build_our_llm_judge_single_prompt.py
-│   │   ├── build_crscore_llm_judge.py
-│   │   ├── CoT_Prompts/             # CoT Prompt Templates
-│   │   │   ├── global_rule.py        #   Global Review Rules + RAG Injection
-│   │   │   ├── first_summary_prompt.py  # PR Summary
-│   │   │   ├── first_code_review.py  #   Initial Review
-│   │   │   ├── linter.py            #   Linter Analysis
-│   │   │   ├── code_smell_detector.py # Code Smell Detection
-│   │   │   ├── step_by_step_analysis.py # Step-by-Step Analysis
-│   │   │   ├── total_summary.py      #   Final Synthesis
-│   │   │   ├── judge.py             #   LLM Judge Template (5 dims)
-│   │   │   └── CRSCORE/             #   CRScore Evaluation
-│   │   └── Skills/                  # Skills Prompt Templates
-│   │       ├── code_review.py        #   Direct Review
-│   │       └── code_explainer.py     #   Code Explanation
-│   ├── train/                        # Model Training (LoRA)
-│   │   ├── qwen3-coder-30b.py
-│   │   ├── qwen3-30b.py
-│   │   ├── qwen2.5-7b.py
-│   │   └── qwen3.1-7b.py
-│   ├── util/                         # Utilities
-│   │   ├── qwen3_util.py            #   Model Loading + Inference
-│   │   ├── faiss_util.py            #   FAISS RAG Engine
-│   │   ├── memory.py                #   Memory Utils
-│   │   └── prompt_define.py
-│   └── base_model_*/                # Baseline Experiments
-│       ├── with_vector_database/     #   With RAG
-│       └── without_vector_database/  #   Without RAG
-├── datas/
-│   ├── code_to_detect/              # Test Data
-│   │   ├── bad_data/                #   Known Bad Code
-│   │   ├── code_diff/               #   Code Diffs
-│   │   └── only_code/               #   Source Code Only
-│   ├── RAG_data/rag_data.py         # RAG Rule Documents
-│   └── Prompts/                     # Prompt Copies
-└── Human_Judge.md                   # Human Evaluation Guide
+├── prthinker/                        # Standalone Python package
+│   ├── __init__.py
+│   ├── __main__.py                   # python -m prthinker
+│   ├── cli.py                        # argparse subcommands
+│   ├── config.py                     # dataclass-based runtime config
+│   ├── pipeline.py                   # CoTPipeline orchestrator
+│   ├── steps.py                      # ReviewStep ABC + 5 registered steps
+│   ├── schemas.py                    # Pydantic v2 wire-format models
+│   ├── findings.py                   # JSON-array parser + sanitizer
+│   ├── formatters.py                 # Markdown PR-comment renderer
+│   ├── rag.py                        # RAGRetriever abstractions
+│   ├── rules.py                      # per-repo rule loader
+│   ├── repo_config.py                # .prthinker.yaml parser
+│   ├── checks.py                     # GitHub Check Run gate
+│   ├── ci_signals.py                 # Failed-job log integration
+│   ├── github_api.py                 # raw GH REST helpers
+│   ├── platforms/                    # PlatformAdapter (Strategy)
+│   │   ├── base.py
+│   │   ├── github.py
+│   │   └── gitlab.py
+│   ├── backends/                     # InferenceBackend (Strategy)
+│   │   ├── base.py
+│   │   ├── local.py                  # LocalHFBackend (Qwen + LoRA)
+│   │   ├── remote.py                 # RemoteHttpBackend
+│   │   ├── openai_compat.py
+│   │   ├── anthropic.py
+│   │   └── wrappers.py               # cache + telemetry wrappers
+│   ├── accepted.py                   # AcceptedExamplesStore + Retriever
+│   ├── dismissed.py                  # DismissedFilter
+│   ├── harvest.py                    # harvest-dismissed / harvest-accepted
+│   ├── cache.py                      # SQLite prompt cache
+│   ├── telemetry.py                  # per-call token / latency / cost
+│   ├── pricing.py                    # backend → $/Mtok table
+│   ├── report.py                     # cross-store longitudinal report
+│   ├── redaction.py                  # secret-pattern scrubber
+│   ├── mcp_server.py                 # MCP stdio integration
+│   ├── auto_fix.py                   # apply suggestions + open fix PR
+│   ├── self_review.py                # second-pass noise filter
+│   ├── judge.py                      # per-file verdict aggregation
+│   ├── dialogue.py                   # --reply-to-author harvesting
+│   ├── counterfactual.py             # mutation-style review parser
+│   ├── adversarial.py                # prompt-injection bypass detection
+│   ├── adversarial_eval.py           # adversarial-eval subcommand
+│   ├── adversarial_corpus/           # Seed JSONL + README
+│   ├── review_cache.py               # Force-push differential cache
+│   ├── sandbox.py                    # --verify-suggestions sandbox
+│   ├── api_consistency.py            # Cross-language drift step
+│   ├── pr_classifier.py              # PR-type adaptive review
+│   ├── reproducibility.py            # Reviewer disagreement signal
+│   ├── dep_upgrade.py                # Dependency-upgrade impact
+│   ├── personas.py                   # Reviewer-personas + conflict
+│   ├── risk_score.py                 # Per-file risk scorer
+│   └── diff_entropy.py               # Diff-bomb detector
+├── tests/                            # ~274 pytest cases
+├── codes/                            # Research / training scripts (legacy)
+│   ├── run/                          #   cot.py / skills.py / fastapi_server.py
+│   ├── train/                        #   LoRA fine-tuning entry points
+│   └── util/                         #   qwen3_util.py + faiss_util.py
+├── datas/                            # RAG rules + experiment fixtures
+├── docs/                             # Sphinx (en + zh-TW + zh-CN, single tree)
+├── docker/                           # Self-host: Dockerfile + compose (port 9000)
+├── paper/                            # Manuscript + pptxgenjs slide build
+├── .github/workflows/prthinker.yml   # GHA: review-pr with graceful skip
+├── .prospector.yaml                  # D213 disabled, D212 selected
+├── pyproject.toml                    # [tool.bandit] + [tool.pydocstyle]
+└── READMEs/
+    ├── CLAUDE.md                     # Project guidelines (this file's neighbour)
+    ├── README.zh-TW.md / README.zh-CN.md
+    ├── setup.{md,zh-TW.md,zh-CN.md}
+    ├── features.{md,zh-TW.md,zh-CN.md}
+    ├── architecture.md               # This file
+    └── Human_Judge.md                # Human evaluation guide
 ```

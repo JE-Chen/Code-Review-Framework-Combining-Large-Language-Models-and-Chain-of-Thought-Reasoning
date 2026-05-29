@@ -212,13 +212,13 @@ pip install -e ".[server]"
 
 export PRTHINKER_DISMISSED_PATH=./store/dismissed.jsonl
 export PRTHINKER_ACCEPTED_PATH=./store/accepted.jsonl
-uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
+uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 9000
 ```
 
-前面套 nginx / Cloudflare Access + TLS。確認：
+確認：
 
 ```bash
-curl https://my-host:8000/healthz   # → {"status": "ok", "model": "..."}
+curl http://my-host:9000/healthz   # → {"status": "ok", "model": "..."}
 ```
 
 **Repo 內：**
@@ -228,7 +228,7 @@ curl https://my-host:8000/healthz   # → {"status": "ok", "model": "..."}
 ```yaml
 backend: remote
 remote:
-  url: https://my-host:8000
+  url: http://my-host:9000
   use_pipeline_endpoint: true
 per_file: true
 inline_review: true
@@ -245,7 +245,7 @@ Repo secret：
 
 | Secret | 值 |
 |---|---|
-| `PRTHINKER_BACKEND_URL` | `https://my-host:8000` |
+| `PRTHINKER_BACKEND_URL` | `http://my-host:9000` |
 | `PRTHINKER_BACKEND_API_KEY` | （可選）reverse proxy 的 bearer token |
 
 推 PR。Runner 保持薄（只有 httpx + pydantic）；GPU、FAISS index、
@@ -331,7 +331,7 @@ anthropic:
   version: "2023-06-01"
 
 remote:
-  url: https://my-host:8000
+  url: http://my-host:9000
   timeout_seconds: 600
   use_pipeline_endpoint: true
 ```
@@ -427,7 +427,7 @@ prthinker harvest-accepted \
 ```bash
 export PRTHINKER_DISMISSED_PATH=.prthinker/dismissed.jsonl
 export PRTHINKER_ACCEPTED_PATH=.prthinker/accepted.jsonl
-uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 8000
+uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 9000
 ```
 
 兩份 store 為空時都是 no-op──server log 會印 `filter disabled` /
@@ -471,13 +471,22 @@ prthinker stats --since-days 7
 **不**\ 隨附量測過之 benchmark 數字。設計細節見
 [`docs/zh-TW/concepts/research-extensions.rst`](../docs/zh-TW/concepts/research-extensions.rst)\ 。
 
-| Flag                  | 環境變數                         | 預設 | 額外成本             |
-| --------------------- | -------------------------------- | ---- | -------------------- |
-| `--reply-to-author`   | `PRTHINKER_REPLY_TO_AUTHOR`     | 關閉 | 一次平台 API 呼叫    |
-| `--counterfactual`    | `PRTHINKER_COUNTERFACTUAL`      | 關閉 | 每檔多一次 backend   |
-| `--provenance`        | `PRTHINKER_PROVENANCE`          | 關閉 | prompt + 輸出變大    |
-| `--judge`             | `PRTHINKER_JUDGE`               | 關閉 | 每檔多一次 backend   |
-| `--self-correct`      | `PRTHINKER_SELF_CORRECT`        | 關閉 | 每檔多一次 backend   |
+| Flag                       | 環境變數                              | 預設 | 額外成本                       |
+| -------------------------- | ------------------------------------ | ---- | ------------------------------ |
+| `--reply-to-author`        | `PRTHINKER_REPLY_TO_AUTHOR`         | 關閉 | 一次平台 API 呼叫              |
+| `--counterfactual`         | `PRTHINKER_COUNTERFACTUAL`          | 關閉 | 每檔多一次 backend             |
+| `--provenance`             | `PRTHINKER_PROVENANCE`              | 關閉 | prompt + 輸出變大              |
+| `--judge`                  | `PRTHINKER_JUDGE`                   | 關閉 | 每檔多一次 backend             |
+| `--self-correct`           | `PRTHINKER_SELF_CORRECT`            | 關閉 | 每檔多一次 backend             |
+| `--diff-since-last`        | `PRTHINKER_DIFF_SINCE_LAST`         | 關閉 | 迭代 PR 之上省 token           |
+| `--verify-suggestions`     | `PRTHINKER_VERIFY_SUGGESTIONS`      | 關閉 | 每建議多 1× sandbox + verify_cmd |
+| `--api-consistency`        | `PRTHINKER_API_CONSISTENCY`         | 關閉 | 跨語言 PR 上多 1× backend      |
+| `--pr-classify`            | `PRTHINKER_PR_CLASSIFY`             | 關閉 | 每 PR 多 1× backend            |
+| `--reproducibility-check`  | `PRTHINKER_REPRODUCIBILITY_CHECK`   | 關閉 | 每檔多 1× backend              |
+| `--dep-upgrade-check`      | `PRTHINKER_DEP_UPGRADE_CHECK`       | 關閉 | 每升級套件多 1× backend        |
+| `--personas`               | `PRTHINKER_PERSONAS`                | 空   | 每 PR 多 N× backend + 1 conflict step |
+| `--risk-weighted`          | `PRTHINKER_RISK_WEIGHTED`           | 關閉 | 少量 `git log` 呼叫            |
+| `--diff-entropy`           | `PRTHINKER_DIFF_ENTROPY`            | 關閉 | 純 CPU，無 backend 呼叫        |
 
 ### 閉環多輪對話──`--reply-to-author`
 
@@ -595,6 +604,126 @@ sqlite3 .prthinker/adversarial.sqlite \
     GROUP BY category;"
 ```
 
+### Force-push 差分審查──`--diff-since-last`
+
+**做什麼。** 把每檔新側內容 hash（`FileDiff.content_sha256`），
+findings 存進小型 SQLite cache，key 為
+`(pr_number, repo, file_path, hunk_sha256)`。下次 push 時未動的檔
+直接 reuse 上次 findings；只有真正改動的檔才重新進模型。
+
+```bash
+prthinker review-pr --pr 42 --per-file --inline-review \
+    --diff-since-last --diff-cache-path .prthinker/diff-cache.sqlite
+```
+
+跨 PR 以 primary key 隔離。關 PR 時用 `ReviewCache.evict_pr()` 清掉。
+
+### 建議 sandbox 驗證──`--verify-suggestions`
+
+**做什麼。** 對每條帶 `suggestion` 之 finding，把 working tree 複製到
+`tempfile.mkdtemp` 套用 suggestion（用 `original` 守備檢查），跑
+`--verify-cmd`（預設 `pytest -x`）於 `--verify-timeout`（預設 60s）下，
+把每條 finding 標 `[verified]` / `[FAILED]` / `[skipped]` / `[error]`。
+
+```bash
+prthinker review-pr --pr 42 --inline-review --verify-suggestions \
+    --verify-cmd "pytest -x tests/" --verify-timeout 60
+```
+
+原 repo 絕不動；verify 指令以 argv list 跑（無 `shell=True`）。
+
+### 跨語言 API 一致性──`--api-consistency`
+
+**做什麼。** 當 PR 同時碰到後端 `.py` 與前端 `.ts` / `.tsx` / `.js` /
+`.jsx`，新增一個 step 問模型\ 「\ 跨檔 drift\ 」── 重命名欄位、移除路由、
+類型變更。單語言 PR 上靜默 pass，不浪費 backend 呼叫。
+
+```bash
+prthinker review-pr --pr 42 --inline-review --api-consistency
+```
+
+### PR 類型自適應──`--pr-classify`
+
+**做什麼。** 從 diff + PR 標題 + body 把 PR 分為 bugfix / feature /
+refactor / docs / chore / unknown，後續 review 深度隨之調整：docs PR 跳
+inline findings；bugfix PR 用 focused prompt 與較小 budget；refactor PR
+放大 budget 並注入行為等價 hint。
+
+```bash
+prthinker review-pr --pr 42 --inline-review --pr-classify
+```
+
+### 評論一致性訊號──`--reproducibility-check`
+
+**做什麼。** 同 prompt 跑兩次 inline-findings（非 0 temperature 自然產生
+第二個樣本），按 (path, line, 正規化 comment) 比對，標
+`[stable]` / `[low-reproducibility]`。第二次新出現之 finding 也保留。
+每檔多 1× backend 呼叫。
+
+```bash
+prthinker review-pr --pr 42 --inline-review --reproducibility-check
+```
+
+### 依賴升級影響──`--dep-upgrade-check`
+
+**做什麼。** 偵測 lock-file 觸碰（`requirements.txt` / `pyproject.toml` /
+`package.json`），抽出 `(package, old, new)` delta，把該套件在 diff 其他
+檔案中的實際呼叫點放進 prompt，問模型 breaking change 是否影響本 repo。
+
+```bash
+prthinker review-pr --pr 42 --dep-upgrade-check
+```
+
+PR 留言頂端多出\ 「\ Dependency upgrade impact\ 」\ 表格。框架\ 不\ 在
+review-time 抓 remote changelog。
+
+### 多角色 + 衝突顯化──`--personas`
+
+**做什麼。** 跑 N 個正交 lens（`security` / `performance` /
+`readability` / `api_stability` / `maintainability`），每個 lens 之
+prompt 明確要求只在該 lens 範圍內評論。最後一個 conflict-finder step
+找出角色間之分歧。PR 留言頂端多出\ 「\ Persona conflicts\ 」\ 表格（刻意
+不替你選邊）。
+
+```bash
+# 子集：
+prthinker review-pr --pr 42 --personas security,performance,readability
+# 全 5 個：
+prthinker review-pr --pr 42 --personas all
+```
+
+成本：每個角色一次 backend 呼叫 + conflict step 一次。
+
+### 風險加權注意力──`--risk-weighted`
+
+**做什麼。** 以 churn（`git log` 於 lookback window，預設 90 天）+
+complexity proxy（HEAD 行數）+ bug history（commit message 命中
+`fix:` / `bug` / `revert`）算每檔風險分。每檔
+`max_findings_per_file` 隨之線性縮放於 `floor`（預設 2）到
+`ceiling`（預設 `2 × base_budget`）。
+
+```bash
+prthinker review-pr --pr 42 --inline-review --risk-weighted \
+    --risk-workdir /path/to/repo
+```
+
+GHA 注意：`actions/checkout` 預設 shallow clone（`fetch-depth: 1`）；
+請在 workflow 設 `fetch-depth: 0`，lookback window 才有 commit 可數。
+預設權重（0.4 / 0.3 / 0.3）是\ 框架慣例\ ，非校準公式。
+
+### Diff 熵──`--diff-entropy`
+
+**做什麼。** 純 data 算 PR size + 目錄分布 Shannon entropy，分為
+`focused` / `wide` / `bomb`。verdict 為 `bomb` 時於留言頂端貼
+\ 「\ Consider splitting this PR\ 」\ 警示。框架\ 不\ 因高分阻擋，目的是
+把 PR 形狀顯化。
+
+```bash
+prthinker review-pr --pr 42 --diff-entropy
+```
+
+無 backend 呼叫，純本機 CPU。
+
 ### 全部疊起來跑
 
 研究級單 PR 跑法：
@@ -603,6 +732,9 @@ sqlite3 .prthinker/adversarial.sqlite \
 prthinker review-pr --repo o/r --pr-number 42 \
     --per-file --inline-review \
     --reply-to-author --counterfactual --provenance \
+    --diff-since-last --verify-suggestions --api-consistency \
+    --pr-classify --reproducibility-check --dep-upgrade-check \
+    --personas all --risk-weighted --diff-entropy \
     --judge --self-correct \
     --rules-dir ./team-rules \
     --max-new-tokens 65536

@@ -74,7 +74,7 @@ Schema
      # api_key 来自 $ANTHROPIC_API_KEY 或 $PRTHINKER_ANTHROPIC_API_KEY
 
    remote:
-     url: https://my-inference-host:8000
+     url: https://my-inference-host:9000
      timeout_seconds: 600
      use_pipeline_endpoint: true   # 打 /review 而非每个 step 都打 /ask
 

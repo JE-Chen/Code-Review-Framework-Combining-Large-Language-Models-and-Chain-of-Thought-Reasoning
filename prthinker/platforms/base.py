@@ -47,6 +47,13 @@ class PlatformAdapter(ABC):
     def fetch_base_branch(self) -> str:
         """Return the base branch name — used by auto-fix PRs."""
 
+    def fetch_pr_meta(self) -> tuple[str, str]:
+        """Return ``(title, body)`` for the PR. Default returns empty
+        strings so adapters can opt-in to PR-type classification
+        without breaking existing implementations.
+        """
+        return ("", "")
+
     # ----- summary comment (one per PR) ---------------------------------
 
     @abstractmethod
