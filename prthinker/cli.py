@@ -659,6 +659,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
     )
+    p_agg.add_argument(
+        "--gate-on",
+        choices=["none", "warning", "error"],
+        default=env_str("PRTHINKER_GATE_ON", "none"),
+        help="Open a Check Run; conclude as 'failure' when findings of this "
+             "severity or higher exist. Required for branch-protection gating.",
+    )
 
     p_harvest = sub.add_parser(
         "harvest-dismissed",
