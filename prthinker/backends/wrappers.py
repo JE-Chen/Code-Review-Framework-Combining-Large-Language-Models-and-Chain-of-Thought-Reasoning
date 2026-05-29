@@ -47,7 +47,13 @@ class CachingBackend(InferenceBackend):
     def last_usage(self) -> Usage | None:
         return self._inner.last_usage()
 
-    def generate(self, prompt: str, max_new_tokens: int) -> str:
+    def generate(
+        self,
+        prompt: str,
+        max_new_tokens: int,
+        *,
+        cancel_event: "object | None" = None,
+    ) -> str:
         kind = self._inner.backend_kind()
         model = self._inner.model_name()
         cached = self._cache.get(kind, model, prompt, max_new_tokens)
@@ -56,7 +62,9 @@ class CachingBackend(InferenceBackend):
             return cached
 
         self._last_cache_hit = False
-        text = self._inner.generate(prompt, max_new_tokens)
+        text = self._inner.generate(
+            prompt, max_new_tokens, cancel_event=cancel_event
+        )
         self._cache.put(kind, model, prompt, max_new_tokens, text)
         return text
 
@@ -107,12 +115,20 @@ class InstrumentedBackend(InferenceBackend):
     def last_usage(self) -> Usage | None:
         return self._inner.last_usage()
 
-    def generate(self, prompt: str, max_new_tokens: int) -> str:
+    def generate(
+        self,
+        prompt: str,
+        max_new_tokens: int,
+        *,
+        cancel_event: "object | None" = None,
+    ) -> str:
         start = time.perf_counter()
         error: str | None = None
         text = ""
         try:
-            text = self._inner.generate(prompt, max_new_tokens)
+            text = self._inner.generate(
+                prompt, max_new_tokens, cancel_event=cancel_event
+            )
             return text
         except Exception as exc:
             error = repr(exc)
