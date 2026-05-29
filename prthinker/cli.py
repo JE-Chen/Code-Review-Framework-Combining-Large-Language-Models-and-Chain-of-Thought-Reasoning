@@ -255,6 +255,47 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     common.add_argument(
+        "--kg-ground",
+        action="store_true",
+        default=env_bool("PRTHINKER_KG_GROUND", False),
+        help=(
+            "Inject the workdir's Known-symbols table (built via "
+            "`prthinker build-kg`) into the inline-findings prompt, "
+            "so the model cannot hallucinate symbol names. Read-only "
+            "lookup; safe-failure if the store is empty or missing."
+        ),
+    )
+    common.add_argument(
+        "--kg-store",
+        type=Path,
+        default=Path(env_str("PRTHINKER_KG_STORE",
+                              ".prthinker/repo-kg.sqlite") or
+                     ".prthinker/repo-kg.sqlite"),
+    )
+    common.add_argument(
+        "--kg-workdir",
+        type=Path,
+        default=Path(env_str("PRTHINKER_KG_WORKDIR") or "."),
+        help="Workdir scope the KG was built against.",
+    )
+    common.add_argument(
+        "--lessons",
+        action="store_true",
+        default=env_bool("PRTHINKER_LESSONS", False),
+        help=(
+            "Inject the top-K derived review rules from "
+            "`--lessons-path` (default `.prthinker/lessons.jsonl`) "
+            "into the inline-findings prompt as 'Repo-derived review "
+            "lessons'. Populate the store via `prthinker derive-lessons`."
+        ),
+    )
+    common.add_argument(
+        "--lessons-top-k",
+        type=int,
+        default=int(env_str("PRTHINKER_LESSONS_TOP_K", "5") or 5),
+        help="Number of lessons to inject per file (most recent first).",
+    )
+    common.add_argument(
         "--diff-since-last",
         action="store_true",
         default=env_bool("REVIEWMIND_DIFF_SINCE_LAST", False),
@@ -678,6 +719,95 @@ def _build_parser() -> argparse.ArgumentParser:
                      ".prthinker/adversarial-outcomes.sqlite"),
     )
 
+    p_build_kg = sub.add_parser(
+        "build-kg",
+        help="Walk the repo and persist a {symbol: file:line} table to "
+             "SQLite. Run once per repo (or when symbol surface drifts) "
+             "before using --kg-ground on review-pr / review-file.",
+    )
+    p_build_kg.add_argument(
+        "--workdir",
+        type=Path,
+        default=Path(env_str("PRTHINKER_KG_WORKDIR") or "."),
+    )
+    p_build_kg.add_argument(
+        "--kg-store",
+        type=Path,
+        default=Path(env_str("PRTHINKER_KG_STORE",
+                              ".prthinker/repo-kg.sqlite") or
+                     ".prthinker/repo-kg.sqlite"),
+    )
+
+    p_discover = sub.add_parser(
+        "discover-rules",
+        parents=[common],
+        help="Cluster persisted finding fingerprints across PRs and "
+             "print the families that recur ≥ N times. Use to identify "
+             "candidate rules for --rules-dir.",
+    )
+    p_discover.add_argument(
+        "--cluster-store",
+        type=Path,
+        default=Path(env_str("PRTHINKER_CLUSTER_STORE",
+                              ".prthinker/findings-index.sqlite") or
+                     ".prthinker/findings-index.sqlite"),
+    )
+    p_discover.add_argument(
+        "--similarity-threshold",
+        type=float,
+        default=float(env_str("PRTHINKER_CLUSTER_THRESHOLD", "0.85") or 0.85),
+    )
+    p_discover.add_argument(
+        "--min-cluster-size",
+        type=int,
+        default=int(env_str("PRTHINKER_CLUSTER_MIN_SIZE", "5") or 5),
+    )
+    p_discover.add_argument(
+        "--repo",
+        default=env_str("GITHUB_REPOSITORY", ""),
+        help="Filter to one repo. Empty (default) clusters across all.",
+    )
+
+    p_lessons = sub.add_parser(
+        "derive-lessons",
+        parents=[common],
+        help="Batch recent dismissed + accepted examples and ask the "
+             "model to distil general review rules; append to "
+             "lessons.jsonl. Run weekly via cron or GHA schedule.",
+    )
+    p_lessons.add_argument(
+        "--dismissed-path",
+        type=Path,
+        default=Path(env_str("PRTHINKER_DISMISSED_PATH",
+                              ".prthinker/dismissed.jsonl") or
+                     ".prthinker/dismissed.jsonl"),
+    )
+    p_lessons.add_argument(
+        "--accepted-path",
+        type=Path,
+        default=Path(env_str("PRTHINKER_ACCEPTED_PATH",
+                              ".prthinker/accepted.jsonl") or
+                     ".prthinker/accepted.jsonl"),
+    )
+    p_lessons.add_argument(
+        "--lessons-path",
+        type=Path,
+        default=Path(env_str("PRTHINKER_LESSONS_PATH",
+                              ".prthinker/lessons.jsonl") or
+                     ".prthinker/lessons.jsonl"),
+    )
+    p_lessons.add_argument(
+        "--lookback-recent",
+        type=int,
+        default=int(env_str("PRTHINKER_LESSONS_LOOKBACK", "200") or 200),
+        help="Take the most recent N entries from each corpus.",
+    )
+    p_lessons.add_argument(
+        "--max-rules",
+        type=int,
+        default=int(env_str("PRTHINKER_LESSONS_MAX_RULES", "5") or 5),
+    )
+
     p_hook = sub.add_parser(
         "hook",
         parents=[common],
@@ -1077,6 +1207,34 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
             log.info("Injecting %d author reply(ies) into inline-findings prompt",
                      len(replies))
 
+    if getattr(args, "lessons", False) and args.inline_review:
+        from prthinker.lessons import LessonsStore, format_lessons_block
+        lessons_path = Path(getattr(args, "lessons_path", "") or
+                            ".prthinker/lessons.jsonl")
+        if lessons_path.exists():
+            store = LessonsStore(lessons_path)
+            top_k = int(getattr(args, "lessons_top_k", 5) or 5)
+            recent = list(store)[-top_k:]
+            block = format_lessons_block(recent)
+            if block:
+                dialogue_block = (block + "\n\n" + dialogue_block).strip()
+                log.info("Injecting %d derived lesson(s) into inline-findings prompt",
+                         len(recent))
+
+    if getattr(args, "kg_ground", False) and args.inline_review:
+        from prthinker.repo_kg import KnowledgeGraphStore, format_kg_block
+        kg_store_path = Path(getattr(args, "kg_store", "") or
+                             ".prthinker/repo-kg.sqlite")
+        kg_workdir = Path(getattr(args, "kg_workdir", "") or ".")
+        if kg_store_path.exists():
+            kg_store = KnowledgeGraphStore(kg_store_path)
+            symbols = kg_store.all_symbols(kg_workdir)
+            block = format_kg_block(symbols)
+            if block:
+                dialogue_block = (block + "\n\n" + dialogue_block).strip()
+                log.info("Injecting %d known symbol(s) into inline-findings prompt",
+                         len(symbols))
+
     try:
         result = _run_review(args, config, diff, dialogue_block=dialogue_block)
     except Exception:
@@ -1267,6 +1425,102 @@ def _cmd_adversarial_eval(args: argparse.Namespace) -> int:
         f"Raw outcomes written to {args.outcomes_path}.\n"
         f"Per the no-fabrication rule, no aggregate detection-rate is "
         f"reported here — query the `outcomes` table directly.\n"
+    )
+    return 0
+
+
+def _cmd_build_kg(args: argparse.Namespace) -> int:
+    """Scan workdir + persist symbols to SQLite."""
+    from prthinker.repo_kg import KnowledgeGraphStore, scan_workdir
+
+    workdir = args.workdir.resolve()
+    if not workdir.exists():
+        raise SystemExit(f"build-kg: workdir does not exist: {workdir}")
+    symbols = scan_workdir(workdir)
+    store = KnowledgeGraphStore(args.kg_store)
+    n = store.rebuild(workdir, symbols)
+    sys.stdout.write(
+        f"build-kg: extracted {n} symbol(s) from {workdir} "
+        f"into {args.kg_store}.\n"
+    )
+    return 0
+
+
+def _cmd_discover_rules(args: argparse.Namespace) -> int:
+    """List finding clusters above the configured size threshold."""
+    from prthinker.finding_clusters import (
+        FindingClusterStore, greedy_cluster,
+    )
+
+    store = FindingClusterStore(args.cluster_store)
+    if len(store) == 0:
+        sys.stdout.write(
+            "discover-rules: index is empty. Run review-pr with "
+            "--cluster-store-path set on a few PRs first to populate it.\n"
+        )
+        return 0
+    fingerprints = store.load(repo=args.repo or None)
+    clusters = greedy_cluster(
+        fingerprints,
+        similarity_threshold=args.similarity_threshold,
+        min_cluster_size=args.min_cluster_size,
+    )
+    if not clusters:
+        sys.stdout.write(
+            f"discover-rules: no clusters of size >= "
+            f"{args.min_cluster_size} at similarity >= "
+            f"{args.similarity_threshold:.2f}.\n"
+        )
+        return 0
+    for i, c in enumerate(clusters, start=1):
+        sys.stdout.write(
+            f"#{i}  size={c.size}  files={len({m.file_path for m in c.members})}\n"
+            f"    rep: {c.representative[:160]}\n"
+        )
+    return 0
+
+
+def _cmd_derive_lessons(args: argparse.Namespace) -> int:
+    """Batch dismissed + accepted, call backend, append to lessons.jsonl."""
+    from prthinker.accepted import AcceptedExamplesStore
+    from prthinker.dismissed import DismissedExamplesStore
+    from prthinker.lessons import LessonsStore, derive_lessons
+
+    dismissed_store = DismissedExamplesStore(args.dismissed_path)
+    accepted_store = AcceptedExamplesStore(args.accepted_path)
+    lessons_store = LessonsStore(args.lessons_path)
+
+    if len(dismissed_store) == 0 and len(accepted_store) == 0:
+        sys.stdout.write(
+            "derive-lessons: both corpora are empty — nothing to learn from.\n"
+        )
+        return 0
+
+    dismissed_recent = list(dismissed_store)[-args.lookback_recent:]
+    accepted_recent = list(accepted_store)[-args.lookback_recent:]
+    source_prs = tuple(sorted({
+        getattr(ex, "pr_number", 0) for ex in accepted_recent
+        if getattr(ex, "pr_number", 0)
+    }))
+
+    config = _build_config(args)
+    backend = create_backend(config)
+    try:
+        rules = derive_lessons(
+            backend=backend,
+            dismissed=dismissed_recent,
+            accepted=accepted_recent,
+            source_prs=source_prs,
+            max_rules=args.max_rules,
+            max_new_tokens=config.max_new_tokens,
+        )
+    finally:
+        backend.close()
+
+    for r in rules:
+        lessons_store.append(r)
+    sys.stdout.write(
+        f"derive-lessons: appended {len(rules)} rule(s) to {args.lessons_path}.\n"
     )
     return 0
 
@@ -1469,6 +1723,12 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_report(args)
     if args.command == "adversarial-eval":
         return _cmd_adversarial_eval(args)
+    if args.command == "derive-lessons":
+        return _cmd_derive_lessons(args)
+    if args.command == "discover-rules":
+        return _cmd_discover_rules(args)
+    if args.command == "build-kg":
+        return _cmd_build_kg(args)
     if args.command == "mcp":
         from prthinker.mcp_server import run as run_mcp
         return run_mcp()

@@ -432,10 +432,104 @@ human reviewers can decide whether to merge or split.
    prthinker review-pr --pr 42 --diff-entropy
 
 
+Active-learning derived lessons (``prthinker derive-lessons`` + ``--lessons``)
+------------------------------------------------------------------------------
+
+The bundled ``dismissed.jsonl`` / ``accepted.jsonl`` corpora are
+first-order signals — "this specific comment got rejected", "this
+specific suggestion got applied". They don't generalise to *future*
+PRs unless someone closes the loop and asks the model what *rule* it
+should have learned. ``derive-lessons`` is that loop:
+
+1. ``prthinker derive-lessons`` reads the most recent N entries from
+   both corpora and asks the model to extract up to ``--max-rules``
+   reusable :class:`LessonRule` objects (``name`` / ``trigger`` /
+   ``action``). The model is explicitly told that "no rule" is a
+   better answer than an invented rule.
+2. The parsed rules are appended to ``lessons.jsonl`` alongside the
+   PR numbers they were distilled from, for traceability.
+3. On the next ``review-pr`` with ``--lessons``, the top-K most recent
+   rules are rendered into a "Repo-derived review lessons" block that
+   is prepended to the inline-findings prompt — model treats them as
+   soft guidance, not as hard rules to re-state.
+
+Run weekly via cron / GitHub Actions schedule. The lessons store is
+append-only and JSONL so a future analysis can audit how rules
+evolved over time. Whether derived rules improve precision is future
+work and is not measured here.
+
+
+Cross-PR finding clustering (``prthinker discover-rules``)
+-----------------------------------------------------------
+
+When the framework keeps raising the same finding across PRs ("this
+log statement is too verbose", "this method is unused"), the right
+response is not to keep emitting it — it's to crystallise it as a
+project rule under ``--rules-dir``. ``discover-rules`` makes that
+recurrence visible:
+
+* Every emitted inline finding has its comment text embedded and the
+  fingerprint (``pr_number`` / ``file_path`` / ``line`` / ``comment``
+  / ``embedding``) persisted to a small SQLite store
+  (``.prthinker/findings-index.sqlite`` by default).
+* ``prthinker discover-rules`` runs greedy cosine-similarity clustering
+  over the store and prints clusters above ``--min-cluster-size`` at
+  ``--similarity-threshold``. The representative comment of each
+  cluster is the suggested rule label.
+
+Implementation notes:
+
+* The default backend is pure-NumPy brute-force, which is plenty for
+  single-repo scale (< 10⁵ findings). For larger scales, plug in
+  ``sqlite-vec`` or FAISS at the store layer without changing the
+  ``greedy_cluster`` API.
+* Cluster representative is the *most recent* member, so candidate
+  rules track current vocabulary rather than ossifying around an old
+  phrasing.
+
+The framework does NOT auto-write the candidate rule to
+``--rules-dir`` — the human reviewer must accept it. The mechanism
+is the contribution.
+
+
+Repo knowledge graph (``prthinker build-kg`` + ``--kg-ground``)
+---------------------------------------------------------------
+
+LLM reviewers on large repos routinely hallucinate symbol names —
+they write "the ``get_user`` function in ``auth.py``" when ``get_user``
+actually lives in ``core/users.py``. Existing RAG layers ground the
+reviewer in repo *rules*; the knowledge-graph layer grounds it in
+repo *symbols*.
+
+* ``prthinker build-kg --workdir .`` walks the repo, extracts symbols
+  via Python ``ast`` (``def`` / ``class`` / class methods / ALL_CAPS
+  constants) and a small regex-based scanner for TypeScript /
+  JavaScript exports (``function`` / ``class`` / ``interface`` /
+  ``const`` / ``default``), and persists ``{symbol, kind, file, line,
+  parent}`` rows to ``.prthinker/repo-kg.sqlite``.
+* ``review-pr --kg-ground`` injects the resulting table as a
+  "Known symbols (treat as canonical, do not hallucinate)" block at
+  the top of the inline-findings prompt, with explicit instructions
+  that any symbol cited in a finding MUST appear in the table.
+
+Implementation notes:
+
+* The store is keyed by ``workdir`` so a single SQLite file can hold
+  KGs for multiple repos without leaking symbols across them.
+* The TS/JS scanner is regex-based on purpose — it adds zero parser
+  dependencies to the runner profile and catches the common export
+  forms. Less-common forms fall through silently; the model just
+  sees fewer symbols, not wrong ones.
+* Wholesale rebuild semantics: ``rebuild()`` drops every prior row
+  for this workdir before inserting the new symbols, so the store
+  always matches HEAD. Partial / incremental updates are future
+  work.
+
+
 Status
 ------
 
-All twelve mechanisms ship as framework code, unit tests, and prompt
+All sixteen mechanisms ship as framework code, unit tests, and prompt
 templates. Per ``paper_rule.md`` the project intentionally publishes
 no benchmark numbers here; the corpora and outcome stores exist so
 that measurements can be taken honestly when they are taken.

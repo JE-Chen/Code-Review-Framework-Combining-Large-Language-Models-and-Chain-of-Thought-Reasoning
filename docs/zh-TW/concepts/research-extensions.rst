@@ -371,9 +371,85 @@ verdict 為 ``bomb`` 時\ ，留言頂端會以\ 「\ **Consider splitting this 
    prthinker review-pr --pr 42 --diff-entropy
 
 
+主動學習衍生規則（``prthinker derive-lessons`` + ``--lessons``）
+----------------------------------------------------------------------
+
+隨附之 ``dismissed.jsonl`` / ``accepted.jsonl`` 語料屬一階訊號 ──
+「這條評論被拒」/「這條建議被採納」──若無人把迴圈合上、要求模型從中
+提煉\ *通則*\ ，則無法 generalise 到未來 PR\ 。``derive-lessons`` 就是
+這個迴圈：
+
+1. ``prthinker derive-lessons`` 取兩份語料各最近 N 筆\ ，請模型萃取最多
+   ``--max-rules`` 條 :class:`LessonRule`\ （``name`` / ``trigger`` /
+   ``action``）\ 。Prompt 明確要求「寧可回空陣列也不亂編規則」\ 。
+2. 解析結果連同其來源 PR 編號 append 進 ``lessons.jsonl``\ ，供未來
+   追溯\ 。
+3. 下一次 ``review-pr --lessons`` 將最近 top-K 條規則渲染成「Repo-
+   derived review lessons」區塊\ ，前置注入 inline-findings prompt\ ，
+   模型把它視為軟性指引而非硬性 finding\ 。
+
+建議週期性 cron / GHA schedule 執行\ 。lessons 儲存為 append-only JSONL
+便於後續追溯規則演變\ 。本機制屬框架設計貢獻\ ，其對 precision 之提升
+本論文未予評估\ 。
+
+
+跨 PR finding 聚類（``prthinker discover-rules``）
+-----------------------------------------------------
+
+當框架跨 PR 反覆 raise 同類 finding（「此 log 過於冗長」、「此方法未被
+使用」），正確做法不是繼續 raise\ ，而是把它固化為 ``--rules-dir`` 中
+之專案規則\ 。``discover-rules`` 把這個反覆性顯化出來：
+
+* 每條 emit 之 inline finding 都把 comment 文字 embedding 化\ ，把
+  fingerprint（``pr_number`` / ``file_path`` / ``line`` / ``comment``
+  / ``embedding``）寫入小型 SQLite 儲存體
+  （預設 ``.prthinker/findings-index.sqlite``）\ 。
+* ``prthinker discover-rules`` 跑 greedy cosine-similarity 聚類\ ，
+  印出超過 ``--min-cluster-size`` 且相似度高於
+  ``--similarity-threshold`` 之 cluster\ 。每 cluster 之代表 comment
+  即為候選規則名\ 。
+
+實作要點：
+
+* 預設後端為純 NumPy brute-force\ ，於單 repo 規模（< 10⁵ findings）
+  足夠快\ 。若規模上看就在儲存層接 ``sqlite-vec`` 或 FAISS\ ，
+  ``greedy_cluster`` API 不變\ 。
+* Cluster 代表選\ *最新*\ 成員\ ，避免規則固化在舊時措辭\ 。
+
+框架\ **不**\ 自動把候選規則寫入 ``--rules-dir`` ──需由人類審查者
+確認\ 。本機制屬框架設計貢獻\ 。
+
+
+Repo 知識圖（``prthinker build-kg`` + ``--kg-ground``）
+----------------------------------------------------------
+
+LLM reviewer 在大 repo 上經常 hallucinate symbol 名 ── 寫「``auth.py``
+中之 ``get_user`` 函式」，但 ``get_user`` 其實在 ``core/users.py``\ 。
+既有 RAG 把模型 ground 在\ *規則*\ ；本層把模型 ground 在\ *符號*\ 。
+
+* ``prthinker build-kg --workdir .`` 走過整個 repo\ ，用 Python ``ast``
+  抽出 ``def`` / ``class`` / 類方法 / ALL_CAPS 常數\ ，並用小型 regex
+  scanner 處理 TS/JS 之 export（``function`` / ``class`` /
+  ``interface`` / ``const`` / ``default``）\ ，把
+  ``{symbol, kind, file, line, parent}`` rows 存入
+  ``.prthinker/repo-kg.sqlite``\ 。
+* ``review-pr --kg-ground`` 在 inline-findings prompt 頂端注入「Known
+  symbols（視為 canonical，禁止 hallucinate）」區塊\ ，明確指示「finding
+  中引用之 symbol 必須出現於下表」\ 。
+
+實作要點：
+
+* 儲存體以 ``workdir`` 為 key\ ，單一 SQLite 檔可容納多 repo 之 KG 互不
+  洩漏\ 。
+* TS/JS scanner 故意用 regex\ ，runner profile 不引入 parser 相依；少數
+  esoteric 形式 fall-through\ ，模型只是看到較少 symbol 而非錯的 symbol\ 。
+* ``rebuild()`` 採整批替換：先刪除該 workdir 之舊 rows 再插入新 symbols\ ，
+  store 永遠對應 HEAD\ 。增量更新屬未來工作\ 。
+
+
 狀態
 ----
 
-十二個機制皆已交付為框架程式碼、單元測試與 prompt 樣板\ 。依
+十六個機制皆已交付為框架程式碼、單元測試與 prompt 樣板\ 。依
 ``paper_rule.md``\ ，本專案有意不在此頁提供 benchmark 數字；語料與
 outcome 儲存體均已就位\ ，量測之時\ ，將以可審計之方式為之\ 。
