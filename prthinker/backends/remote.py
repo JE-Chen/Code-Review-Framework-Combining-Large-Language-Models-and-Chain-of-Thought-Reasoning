@@ -15,11 +15,20 @@ Two thin clients of the FastAPI server:
 
 from __future__ import annotations
 
+import time
+
 import httpx
 
 from prthinker.backends.base import InferenceBackend
 from prthinker.config import RemoteBackendConfig
 from prthinker.schemas import ReviewRequest, ReviewResponse
+
+
+# Each individual HTTP call must complete inside any upstream proxy's
+# idle timeout. Cloudflare's free/pro/business plans cap that at ~100s,
+# so keep per-call timeout well below.
+_PER_CALL_TIMEOUT_SECONDS = 30.0
+_POLL_INTERVAL_SECONDS = 5.0
 
 
 def _build_client(config: RemoteBackendConfig) -> httpx.Client:
@@ -29,6 +38,17 @@ def _build_client(config: RemoteBackendConfig) -> httpx.Client:
     return httpx.Client(
         base_url=config.url.rstrip("/"),
         timeout=config.timeout_seconds,
+        headers=headers,
+    )
+
+
+def _build_poll_client(config: RemoteBackendConfig) -> httpx.Client:
+    headers: dict[str, str] = {}
+    if config.api_key:
+        headers["Authorization"] = f"Bearer {config.api_key}"
+    return httpx.Client(
+        base_url=config.url.rstrip("/"),
+        timeout=_PER_CALL_TIMEOUT_SECONDS,
         headers=headers,
     )
 
@@ -60,23 +80,46 @@ class RemoteHttpBackend(InferenceBackend):
 
 
 class RemotePipelineClient:
-    """One-shot caller of `/review` — server runs RAG + every step.
+    """Submits a review job and polls for the result.
 
-    Use this when you trust the server to own the orchestration. The
-    response is structured, including any inline findings.
+    A single CoT review on a 30B MoE backend runs for minutes, longer
+    than Cloudflare's 100s edge timeout. The client submits to
+    `/review/submit` for a job id, then polls `/review/result/{id}`
+    until status moves to ``done`` / ``error``. Each individual call
+    fits well inside any reverse-proxy timeout; the overall wait is
+    bounded by ``config.timeout_seconds``.
     """
 
     def __init__(self, config: RemoteBackendConfig) -> None:
         self._config = config
-        self._client = _build_client(config)
+        self._client = _build_poll_client(config)
 
     def review(self, request: ReviewRequest) -> ReviewResponse:
-        response = self._client.post(
-            "/review",
+        submit_resp = self._client.post(
+            "/review/submit",
             json=request.model_dump(),
         )
-        response.raise_for_status()
-        return ReviewResponse.model_validate_json(response.text)
+        submit_resp.raise_for_status()
+        job_id = submit_resp.json()["job_id"]
+
+        deadline = time.monotonic() + self._config.timeout_seconds
+        while True:
+            if time.monotonic() >= deadline:
+                raise TimeoutError(
+                    f"Remote review job {job_id} did not finish within "
+                    f"{self._config.timeout_seconds}s"
+                )
+            time.sleep(_POLL_INTERVAL_SECONDS)
+            poll_resp = self._client.get(f"/review/result/{job_id}")
+            poll_resp.raise_for_status()
+            payload = poll_resp.json()
+            status = payload.get("status")
+            if status == "done":
+                return ReviewResponse.model_validate(payload["result"])
+            if status == "error":
+                raise RuntimeError(
+                    f"Remote review job {job_id} failed: {payload.get('error')}"
+                )
 
     def close(self) -> None:
         self._client.close()

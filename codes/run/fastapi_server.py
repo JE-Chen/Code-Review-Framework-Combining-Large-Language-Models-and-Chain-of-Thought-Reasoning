@@ -14,6 +14,10 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
+import time
+import uuid
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -30,8 +34,11 @@ from prthinker.pipeline import CoTPipeline
 from prthinker.rag import FaissRAGRetriever
 from prthinker.schemas import (
     AskRequest,
+    JobStatus,
     RagRequest,
     RagResponse,
+    ReviewJobStatusResponse,
+    ReviewJobSubmitResponse,
     ReviewRequest,
     ReviewResponse,
     StepOutput,
@@ -114,11 +121,8 @@ def rag(req: RagRequest) -> RagResponse:
     return RagResponse(docs=docs)
 
 
-@app.post("/review", response_model=ReviewResponse)
-def review(req: ReviewRequest) -> ReviewResponse:
-    if not req.code_diff.strip():
-        raise HTTPException(status_code=400, detail="code_diff is empty")
-
+def _execute_review(req: ReviewRequest) -> ReviewResponse:
+    """Synchronous CoT review. Shared by `/review` and the async job worker."""
     retriever = (
         FaissRAGRetriever(threshold=req.rag_threshold)
         if req.rag_enabled
@@ -151,6 +155,101 @@ def review(req: ReviewRequest) -> ReviewResponse:
         steps=[StepOutput(name=k, output=v) for k, v in result.step_outputs.items()],
         inline_findings=[],
     )
+
+
+@app.post("/review", response_model=ReviewResponse)
+def review(req: ReviewRequest) -> ReviewResponse:
+    if not req.code_diff.strip():
+        raise HTTPException(status_code=400, detail="code_diff is empty")
+    return _execute_review(req)
+
+
+# ---------------------------------------------------------------------------
+# Async job pattern for long-running reviews.
+#
+# Cloudflare's free/pro/business proxy aborts any single HTTP request at
+# 100s. A 30B MoE CoT review runs for minutes, so the synchronous /review
+# endpoint cannot survive the edge. Clients behind such a proxy submit
+# the job, then poll for the result — each individual HTTP call returns
+# in well under the 100s budget.
+# ---------------------------------------------------------------------------
+
+_JOB_TTL_SECONDS = 3600
+
+
+@dataclass
+class _Job:
+    status: JobStatus = "pending"
+    result: ReviewResponse | None = None
+    error: str | None = None
+    created_at: float = field(default_factory=time.time)
+
+
+_JOBS: dict[str, _Job] = {}
+_JOBS_LOCK = threading.Lock()
+
+
+def _evict_stale_jobs_locked() -> None:
+    """Drop jobs older than the TTL. Caller must hold _JOBS_LOCK."""
+    now = time.time()
+    stale = [
+        jid for jid, j in _JOBS.items()
+        if now - j.created_at > _JOB_TTL_SECONDS
+    ]
+    for jid in stale:
+        del _JOBS[jid]
+
+
+def _run_review_job(job_id: str, req: ReviewRequest) -> None:
+    with _JOBS_LOCK:
+        job = _JOBS.get(job_id)
+        if job is None:
+            return
+        job.status = "running"
+    try:
+        result = _execute_review(req)
+        with _JOBS_LOCK:
+            job = _JOBS.get(job_id)
+            if job is not None:
+                job.status = "done"
+                job.result = result
+    except Exception as exc:
+        log.exception("Review job %s failed", job_id)
+        with _JOBS_LOCK:
+            job = _JOBS.get(job_id)
+            if job is not None:
+                job.status = "error"
+                job.error = f"{type(exc).__name__}: {exc}"
+
+
+@app.post("/review/submit", response_model=ReviewJobSubmitResponse)
+def review_submit(req: ReviewRequest) -> ReviewJobSubmitResponse:
+    if not req.code_diff.strip():
+        raise HTTPException(status_code=400, detail="code_diff is empty")
+    job_id = uuid.uuid4().hex
+    with _JOBS_LOCK:
+        _evict_stale_jobs_locked()
+        _JOBS[job_id] = _Job()
+    threading.Thread(
+        target=_run_review_job,
+        args=(job_id, req),
+        daemon=True,
+    ).start()
+    return ReviewJobSubmitResponse(job_id=job_id)
+
+
+@app.get("/review/result/{job_id}", response_model=ReviewJobStatusResponse)
+def review_result(job_id: str) -> ReviewJobStatusResponse:
+    with _JOBS_LOCK:
+        job = _JOBS.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="job not found")
+        return ReviewJobStatusResponse(
+            job_id=job_id,
+            status=job.status,
+            result=job.result,
+            error=job.error,
+        )
 
 
 class _NoOpRetriever:
