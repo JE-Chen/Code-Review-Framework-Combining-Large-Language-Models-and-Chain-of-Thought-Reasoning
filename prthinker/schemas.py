@@ -130,6 +130,20 @@ class ReviewRequest(BaseModel):
     extra_rules: list[str] = Field(default_factory=list)
 
 
+JobStatus = Literal["pending", "running", "done", "error"]
+
+
+class ReviewJobSubmitResponse(BaseModel):
+    job_id: str
+
+
+class ReviewJobStatusResponse(BaseModel):
+    job_id: str
+    status: JobStatus
+    result: "ReviewResponse | None" = None
+    error: str | None = None
+
+
 Verdict = Literal["approve", "request_changes", "comment"]
 
 
@@ -307,6 +321,9 @@ class ReviewResponse(BaseModel):
         return {s.name: s.output for s in self.steps}
 
 
+ReviewJobStatusResponse.model_rebuild()
+
+
 __all__ = [
     "ApiDriftFinding",
     "ApiDriftKind",
@@ -324,8 +341,11 @@ __all__ = [
     "PersonaReview",
     "Provenance",
     "ProvenanceCitation",
+    "JobStatus",
     "RagRequest",
     "RagResponse",
+    "ReviewJobStatusResponse",
+    "ReviewJobSubmitResponse",
     "ReviewRequest",
     "ReviewResponse",
     "Severity",
