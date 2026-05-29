@@ -26,11 +26,12 @@ local = [
     "torch",
     "accelerate",
     "bitsandbytes",
-    "peft",
+    "peft==0.18.0",
     "faiss-cpu",
     "numpy",
 ]
 server = [
+    "prthinker[local]",
     "fastapi",
     "uvicorn",
     "pydantic>=2",

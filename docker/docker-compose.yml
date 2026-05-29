@@ -35,6 +35,11 @@ services:
     volumes:
       - hf_cache:/cache/huggingface
       - data:/data
+      # LoRA adapter weights live on the host (trained out-of-band) and the
+      # server references them via an absolute host path baked into
+      # codes/run/fastapi_server.py. Mount the same path read-only so the
+      # in-container resolver finds them.
+      - /home/nknul40s/LLM_Research/codes/train/outputs-lora-qwen3-coder-30b:/home/nknul40s/LLM_Research/codes/train/outputs-lora-qwen3-coder-30b:ro
     ports:
       - "${PRTHINKER_HOST_PORT:-9000}:9000"
     deploy:
