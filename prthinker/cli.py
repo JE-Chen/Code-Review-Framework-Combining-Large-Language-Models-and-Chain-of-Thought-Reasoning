@@ -651,6 +651,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--github-token",
         default=env_str("GITHUB_TOKEN") or env_str("GITLAB_TOKEN"),
     )
+    p_agg.add_argument(
+        "--marker",
+        default=env_str("PRTHINKER_COMMENT_MARKER", "<!-- prthinker:summary -->"),
+    )
+    p_agg.add_argument(
+        "--dry-run",
+        action="store_true",
+    )
 
     p_harvest = sub.add_parser(
         "harvest-dismissed",
