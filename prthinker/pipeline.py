@@ -96,6 +96,15 @@ class FileReviewResult:
         return self.step_outputs.get("total_summary")
 
 
+class ReviewCancelledError(Exception):
+    """Raised when a CoT review is interrupted via ``cancel_event``.
+
+    The pipeline checks the event between steps; once it is set, the
+    current step finishes (since ``model.generate`` is uninterruptible
+    in C) and the loop bails out before starting the next.
+    """
+
+
 class CoTPipeline:
     def __init__(
         self,
@@ -108,6 +117,7 @@ class CoTPipeline:
         accepted_retriever: AcceptedExamplesRetriever | None = None,
         stream: bool = False,
         stream_sink: "object | None" = None,
+        cancel_event: "object | None" = None,
     ) -> None:
         self._backend = backend
         self._retriever = retriever
@@ -119,6 +129,14 @@ class CoTPipeline:
         self._stream = stream
         # File-like with .write(str); stderr by default when stream=True.
         self._stream_sink = stream_sink
+        # threading.Event-like; checked between steps so server-side
+        # cancel (client disconnect, idle-poll sweep) preempts at the
+        # next step boundary instead of running to completion.
+        self._cancel_event = cancel_event
+
+    def _check_cancel(self) -> None:
+        if self._cancel_event is not None and self._cancel_event.is_set():
+            raise ReviewCancelledError("Review cancelled by client")
 
     def _merge_rules(self, retrieved: list[str]) -> list[str]:
         # Always-on team rules are appended after RAG-retrieved rules so the
@@ -695,6 +713,7 @@ class CoTPipeline:
         if output_dir is not None:
             output_dir.mkdir(parents=True, exist_ok=True)
         for step_cls in step_classes:
+            self._check_cancel()
             step: ReviewStep = step_cls()
             log.info("Running step: %s (file=%s)", step.name, ctx.file_path)
             prompt = step.build_prompt(ctx)

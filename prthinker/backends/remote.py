@@ -109,7 +109,20 @@ class RemotePipelineClient:
         )
         submit_resp.raise_for_status()
         job_id = submit_resp.json()["job_id"]
+        completed_cleanly = False
+        try:
+            result = self._poll_until_done(job_id)
+            completed_cleanly = True
+            return result
+        finally:
+            if not completed_cleanly:
+                # Client is exiting before the job reached a terminal
+                # state — tell the server so it stops burning GPU on a
+                # review nobody will read. Best-effort: a failure here
+                # must not mask the original exception.
+                self._send_cancel(job_id)
 
+    def _poll_until_done(self, job_id: str) -> ReviewResponse:
         deadline = time.monotonic() + self._config.timeout_seconds
         consecutive_failures = 0
         while True:
@@ -149,6 +162,16 @@ class RemotePipelineClient:
                 raise RuntimeError(
                     f"Remote review job {job_id} failed: {payload.get('error')}"
                 )
+            if status == "cancelled":
+                raise RuntimeError(
+                    f"Remote review job {job_id} was cancelled server-side"
+                )
+
+    def _send_cancel(self, job_id: str) -> None:
+        try:
+            self._client.post(f"/review/cancel/{job_id}")
+        except Exception as exc:  # noqa: BLE001 — cleanup must never raise
+            log.warning("Cancel for job %s failed (ignored): %s", job_id, exc)
 
     def close(self) -> None:
         self._client.close()
