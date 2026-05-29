@@ -12,6 +12,7 @@ Model + RAG index load once at import time per the project's perf rules.
 
 from __future__ import annotations
 
+import gc
 import logging
 import os
 import threading
@@ -19,6 +20,8 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
+
+import torch
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
@@ -161,7 +164,10 @@ def _execute_review(req: ReviewRequest) -> ReviewResponse:
 def review(req: ReviewRequest) -> ReviewResponse:
     if not req.code_diff.strip():
         raise HTTPException(status_code=400, detail="code_diff is empty")
-    return _execute_review(req)
+    try:
+        return _execute_review(req)
+    finally:
+        _release_gpu_memory()
 
 
 # ---------------------------------------------------------------------------
@@ -200,6 +206,18 @@ def _evict_stale_jobs_locked() -> None:
         del _JOBS[jid]
 
 
+def _release_gpu_memory() -> None:
+    """Drop intermediate tensors and return reserved CUDA blocks to the OS.
+
+    Per-file review accumulates KV cache + activations on the GPU; without
+    this the cache hangs on between jobs and the next allocation OOMs even
+    when free VRAM looks adequate.
+    """
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
 def _run_review_job(job_id: str, req: ReviewRequest) -> None:
     with _JOBS_LOCK:
         job = _JOBS.get(job_id)
@@ -220,6 +238,8 @@ def _run_review_job(job_id: str, req: ReviewRequest) -> None:
             if job is not None:
                 job.status = "error"
                 job.error = f"{type(exc).__name__}: {exc}"
+    finally:
+        _release_gpu_memory()
 
 
 @app.post("/review/submit", response_model=ReviewJobSubmitResponse)
