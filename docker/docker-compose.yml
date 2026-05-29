@@ -32,6 +32,9 @@ services:
       PRTHINKER_CACHE_ENABLED:    "true"
       PRTHINKER_TELEMETRY_ENABLED: "true"
       HF_HOME: /cache/huggingface
+      # Reduce CUDA allocator fragmentation so long-context attention
+      # allocations don't trip OOM when contiguous space is scarce.
+      PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"
     volumes:
       - hf_cache:/cache/huggingface
       - data:/data
