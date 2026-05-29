@@ -15,6 +15,7 @@ Two thin clients of the FastAPI server:
 
 from __future__ import annotations
 
+import logging
 import time
 
 import httpx
@@ -23,12 +24,19 @@ from prthinker.backends.base import InferenceBackend
 from prthinker.config import RemoteBackendConfig
 from prthinker.schemas import ReviewRequest, ReviewResponse
 
+log = logging.getLogger("prthinker.backends.remote")
+
 
 # Each individual HTTP call must complete inside any upstream proxy's
 # idle timeout. Cloudflare's free/pro/business plans cap that at ~100s,
 # so keep per-call timeout well below.
 _PER_CALL_TIMEOUT_SECONDS = 30.0
 _POLL_INTERVAL_SECONDS = 5.0
+# A poll occasionally trips the per-call timeout (backend GIL pause
+# during a heavy generate step, Cloudflare edge hiccup, runner network
+# blip). One slow poll should not crash a multi-minute review; retry
+# transient failures and only surface a persistent stall.
+_MAX_CONSECUTIVE_POLL_FAILURES = 5
 
 
 def _build_client(config: RemoteBackendConfig) -> httpx.Client:
@@ -103,6 +111,7 @@ class RemotePipelineClient:
         job_id = submit_resp.json()["job_id"]
 
         deadline = time.monotonic() + self._config.timeout_seconds
+        consecutive_failures = 0
         while True:
             if time.monotonic() >= deadline:
                 raise TimeoutError(
@@ -110,8 +119,28 @@ class RemotePipelineClient:
                     f"{self._config.timeout_seconds}s"
                 )
             time.sleep(_POLL_INTERVAL_SECONDS)
-            poll_resp = self._client.get(f"/review/result/{job_id}")
-            poll_resp.raise_for_status()
+            try:
+                poll_resp = self._client.get(f"/review/result/{job_id}")
+                poll_resp.raise_for_status()
+            except (
+                httpx.ReadTimeout,
+                httpx.ConnectTimeout,
+                httpx.ConnectError,
+                httpx.RemoteProtocolError,
+                httpx.HTTPStatusError,
+            ) as exc:
+                consecutive_failures += 1
+                if consecutive_failures > _MAX_CONSECUTIVE_POLL_FAILURES:
+                    raise
+                log.warning(
+                    "Poll %d/%d for job %s failed transiently: %s",
+                    consecutive_failures,
+                    _MAX_CONSECUTIVE_POLL_FAILURES,
+                    job_id,
+                    exc,
+                )
+                continue
+            consecutive_failures = 0
             payload = poll_resp.json()
             status = payload.get("status")
             if status == "done":
