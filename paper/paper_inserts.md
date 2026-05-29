@@ -5,12 +5,13 @@
 本版相對於 v2 之關鍵差異（v3）：
 
 - **新增框架設計貢獻段落 §3.7**：v2 完成後，隨附之開源框架（`prthinker`）
-  另實作十三項「框架層」之研究級擴充機制，分別對應 prompt-injection
+  另實作十四項「框架層」之研究級擴充機制，分別對應 prompt-injection
   robustness、closed-loop 多輪對話、counterfactual 審查、provenance
   稽核、force-push 差分、suggestion sandbox 驗證、cross-language API
   drift、PR 類型自適應、reproducibility 訊號、dependency upgrade impact、
-  reviewer personas + conflict surfacing、risk-weighted attention 與
-  diff entropy 偵測。其量化效益本論文\ **未予評估**，全部列為設計貢獻
+  reviewer personas + conflict surfacing、risk-weighted attention、
+  diff entropy 偵測，以及部署層之 CI matrix 分片 + 非同步 job-pattern
+  endpoint。其量化效益本論文\ **未予評估**，全部列為設計貢獻
   並於 §6.4 補上對應之未來工作。
 - **§1.5 第六項貢獻擴寫**：原 v2 僅提「四類推論後端與 IDE 整合」，
   v3 加入 §3.7 所述之十三項擴充機制條目，逐項註明本論文未予評估。
@@ -418,6 +419,48 @@
 > splitting this PR」警示。框架\ **不**\ 因高分阻擋合併，目的僅為
 > 將 PR 形狀顯化以利人類決策。本機制屬框架設計貢獻；其與真實 PR
 > 缺陷漏報率之相關性本論文未予評估。
+>
+> 3.7.14  部署層工程：CI 矩陣分片、非同步 job-pattern endpoint
+>
+> 在以反向代理（Cloudflare 免費 / Pro / Business 方案套用 100 秒
+> 之 HTTP idle timeout）對外暴露之 30B MoE 推論伺服器上，單一
+> per-file CoT 審查之單 round-trip 推論時間可超過該上限，並隨
+> per-file mode 對大 PR 之 序列化處理累積觸發 GitHub Actions 預設之
+> 30 分鐘 job 上限與 GPU 累積 KV cache 之 OOM。框架在不更動審查
+> 流程之前提下，於部署層提出四項工程設計：
+>
+> (a) **非同步 job-pattern endpoint**：將 `/review` 同步端點補上
+> `POST /review/submit`（回傳 ``job_id``）與 ``GET /review/result/{id}``
+> 兩個 endpoint，搭配 5 秒輪詢之 client 設計，使任一 HTTP round-trip
+> 之 wall-clock 時間落於 reverse-proxy idle timeout 之內，與 backend
+> 端實際推論時間解耦。
+>
+> (b) **CI matrix 分片**：將原 single-job `review-pr` 重構為
+> `enumerate` → `review` matrix（``max-parallel: 1``，每 shard 60
+> 分鐘 budget）→ `aggregate` 三 job pipeline，使每個 file 享有獨立
+> timeout budget。`max-parallel: 1` 屬刻意設計，避免並行 shard 在
+> backend 排隊浪費 CI 分鐘而無 wall-clock 收益（單 GPU 仍為瓶頸）。
+>
+> (c) **noise-path 過濾與 single-file 模式**：新增
+> `--exclude-globs` / `--target-file` 兩 flag，使 matrix shard 能以
+> matrix.file 之精確路徑接管單一 file 之審查，並透過共享
+> `PRTHINKER_EXCLUDE_GLOBS` 確保 workflow 與 CLI 使用同一份 fnmatch
+> 規則跳過 IDE 設定 / 生成資料 / 文件變更，避免將 GPU 預算消耗於
+> 與審查目標無關之檔案。
+>
+> (d) **partial-result aggregation**：新增 ``--output-json`` flag 與
+> `aggregate` 子指令，使 matrix shard 將其 partial ``ReviewResult``
+> 序列化為 JSON artifact，由 aggregate job 將 ``inline_findings`` /
+> ``per_file`` / ``step_outputs`` 合一後僅 post 一次 summary 留言、
+> 一次 inline review、開 / 關 pre-merge gate 各一次。
+>
+> 另搭配兩項 GPU 端記憶體工程：每個 job 結束以
+> ``torch.cuda.empty_cache() + gc.collect()`` 釋出 caching allocator
+> 之保留區塊；於 inference 路徑前以 backend tokenizer 切上限
+> （預設 6000 tokens）之 diff truncation，避免單一過長 diff 在
+> attention 計算階段觸發 OOM。本機制屬部署層設計貢獻，其對端到
+> 端 PR 流量之穩定性與 wall-clock 改善之量化本論文未予評估，列為
+> §6.4.5 之未來工作。
 
 ---
 

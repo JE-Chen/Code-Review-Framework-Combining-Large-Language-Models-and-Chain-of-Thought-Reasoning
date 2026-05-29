@@ -143,10 +143,55 @@ Per-file mode and inline review
    * - ``--max-findings-per-file N``
      - ``PRTHINKER_MAX_FINDINGS_PER_FILE``
      - ``10``
+   * - ``--exclude-globs PATTERNS``
+     - ``PRTHINKER_EXCLUDE_GLOBS``
+     - *(unset)*
+   * - ``--target-file PATH``
+     - ``PRTHINKER_TARGET_FILE``
+     - *(unset)*
 
 Inline review requires per-file mode (the inline-findings step needs to
 know which file it's looking at). Enabling ``--inline-review`` without
 ``--per-file`` is harmless but a no-op.
+
+``--exclude-globs`` takes a comma-separated list of fnmatch patterns
+(for example ``.idea/*,datas/*,*.md,*.lock``). Paths in the parsed
+diff that match any pattern are dropped before the per-file loop —
+useful for IDE state, generated data files, and large documentation
+edits that would otherwise spend GPU minutes for no value.
+
+``--target-file`` restricts the per-file loop to a single exact path.
+Combined with ``--output-json`` it lets a CI matrix shard own one
+file's review (see :doc:`github-actions` for the matrix workflow).
+
+Matrix sharding and aggregation
+-------------------------------
+
+For workflows that split per-file review across runners (CI matrix or
+external job queue), each shard runs ``review-pr`` in *partial* mode
+and a final aggregator merges every shard's findings into one
+PR-level review.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 35 30
+
+   * - CLI flag
+     - Env var
+     - Default
+   * - ``--output-json PATH``
+     - ``PRTHINKER_OUTPUT_JSON``
+     - *(unset)*
+   * - ``--aggregate-from DIR``
+     - ``PRTHINKER_AGGREGATE_FROM``
+     - *(unset)*
+
+``--output-json`` flips ``review-pr`` from "post to GitHub" to
+"serialise the partial ``ReviewResult`` to disk". The shard runs the
+pipeline normally but does **not** upsert the summary comment, submit
+the inline review, or open the gate; those are deferred to the
+``aggregate`` subcommand, which reads every JSON under
+``--aggregate-from`` and emits one combined post.
 
 Pre-merge gate
 --------------

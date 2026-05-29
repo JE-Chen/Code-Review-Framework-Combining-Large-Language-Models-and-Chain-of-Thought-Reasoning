@@ -5,6 +5,39 @@ Reviewer 內附一份可直接用的 workflow：\ ``.github/workflows/prthinker.
 它在 ``pull_request`` ``opened`` / ``synchronize`` / ``reopened`` 時觸發，
 透過同一個 PR 回貼 review。
 
+Workflow 結構
+-------------
+
+Workflow 拆成三個 job，避免某個慢檔案或大 PR 卡死整段 review：
+
+1. **enumerate**（5 分鐘）— 列出 PR 改動的 files，依
+   ``PRTHINKER_EXCLUDE_GLOBS`` 過濾 noise paths，把剩下的清單以 JSON
+   output 傳給下一個 job 的 matrix。
+2. **review**（matrix，每 shard 60 分鐘，``max-parallel: 1``）— 每個
+   matrix 跑一個 file，傳 ``PRTHINKER_TARGET_FILE`` 給 CLI，把 partial
+   ``ReviewResult`` 透過 ``PRTHINKER_OUTPUT_JSON`` 寫到
+   ``$RUNNER_TEMP/partial.json``\ ，再以 ``partial-<job-index>`` 為名
+   上傳成 artifact。Matrix runner **不**直接 post 到 GitHub、也不開
+   gate — 那些事交給 aggregate。
+3. **aggregate**（15 分鐘，``if: always()``）— 下載所有 ``partial-*``
+   artifact，跑 ``prthinker aggregate`` 把 ``inline_findings`` +
+   ``per_file`` + ``step_outputs`` 合一，post **一個** summary 留言、
+   **一個** inline review，並把合併前 gate 開 + 關各做一次。
+
+``max-parallel: 1`` 是故意的：推論 backend 在單一 GPU 上必然序列處理，
+並行 matrix runner 只會在 ``/review/submit`` 排隊浪費 CI 分鐘。Matrix
+的真正好處是 **per-file 隔離**：每個 file 各自 60 分鐘 budget，單一
+慢檔案不會把其它 file 一併拖死。
+
+為何用 job-pattern endpoint 而非同步 ``/review``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Remote runner 打 ``/review/submit`` 後每五秒輪詢
+``/review/result/{id}``\ （見 :doc:`../reference/http-api`）。每次來回都
+在一秒內完成，落在 Cloudflare 免費 / Pro / Business 方案的 100 秒 idle
+timeout 內。同步 ``/review`` POST 會被 30B MoE 卡到 proxy 100 秒前直接
+回 504。
+
 必要 secrets
 ------------
 

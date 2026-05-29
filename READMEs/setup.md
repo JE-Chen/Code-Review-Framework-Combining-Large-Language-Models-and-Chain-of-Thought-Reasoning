@@ -382,6 +382,16 @@ Customize by editing the `env:` block — every CLI flag has a matching
 `PRTHINKER_*` env var. See [`features.md`](features.md) for the
 complete list.
 
+**Three-job structure:** `enumerate` → `review` (matrix,
+`max-parallel: 1`, 60 min per shard) → `aggregate`. Each PR file gets
+its own runner and its own timeout budget, so a single slow file can't
+starve the whole review. The matrix runners write partial
+`ReviewResult` JSON to artifacts; the aggregate job merges them and
+posts exactly one summary comment + one inline review + one gate
+close. Full details (skip / fallback behaviour, env vars, fan-in
+contract) in the
+[GitHub Actions guide](../docs/en/guide/github-actions.rst).
+
 **Required permissions:**
 
 ```yaml
@@ -401,6 +411,19 @@ on:
     workflows: ["CI"]
     types: [completed]
 ```
+
+**Filtering noise paths.** The workflow's top-level `env:` block
+defines `PRTHINKER_EXCLUDE_GLOBS` (comma-separated fnmatch patterns).
+Both the `enumerate` job and the CLI's per-file loop read it, so
+generated data, IDE state, and large markdown changes never burn GPU
+minutes. Adjust the list to fit your repo.
+
+**Backend timeout safety.** The matrix runners drive the inference
+server via `POST /review/submit` + `GET /review/result/{id}` (5 s
+poll) so each individual HTTP call returns in well under a second.
+That keeps the workflow safe behind reverse proxies with short HTTP
+idle timeouts (Cloudflare's free / pro / business plans cap at ~100
+s, which a 30B MoE per-file review would otherwise trip).
 
 ---
 

@@ -48,6 +48,20 @@ Notable flags:
   it; also skips opening the Check Run.
 * ``--marker`` — sentinel HTML comment used to upsert the PR comment.
   Override only if you need multiple reviewers in one repo.
+* ``--exclude-globs`` — comma-separated fnmatch patterns; in
+  ``--per-file`` mode, files matching any pattern are skipped.
+  Cheap defence against wasting GPU minutes on IDE config, generated
+  data, or large markdown changes. Env: ``PRTHINKER_EXCLUDE_GLOBS``.
+* ``--target-file`` — when set, ``--per-file`` mode reviews only this
+  exact diff path and skips every other file. Lets a CI matrix runner
+  own a single file's review so each file gets its own job timeout;
+  see :doc:`../guide/github-actions` for the matrix workflow. Env:
+  ``PRTHINKER_TARGET_FILE``.
+* ``--output-json`` — write a JSON-encoded partial ``ReviewResult`` to
+  this path and skip posting to GitHub. Pair with ``--target-file`` in
+  a matrix runner so each shard stashes its findings as an artifact
+  for a later ``aggregate`` job to merge. Env:
+  ``PRTHINKER_OUTPUT_JSON``.
 
 Research-grade flags (opt-in, ``--inline-review`` required):
 
@@ -192,6 +206,47 @@ incrementally — useful for batch experiments and debugging long runs.
 
 ``--steps`` accepts a comma-separated list of step names; empty (the
 default) runs every registered step.
+
+aggregate
+---------
+
+Merge partial-review JSONs produced by ``review-pr --output-json``
+runners and post a single summary + inline review + gate close.
+Counterpart to the matrix workflow documented in
+:doc:`../guide/github-actions`.
+
+.. code-block:: text
+
+   prthinker aggregate
+       --repo OWNER/NAME
+       --pr-number N
+       --github-token TOKEN
+       --aggregate-from DIR
+       [--marker '<!-- prthinker:summary -->']
+       [--inline-review] [--judge]
+       [--gate-on {none,warning,error}]
+       [--platform {github,gitlab}]
+       [--dry-run]
+
+The aggregator walks ``--aggregate-from`` recursively for ``*.json``
+files (so the typical ``actions/download-artifact`` layout with one
+folder per matrix iteration works without extra wiring), deserialises
+each partial back into a ``ReviewResult``, dedupes ``per_file`` entries
+by path (last-write-wins on duplicates), and merges
+``inline_findings`` + ``step_outputs`` + ``rag_docs`` across shards.
+The post-merge path is identical to ``review-pr``'s — same comment
+upsert marker, same ``submit_inline_review`` event mapping (with
+``--judge`` aggregation when enabled), same gate close.
+
+If the directory holds zero JSONs (e.g. every matrix shard skipped
+because the backend was unreachable), the command logs a warning and
+exits 0; the workflow's fallback shell step posts a "skipped" notice
+under the same marker.
+
+Env equivalents: ``PRTHINKER_AGGREGATE_FROM`` (input dir),
+``PRTHINKER_COMMENT_MARKER`` (marker), ``PRTHINKER_GATE_ON`` (gate
+floor). The standard ``GITHUB_REPOSITORY``, ``PRTHINKER_PR_NUMBER``,
+and ``GITHUB_TOKEN`` cover the rest.
 
 harvest-dismissed
 -----------------

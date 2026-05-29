@@ -6,6 +6,46 @@ The reviewer ships with a ready-to-use workflow at
 ``pull_request`` ``opened`` / ``synchronize`` / ``reopened`` and posts a
 review back through the same PR.
 
+Workflow shape
+--------------
+
+The workflow is structured as three jobs so a slow file (or a large PR)
+cannot starve the whole review:
+
+1. **enumerate** (5 min) — lists the PR's changed files, drops noise
+   paths via ``PRTHINKER_EXCLUDE_GLOBS``, emits the surviving list as
+   a JSON output for the next job's matrix.
+2. **review** (matrix, 60 min per shard, ``max-parallel: 1``) — each
+   matrix iteration owns exactly one file, passes
+   ``PRTHINKER_TARGET_FILE`` to the CLI, and writes a partial
+   ``ReviewResult`` JSON to ``$RUNNER_TEMP/partial.json`` via
+   ``PRTHINKER_OUTPUT_JSON``. The partial is uploaded as an artifact
+   named ``partial-<job-index>``. The runners do **not** post to
+   GitHub directly and they do not open the gate — those are the
+   aggregator's job.
+3. **aggregate** (15 min, ``if: always()``) — downloads every
+   ``partial-*`` artifact, runs ``prthinker aggregate`` to merge
+   ``inline_findings`` + ``per_file`` + ``step_outputs`` across
+   shards, then posts **one** summary comment, **one** inline review,
+   and opens + closes the pre-merge gate exactly once.
+
+``max-parallel: 1`` is intentional: the inference backend serialises
+on a single GPU, so parallel matrix runners would queue at
+``/review/submit`` and waste CI minutes for no wall-time gain. The
+benefit of the matrix is per-file isolation — each file gets its own
+60-minute budget and a single slow file does not cancel the others.
+
+Why a job-pattern endpoint, not synchronous ``/review``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The remote runner calls ``/review/submit`` then polls
+``/review/result/{id}`` every five seconds (see
+:doc:`../reference/http-api`). Each round trip completes in well under
+one second, so it sits safely inside the 100 s idle timeout that
+Cloudflare's free / pro / business proxy applies. A synchronous
+``/review`` POST would block long enough for the proxy to return 504
+before the 30B MoE finishes one file.
+
 Required secrets
 ----------------
 
@@ -47,7 +87,7 @@ behaviour without editing Python:
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 15 55
+   :widths: 30 25 45
 
    * - Variable
      - Default
@@ -57,16 +97,33 @@ behaviour without editing Python:
      - ``local`` to load Qwen on the runner (needs self-hosted GPU runner).
    * - ``PRTHINKER_USE_REMOTE_PIPELINE``
      - ``true``
-     - Use ``/review`` (single round trip) vs ``/ask`` per step.
+     - Use ``/review/submit`` (one job per file) vs ``/ask`` per step.
    * - ``PRTHINKER_PER_FILE``
      - ``true``
-     - Loop the pipeline per file.
+     - Loop the pipeline per file. The matrix workflow requires this.
    * - ``PRTHINKER_INLINE_REVIEW``
      - ``true``
      - Emit inline ``suggestion`` blocks.
    * - ``PRTHINKER_MAX_FINDINGS_PER_FILE``
      - ``10``
      - Cap per file.
+   * - ``PRTHINKER_EXCLUDE_GLOBS``
+     - ``.idea/*,datas/*,*.md,…``
+     - Comma-separated fnmatch patterns; matched files never enter the
+       matrix. Workflow and CLI both honour this; set it once in the
+       workflow's ``env`` block to keep them in sync.
+   * - ``PRTHINKER_TARGET_FILE``
+     - *(unset; set by matrix)*
+     - Restricts ``--per-file`` mode to one path. The matrix sets this
+       per shard from ``matrix.file`` — you should not override it.
+   * - ``PRTHINKER_OUTPUT_JSON``
+     - *(unset; set by matrix)*
+     - Write the partial ``ReviewResult`` here instead of posting.
+       Aggregate job consumes the JSON via
+       ``PRTHINKER_AGGREGATE_FROM``.
+   * - ``PRTHINKER_AGGREGATE_FROM``
+     - *(set by aggregate job)*
+     - Directory the ``aggregate`` subcommand scans for partials.
    * - ``PRTHINKER_RAG_ENABLED``
      - ``true``
      - Toggle RAG entirely.
@@ -74,9 +131,11 @@ behaviour without editing Python:
      - ``true``
      - Use server ``/rag`` instead of local FAISS (saves runner memory).
    * - ``PRTHINKER_GATE_ON``
-     - ``error``
-     - Severity floor that flips the Check Run to ``failure``:
-       ``none`` / ``warning`` / ``error``.
+     - ``error`` (aggregate) /
+       ``none`` (matrix)
+     - Severity floor that flips the Check Run to ``failure``. The
+       matrix runners run with ``none`` so only the aggregate opens
+       and closes the gate.
    * - ``PRTHINKER_INCLUDE_CI_SIGNALS``
      - ``true``
      - Prepend failed-job logs to the diff.
@@ -86,6 +145,27 @@ behaviour without editing Python:
 
 A complete list of vars and their CLI counterparts is in
 :doc:`configuration` and :doc:`../reference/cli`.
+
+Skip and fallback behaviour
+---------------------------
+
+The workflow is built to fail gracefully:
+
+* **Empty PR after filtering** — if every changed file matches
+  ``PRTHINKER_EXCLUDE_GLOBS``, the ``enumerate`` job sets
+  ``empty=true`` and the downstream jobs are skipped via
+  ``if: empty == 'false'``. The PR gets no comment and no check run.
+* **One matrix shard fails** — ``strategy.fail-fast: false`` keeps the
+  other shards running. The aggregate job runs under
+  ``if: always()`` so the surviving partials still produce a review.
+* **Backend unreachable from a shard** — the shard's preflight curl
+  to ``/healthz`` exits 0 with a workflow warning and uploads no
+  artifact (``if-no-files-found: ignore``). The aggregate proceeds
+  with whatever shards succeeded.
+* **Backend unreachable from every shard** — the aggregate finds no
+  ``*.json`` under ``PRTHINKER_AGGREGATE_FROM``, posts a single
+  *PRThinker — skipped* comment under the standard marker, and exits
+  0. The PR is not blocked and the next push overwrites the notice.
 
 Branch protection
 -----------------

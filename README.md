@@ -168,7 +168,16 @@ Copy `.github/workflows/prthinker.yml`, then set two repo secrets:
 | `PRTHINKER_BACKEND_API_KEY`| Bearer token (optional)                |
 
 The workflow fires on `pull_request` opened/synchronize/reopened and
-upserts a single collapsible review comment.
+runs three jobs: `enumerate` lists files (after filtering noise via
+`PRTHINKER_EXCLUDE_GLOBS`), `review` is a matrix that gives each file
+its own runner + 60-minute timeout, and `aggregate` merges every
+runner's partial JSON into a single summary comment + one inline
+review + one gate close. The runner-server transport uses
+`POST /review/submit` + `GET /review/result/{id}` polling so the
+workflow stays within any reverse-proxy idle timeout (Cloudflare's
+100 s cap, for example). See
+[`docs/en/guide/github-actions.rst`](docs/en/guide/github-actions.rst)
+for the full architecture.
 
 ## Documentation
 
