@@ -458,9 +458,47 @@
 > ``torch.cuda.empty_cache() + gc.collect()`` 釋出 caching allocator
 > 之保留區塊；於 inference 路徑前以 backend tokenizer 切上限
 > （預設 6000 tokens）之 diff truncation，避免單一過長 diff 在
-> attention 計算階段觸發 OOM。本機制屬部署層設計貢獻，其對端到
-> 端 PR 流量之穩定性與 wall-clock 改善之量化本論文未予評估，列為
-> §6.4.5 之未來工作。
+> attention 計算階段觸發 OOM。
+>
+> (e) **主動式取消與 idle-poll sweeper**：為避免 CI runner 被取消
+> （`concurrency: cancel-in-progress`、手動 cancel、runner crash）
+> 後 backend 仍持續耗用 GPU 跑沒人讀的 review，於 server 新增
+> ``POST /review/cancel/{job_id}`` 與 ``POST /ask/cancel/{job_id}``
+> 兩 endpoint，client 端以 try/finally 在離開 poll loop 時主動發送
+> cancel。另搭配 server 端常駐 sweeper thread：每 30 秒掃描所有
+> running job，180 秒未被 poll 之 job 自動設 ``cancel_event``，涵
+> 蓋 SIGKILL / 網路中斷等 try/finally 來不及執行之路徑。Pipeline
+> 於每個 step 邊界檢查 event；local backend 另注入
+> ``StoppingCriteria`` 於 ``model.generate`` 之每 token decode 後
+> 輪詢，使取消延遲由 step 邊界之 30-60 秒降至約 100 ms（單一 token
+> 之時間）。
+>
+> (f) **summary comment / inline review / check run 之冪等性處理**：
+> 同一 head SHA 之重複 workflow run（manual re-run、cancel-in-progress
+> 後之新 push、CI retry）原本會於 PR 上累積多份 prthinker 產物。
+> 框架以三種機制達成單一 SHA 對應單一可見產物：(i) summary
+> comment 以 HTML marker `<!-- prthinker:summary -->` upsert，PATCH
+> 同一 comment 而非每次 POST 新的；(ii) inline review 之 body 嵌入
+> 隱藏 marker `<!-- prthinker:inline -->`，於 POST 新 review 前列出
+> 所有同 marker 之 review 並 DELETE 其底下之 review comments（GitHub
+> 不允許 dismiss COMMENT-state review，故 wrapper 留為 timeline
+> stub）；(iii) check run 於 open 前對同 head SHA 上所有同名
+> prthinker check PATCH 為 `status=completed` / `conclusion=neutral`
+> 並附 "superseded" 標題，UI 自動將其折疊於 live 之 check 下方。
+>
+> (g) **CI matrix 分片之 PR-wide overall summary 合成**：matrix
+> 各 shard 僅產出 per-file 之 `total_summary`，aggregate 階段缺乏
+> 跨檔之總結。於 aggregate 完成 per-file 合併後，以
+> ``/ask/submit`` 對 backend 發起一次合成 prompt（將所有 per-file
+> summaries 串為輸入，要求 3-5 句之 PR-wide 重點），結果寫入
+> `merged.step_outputs["total_summary"]` 並由 formatter 於 PR 留
+> 言頂部呈現為 ``### Overall Summary``。Best-effort：backend 不
+> 通、timeout、httpx 例外皆 log warning 並 fallback 為僅顯示
+> per-file blocks，不阻擋 PR 留言之 post。
+>
+> 本機制屬部署層設計貢獻，其對端到端 PR 流量之穩定性、wall-clock
+> 改善、reviewer 對重複留言之認知負擔等量化評估本論文未予進行，
+> 列為 §6.4.5 之未來工作。
 
 ---
 
