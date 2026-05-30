@@ -21,8 +21,9 @@ required Check Run before merges.
   `PlatformAdapter` (diff / comments / inline review / gate / dialogue).
 - `prthinker/{adversarial,counterfactual,dialogue,findings,sandbox,
   review_cache,reproducibility,personas,risk_score,diff_entropy,
-  dep_upgrade,api_consistency,pr_classifier}.py` — research-grade
-  extension modules. Each is opt-in behind a CLI flag (see
+  dep_upgrade,api_consistency,pr_classifier,lessons,finding_clusters,
+  repo_kg,incremental_save}.py` — research-grade extension modules.
+  Each is opt-in behind a CLI flag (see
   `docs/en/concepts/research-extensions.rst`).
 - `prthinker/adversarial_corpus/` — hand-authored seed corpus for the
   prompt-injection robustness suite (`seed.jsonl` — labelled "seed,
@@ -50,7 +51,7 @@ Pydantic v2, httpx, Sphinx + Read the Docs.
 
 ### Research-grade extensions (opt-in, framework only)
 
-Thirteen mechanisms most LLM-code-review systems do not ship. Per
+Seventeen mechanisms most LLM-code-review systems do not ship. Per
 `paper_rule.md`'s no-fabrication rule, code + corpora + unit tests
 are delivered; **no benchmark numbers are bundled**.
 
@@ -67,6 +68,11 @@ are delivered; **no benchmark numbers are bundled**.
 - Reviewer personas + conflict surfacing (`--personas`).
 - Risk-weighted attention (`--risk-weighted`).
 - Diff entropy / "diff bomb" detector (`--diff-entropy`).
+- Active-learning derived lessons (`derive-lessons` + `--lessons`).
+- Cross-PR finding clustering (`discover-rules`).
+- Repo knowledge graph (`build-kg` + `--kg-ground`).
+- Incremental per-file save / crash-safe partial results
+  (`--incremental-save-dir`).
 
 When extending: every new mechanism must (1) be opt-in behind a CLI
 flag, (2) ship pure-logic unit tests, (3) update

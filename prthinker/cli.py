@@ -255,6 +255,17 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     common.add_argument(
+        "--incremental-save-dir",
+        default=env_str("PRTHINKER_INCREMENTAL_SAVE_DIR", ""),
+        help=(
+            "Persist each per-file review to <dir>/files/<slug>.json as the "
+            "file finishes, plus a final <dir>/review.json once the run "
+            "completes. If the run is cancelled or crashes mid-PR the "
+            "files written so far are still on disk for inspection. "
+            "Local pipeline only; takes effect with --per-file."
+        ),
+    )
+    common.add_argument(
         "--aggregate-from",
         default=env_str("PRTHINKER_AGGREGATE_FROM", ""),
         help=(
@@ -1333,11 +1344,16 @@ def _review_via_pipeline(
             cache_repo = ""
             cache_pr_number = 0
             if getattr(args, "diff_since_last", False) and args.inline_review:
-                from reviewmind.review_cache import ReviewCache
+                from prthinker.review_cache import ReviewCache
                 review_cache_obj = ReviewCache(Path(args.diff_cache_path))
                 cache_repo = getattr(args, "repo", "") or ""
                 cache_pr_number = int(getattr(args, "pr_number", 0) or 0)
-            return pipeline.run_per_file(
+            incremental_writer = _build_incremental_writer(args)
+            on_file_done = (
+                incremental_writer.write_file_result
+                if incremental_writer is not None else None
+            )
+            result = pipeline.run_per_file(
                 diff_text,
                 inline_review=args.inline_review,
                 judge=bool(getattr(args, "judge", False)),
@@ -1367,12 +1383,38 @@ def _review_via_pipeline(
                 risk_weighted=bool(getattr(args, "risk_weighted", False)),
                 risk_workdir=getattr(args, "risk_workdir", None),
                 diff_entropy_check=bool(getattr(args, "diff_entropy", False)),
+                on_file_done=on_file_done,
             )
+            if incremental_writer is not None:
+                incremental_writer.write_final(result)
+            return result
         return pipeline.run(diff_text, output_dir=output_dir)
     finally:
         backend.close()
         if isinstance(retriever, RemoteRAGRetriever):
             retriever.close()
+
+
+def _build_incremental_writer(args: argparse.Namespace):
+    """Construct an IncrementalReviewWriter from args (or return None)."""
+    path = (getattr(args, "incremental_save_dir", "") or "").strip()
+    if not path:
+        return None
+    from prthinker.incremental_save import IncrementalReviewWriter, ReviewMeta
+
+    meta = ReviewMeta(
+        repo=(getattr(args, "repo", "") or "").strip(),
+        pr_number=int(getattr(args, "pr_number", 0) or 0),
+        head_sha=(getattr(args, "head_sha", "") or "").strip(),
+        started_at=_iso_now(),
+    )
+    return IncrementalReviewWriter(Path(path), meta=meta)
+
+
+def _iso_now() -> str:
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def _run_review(

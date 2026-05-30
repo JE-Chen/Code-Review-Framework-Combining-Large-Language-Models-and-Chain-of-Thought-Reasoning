@@ -105,6 +105,23 @@ class ReviewCancelledError(Exception):
     """
 
 
+def _invoke_on_file_done(
+    on_file_done: "object | None", file_result: "FileReviewResult"
+) -> None:
+    """Call the per-file-done hook, swallowing failures so persistence
+    issues never abort the pipeline.
+    """
+    if on_file_done is None:
+        return
+    try:
+        on_file_done(file_result)  # type: ignore[misc]
+    except Exception as exc:  # noqa: BLE001 — hook must never break the run
+        log.warning(
+            "on_file_done hook failed for %s (ignored): %s",
+            file_result.path, exc,
+        )
+
+
 class CoTPipeline:
     def __init__(
         self,
@@ -225,6 +242,7 @@ class CoTPipeline:
         risk_weighted: bool = False,
         risk_workdir: Path | None = None,
         diff_entropy_check: bool = False,
+        on_file_done: "object | None" = None,
     ) -> ReviewResult:
         """Run the full step sequence once per file in the diff.
 
@@ -352,6 +370,7 @@ class CoTPipeline:
                     )
                     per_file_results.append(file_result)
                     aggregated_findings.extend(cached)
+                    _invoke_on_file_done(on_file_done, file_result)
                     continue
 
             file_out_dir = (
@@ -398,6 +417,7 @@ class CoTPipeline:
                 # Concatenate per-file outputs for the consolidated comment.
                 key = f"{fd.path}::{name}"
                 aggregated_steps[key] = output
+            _invoke_on_file_done(on_file_done, file_result)
 
         dep_upgrades: list[DependencyUpgradeFinding] = []
         if dep_upgrade_check:

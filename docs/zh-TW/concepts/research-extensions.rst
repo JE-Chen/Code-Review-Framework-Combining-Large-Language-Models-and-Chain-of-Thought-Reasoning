@@ -447,9 +447,39 @@ LLM reviewer 在大 repo 上經常 hallucinate symbol 名 ── 寫「``auth.py
   store 永遠對應 HEAD\ 。增量更新屬未來工作\ 。
 
 
+每檔遞增存檔 (``--incremental-save-dir``)
+-----------------------------------------
+
+30B 級 backend 之多檔審查每檔可能跑數分鐘\ 。若中途被取消（idle-poll
+sweep、GPU OOM、runner 逾時、人工 ``ask/cancel``\ ）\ ，現有之
+``--output-json`` 只在最後寫入──中途死掉就甚麼都沒留\ 。
+``--incremental-save-dir`` 把每個 per-file 完成轉成一次 atomic 寫盤\ ，
+做到「只要某些檔已完成\ ，就算整個 run 沒跑完也讀得到」\ ：
+
+* ``<dir>/files/<slug>.json``：一個檔之 ``FileReviewResult`` 加入記憶體
+  list 之瞬間就寫盤\ 。slug 會把目錄分隔符與非法字元換成 ``_``\ ，
+  Windows / Linux / macOS 共通\ 。
+* ``<dir>/review.json``：**只有**整段 sweep 跑完才會寫\ ，存在性即
+  代表「這一輪乾淨完成」\ 。
+* ``<dir>/meta.json``：在開始時寫入 ``repo``\ 、 ``pr_number``\ 、
+  ``head_sha``\ 、 ``started_at``\ ，方便事後檢視時辨識所屬 PR / commit\ 。
+
+所有寫盤都經 ``.tmp`` + ``os.replace``\ ，半寫狀態不可見\ 。Writer 內部
+失敗會記 log 並吞掉──持久化問題不可中斷正在跑的 review\ 。
+
+.. code-block:: bash
+
+   prthinker review-pr --per-file --inline-review \
+       --incremental-save-dir .prthinker/runs/pr-42/
+
+僅本地 pipeline\ ；遠端 pipeline 路徑（``--use-remote-pipeline``\ ）
+是伺服器一次性回傳完整 ``ReviewResult``\ ，per-file 增量不適用\ ，
+那條路徑請繼續用 ``--output-json``\ 。
+
+
 狀態
 ----
 
-十六個機制皆已交付為框架程式碼、單元測試與 prompt 樣板\ 。依
+十七個機制皆已交付為框架程式碼、單元測試與 prompt 樣板\ 。依
 ``paper_rule.md``\ ，本專案有意不在此頁提供 benchmark 數字；語料與
 outcome 儲存體均已就位\ ，量測之時\ ，將以可審計之方式為之\ 。

@@ -526,10 +526,46 @@ Implementation notes:
   work.
 
 
+Incremental per-file save (``--incremental-save-dir``)
+------------------------------------------------------
+
+A multi-file review on a 30B-class backend can run for minutes per
+file. When the run is cancelled (idle-poll sweep, GPU OOM, runner
+timeout, manual ``ask/cancel``) the existing ``--output-json`` flag
+saves nothing — it only writes at the very end. ``--incremental-save-dir``
+turns each per-file completion into an atomic on-disk write, so
+"finished files are readable even if the run never completes":
+
+* ``<dir>/files/<slug>.json`` is written the moment a single file's
+  ``FileReviewResult`` is appended to the in-memory list. The slug
+  swaps directory separators and disallowed characters for ``_`` so
+  the layout is portable across Windows / Linux / macOS.
+* ``<dir>/review.json`` is written **only** when the whole sweep
+  finishes — its presence is the signal "this run completed cleanly".
+* ``<dir>/meta.json`` is written at the start with ``repo``,
+  ``pr_number``, ``head_sha``, and ``started_at`` so a later viewer
+  can identify the PR / commit a partial save belongs to.
+
+All writes go through a sibling ``.tmp`` file + ``os.replace`` so a
+half-written file is never observable. Failures inside the writer are
+logged and swallowed; persistence problems must not abort the live
+review.
+
+.. code-block:: bash
+
+   prthinker review-pr --per-file --inline-review \
+       --incremental-save-dir .prthinker/runs/pr-42/
+
+Local pipeline only — the remote-pipeline path
+(``--use-remote-pipeline``) receives the full ``ReviewResult`` in one
+response, so per-file streaming is N/A there. ``--output-json`` is the
+existing tool for that path.
+
+
 Status
 ------
 
-All sixteen mechanisms ship as framework code, unit tests, and prompt
+All seventeen mechanisms ship as framework code, unit tests, and prompt
 templates. Per ``paper_rule.md`` the project intentionally publishes
 no benchmark numbers here; the corpora and outcome stores exist so
 that measurements can be taken honestly when they are taken.
