@@ -112,6 +112,10 @@ services:
       - prometheus
     volumes:
       - ./monitoring/nginx.conf:/etc/nginx/nginx.conf:ro
+      # The repo's .prthinker/ holds the build-kg sqlite + the
+      # rendered repo-kg.html. Mount read-only so nginx can serve
+      # /kg/ as a static page.
+      - ../.prthinker:/usr/share/nginx/kg:ro
     ports:
       - "${PRTHINKER_HOST_PORT:-9000}:80"
 

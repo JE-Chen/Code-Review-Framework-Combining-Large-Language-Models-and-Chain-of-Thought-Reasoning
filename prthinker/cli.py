@@ -1991,19 +1991,19 @@ def _cmd_visualize_kg(args: argparse.Namespace) -> int:
         raise SystemExit(f"visualize-kg: workdir does not exist: {workdir}")
 
     store = KnowledgeGraphStore(args.kg_store)
-    if len(store) == 0:
+    if len(store.all_symbols(workdir)) == 0:
         if getattr(args, "auto_build", False):
             symbols = scan_workdir(workdir)
             store.rebuild(workdir, symbols)
             sys.stdout.write(
                 f"visualize-kg: auto-built {len(symbols)} symbol(s) "
-                f"into {args.kg_store}\n"
+                f"for {workdir} into {args.kg_store}\n"
             )
         else:
             raise SystemExit(
-                f"visualize-kg: store {args.kg_store} is empty. Run "
-                f"`prthinker build-kg --workdir {workdir}` first, or pass "
-                f"--auto-build."
+                f"visualize-kg: no symbols for {workdir} in "
+                f"{args.kg_store}. Run `prthinker build-kg --workdir "
+                f"{workdir}` first, or pass --auto-build."
             )
 
     data = build_graph_data(store, workdir)
