@@ -47,6 +47,18 @@ review-pr
 * ``--dry-run``\ ──把总结评论打印到 stdout 而不贴上去，也跳过 Check Run。
 * ``--marker``\ ──upsert PR 评论用的 sentinel HTML comment。只有同一个
   repo 想跑多个 reviewer 时才需要覆盖。
+* ``--exclude-globs``\ ──逗号分隔之 fnmatch patterns；
+  ``--per-file`` 模式下匹配任一 pattern 的 file 会被跳过。对 IDE
+  配置、生成数据、大段 markdown 是便宜防线，不浪费 GPU 时间。Env:
+  ``PRTHINKER_EXCLUDE_GLOBS``\ 。
+* ``--target-file``\ ──设了之后，\ ``--per-file`` 模式只 review 这
+  个 diff path，其它文件全跳过。让 CI matrix runner 各自接管一个
+  file，给每个 file 自己的 timeout budget；matrix workflow 细节
+  见 :doc:`../guide/github-actions`\ 。Env: ``PRTHINKER_TARGET_FILE``\ 。
+* ``--output-json``\ ──把 partial ``ReviewResult`` 写成 JSON 而不
+  post 到 GitHub。搭 matrix runner 的 ``--target-file``\ ，让每个
+  shard 把自己 file 的 findings 收成 artifact，后面的 ``aggregate``
+  job 才合一处理。Env: ``PRTHINKER_OUTPUT_JSON``\ 。
 
 研究级 flag（opt-in\ ，需搭配 ``--inline-review``）：
 
@@ -178,6 +190,47 @@ review-file
 长跑时很有用。
 
 ``--steps`` 是逗号分隔的 step 名称列表；空（默认）就跑全部已注册的 step。
+
+aggregate
+---------
+
+把 ``review-pr --output-json`` 各 runner 写出的 partial review JSON
+合一，post 出单一 summary + inline review + gate close。对应到
+:doc:`../guide/github-actions` 描述的 matrix workflow。
+
+.. code-block:: text
+
+   prthinker aggregate
+       --repo OWNER/NAME
+       --pr-number N
+       --github-token TOKEN
+       --aggregate-from DIR
+       [--marker '<!-- prthinker:summary -->']
+       [--inline-review] [--judge]
+       [--gate-on {none,warning,error}]
+       [--platform {github,gitlab}]
+       [--dry-run]
+
+Aggregator 会递归扫 ``--aggregate-from`` 下所有 ``*.json``\ （所以
+``actions/download-artifact`` 常见的「一个 matrix iteration 一个
+目录」 layout 无须额外接线），反序列化每个 partial 为 ``ReviewResult``\ ，
+按 path 对 ``per_file`` 去重（同路径 last-write-wins），跨 shard 合
+``inline_findings`` + ``step_outputs`` + ``rag_docs``\ 。合完后再以
+``/ask/submit`` 对 backend 取一段 3-5 句之 PR-wide overall summary，
+塞进 ``step_outputs["total_summary"]``\ 并由 formatter 渲染为 PR 评论
+顶部之 ``### Overall Summary``\ 。Post 路径与 ``review-pr`` 完全相同
+──同样的 comment marker upsert、同样的 ``submit_inline_review`` event
+mapping（\ ``--judge`` 开启时做 verdict aggregation）、同样的 gate
+close。
+
+若目录下没有 JSON（例如所有 matrix shard 因 backend 不通而 skip），
+指令 log 一条 warning 并 exit 0；workflow 端 fallback 之 shell step
+会用同一个 marker 贴一条「skipped」notice。
+
+Env equivalents: ``PRTHINKER_AGGREGATE_FROM``\ （input dir）、
+``PRTHINKER_COMMENT_MARKER``\ （marker）、``PRTHINKER_GATE_ON``\ （gate
+floor）。其余由标准 ``GITHUB_REPOSITORY``\ 、\ ``PRTHINKER_PR_NUMBER``\ 、
+``GITHUB_TOKEN`` 涵盖。
 
 harvest-dismissed
 -----------------

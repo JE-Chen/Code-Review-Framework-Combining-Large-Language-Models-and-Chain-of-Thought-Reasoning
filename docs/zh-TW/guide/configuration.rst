@@ -138,10 +138,53 @@ RAG 與規則
    * - ``--max-findings-per-file N``
      - ``PRTHINKER_MAX_FINDINGS_PER_FILE``
      - ``10``
+   * - ``--exclude-globs PATTERNS``
+     - ``PRTHINKER_EXCLUDE_GLOBS``
+     - *(未設)*
+   * - ``--target-file PATH``
+     - ``PRTHINKER_TARGET_FILE``
+     - *(未設)*
 
 Inline review 需要先啟用 per-file 模式（inline-findings step 需要知道
 正在審哪個檔）。光開 ``--inline-review`` 而沒有 ``--per-file`` 不會壞，
 只是不會有效果。
+
+``--exclude-globs`` 是逗號分隔之 fnmatch patterns（例如
+``.idea/*,datas/*,*.md,*.lock``\ ）。parse 出的 diff 中匹配任一
+pattern 之 path 在 per-file loop 前就被丟掉──IDE state、生成
+資料、大段文件變更等不浪費 GPU 時間。
+
+``--target-file`` 把 per-file loop 限定在單一精確 path。搭
+``--output-json`` 讓 CI matrix shard 各自接管一個 file 之 review
+（matrix workflow 見 :doc:`github-actions`\ ）。
+
+Matrix 分片與 aggregation
+-------------------------
+
+對於把 per-file review 切到多 runner 之 workflow（CI matrix 或外
+部 job queue），每個 shard 跑 ``review-pr`` 之 *partial* 模式，最
+後一個 aggregator 把所有 shard 之 findings 合一成單一 PR-level
+review。
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 35 30
+
+   * - CLI flag
+     - 環境變數
+     - 預設
+   * - ``--output-json PATH``
+     - ``PRTHINKER_OUTPUT_JSON``
+     - *(未設)*
+   * - ``--aggregate-from DIR``
+     - ``PRTHINKER_AGGREGATE_FROM``
+     - *(未設)*
+
+``--output-json`` 讓 ``review-pr`` 從「post 到 GitHub」改為「把
+partial ``ReviewResult`` 序列化到磁碟」。Shard 仍正常跑 pipeline
+但**不**做 summary comment upsert、inline review submit、gate
+open，這些交給 ``aggregate`` 子指令──它讀 ``--aggregate-from``
+下所有 JSON 後合一 post。
 
 合併前 gate
 -----------
