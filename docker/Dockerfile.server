@@ -10,8 +10,18 @@
 # run into the mounted HuggingFace cache volume so an image rebuild does
 # not invalidate ~80 GB of weights.
 
-ARG CUDA_VERSION=12.2.0
-FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu22.04 AS base
+ARG CUDA_VERSION=13.0.1
+# `-devel` (not `-runtime`) so nvcc + CUDA headers are present and
+# flash-attn can compile its C++ extension from source. Adds ~2 GB
+# to the image vs. -runtime; in exchange the attention path runs at
+# O(N) memory instead of SDPA's potential O(N²) math fallback, which
+# was the root cause of the total_summary OOM at ~50K input tokens.
+#
+# CUDA 13.x matches what the default PyPI torch wheel
+# (torch-2.12.0+cu13) is compiled against — flash-attn's setup.py
+# checks `torch.version.cuda` against the host nvcc version and
+# refuses to build on a mismatch, so 12.2 base + cu13 torch fails.
+FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu22.04 AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -43,8 +53,18 @@ COPY prthinker/ ./prthinker/
 COPY codes/ ./codes/
 COPY datas/RAG_data/ ./datas/RAG_data/
 
-RUN pip install --upgrade pip \
+RUN pip install --upgrade pip wheel setuptools packaging ninja \
  && pip install -e ".[server]"
+
+# Try to install flash-attn after the rest of [server] is in place so
+# torch is already importable (flash-attn's setup.py imports torch at
+# build-isolation time, which would otherwise fail). --no-build-isolation
+# lets the build see the installed torch; if no matching wheel exists
+# the source build needs nvcc — which the runtime image does NOT ship,
+# so the install is allowed to fail with a warning and the runtime
+# code falls back to SDPA via _pick_attn_implementation.
+RUN pip install --no-build-isolation flash-attn \
+ || echo "WARN: flash-attn install failed; runtime will fall back to SDPA"
 
 # Cache + JSONL stores live on a mounted volume so they survive image rebuilds.
 RUN mkdir -p /cache/huggingface /data

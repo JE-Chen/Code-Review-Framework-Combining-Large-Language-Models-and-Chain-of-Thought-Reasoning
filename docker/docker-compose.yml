@@ -18,7 +18,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.server
       args:
-        CUDA_VERSION: ${CUDA_VERSION:-12.2.0}
+        CUDA_VERSION: ${CUDA_VERSION:-13.0.1}
     image: prthinker:server-latest
     restart: unless-stopped
     runtime: nvidia
