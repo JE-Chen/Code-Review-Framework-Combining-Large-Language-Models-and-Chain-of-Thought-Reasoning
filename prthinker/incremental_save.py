@@ -69,26 +69,29 @@ def serialize_file_result(fr: "FileReviewResult") -> dict:
     }
 
 
+def _dump_list(xs: "list[Any]") -> list[dict]:
+    return [x.model_dump() for x in xs]
+
+
+def _dump_or_none(x: "Any | None") -> dict | None:
+    return None if x is None else x.model_dump()
+
+
 def serialize_review_result(result: "ReviewResult") -> dict:
     """Pack a complete ReviewResult — every pydantic-shaped field included."""
     return {
         "code_diff": result.code_diff,
         "rag_docs": list(result.rag_docs),
         "step_outputs": dict(result.step_outputs),
-        "inline_findings": [f.model_dump() for f in result.inline_findings],
+        "inline_findings": _dump_list(result.inline_findings),
         "per_file": [serialize_file_result(fr) for fr in result.per_file],
-        "counterfactuals": [cf.model_dump() for cf in result.counterfactuals],
-        "api_drift": [d.model_dump() for d in result.api_drift],
-        "pr_classification": (
-            result.pr_classification.model_dump()
-            if result.pr_classification else None
-        ),
-        "dep_upgrades": [u.model_dump() for u in result.dep_upgrades],
-        "persona_reviews": [p.model_dump() for p in result.persona_reviews],
-        "persona_conflicts": [c.model_dump() for c in result.persona_conflicts],
-        "diff_entropy": (
-            result.diff_entropy.model_dump() if result.diff_entropy else None
-        ),
+        "counterfactuals": _dump_list(result.counterfactuals),
+        "api_drift": _dump_list(result.api_drift),
+        "pr_classification": _dump_or_none(result.pr_classification),
+        "dep_upgrades": _dump_list(result.dep_upgrades),
+        "persona_reviews": _dump_list(result.persona_reviews),
+        "persona_conflicts": _dump_list(result.persona_conflicts),
+        "diff_entropy": _dump_or_none(result.diff_entropy),
     }
 
 

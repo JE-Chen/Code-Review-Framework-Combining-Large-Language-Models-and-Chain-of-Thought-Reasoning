@@ -24,6 +24,7 @@ import json
 import logging
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -53,6 +54,10 @@ from prthinker.diff import parse_unified_diff
 from prthinker.dismissed import DismissedExamplesStore
 from prthinker.formatters import format_pr_comment
 from prthinker.harvest import harvest, harvest_accepted
+from prthinker.incremental_save import (
+    IncrementalReviewWriter,
+    ReviewMeta,
+)
 from prthinker.pipeline import (
     CoTPipeline,
     FileReviewResult,
@@ -69,6 +74,7 @@ from prthinker.repo_config import (
     load_repo_config,
     to_argparse_defaults,
 )
+from prthinker.review_cache import ReviewCache
 from prthinker.rules import load_rules_dir
 from prthinker.schemas import InlineFinding, ReviewRequest
 
@@ -1344,7 +1350,6 @@ def _review_via_pipeline(
             cache_repo = ""
             cache_pr_number = 0
             if getattr(args, "diff_since_last", False) and args.inline_review:
-                from prthinker.review_cache import ReviewCache
                 review_cache_obj = ReviewCache(Path(args.diff_cache_path))
                 cache_repo = getattr(args, "repo", "") or ""
                 cache_pr_number = int(getattr(args, "pr_number", 0) or 0)
@@ -1395,13 +1400,13 @@ def _review_via_pipeline(
             retriever.close()
 
 
-def _build_incremental_writer(args: argparse.Namespace):
+def _build_incremental_writer(
+    args: argparse.Namespace,
+) -> IncrementalReviewWriter | None:
     """Construct an IncrementalReviewWriter from args (or return None)."""
     path = (getattr(args, "incremental_save_dir", "") or "").strip()
     if not path:
         return None
-    from prthinker.incremental_save import IncrementalReviewWriter, ReviewMeta
-
     meta = ReviewMeta(
         repo=(getattr(args, "repo", "") or "").strip(),
         pr_number=int(getattr(args, "pr_number", 0) or 0),
@@ -1412,8 +1417,6 @@ def _build_incremental_writer(args: argparse.Namespace):
 
 
 def _iso_now() -> str:
-    from datetime import datetime, timezone
-
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
