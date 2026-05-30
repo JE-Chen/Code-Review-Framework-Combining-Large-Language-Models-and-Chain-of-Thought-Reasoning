@@ -1,36 +1,41 @@
 # Optional monitoring overlay — adds Prometheus + Grafana + DCGM
 # (GPU) + cAdvisor (containers) on top of the base prthinker
-# deployment.
+# deployment, all collapsed onto a single host port via an nginx
+# reverse proxy.
 #
 # Usage:
 #   docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
 #
-#   - Prometheus UI:   http://<host>:9090
-#   - Grafana UI:      http://<host>:3000  (admin / admin by default;
-#                                            override with GRAFANA_ADMIN_PASSWORD)
-#   - DCGM exporter:   http://<host>:9400/metrics
-#   - cAdvisor UI:     http://<host>:8080
+# Public surface (host:9000, behind any upstream proxy / Cloudflare):
+#   - /healthz, /review/*, /ask/*, /metrics, ... → prthinker
+#   - /grafana/   → Grafana (admin / admin by default)
+#   - /cadvisor/  → cAdvisor
+#   - /prometheus/ → Prometheus UI
 #
-# Scrape targets (see monitoring/prometheus.yml):
-#   - prthinker FastAPI /metrics  → request rate / latency / status per endpoint
-#   - dcgm-exporter               → GPU utilization, memory, power, temperature
-#   - cadvisor                    → per-container CPU / RAM / network / disk I/O
-#   - self                        → prometheus's own metrics
+# DCGM exporter stays internal — only Prometheus scrapes it.
+# prthinker's direct 9000 host binding is removed; the nginx in
+# this overlay owns the host port and routes by path.
 
 services:
+  # Drop the base compose's host port binding; nginx takes over.
+  prthinker:
+    ports: !reset []
+
   prometheus:
     image: prom/prometheus:v2.55.1
     restart: unless-stopped
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
+    # --web.external-url + --web.route-prefix let Prometheus serve
+    # under /prometheus/ so nginx can proxy_pass without stripping.
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=30d
       - --web.enable-lifecycle
-    ports:
-      - "${PROMETHEUS_HOST_PORT:-9090}:9090"
+      - --web.external-url=/prometheus/
+      - --web.route-prefix=/prometheus
 
   grafana:
     image: grafana/grafana:11.3.0
@@ -45,11 +50,13 @@ services:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
-    ports:
-      - "${GRAFANA_HOST_PORT:-3000}:3000"
+      # Sub-path config so all asset links resolve under /grafana/
+      # when behind the nginx in this overlay.
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s:%(http_port)s/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
 
-  # NVIDIA's official GPU metrics exporter. Requires the NVIDIA
-  # Container Toolkit on the host (same as the prthinker service).
+  # NVIDIA's official GPU metrics exporter. Internal only — only
+  # Prometheus scrapes it on the docker network.
   dcgm-exporter:
     image: nvidia/dcgm-exporter:3.3.9-3.6.1-ubuntu22.04
     restart: unless-stopped
@@ -63,11 +70,7 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu, utility]
-    ports:
-      - "${DCGM_HOST_PORT:-9400}:9400"
 
-  # Per-container CPU / RAM / network / disk metrics. Mounts the
-  # host's docker + sysfs read-only.
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.49.1
     restart: unless-stopped
@@ -80,8 +83,26 @@ services:
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
+    # Run cAdvisor under /cadvisor so its asset URLs match the
+    # nginx route prefix.
+    command:
+      - --url_base_prefix=/cadvisor
+
+  # Reverse proxy: owns host:9000 and routes by path. Without this
+  # overlay the base prthinker still binds 9000 directly; with it
+  # nginx fronts everything and the published port stays 9000.
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - prthinker
+      - grafana
+      - cadvisor
+      - prometheus
+    volumes:
+      - ./monitoring/nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
-      - "${CADVISOR_HOST_PORT:-8080}:8080"
+      - "${PRTHINKER_HOST_PORT:-9000}:80"
 
 volumes:
   prometheus_data:
