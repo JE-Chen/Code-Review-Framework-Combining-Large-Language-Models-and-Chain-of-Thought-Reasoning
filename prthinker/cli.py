@@ -847,6 +847,39 @@ def _build_parser() -> argparse.ArgumentParser:
                      ".prthinker/repo-kg.sqlite"),
     )
 
+    p_viz_kg = sub.add_parser(
+        "visualize-kg",
+        help="Render the per-repo knowledge graph as a self-contained "
+             "D3 force-directed HTML page. Opens in any browser; no "
+             "server. Run `build-kg` first if the store is empty.",
+    )
+    p_viz_kg.add_argument(
+        "--workdir",
+        type=Path,
+        default=Path(env_str("PRTHINKER_KG_WORKDIR") or "."),
+    )
+    p_viz_kg.add_argument(
+        "--kg-store",
+        type=Path,
+        default=Path(env_str("PRTHINKER_KG_STORE",
+                              ".prthinker/repo-kg.sqlite") or
+                     ".prthinker/repo-kg.sqlite"),
+    )
+    p_viz_kg.add_argument(
+        "--output",
+        type=Path,
+        default=Path(env_str("PRTHINKER_KG_HTML",
+                              ".prthinker/repo-kg.html") or
+                     ".prthinker/repo-kg.html"),
+    )
+    p_viz_kg.add_argument(
+        "--auto-build",
+        action="store_true",
+        default=env_bool("PRTHINKER_KG_AUTO_BUILD", False),
+        help="If the store is empty, run build-kg first instead of "
+             "exiting with an error.",
+    )
+
     p_discover = sub.add_parser(
         "discover-rules",
         parents=[common],
@@ -1948,6 +1981,40 @@ def _cmd_build_kg(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_visualize_kg(args: argparse.Namespace) -> int:
+    """Render the KG SQLite as a self-contained D3 force-graph HTML page."""
+    from prthinker.kg_visualize import build_graph_data, render_html
+    from prthinker.repo_kg import KnowledgeGraphStore, scan_workdir
+
+    workdir = args.workdir.resolve()
+    if not workdir.exists():
+        raise SystemExit(f"visualize-kg: workdir does not exist: {workdir}")
+
+    store = KnowledgeGraphStore(args.kg_store)
+    if len(store) == 0:
+        if getattr(args, "auto_build", False):
+            symbols = scan_workdir(workdir)
+            store.rebuild(workdir, symbols)
+            sys.stdout.write(
+                f"visualize-kg: auto-built {len(symbols)} symbol(s) "
+                f"into {args.kg_store}\n"
+            )
+        else:
+            raise SystemExit(
+                f"visualize-kg: store {args.kg_store} is empty. Run "
+                f"`prthinker build-kg --workdir {workdir}` first, or pass "
+                f"--auto-build."
+            )
+
+    data = build_graph_data(store, workdir)
+    render_html(data, args.output)
+    sys.stdout.write(
+        f"visualize-kg: wrote {len(data['nodes'])} node(s) / "
+        f"{len(data['links'])} edge(s) to {args.output}\n"
+    )
+    return 0
+
+
 def _cmd_discover_rules(args: argparse.Namespace) -> int:
     """List finding clusters above the configured size threshold."""
     from prthinker.finding_clusters import (
@@ -2233,6 +2300,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_discover_rules(args)
     if args.command == "build-kg":
         return _cmd_build_kg(args)
+    if args.command == "visualize-kg":
+        return _cmd_visualize_kg(args)
     if args.command == "mcp":
         from prthinker.mcp_server import run as run_mcp
         return run_mcp()
