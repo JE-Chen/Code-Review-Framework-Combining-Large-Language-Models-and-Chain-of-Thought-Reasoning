@@ -13,6 +13,22 @@ from peft import PeftModel
 from prthinker.pipeline import ReviewCancelledError
 
 
+def _pick_attn_implementation() -> str:
+    """Prefer FlashAttention 2 → SDPA → eager.
+
+    FA2 keeps attention memory O(N) instead of O(N²), which is the only
+    way the 5-step CoT pipeline's final ``total_summary`` step (whose
+    prompt concatenates every prior step's output) stays under the L40S
+    44 GiB ceiling. SDPA is the fallback on environments where flash_attn
+    is not installable.
+    """
+    try:
+        import flash_attn  # noqa: F401
+        return "flash_attention_2"
+    except ImportError:
+        return "sdpa"
+
+
 class _CancelStoppingCriteria(StoppingCriteria):
     """Stops generation when ``cancel_event`` flips. Polled every token
     so cancellation lands within ~one token (~50-100ms on L40S)."""
@@ -31,6 +47,8 @@ class _CancelStoppingCriteria(StoppingCriteria):
 def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3B-Thinking-2507", quantization: bool = True):
 
     print("Loading model across all GPUs...")
+    attn_impl = _pick_attn_implementation()
+    print(f"Attention implementation: {attn_impl}")
     if model_name in ["Qwen/Qwen3-30B-A3B-Thinking-2507", "Qwen/Qwen3-Coder-30B-A3B-Instruct"]:
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
@@ -42,11 +60,13 @@ def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3
             model_name,
             device_map="auto",
             quantization_config=bnb_config,
+            attn_implementation=attn_impl,
         )
     elif not quantization:
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             device_map="auto",
+            attn_implementation=attn_impl,
         )
     else:
         bnb_config = BitsAndBytesConfig(
@@ -55,6 +75,7 @@ def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             device_map="auto",
+            attn_implementation=attn_impl,
             quantization_config=bnb_config,
         )
 
