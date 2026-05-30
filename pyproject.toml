@@ -36,6 +36,13 @@ server = [
     "uvicorn",
     "pydantic>=2",
     "prometheus-fastapi-instrumentator>=7",
+    # FlashAttention 2 keeps attention memory O(N) — without it, the
+    # SDPA fallback can land on the math backend (O(N²)) and OOM on
+    # the final ``total_summary`` step's long concatenated prompt. The
+    # wheel pulls in cu12 + torch-specific artefacts; if it fails to
+    # install in a given environment, ``_pick_attn_implementation``
+    # in codes/util/qwen3_util.py silently falls back to SDPA.
+    "flash-attn>=2.6",
 ]
 mcp = [
     "mcp>=1.0",

@@ -186,6 +186,9 @@ def _execute_review(
         dismissed_filter=_dismissed_filter,
         accepted_retriever=_accepted_retriever,
         cancel_event=cancel_event,
+        max_step_result_chars=int(
+            os.environ.get("PRTHINKER_MAX_STEP_RESULT_CHARS", "6000") or "6000"
+        ),
     )
 
     if req.file_path is not None:
