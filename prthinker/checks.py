@@ -53,6 +53,77 @@ def _client(token: str) -> httpx.Client:
     )
 
 
+def _supersede_prior_check_runs(
+    config: GitHubConfig,
+    head_sha: str,
+    name: str,
+) -> None:
+    """Mark every previous ``name`` check run on this SHA as superseded.
+
+    Re-running a workflow (or a matrix shard finishing after a manual
+    cancel + restart) leaves stale prthinker check runs attached to
+    the same commit, so the PR's Checks tab shows multiple
+    same-named entries. GitHub does not allow deleting check runs,
+    but PATCHing them to ``status="completed"`` /
+    ``conclusion="neutral"`` collapses them into a "superseded" state
+    that the UI groups under the live one. The new in-progress run is
+    POSTed after this returns.
+
+    Failures here are logged at WARNING but never raised — gate
+    opening must not be blocked by a cleanup hiccup.
+    """
+    with _client(config.token) as client:
+        page = 1
+        prior_ids: list[int] = []
+        while True:
+            response = client.get(
+                f"/repos/{config.repo}/commits/{head_sha}/check-runs",
+                params={"check_name": name, "per_page": 100, "page": page},
+            )
+            if response.status_code >= 400:
+                log.warning(
+                    "List prior check runs failed (%d): %s",
+                    response.status_code, response.text,
+                )
+                return
+            payload = response.json() or {}
+            runs = payload.get("check_runs") or []
+            for run in runs:
+                if run.get("name") == name:
+                    prior_ids.append(int(run["id"]))
+            if len(runs) < 100:
+                break
+            page += 1
+
+        if not prior_ids:
+            return
+
+        for check_id in prior_ids:
+            patch = client.patch(
+                f"/repos/{config.repo}/check-runs/{check_id}",
+                json={
+                    "status": "completed",
+                    "conclusion": "neutral",
+                    "output": {
+                        "title": f"{name} — superseded",
+                        "summary": (
+                            "This check run was superseded by a newer "
+                            f"{name} run on the same commit."
+                        ),
+                    },
+                },
+            )
+            if patch.status_code >= 400:
+                log.warning(
+                    "Supersede check %d failed (%d): %s",
+                    check_id, patch.status_code, patch.text,
+                )
+        log.info(
+            "Superseded %d prior %s check run(s) on %s",
+            len(prior_ids), name, head_sha[:8],
+        )
+
+
 def create_check_run(
     config: GitHubConfig,
     head_sha: str,
@@ -63,6 +134,11 @@ def create_check_run(
 
     Returns the check_run id so the caller can PATCH it on completion.
     """
+    try:
+        _supersede_prior_check_runs(config, head_sha, name)
+    except Exception as exc:  # noqa: BLE001 — cleanup must never block opening
+        log.warning("Prior check-run cleanup failed (%s); continuing", exc)
+
     with _client(config.token) as client:
         response = client.post(
             f"/repos/{config.repo}/check-runs",
