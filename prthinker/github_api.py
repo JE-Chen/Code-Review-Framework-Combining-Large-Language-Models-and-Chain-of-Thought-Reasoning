@@ -125,6 +125,82 @@ def upsert_pr_comment(config: GitHubConfig, body: str) -> int:
         return int(response.json()["id"])
 
 
+# Hidden marker embedded in every prthinker inline review's summary
+# body so the NEXT run can identify and clean up its own predecessors.
+# Distinct from the summary-comment marker so the two never collide.
+_INLINE_REVIEW_MARKER = "<!-- prthinker:inline -->"
+
+
+def _dismiss_stale_inline_reviews(config: GitHubConfig) -> None:
+    """Delete the inline comments left by previous prthinker reviews.
+
+    GitHub's review-dismissal endpoint refuses ``COMMENT``-state reviews
+    (which is what prthinker posts by default), so we can't strike the
+    review wrappers themselves. Deleting each review's child comments
+    is the next best thing — the wrapper stays on the PR timeline as a
+    stub but the noisy inline annotations disappear from the diff.
+
+    Identification is by ``_INLINE_REVIEW_MARKER`` in the review body,
+    not by author. Filtering by the bot user would catch reviews from
+    every other workflow that uses ``GITHUB_TOKEN`` too.
+    """
+    our_review_ids: set[int] = set()
+    with _client(config.token) as client:
+        page = 1
+        while True:
+            resp = client.get(
+                f"/repos/{config.repo}/pulls/{config.pr_number}/reviews",
+                params={"per_page": 100, "page": page},
+            )
+            resp.raise_for_status()
+            reviews = resp.json()
+            if not reviews:
+                break
+            for r in reviews:
+                if _INLINE_REVIEW_MARKER in (r.get("body") or ""):
+                    our_review_ids.add(int(r["id"]))
+            if len(reviews) < 100:
+                break
+            page += 1
+
+        if not our_review_ids:
+            log.info("No prior prthinker inline reviews to clean up")
+            return
+
+        deleted = 0
+        page = 1
+        while True:
+            resp = client.get(
+                f"/repos/{config.repo}/pulls/{config.pr_number}/comments",
+                params={"per_page": 100, "page": page},
+            )
+            resp.raise_for_status()
+            comments = resp.json()
+            if not comments:
+                break
+            for c in comments:
+                if c.get("pull_request_review_id") in our_review_ids:
+                    cid = int(c["id"])
+                    del_resp = client.delete(
+                        f"/repos/{config.repo}/pulls/comments/{cid}",
+                    )
+                    if del_resp.status_code < 400:
+                        deleted += 1
+                    else:
+                        log.warning(
+                            "Failed to delete inline comment %d (%d)",
+                            cid, del_resp.status_code,
+                        )
+            if len(comments) < 100:
+                break
+            page += 1
+
+        log.info(
+            "Cleaned up %d inline comment(s) from %d prior review(s)",
+            deleted, len(our_review_ids),
+        )
+
+
 def submit_inline_review(
     config: GitHubConfig,
     findings: Iterable[InlineFinding],
@@ -137,20 +213,31 @@ def submit_inline_review(
     creating an empty review).
 
     `event` is one of GitHub's review states: COMMENT, APPROVE, REQUEST_CHANGES.
+
+    Before posting, deletes inline comments from every previous prthinker
+    review on this PR (identified by ``_INLINE_REVIEW_MARKER`` in their
+    body) so the diff doesn't accumulate duplicates across re-pushes.
     """
     items = list(findings)
     if not items:
         log.info("No inline findings — skipping review submission")
         return None
 
+    try:
+        _dismiss_stale_inline_reviews(config)
+    except Exception as exc:  # noqa: BLE001 — cleanup failure must not block posting
+        log.warning("Inline-review cleanup failed (%s); continuing", exc)
+
+    base_body = summary_body or "prthinker — inline findings"
+    marked_body = f"{base_body}\n\n{_INLINE_REVIEW_MARKER}"
+
     comments = [_build_inline_comment(f) for f in items]
 
     payload: dict[str, object] = {
         "event": event,
         "comments": comments,
+        "body": marked_body,
     }
-    if summary_body is not None:
-        payload["body"] = summary_body
 
     with _client(config.token) as client:
         response = client.post(
