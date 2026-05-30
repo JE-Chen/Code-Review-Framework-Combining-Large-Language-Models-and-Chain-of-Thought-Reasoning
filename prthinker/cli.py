@@ -1097,6 +1097,59 @@ def _deserialize_partial_review(data: dict) -> ReviewResult:
     )
 
 
+def _synthesize_overall_summary(per_file: list) -> str:
+    """Ask the remote backend for a single PR-wide summary.
+
+    Each matrix shard already produced its own per-file
+    ``total_summary``; the aggregate needs to roll them up into one
+    paragraph that captures the PR's overall shape — common themes,
+    the heaviest findings, residual risk — without restating every
+    file. Best-effort: a missing backend, a timeout, or any other
+    failure logs a warning and returns an empty string so the
+    formatter falls back to the per-file blocks alone.
+    """
+    summaries: list[str] = []
+    for fr in per_file:
+        text = (fr.total_summary or "").strip()
+        if text:
+            summaries.append(f"### {fr.path}\n{text}")
+    if len(summaries) < 2:
+        return ""
+
+    remote_url = (env_str("PRTHINKER_REMOTE_URL", "") or "").strip()
+    if not remote_url:
+        return ""
+
+    prompt = (
+        "You are summarising a code-review run. Below are per-file "
+        "summaries from a single pull request. Write ONE concise PR-wide "
+        "summary in 3-5 sentences. Capture the common themes, the most "
+        "important findings, and the residual risk. Do not enumerate the "
+        "per-file blocks verbatim.\n\n"
+        + "\n\n".join(summaries)
+    )
+
+    import httpx
+
+    api_key = (env_str("PRTHINKER_REMOTE_API_KEY", "") or "").strip()
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    try:
+        with httpx.Client(
+            base_url=remote_url.rstrip("/"),
+            timeout=90.0,
+            headers=headers,
+        ) as client:
+            resp = client.post(
+                "/ask",
+                json={"prompt": prompt, "max_new_tokens": 512},
+            )
+            resp.raise_for_status()
+            return resp.text.strip()
+    except Exception as exc:  # noqa: BLE001 — best-effort, never block posting
+        log.warning("Overall summary synthesis failed (%s); skipping", exc)
+        return ""
+
+
 def _filter_per_file_targets(
     files: list, args: argparse.Namespace
 ) -> list:
@@ -1636,6 +1689,10 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
         len(merged_per_file),
         len(merged_findings),
     )
+
+    overall = _synthesize_overall_summary(merged_per_file)
+    if overall:
+        merged.step_outputs["total_summary"] = overall
 
     from prthinker.platforms import PlatformKind, create_platform_adapter
 
