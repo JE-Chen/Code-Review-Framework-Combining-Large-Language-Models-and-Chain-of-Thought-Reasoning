@@ -1,0 +1,88 @@
+# Optional monitoring overlay — adds Prometheus + Grafana + DCGM
+# (GPU) + cAdvisor (containers) on top of the base prthinker
+# deployment.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+#
+#   - Prometheus UI:   http://<host>:9090
+#   - Grafana UI:      http://<host>:3000  (admin / admin by default;
+#                                            override with GRAFANA_ADMIN_PASSWORD)
+#   - DCGM exporter:   http://<host>:9400/metrics
+#   - cAdvisor UI:     http://<host>:8080
+#
+# Scrape targets (see monitoring/prometheus.yml):
+#   - prthinker FastAPI /metrics  → request rate / latency / status per endpoint
+#   - dcgm-exporter               → GPU utilization, memory, power, temperature
+#   - cadvisor                    → per-container CPU / RAM / network / disk I/O
+#   - self                        → prometheus's own metrics
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-lifecycle
+    ports:
+      - "${PROMETHEUS_HOST_PORT:-9090}:9090"
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "${GRAFANA_HOST_PORT:-3000}:3000"
+
+  # NVIDIA's official GPU metrics exporter. Requires the NVIDIA
+  # Container Toolkit on the host (same as the prthinker service).
+  dcgm-exporter:
+    image: nvidia/dcgm-exporter:3.3.9-3.6.1-ubuntu22.04
+    restart: unless-stopped
+    runtime: nvidia
+    cap_add:
+      - SYS_ADMIN
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, utility]
+    ports:
+      - "${DCGM_HOST_PORT:-9400}:9400"
+
+  # Per-container CPU / RAM / network / disk metrics. Mounts the
+  # host's docker + sysfs read-only.
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "${CADVISOR_HOST_PORT:-8080}:8080"
+
+volumes:
+  prometheus_data:
+  grafana_data:

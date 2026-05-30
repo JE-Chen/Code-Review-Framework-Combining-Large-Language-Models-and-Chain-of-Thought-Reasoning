@@ -61,6 +61,17 @@ _DEFAULT_LORA = "../train/outputs-lora-qwen3-30b"
 
 app = FastAPI(title="CoT Reviewer Inference Server")
 
+# Expose Prometheus-format metrics at /metrics so the monitoring
+# compose overlay (prometheus + grafana + dcgm + cadvisor) can scrape
+# per-endpoint request count / latency / status without touching the
+# pipeline. Instrumentation is lazy-imported so a runner-profile
+# install does not have to pull in the dependency.
+try:
+    from prometheus_fastapi_instrumentator import Instrumentator
+    Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+except ImportError:
+    log.info("prometheus_fastapi_instrumentator not installed; /metrics disabled")
+
 # ---------------------------------------------------------------------------
 # One-time module-level initialization (per project perf rules).
 # ---------------------------------------------------------------------------

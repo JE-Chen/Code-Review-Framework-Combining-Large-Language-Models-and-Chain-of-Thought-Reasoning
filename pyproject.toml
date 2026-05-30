@@ -35,6 +35,7 @@ server = [
     "fastapi",
     "uvicorn",
     "pydantic>=2",
+    "prometheus-fastapi-instrumentator>=7",
 ]
 mcp = [
     "mcp>=1.0",
