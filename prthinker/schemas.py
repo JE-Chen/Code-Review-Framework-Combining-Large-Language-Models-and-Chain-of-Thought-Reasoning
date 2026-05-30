@@ -144,6 +144,17 @@ class ReviewJobStatusResponse(BaseModel):
     error: str | None = None
 
 
+class AskJobSubmitResponse(BaseModel):
+    job_id: str
+
+
+class AskJobStatusResponse(BaseModel):
+    job_id: str
+    status: JobStatus
+    result: str | None = None
+    error: str | None = None
+
+
 Verdict = Literal["approve", "request_changes", "comment"]
 
 
@@ -341,6 +352,8 @@ __all__ = [
     "PersonaReview",
     "Provenance",
     "ProvenanceCitation",
+    "AskJobStatusResponse",
+    "AskJobSubmitResponse",
     "JobStatus",
     "RagRequest",
     "RagResponse",

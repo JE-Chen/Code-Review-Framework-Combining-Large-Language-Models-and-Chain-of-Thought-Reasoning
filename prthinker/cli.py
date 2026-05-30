@@ -1129,22 +1129,60 @@ def _synthesize_overall_summary(per_file: list) -> str:
         + "\n\n".join(summaries)
     )
 
+    import time as _time
+
     import httpx
 
     api_key = (env_str("PRTHINKER_REMOTE_API_KEY", "") or "").strip()
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    # 30 s per individual HTTP call sits well inside the 100 s Cloudflare
+    # idle-timeout budget; the synthesis itself can run for minutes via
+    # repeated polls.
+    per_call_timeout = 30.0
+    poll_interval = 5.0
+    overall_deadline = _time.monotonic() + 1800.0
     try:
         with httpx.Client(
             base_url=remote_url.rstrip("/"),
-            timeout=90.0,
+            timeout=per_call_timeout,
             headers=headers,
         ) as client:
-            resp = client.post(
-                "/ask",
-                json={"prompt": prompt, "max_new_tokens": 512},
+            submit = client.post(
+                "/ask/submit",
+                json={"prompt": prompt, "max_new_tokens": 16784},
             )
-            resp.raise_for_status()
-            return resp.text.strip()
+            submit.raise_for_status()
+            job_id = submit.json()["job_id"]
+            while True:
+                if _time.monotonic() >= overall_deadline:
+                    # Best-effort cancel so the backend stops burning GPU.
+                    try:
+                        client.post(f"/ask/cancel/{job_id}")
+                    except Exception:  # noqa: BLE001
+                        pass
+                    log.warning(
+                        "Overall summary synthesis exceeded deadline; "
+                        "skipping",
+                    )
+                    return ""
+                _time.sleep(poll_interval)
+                poll = client.get(f"/ask/result/{job_id}")
+                poll.raise_for_status()
+                payload = poll.json()
+                status = payload.get("status")
+                if status == "done":
+                    return (payload.get("result") or "").strip()
+                if status == "error":
+                    log.warning(
+                        "Overall summary synthesis failed server-side: %s",
+                        payload.get("error"),
+                    )
+                    return ""
+                if status == "cancelled":
+                    log.warning(
+                        "Overall summary synthesis cancelled server-side",
+                    )
+                    return ""
     except Exception as exc:  # noqa: BLE001 — best-effort, never block posting
         log.warning("Overall summary synthesis failed (%s); skipping", exc)
         return ""
