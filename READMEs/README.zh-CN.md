@@ -132,8 +132,22 @@ uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 9000
 | `PRTHINKER_BACKEND_URL`    | FastAPI 推理服务器的基础 URL        |
 | `PRTHINKER_BACKEND_API_KEY`| Bearer token（可选）                |
 
-workflow 会在 `pull_request` opened / synchronize / reopened 时触发，
-并维护一条可折叠的 PR 评论（重复触发时就地 upsert，不刷屏）。
+workflow 在 `pull_request` opened / synchronize / reopened 时触发，
+跑三个 job：`enumerate` 列出 files（依 `PRTHINKER_EXCLUDE_GLOBS` 过滤
+noise），`review` 是个 matrix──每个 file 各自一个 runner + 60 分钟
+timeout，`aggregate` 合所有 partial JSON 为单一 summary comment +
+一个 inline review + 开关 gate 各一次。Runner ↔ server 走
+`POST /review/submit` + `GET /review/result/{id}` 轮询，所以即使
+反向 proxy 有短 idle timeout（如 Cloudflare 100 秒）也不会撞墙。
+
+Workflow 被取消时不会继续烧 GPU──runner 离开前会 post
+`POST /review/cancel/{id}`\ ；backend 的 idle sweeper 也会把 180 秒
+没被 poll 的 job 自动设成 cancel。Aggregate 之 PR-wide
+`### Overall Summary` 通过 `POST /ask/submit` 跨 file 合成。
+对同一 SHA 重复 run 不会累积：summary comment 就地 upsert、旧
+inline review 的 child comments 全部删掉、旧 `prthinker` check
+PATCH 成 *superseded* 灰色状态。完整架构见
+[`docs/zh-CN/guide/github-actions.rst`](../docs/zh-CN/guide/github-actions.rst)。
 
 ## 文档
 

@@ -485,13 +485,71 @@ MCP 模式預設 RAG 為 `NoOp`\ （FAISS 不該住在 IDE 子行程裡）；需
 | Method | Path | 用途 |
 |---|---|---|
 | `GET` | `/healthz` | Liveness probe |
-| `POST` | `/ask` | 單一 prompt → plain text（向後相容） |
+| `POST` | `/ask` | 單一 prompt → plain text（同步） |
+| `POST` | `/ask/submit` | 單一 prompt → `job_id`\ （job pattern；可穿越 100 秒 edge timeout） |
+| `GET` | `/ask/result/{job_id}` | 輪詢 `/ask` job 狀態與結果 |
+| `POST` | `/ask/cancel/{job_id}` | 中斷 running `/ask` job（下一個 token 邊界） |
 | `POST` | `/rag` | Query → 規則 list |
 | `POST` | `/review` | Diff → 完整結構化 `ReviewResponse`\ （server 編排 RAG + steps + dismissed filter + judge） |
+| `POST` | `/review/submit` | Diff → `job_id`\ （job pattern；Cloudflare 等 proxy 後面建議用這條） |
+| `GET` | `/review/result/{job_id}` | 輪詢 `/review` job 狀態與結果 |
+| `POST` | `/review/cancel/{job_id}` | 中斷 running review job（下一個 step 邊界） |
+
+Server 端常駐 sweeper 每 30 秒掃所有 job，180 秒未被 poll 的
+running job 自動 set `cancel_event`\ ──CI runner 被取消後 backend
+就不會繼續燒 GPU。Local backend 注入的 `StoppingCriteria` 在
+`model.generate` 每 decode 一個 token 後輪詢 event，所以 server
+端 cancel 約 100 ms 內就能中止生成。
 
 Pydantic schemas 在 `prthinker.schemas`\ ──server（FastAPI
 `response_model`\ ）跟 runner（\ `model_validate_json`\ ）都引用同一份，
 type drift 不可能發生。
+
+---
+
+## Matrix workflow 與 aggregator
+
+預設 `.github/workflows/prthinker.yml` 是三段式 pipeline，避免單一
+慢檔案或大 PR 把整段 review 拖垮：
+
+1. **`enumerate`** 透過 GitHub API 列出 PR 改動的 files，依
+   `PRTHINKER_EXCLUDE_GLOBS`\ （預設過濾 `.idea/`\ 、\ `datas/`\ 、
+   `*.md`\ 、\ `*.lock`\ 、\ `*.json`\ 、\ `docs/`\ ）過濾掉 noise，
+   把剩下的清單以 JSON output 傳給下一個 job 的 matrix。
+2. **`review`** 是對 files 的 matrix，\ `max-parallel: 1`\ （反正
+   GPU 序列處理）每 shard 60 分鐘 timeout。Shard 跑
+   `python -m prthinker review-pr`\ ，傳
+   `PRTHINKER_TARGET_FILE=${{ matrix.file }}` 與
+   `PRTHINKER_OUTPUT_JSON=$RUNNER_TEMP/partial.json`\ ，把 partial
+   `ReviewResult` JSON 寫成 artifact，不直接 post 到 GitHub。Gate
+   在這階段關掉。
+3. **`aggregate`** 下載所有 shard 的 partial，跑
+   `prthinker aggregate` 合 `inline_findings` + `per_file` +
+   `step_outputs`\ ，然後對 backend `/ask/submit` 取一段 PR-wide
+   3-5 句之 overall summary，最後 post **一個** summary comment、
+   **一個** inline review、開 + 關 gate 各一次。掛在
+   `if: always()` 之下，即使 backend 部分失敗也會 post 留言。
+
+---
+
+## Dedup：同一個 SHA 不會累積 comment / review / check
+
+對同一個 head SHA 重複 run workflow（手動 *Re-run all jobs*、
+`concurrency: cancel-in-progress` 後新 push、CI retry）原本會
+於 PR 上累積多份 prthinker 產物。每次 post 前皆會清理舊產物：
+
+- **Summary comment** 以 HTML marker（\ `<!-- prthinker:summary -->`\ ）
+  upsert：永遠 PATCH 同一條 comment。
+- **Inline review** 之 body 嵌入隱藏 marker
+  `<!-- prthinker:inline -->`\ 。post 新 review 前先列出所有
+  marker-tagged review，並 DELETE 其底下每一條 review comment，
+  diff 上不會看到重複註解。Cleanup 失敗只 log warning，不擋新
+  review 送出。GitHub 不允許 dismiss COMMENT-state review，故
+  wrapper 仍會留為 timeline stub。
+- **Check run** open gate 前先列出 head SHA 上所有同名
+  `prthinker` check 並 PATCH 成 `status=completed` /
+  `conclusion=neutral` 加 *superseded* 標題；UI 會把 superseded
+  之 check 折疊於 live check 下方。
 
 ---
 

@@ -367,6 +367,15 @@ remote:
 `env:` block──每個 CLI flag 都有對應的 `PRTHINKER_*` env var。完整清單
 見 [`features.zh-TW.md`](features.zh-TW.md)。
 
+**三 job 架構：** `enumerate` → `review` matrix（\ `max-parallel: 1`\ ，
+每 shard 60 分鐘）→ `aggregate`。每個 PR file 各自有一個 runner 與
+獨立 timeout budget，所以一個慢檔案不會把整段 review 拖垮。Matrix
+runner 把 partial `ReviewResult` JSON 寫成 artifact；aggregate 把
+所有 partial 合一後 post **一個** summary comment + **一個** inline
+review + 開 + 關 gate 各一次。Skip / fallback 行為、env vars、fan-in
+合約細節見
+[GitHub Actions guide](../docs/zh-TW/guide/github-actions.rst)。
+
 **必要 permissions：**
 
 ```yaml
@@ -386,6 +395,37 @@ on:
     workflows: ["CI"]
     types: [completed]
 ```
+
+**過濾 noise paths。** workflow 頂層 `env:` block 定義
+`PRTHINKER_EXCLUDE_GLOBS`\ （comma-separated fnmatch patterns）。
+`enumerate` job 與 CLI 的 per-file loop 都讀同一份，避免 generated
+data、IDE state、大段 markdown 變更白白吃 GPU 時間。可依專案調整。
+
+**Backend timeout 防護。** Matrix runner 用
+`POST /review/submit` + `GET /review/result/{id}`\ （5 秒 poll）
+跟 backend 通訊──每個 HTTP call 都遠低於 1 秒，反正
+Cloudflare 免費 / Pro / Business 方案 100 秒 idle timeout 不會
+觸發。Aggregate 之 PR-wide overall summary 合成也走同樣的 job
+pattern（\ `POST /ask/submit`\ ），即使單一 prompt 跑很久也安全。
+
+**取消與閒置 GPU 防護。** Workflow 被取消時（新 push 觸發
+`concurrency: cancel-in-progress`\ 、手動 *Cancel workflow*\ 、
+runner crash），matrix runner 的 try/finally 會 post
+`POST /review/cancel/{job_id}` 通知 server 於下一個 token
+邊界中斷。Backend 自己的 idle sweeper 是 fallback：任何 running
+job 若 result endpoint 超過 180 秒沒被 poll，就自動 set
+cancel event，涵蓋 SIGKILL / 網路中斷等 try/finally 來不及執行
+之情境，確保 GPU 不被白燒。
+
+**Comment / review / check dedup。** 對同 SHA 重複 run workflow
+原本會在 PR 上累積多份 prthinker 產物。現在每次 post 前都會清
+理舊產物：
+
+| 產物 | 機制 |
+|---|---|
+| Summary comment | 以 HTML marker（\ `<!-- prthinker:summary -->`\ ）upsert；同一條 comment 永遠被 PATCH 在原位。 |
+| Inline review | body 嵌入隱藏 `<!-- prthinker:inline -->` marker；post 前 runner 把所有 marker-tagged review 之 child comment 全部 DELETE。空 wrapper 留為 timeline stub（GitHub 不允許 dismiss COMMENT-state review）。 |
+| Check run | open gate 前對同 SHA 上所有 `prthinker` check 都 PATCH 成 `status=completed` / `conclusion=neutral` 加 *superseded* 標題；UI 會把它們折疊在 live check 下方。 |
 
 ---
 
