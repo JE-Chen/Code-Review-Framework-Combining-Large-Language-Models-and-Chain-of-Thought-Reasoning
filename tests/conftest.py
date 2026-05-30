@@ -63,7 +63,14 @@ class FakeBackend(InferenceBackend):
     def last_usage(self) -> Usage | None:
         return self._last_usage
 
-    def generate(self, prompt: str, max_new_tokens: int) -> str:
+    def generate(
+        self,
+        prompt: str,
+        max_new_tokens: int,
+        *,
+        cancel_event: object | None = None,
+    ) -> str:
+        del cancel_event
         self.calls.append((prompt, max_new_tokens))
         if self._usage:
             self._last_usage = self._usage.pop(0)

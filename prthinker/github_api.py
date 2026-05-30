@@ -131,6 +131,67 @@ def upsert_pr_comment(config: GitHubConfig, body: str) -> int:
 _INLINE_REVIEW_MARKER = "<!-- prthinker:inline -->"
 
 
+def _collect_our_review_ids(client: httpx.Client, config: GitHubConfig) -> set[int]:
+    """Page through PR reviews and collect those carrying our marker."""
+    our_review_ids: set[int] = set()
+    page = 1
+    while True:
+        resp = client.get(
+            f"/repos/{config.repo}/pulls/{config.pr_number}/reviews",
+            params={"per_page": 100, "page": page},
+        )
+        resp.raise_for_status()
+        reviews = resp.json()
+        if not reviews:
+            return our_review_ids
+        for r in reviews:
+            if _INLINE_REVIEW_MARKER in (r.get("body") or ""):
+                our_review_ids.add(int(r["id"]))
+        if len(reviews) < 100:
+            return our_review_ids
+        page += 1
+
+
+def _delete_inline_comments_for_reviews(
+    client: httpx.Client,
+    config: GitHubConfig,
+    review_ids: set[int],
+) -> int:
+    """Page through PR review comments and delete those owned by review_ids."""
+    deleted = 0
+    page = 1
+    while True:
+        resp = client.get(
+            f"/repos/{config.repo}/pulls/{config.pr_number}/comments",
+            params={"per_page": 100, "page": page},
+        )
+        resp.raise_for_status()
+        comments = resp.json()
+        if not comments:
+            return deleted
+        for c in comments:
+            if c.get("pull_request_review_id") in review_ids:
+                deleted += _delete_one_inline_comment(client, config, int(c["id"]))
+        if len(comments) < 100:
+            return deleted
+        page += 1
+
+
+def _delete_one_inline_comment(
+    client: httpx.Client, config: GitHubConfig, comment_id: int
+) -> int:
+    del_resp = client.delete(
+        f"/repos/{config.repo}/pulls/comments/{comment_id}",
+    )
+    if del_resp.status_code < 400:
+        return 1
+    log.warning(
+        "Failed to delete inline comment %d (%d)",
+        comment_id, del_resp.status_code,
+    )
+    return 0
+
+
 def _dismiss_stale_inline_reviews(config: GitHubConfig) -> None:
     """Delete the inline comments left by previous prthinker reviews.
 
@@ -144,57 +205,14 @@ def _dismiss_stale_inline_reviews(config: GitHubConfig) -> None:
     not by author. Filtering by the bot user would catch reviews from
     every other workflow that uses ``GITHUB_TOKEN`` too.
     """
-    our_review_ids: set[int] = set()
     with _client(config.token) as client:
-        page = 1
-        while True:
-            resp = client.get(
-                f"/repos/{config.repo}/pulls/{config.pr_number}/reviews",
-                params={"per_page": 100, "page": page},
-            )
-            resp.raise_for_status()
-            reviews = resp.json()
-            if not reviews:
-                break
-            for r in reviews:
-                if _INLINE_REVIEW_MARKER in (r.get("body") or ""):
-                    our_review_ids.add(int(r["id"]))
-            if len(reviews) < 100:
-                break
-            page += 1
-
+        our_review_ids = _collect_our_review_ids(client, config)
         if not our_review_ids:
             log.info("No prior prthinker inline reviews to clean up")
             return
-
-        deleted = 0
-        page = 1
-        while True:
-            resp = client.get(
-                f"/repos/{config.repo}/pulls/{config.pr_number}/comments",
-                params={"per_page": 100, "page": page},
-            )
-            resp.raise_for_status()
-            comments = resp.json()
-            if not comments:
-                break
-            for c in comments:
-                if c.get("pull_request_review_id") in our_review_ids:
-                    cid = int(c["id"])
-                    del_resp = client.delete(
-                        f"/repos/{config.repo}/pulls/comments/{cid}",
-                    )
-                    if del_resp.status_code < 400:
-                        deleted += 1
-                    else:
-                        log.warning(
-                            "Failed to delete inline comment %d (%d)",
-                            cid, del_resp.status_code,
-                        )
-            if len(comments) < 100:
-                break
-            page += 1
-
+        deleted = _delete_inline_comments_for_reviews(
+            client, config, our_review_ids
+        )
         log.info(
             "Cleaned up %d inline comment(s) from %d prior review(s)",
             deleted, len(our_review_ids),

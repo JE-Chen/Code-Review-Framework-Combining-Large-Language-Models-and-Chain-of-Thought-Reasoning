@@ -23,7 +23,10 @@ import argparse
 import json
 import logging
 import sys
+import time
 from pathlib import Path
+
+import httpx
 
 from prthinker.backends import create_backend
 from prthinker.backends.remote import RemotePipelineClient
@@ -1097,6 +1100,69 @@ def _deserialize_partial_review(data: dict) -> ReviewResult:
     )
 
 
+_OVERALL_SUMMARY_PER_CALL_TIMEOUT = 30.0
+_OVERALL_SUMMARY_POLL_INTERVAL = 5.0
+_OVERALL_SUMMARY_DEADLINE_SECONDS = 1800.0
+_OVERALL_SUMMARY_MAX_NEW_TOKENS = 16784
+
+
+def _collect_overall_summary_inputs(per_file: list) -> list[str]:
+    """Return the non-empty per-file total summaries, ready for the prompt."""
+    summaries: list[str] = []
+    for fr in per_file:
+        text = (fr.total_summary or "").strip()
+        if text:
+            summaries.append(f"### {fr.path}\n{text}")
+    return summaries
+
+
+def _build_overall_summary_prompt(summaries: list[str]) -> str:
+    return (
+        "You are summarising a code-review run. Below are per-file "
+        "summaries from a single pull request. Write ONE concise PR-wide "
+        "summary in 3-5 sentences. Capture the common themes, the most "
+        "important findings, and the residual risk. Do not enumerate the "
+        "per-file blocks verbatim.\n\n"
+        + "\n\n".join(summaries)
+    )
+
+
+def _best_effort_cancel_ask_job(client: httpx.Client, job_id: str) -> None:
+    """Tell the backend to release the GPU; ignore failures by design."""
+    try:
+        client.post(f"/ask/cancel/{job_id}")
+    except httpx.HTTPError as exc:
+        log.debug("Cancel for ask job %s failed (ignored): %s", job_id, exc)
+
+
+def _poll_overall_summary(
+    client: httpx.Client, job_id: str, deadline: float
+) -> str:
+    while True:
+        if time.monotonic() >= deadline:
+            _best_effort_cancel_ask_job(client, job_id)
+            log.warning(
+                "Overall summary synthesis exceeded deadline; skipping",
+            )
+            return ""
+        time.sleep(_OVERALL_SUMMARY_POLL_INTERVAL)
+        poll = client.get(f"/ask/result/{job_id}")
+        poll.raise_for_status()
+        payload = poll.json()
+        status = payload.get("status")
+        if status == "done":
+            return (payload.get("result") or "").strip()
+        if status == "error":
+            log.warning(
+                "Overall summary synthesis failed server-side: %s",
+                payload.get("error"),
+            )
+            return ""
+        if status == "cancelled":
+            log.warning("Overall summary synthesis cancelled server-side")
+            return ""
+
+
 def _synthesize_overall_summary(per_file: list) -> str:
     """Ask the remote backend for a single PR-wide summary.
 
@@ -1108,11 +1174,7 @@ def _synthesize_overall_summary(per_file: list) -> str:
     failure logs a warning and returns an empty string so the
     formatter falls back to the per-file blocks alone.
     """
-    summaries: list[str] = []
-    for fr in per_file:
-        text = (fr.total_summary or "").strip()
-        if text:
-            summaries.append(f"### {fr.path}\n{text}")
+    summaries = _collect_overall_summary_inputs(per_file)
     if len(summaries) < 2:
         return ""
 
@@ -1120,70 +1182,27 @@ def _synthesize_overall_summary(per_file: list) -> str:
     if not remote_url:
         return ""
 
-    prompt = (
-        "You are summarising a code-review run. Below are per-file "
-        "summaries from a single pull request. Write ONE concise PR-wide "
-        "summary in 3-5 sentences. Capture the common themes, the most "
-        "important findings, and the residual risk. Do not enumerate the "
-        "per-file blocks verbatim.\n\n"
-        + "\n\n".join(summaries)
-    )
-
-    import time as _time
-
-    import httpx
-
     api_key = (env_str("PRTHINKER_REMOTE_API_KEY", "") or "").strip()
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-    # 30 s per individual HTTP call sits well inside the 100 s Cloudflare
-    # idle-timeout budget; the synthesis itself can run for minutes via
-    # repeated polls.
-    per_call_timeout = 30.0
-    poll_interval = 5.0
-    overall_deadline = _time.monotonic() + 1800.0
+    deadline = time.monotonic() + _OVERALL_SUMMARY_DEADLINE_SECONDS
+    prompt = _build_overall_summary_prompt(summaries)
     try:
         with httpx.Client(
             base_url=remote_url.rstrip("/"),
-            timeout=per_call_timeout,
+            timeout=_OVERALL_SUMMARY_PER_CALL_TIMEOUT,
             headers=headers,
         ) as client:
             submit = client.post(
                 "/ask/submit",
-                json={"prompt": prompt, "max_new_tokens": 16784},
+                json={
+                    "prompt": prompt,
+                    "max_new_tokens": _OVERALL_SUMMARY_MAX_NEW_TOKENS,
+                },
             )
             submit.raise_for_status()
             job_id = submit.json()["job_id"]
-            while True:
-                if _time.monotonic() >= overall_deadline:
-                    # Best-effort cancel so the backend stops burning GPU.
-                    try:
-                        client.post(f"/ask/cancel/{job_id}")
-                    except Exception:  # noqa: BLE001
-                        pass
-                    log.warning(
-                        "Overall summary synthesis exceeded deadline; "
-                        "skipping",
-                    )
-                    return ""
-                _time.sleep(poll_interval)
-                poll = client.get(f"/ask/result/{job_id}")
-                poll.raise_for_status()
-                payload = poll.json()
-                status = payload.get("status")
-                if status == "done":
-                    return (payload.get("result") or "").strip()
-                if status == "error":
-                    log.warning(
-                        "Overall summary synthesis failed server-side: %s",
-                        payload.get("error"),
-                    )
-                    return ""
-                if status == "cancelled":
-                    log.warning(
-                        "Overall summary synthesis cancelled server-side",
-                    )
-                    return ""
-    except Exception as exc:  # noqa: BLE001 — best-effort, never block posting
+            return _poll_overall_summary(client, job_id, deadline)
+    except (httpx.HTTPError, KeyError, ValueError) as exc:
         log.warning("Overall summary synthesis failed (%s); skipping", exc)
         return ""
 

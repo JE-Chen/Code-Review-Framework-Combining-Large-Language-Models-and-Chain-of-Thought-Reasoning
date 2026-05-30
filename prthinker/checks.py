@@ -53,6 +53,63 @@ def _client(token: str) -> httpx.Client:
     )
 
 
+def _list_prior_check_run_ids(
+    client: httpx.Client,
+    config: GitHubConfig,
+    head_sha: str,
+    name: str,
+) -> list[int] | None:
+    """Page through check-runs on head_sha; return matching ids or None on error."""
+    prior_ids: list[int] = []
+    page = 1
+    while True:
+        response = client.get(
+            f"/repos/{config.repo}/commits/{head_sha}/check-runs",
+            params={"check_name": name, "per_page": 100, "page": page},
+        )
+        if response.status_code >= 400:
+            log.warning(
+                "List prior check runs failed (%d): %s",
+                response.status_code, response.text,
+            )
+            return None
+        payload = response.json() or {}
+        runs = payload.get("check_runs") or []
+        for run in runs:
+            if run.get("name") == name:
+                prior_ids.append(int(run["id"]))
+        if len(runs) < 100:
+            return prior_ids
+        page += 1
+
+
+def _patch_check_to_superseded(
+    client: httpx.Client,
+    config: GitHubConfig,
+    check_id: int,
+    name: str,
+) -> None:
+    patch = client.patch(
+        f"/repos/{config.repo}/check-runs/{check_id}",
+        json={
+            "status": "completed",
+            "conclusion": "neutral",
+            "output": {
+                "title": f"{name} — superseded",
+                "summary": (
+                    "This check run was superseded by a newer "
+                    f"{name} run on the same commit."
+                ),
+            },
+        },
+    )
+    if patch.status_code >= 400:
+        log.warning(
+            "Supersede check %d failed (%d): %s",
+            check_id, patch.status_code, patch.text,
+        )
+
+
 def _supersede_prior_check_runs(
     config: GitHubConfig,
     head_sha: str,
@@ -73,51 +130,11 @@ def _supersede_prior_check_runs(
     opening must not be blocked by a cleanup hiccup.
     """
     with _client(config.token) as client:
-        page = 1
-        prior_ids: list[int] = []
-        while True:
-            response = client.get(
-                f"/repos/{config.repo}/commits/{head_sha}/check-runs",
-                params={"check_name": name, "per_page": 100, "page": page},
-            )
-            if response.status_code >= 400:
-                log.warning(
-                    "List prior check runs failed (%d): %s",
-                    response.status_code, response.text,
-                )
-                return
-            payload = response.json() or {}
-            runs = payload.get("check_runs") or []
-            for run in runs:
-                if run.get("name") == name:
-                    prior_ids.append(int(run["id"]))
-            if len(runs) < 100:
-                break
-            page += 1
-
+        prior_ids = _list_prior_check_run_ids(client, config, head_sha, name)
         if not prior_ids:
             return
-
         for check_id in prior_ids:
-            patch = client.patch(
-                f"/repos/{config.repo}/check-runs/{check_id}",
-                json={
-                    "status": "completed",
-                    "conclusion": "neutral",
-                    "output": {
-                        "title": f"{name} — superseded",
-                        "summary": (
-                            "This check run was superseded by a newer "
-                            f"{name} run on the same commit."
-                        ),
-                    },
-                },
-            )
-            if patch.status_code >= 400:
-                log.warning(
-                    "Supersede check %d failed (%d): %s",
-                    check_id, patch.status_code, patch.text,
-                )
+            _patch_check_to_superseded(client, config, check_id, name)
         log.info(
             "Superseded %d prior %s check run(s) on %s",
             len(prior_ids), name, head_sha[:8],
