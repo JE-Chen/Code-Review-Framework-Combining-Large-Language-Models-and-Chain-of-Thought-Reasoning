@@ -35,8 +35,12 @@ _POLL_INTERVAL_SECONDS = 5.0
 # A poll occasionally trips the per-call timeout (backend GIL pause
 # during a heavy generate step, Cloudflare edge hiccup, runner network
 # blip). One slow poll should not crash a multi-minute review; retry
-# transient failures and only surface a persistent stall.
-_MAX_CONSECUTIVE_POLL_FAILURES = 5
+# transient failures and only surface a persistent stall. A 30B MoE
+# backend restart or GPU reload can produce 502s for >1 min, so the
+# budget must comfortably cover that.
+_MAX_CONSECUTIVE_POLL_FAILURES = 60
+_POLL_BACKOFF_AFTER_FAILURES = 5
+_POLL_MAX_INTERVAL_SECONDS = 30.0
 
 
 def _build_client(config: RemoteBackendConfig) -> httpx.Client:
@@ -140,7 +144,15 @@ class RemotePipelineClient:
                     f"Remote review job {job_id} did not finish within "
                     f"{self._config.timeout_seconds}s"
                 )
-            time.sleep(_POLL_INTERVAL_SECONDS)
+            if consecutive_failures <= _POLL_BACKOFF_AFTER_FAILURES:
+                sleep_seconds = _POLL_INTERVAL_SECONDS
+            else:
+                sleep_seconds = min(
+                    _POLL_INTERVAL_SECONDS
+                    * 2 ** (consecutive_failures - _POLL_BACKOFF_AFTER_FAILURES),
+                    _POLL_MAX_INTERVAL_SECONDS,
+                )
+            time.sleep(sleep_seconds)
             try:
                 poll_resp = self._client.get(f"/review/result/{job_id}")
                 poll_resp.raise_for_status()
