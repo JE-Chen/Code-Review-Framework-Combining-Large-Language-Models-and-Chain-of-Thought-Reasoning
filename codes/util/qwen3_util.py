@@ -48,6 +48,65 @@ def _pick_attn_implementation() -> str:
         return "sdpa"
 
 
+def _describe_load(model) -> str:
+    """One-line summary of how the model actually loaded: dtype + whether
+    bitsandbytes quantization is in effect. Used in OOM diagnostics and the
+    boot probe so 'requested 4-bit but loaded bf16' is visible, not hidden.
+    """
+    dtype = getattr(model, "dtype", None) or getattr(
+        getattr(model, "config", None), "torch_dtype", None
+    )
+    is_4bit = bool(getattr(model, "is_loaded_in_4bit", False))
+    is_8bit = bool(getattr(model, "is_loaded_in_8bit", False))
+    quant = "4bit" if is_4bit else "8bit" if is_8bit else "none"
+    return f"dtype={dtype}, quant={quant}"
+
+
+def _probe_generation(model, tokenizer) -> None:
+    """Ground-truth boot check: actually run a short generation on a
+    multi-thousand-token prompt and confirm it does not OOM.
+
+    The config-string check in _verify_non_eager_attention() cannot catch
+    failure modes that live in real memory rather than in
+    ``_attn_implementation`` — e.g. transformers>=5 densifying the Qwen3
+    MoE forward to an fp32 [seq, hidden, intermediate] tensor (~48 MiB per
+    input token), or 4-bit quantization silently not applying so the model
+    sits in bf16. Both sail past the string check and then OOM on the first
+    real review. Probing ~4K tokens at boot turns that into a loud,
+    actionable startup failure instead.
+
+    Skip with PRTHINKER_SKIP_BOOT_PROBE=1 (e.g. on a card large enough that
+    the probe itself is wasteful).
+    """
+    if os.environ.get(
+        "PRTHINKER_SKIP_BOOT_PROBE", ""
+    ).strip().lower() in ("1", "true", "yes"):
+        log.info("PRTHINKER_SKIP_BOOT_PROBE set; skipping generation probe.")
+        return
+
+    probe_tokens = int(os.environ.get("PRTHINKER_BOOT_PROBE_TOKENS", "4096"))
+    log.info(
+        "Boot probe: generating from a ~%d-token prompt to verify memory "
+        "scaling (%s)", probe_tokens, _describe_load(model),
+    )
+    text = "def f():\n    return 1\n" * (probe_tokens // 8)
+    inputs = tokenizer([text], return_tensors="pt").to(model.device)
+    actual = inputs["input_ids"].shape[-1]
+    try:
+        with torch.no_grad():
+            model.generate(**inputs, max_new_tokens=8, do_sample=False)
+    except torch.cuda.OutOfMemoryError as exc:
+        raise RuntimeError(
+            f"Boot probe OOM: a {actual}-token prompt could not run an "
+            f"8-token generation ({_describe_load(model)}). The server "
+            "would OOM on the first real review. Most likely "
+            "transformers>=5 MoE densification or 4-bit quantization not "
+            "applied — pin transformers<5 and verify load_in_4bit. "
+            "Bypass with PRTHINKER_SKIP_BOOT_PROBE=1. Original: " + str(exc)
+        ) from exc
+    log.info("Boot probe passed: %d-token prompt generated without OOM.", actual)
+
+
 def _verify_non_eager_attention(model) -> None:
     """Refuse to keep the model alive if it resolved to eager attention.
 
@@ -140,6 +199,7 @@ def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3
         )
 
     print(datetime.datetime.now(), "Model loaded")
+    log.info("Model load summary: %s", _describe_load(model))
 
     # Refuse to keep going if transformers silently fell back to eager
     # attention (e.g. flash_attn imported but the model class doesn't
@@ -156,6 +216,10 @@ def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3
         # PeftModel wraps the base; re-verify in case the LoRA path
         # somehow swapped the attention class.
         _verify_non_eager_attention(model)
+
+    # Ground-truth memory probe on the fully-assembled (base + LoRA) model.
+    # Catches real-memory regressions the config-string check cannot see.
+    _probe_generation(model, tokenizer)
 
     return model, tokenizer
 
@@ -185,17 +249,27 @@ def qwen3_ask(prompt: str, model, tokenizer, max_new_tokens: int = 16784, cancel
     except torch.cuda.OutOfMemoryError as exc:
         impl = getattr(model.config, "_attn_implementation", "unknown")
         input_len = model_inputs["input_ids"].shape[-1]
-        # Rewrap so the error landing in the runner's traceback points
-        # at the config root cause instead of the literal allocation
-        # size, which has fooled multiple debugging sessions into
-        # blaming prompt length when the real fault was eager attention.
+        load = _describe_load(model)
+        # Do NOT assert "eager attention" here. Two distinct failure modes
+        # produce a giant "Tried to allocate N GiB":
+        #   * O(N^2) in input length  -> eager attention materialising the
+        #     score matrix; verify flash-attn / SDPA is dispatched.
+        #   * O(N)   in input length  -> NOT attention. Seen with
+        #     transformers>=5 on Qwen3-*-A3B: the MoE forward densifies to
+        #     an fp32 [seq, hidden, intermediate] tensor (~48 MiB/token),
+        #     or 4-bit quantization silently failed and the model is in
+        #     bf16. Pin transformers<5 and confirm load is 4-bit.
+        # Compare the allocation size across two different input lengths to
+        # tell them apart (linear => MoE/quant, quadratic => eager).
         raise RuntimeError(
             f"CUDA OOM during generate (input={input_len} tokens, "
             f"max_new_tokens={max_new_tokens}, "
-            f"attn_implementation={impl!r}). On a 30B-class model with "
-            "a 44 GiB GPU, OOM on a reasonable prompt almost always "
-            "means attention is running eager — verify flash-attn or "
-            "SDPA is actually dispatched. Original: " + str(exc)
+            f"attn_implementation={impl!r}, {load}). If the attempted "
+            "allocation grows LINEARLY with input length it is NOT "
+            "attention — suspect transformers>=5 MoE densification or "
+            "4-bit quantization not applied (pin transformers<5, verify "
+            "load_in_4bit). If it grows QUADRATICALLY, attention is "
+            "running eager — verify flash-attn/SDPA. Original: " + str(exc)
         ) from exc
 
     # If the stopping criterion fired because the cancel_event was set,

@@ -21,8 +21,17 @@ runner = []
 dev = [
     "pytest>=8",
 ]
+# transformers is capped below 5.0 on purpose. transformers 5.x
+# rewrote the MoE forward in a way that, for Qwen3-*-A3B, materialises a
+# dense fp32 [seq, hidden, intermediate] tensor instead of routing the
+# top-k experts sparsely. That allocation is *linear* in input length
+# (~48 MiB/token = hidden_size*intermediate_size*4) and OOMs a 44 GiB
+# L40S at a few thousand prompt tokens — the "Tried to allocate 269 GiB"
+# failure. It also stopped applying bitsandbytes 4-bit (the model loaded
+# in bf16, ~59 GiB). A `--no-cache` rebuild pulled 5.9.0 because these
+# were unpinned; 4.x (resolves to 4.57.x) keeps sparse MoE + 4-bit.
 local = [
-    "transformers",
+    "transformers>=4.51,<5",
     "torch",
     "accelerate",
     "bitsandbytes",
