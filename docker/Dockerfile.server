@@ -71,14 +71,17 @@ RUN pip install --upgrade pip wheel setuptools packaging ninja \
 # safeguard in qwen3_util._verify_non_eager_attention may refuse to
 # start the server unless SDPA can be confirmed).
 ARG ALLOW_NO_FLASH_ATTN=0
-# Cap nvcc parallelism. The default is N_CPUs (often 16-32 on a GPU
-# host) and each worker peaks at 2-3 GB RAM compiling one CUDA kernel,
-# so the unbounded build can easily allocate 50-90 GB and either OOM
-# the Docker daemon itself or kill the still-running model container
-# and the host's SSH / cloudflared session via the Linux OOM killer.
-# MAX_JOBS=4 keeps the peak under ~12 GB at the cost of a longer build
-# (~25-35 min on an L40S host vs ~10 min unbounded).
-ARG FLASH_ATTN_MAX_JOBS=4
+# Cap nvcc parallelism. Unbounded, the build uses N_CPUs workers (often
+# 16-32 on a GPU host); each worker peaks at 2-3 GB RAM compiling one
+# CUDA kernel, so it can allocate 50-90 GB and OOM the Docker daemon
+# itself or kill the still-running model container and the host's SSH /
+# cloudflared session via the Linux OOM killer.
+# The default of 16 keeps the peak near ~48 GB with a ~10 min build,
+# sized for this host's 503 GiB RAM (16 jobs leaves a >10x headroom).
+# On a smaller host (<=128 GiB, or one still running the model
+# container) drop this to 4 to keep the peak under ~12 GB:
+#   docker compose build --build-arg FLASH_ATTN_MAX_JOBS=4 server
+ARG FLASH_ATTN_MAX_JOBS=16
 ENV MAX_JOBS=${FLASH_ATTN_MAX_JOBS}
 ENV NVCC_THREADS=2
 RUN if [ "$ALLOW_NO_FLASH_ATTN" = "1" ]; then \

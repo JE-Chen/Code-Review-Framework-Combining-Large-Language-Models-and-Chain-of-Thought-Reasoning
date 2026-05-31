@@ -20,8 +20,9 @@
 # Run on the GPU host from the repo root:
 #   ./docker/rebuild-server.sh
 #
-# Override the build-arg cap on hosts with more headroom:
-#   FLASH_ATTN_MAX_JOBS=8 ./docker/rebuild-server.sh
+# Default is 16, sized for this host's 503 GiB RAM (~10 min build).
+# On a smaller host (<=128 GiB) drop the cap to avoid the OOM killer:
+#   FLASH_ATTN_MAX_JOBS=4 ./docker/rebuild-server.sh
 
 set -euo pipefail
 
@@ -37,7 +38,7 @@ MEM_LOG="$LOG_DIR/mem-${TS}.log"
 # so the post-mortem scan only sees messages from this build run.
 DMESG_MARK="$(dmesg -T 2>/dev/null | tail -1 || true)"
 
-FLASH_ATTN_MAX_JOBS="${FLASH_ATTN_MAX_JOBS:-4}"
+FLASH_ATTN_MAX_JOBS="${FLASH_ATTN_MAX_JOBS:-16}"
 COMPOSE="docker compose -f docker/docker-compose.yml"
 
 echo ">>> [1/5] Stopping running server container to free host RAM"
