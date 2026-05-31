@@ -356,7 +356,7 @@ def _build_parser() -> argparse.ArgumentParser:
     common.add_argument(
         "--diff-since-last",
         action="store_true",
-        default=env_bool("REVIEWMIND_DIFF_SINCE_LAST", False),
+        default=env_bool("PRTHINKER_DIFF_SINCE_LAST", False),
         help=(
             "Force-push differential review: hash each file's post-change "
             "content and look up cached findings keyed on "
@@ -367,7 +367,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     common.add_argument(
         "--diff-cache-path",
-        default=env_str("REVIEWMIND_DIFF_CACHE_PATH", ".reviewmind/diff-cache.sqlite"),
+        default=env_str("PRTHINKER_DIFF_CACHE_PATH", ".prthinker/diff-cache.sqlite"),
         help="SQLite file for the differential-review cache.",
     )
     common.add_argument(

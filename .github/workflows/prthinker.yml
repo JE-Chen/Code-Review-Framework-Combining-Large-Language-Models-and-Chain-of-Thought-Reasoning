@@ -20,9 +20,21 @@ env:
   # so the enumerate job and the runner agree on the same filter.
   PRTHINKER_EXCLUDE_GLOBS: ".idea/*,.idea/**/*,datas/*,datas/**/*,.prthinker/*,.prthinker/**/*,*.md,*.lock,*.json,docs/**/*"
 
+  # Opt every JavaScript-based action (actions/checkout, setup-python,
+  # cache, upload-artifact, …) into the Node.js 24 runtime ahead of
+  # GitHub's 2026-06-16 forced cutover. Without this the runner emits
+  # a deprecation warning on every step and will hard-fail once
+  # Node.js 20 is removed on 2026-09-16.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   # 1. List PR files (after dropping noise paths) and emit JSON for
-  #    the per-file matrix.
+  #    the per-file matrix. The state cache is restored first so we
+  #    can drop files whose post-change blob SHA still matches the
+  #    SHA recorded by the previous successful aggregate — those
+  #    files don't enter the matrix at all (no runner shard starts),
+  #    and their prior partial JSON is forwarded to the aggregate
+  #    job as the `partial-skipped` artifact for re-use.
   enumerate:
     if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
@@ -30,45 +42,104 @@ jobs:
     outputs:
       files: ${{ steps.list.outputs.files }}
       empty: ${{ steps.list.outputs.empty }}
+      skipped: ${{ steps.list.outputs.skipped }}
     steps:
-      - name: List PR files
+      - name: Restore prthinker state cache
+        id: state-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .prthinker/
+          key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
+          restore-keys: |
+            prthinker-state-pr-${{ github.event.pull_request.number }}-
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: List PR files and filter unchanged
         id: list
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUNNER_TEMP: ${{ runner.temp }}
         run: |
           set -euo pipefail
-          # Pull every file in the PR (status != removed; keep adds,
-          # modifications, renames). per_page=100 covers the common
-          # case; very large PRs would need paging.
+          # Pull every PR file with its current blob SHA. The blob SHA
+          # is the content hash GitHub itself uses, so comparing it to
+          # a previously-recorded value tells us — without any local
+          # hashing — whether the file actually changed since then.
           ALL=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/files?per_page=100" \
-            --jq '[.[] | select(.status != "removed") | .filename]')
-          # Filter via Python so the workflow and CLI use the same
-          # fnmatch semantics. ALL is forwarded via the env so the
-          # heredoc stays single-quoted (no shell expansion inside).
-          FILES=$(ALL="$ALL" python3 <<'PY'
-          import fnmatch, json, os
-          data = json.loads(os.environ["ALL"])
+            --jq '[.[] | {path: .filename, sha: .sha, status: .status}]')
+          ALL="$ALL" RUNNER_TEMP="$RUNNER_TEMP" python3 <<'PY'
+          import fnmatch, hashlib, json, os, shutil
+          from pathlib import Path
+
+          raw = json.loads(os.environ["ALL"])
           patterns = [
               p.strip()
               for p in os.environ.get("PRTHINKER_EXCLUDE_GLOBS", "").split(",")
               if p.strip()
           ]
+          def excluded(path):
+              return any(fnmatch.fnmatch(path, pat) for pat in patterns)
           kept = [
-              f for f in data
-              if not any(fnmatch.fnmatch(f, pat) for pat in patterns)
+              e for e in raw
+              if e["status"] != "removed" and not excluded(e["path"])
           ]
-          print(json.dumps(kept))
+
+          state = Path(".prthinker/pr-state")
+          manifest_path = state / "manifest.json"
+          partials_dir = state / "partials"
+          skipped_dir = Path(os.environ["RUNNER_TEMP"]) / "skipped"
+          skipped_dir.mkdir(parents=True, exist_ok=True)
+
+          prev = {}
+          if manifest_path.is_file():
+              try:
+                  data = json.loads(manifest_path.read_text(encoding="utf-8"))
+                  prev = {
+                      entry["path"]: entry["blob_sha"]
+                      for entry in data.get("files", [])
+                  }
+              except Exception:  # noqa: BLE001 — corrupt cache rebuilds itself
+                  prev = {}
+
+          matrix = []
+          skipped = 0
+          for entry in kept:
+              path = entry["path"]
+              sha = entry["sha"]
+              # Same content as last time AND a stored partial exists?
+              # Then re-use the partial and skip the whole matrix shard.
+              if prev.get(path) == sha:
+                  digest = hashlib.sha256(path.encode("utf-8")).hexdigest()
+                  partial = partials_dir / f"{digest}.json"
+                  if partial.is_file():
+                      shutil.copy2(partial, skipped_dir / f"{digest}.json")
+                      skipped += 1
+                      continue
+              matrix.append(path)
+
+          out = os.environ["GITHUB_OUTPUT"]
+          with open(out, "a", encoding="utf-8") as fh:
+              fh.write(f"files={json.dumps(matrix)}\n")
+              fh.write(f"skipped={skipped}\n")
+              fh.write(f"empty={'true' if not matrix else 'false'}\n")
+          print(f"Matrix ({len(matrix)} files): {matrix}")
+          print(f"Skipped (unchanged): {skipped}")
           PY
-          )
-          echo "files=$FILES" >> "$GITHUB_OUTPUT"
-          if [ "$FILES" = "[]" ]; then
-            echo "empty=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "empty=false" >> "$GITHUB_OUTPUT"
-          fi
-          echo "Reviewable files: $FILES"
+
+      - name: Upload reused partials for skipped files
+        if: steps.list.outputs.skipped != '0' && steps.list.outputs.skipped != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: partial-skipped
+          path: ${{ runner.temp }}/skipped/
+          if-no-files-found: ignore
+          retention-days: 1
 
   # 2. Per-file review. Each matrix iteration owns ONE path and has
   #    its own 60-min budget, so a single slow file can't starve the
@@ -103,20 +174,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[runner]"
 
-      # Restore the per-PR diff-since-last cache so a file whose
-      # post-change content matches a prior push's hash skips the
-      # whole CoT pipeline and reuses the stored findings. The key
-      # is unique per (PR, run, shard) so each shard can save without
-      # conflict; the restore-key prefix grabs the most recent
-      # matching entry from any earlier run on this PR.
-      - name: Restore diff-since-last cache
-        id: diff-cache-restore
+      # Restore the per-PR state cache (manifest, prior partials, and
+      # the in-runner diff-since-last SQLite). The matrix-level skip
+      # already lives in the enumerate job — what this restore buys
+      # is a layer-2 safety net: if a file made it into the matrix
+      # but its hashed content still matches a finding the SQLite
+      # remembers, the CoT pipeline short-circuits before any GPU
+      # work. Only the aggregate job writes back to this key.
+      - name: Restore prthinker state cache
         uses: actions/cache/restore@v4
         with:
-          path: .prthinker/diff-cache.sqlite
-          key: prthinker-diff-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ strategy.job-index }}
+          path: .prthinker/
+          key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
           restore-keys: |
-            prthinker-diff-pr-${{ github.event.pull_request.number }}-
+            prthinker-state-pr-${{ github.event.pull_request.number }}-
 
       - name: Run PRThinker for ${{ matrix.file }}
         env:
@@ -180,18 +251,6 @@ jobs:
 
           python -m prthinker review-pr
 
-      # Persist the updated diff-since-last SQLite back to the cache
-      # under the same per-(PR, run, shard) key so the next push
-      # restores it via the prefix restore-key. always() so a
-      # partially-populated cache from a failed shard still survives
-      # — that is exactly what makes the next attempt faster.
-      - name: Save diff-since-last cache
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: .prthinker/diff-cache.sqlite
-          key: prthinker-diff-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ strategy.job-index }}
-
       - name: Upload partial review JSON
         # always() so a skipped review (backend down) doesn't break
         # artifact collection — the upload step itself just no-ops if
@@ -204,14 +263,21 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
-  # 3. Aggregate: download every matrix shard's partial JSON, merge
-  #    them, post ONE summary + ONE inline review, and close the
-  #    pre-merge gate exactly once.
+  # 3. Aggregate: download every matrix shard's partial JSON (plus
+  #    any partial-skipped artifact carried over from enumerate),
+  #    merge them, post ONE summary + ONE inline review, close the
+  #    pre-merge gate, then write the canonical per-PR state cache
+  #    that the next push's enumerate will read.
   aggregate:
     needs: [enumerate, review]
-    # Run even if some matrix shards failed; we still want to post
-    # whatever findings the successful shards produced.
-    if: ${{ always() && needs.enumerate.outputs.empty == 'false' }}
+    # Run even when every file was reused (matrix empty but skipped > 0)
+    # because the new PR HEAD still needs its own check-run + comment
+    # upsert. Also runs on partial review failures so successful shards'
+    # findings still get posted.
+    if: >-
+      ${{ always() &&
+          (needs.enumerate.outputs.empty == 'false' ||
+           needs.enumerate.outputs.skipped != '0') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -232,6 +298,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[runner]"
 
+      # Restore the per-PR state cache so the write-state step at the
+      # end of this job can wipe + rebuild the partials dir against a
+      # known baseline (defends against half-written state from a run
+      # that died mid-aggregate).
+      - name: Restore prthinker state cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .prthinker/
+          key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
+          restore-keys: |
+            prthinker-state-pr-${{ github.event.pull_request.number }}-
+
       - name: Download all partial review artifacts
         uses: actions/download-artifact@v4
         with:
@@ -248,9 +326,11 @@ jobs:
           PRTHINKER_GATE_ON: "error"
           PRTHINKER_AGGREGATE_FROM: ${{ runner.temp }}/partials
         run: |
-          # If no matrix shard produced a partial (e.g. backend was
-          # unreachable for the whole run), post a single skip notice
-          # under the standard marker so reviewers know why the PR has
+          # If neither a matrix shard nor enumerate's skip path
+          # produced any partial JSON (e.g. backend was unreachable
+          # for the whole run AND this is the first push, so there
+          # was nothing to reuse), post a single skip notice under
+          # the standard marker so reviewers know why the PR has
           # no review.
           if ! find "$PRTHINKER_AGGREGATE_FROM" -name "*.json" -print -quit | grep -q .; then
             MARKER='<!-- prthinker:summary -->'
@@ -269,3 +349,87 @@ jobs:
           fi
 
           python -m prthinker aggregate
+
+      # Rebuild .prthinker/pr-state from the downloaded partials +
+      # the current PR files API so the NEXT push's enumerate job
+      # can skip files whose blob SHA still matches. Each file's
+      # partial is rewritten to its own JSON keyed by sha256(path),
+      # and the manifest records the blob SHA observed at this
+      # aggregate's vantage point.
+      - name: Write fresh per-PR state cache
+        id: write-state
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          DOWNLOAD_DIR: ${{ runner.temp }}/partials
+        run: |
+          set -euo pipefail
+          ALL=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/files?per_page=100" \
+            --jq '[.[] | {path: .filename, sha: .sha, status: .status}]')
+          ALL="$ALL" DOWNLOAD_DIR="$DOWNLOAD_DIR" python3 <<'PY'
+          import hashlib, json, os, shutil
+          from pathlib import Path
+
+          files_data = json.loads(os.environ["ALL"])
+          download = Path(os.environ["DOWNLOAD_DIR"])
+
+          # Build path -> latest per_file entry across every downloaded
+          # partial JSON. Last-write-wins matches the merge semantics
+          # the aggregate command itself uses.
+          path_to_fr = {}
+          for jp in sorted(download.rglob("*.json")):
+              try:
+                  payload = json.loads(jp.read_text(encoding="utf-8"))
+              except Exception:
+                  continue
+              for fr in payload.get("per_file", []):
+                  path_to_fr[fr["path"]] = fr
+
+          state = Path(".prthinker/pr-state")
+          partials_dir = state / "partials"
+          # Wipe the partials dir so stale entries for files no longer
+          # in the PR don't linger; manifest is fully rewritten below.
+          if partials_dir.is_dir():
+              shutil.rmtree(partials_dir)
+          partials_dir.mkdir(parents=True, exist_ok=True)
+
+          manifest_files = []
+          written = 0
+          for entry in files_data:
+              if entry["status"] == "removed":
+                  continue
+              path = entry["path"]
+              fr = path_to_fr.get(path)
+              if fr is None:
+                  # No partial available (backend skip or excluded) —
+                  # don't record it, so the next run treats this file
+                  # as fresh and re-attempts.
+                  continue
+              digest = hashlib.sha256(path.encode("utf-8")).hexdigest()
+              single = {
+                  "code_diff": "",
+                  "rag_docs": [],
+                  "step_outputs": {},
+                  "inline_findings": [],
+                  "per_file": [fr],
+              }
+              (partials_dir / f"{digest}.json").write_text(
+                  json.dumps(single, indent=2), encoding="utf-8",
+              )
+              manifest_files.append({"path": path, "blob_sha": entry["sha"]})
+              written += 1
+
+          (state / "manifest.json").write_text(
+              json.dumps({"files": manifest_files}, indent=2),
+              encoding="utf-8",
+          )
+          print(f"State cache rewritten: {written} file(s)")
+          PY
+
+      - name: Save prthinker state cache
+        if: always() && steps.write-state.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: .prthinker/
+          key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
