@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Shell scripts must keep LF endings even on Windows checkouts so they
+# run under bash on the Linux GPU host without "bad interpreter" errors.
+*.sh text eol=lf

@@ -728,6 +728,13 @@ python -m codes.run.cot
 # Start the FastAPI server
 uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 9000
 
+# Rebuild the docker server image without OOM-killing cloudflared/sshd
+# (stops old container -> caps flash-attn nvcc parallelism -> monitors
+# RAM -> scans dmesg for oom-killer hits -> verifies boot guard saw
+# flash_attention_2 / sdpa)
+./docker/rebuild-server.sh
+FLASH_ATTN_MAX_JOBS=8 ./docker/rebuild-server.sh   # hosts with more RAM
+
 # Drive a one-off review
 prthinker review-file path/to/code.py --backend remote --remote-url http://localhost:9000
 
