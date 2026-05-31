@@ -56,15 +56,31 @@ COPY datas/RAG_data/ ./datas/RAG_data/
 RUN pip install --upgrade pip wheel setuptools packaging ninja \
  && pip install -e ".[server]"
 
-# Try to install flash-attn after the rest of [server] is in place so
-# torch is already importable (flash-attn's setup.py imports torch at
-# build-isolation time, which would otherwise fail). --no-build-isolation
-# lets the build see the installed torch; if no matching wheel exists
-# the source build needs nvcc — which the runtime image does NOT ship,
-# so the install is allowed to fail with a warning and the runtime
-# code falls back to SDPA via _pick_attn_implementation.
-RUN pip install --no-build-isolation flash-attn \
- || echo "WARN: flash-attn install failed; runtime will fall back to SDPA"
+# flash-attn install runs AFTER [server] is in place so torch is
+# importable (flash-attn's setup.py imports torch at build time,
+# which would otherwise fail under --no-build-isolation). nvcc is
+# present in the -devel base image, so the source build succeeds.
+#
+# This step is FAIL-FAST on purpose. A previous version masked
+# failures with `|| echo WARN`; that turned a build-time problem
+# (no flash-attn) into a runtime 269 GiB OOM the first time a real
+# review hit the GPU. Failing here surfaces the problem when there
+# is still a human watching the build log. If flash-attn truly is
+# unavailable for this CUDA + torch combo, the operator can rebuild
+# with --build-arg ALLOW_NO_FLASH_ATTN=1 (and accept that the runtime
+# safeguard in qwen3_util._verify_non_eager_attention may refuse to
+# start the server unless SDPA can be confirmed).
+ARG ALLOW_NO_FLASH_ATTN=0
+RUN if [ "$ALLOW_NO_FLASH_ATTN" = "1" ]; then \
+        pip install --no-build-isolation flash-attn \
+        || echo "WARN: flash-attn install failed (ALLOW_NO_FLASH_ATTN=1)"; \
+    else \
+        pip install --no-build-isolation flash-attn; \
+    fi \
+ && python -c "import flash_attn; print('flash_attn', flash_attn.__version__)" \
+    || ([ "$ALLOW_NO_FLASH_ATTN" = "1" ] \
+        && echo "WARN: flash_attn not importable; runtime will check SDPA" \
+        || (echo "ERROR: flash_attn not importable after install" && exit 1))
 
 # Cache + JSONL stores live on a mounted volume so they survive image rebuilds.
 RUN mkdir -p /cache/huggingface /data
