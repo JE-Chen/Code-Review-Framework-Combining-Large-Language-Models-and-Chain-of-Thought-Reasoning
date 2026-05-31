@@ -263,6 +263,83 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
+      # Checkpoint this shard's progress into the per-PR state cache
+      # so a later aggregate failure doesn't force the next push to
+      # re-scan every file. With max-parallel: 1 the shards are
+      # serial, so each one restores the previous shard's checkpoint
+      # (cumulative state) and writes a new checkpoint that includes
+      # its own file. The aggregate job's canonical save (no -shard
+      # suffix, written last) supersedes these checkpoints whenever
+      # it completes; if it doesn't, the next run's prefix-restore
+      # picks up the most recent shard checkpoint and at least the
+      # work that finished before the failure isn't lost.
+      - name: Update per-PR state with this shard's partial
+        if: success()
+        id: shard-state
+        env:
+          PARTIAL_PATH: ${{ runner.temp }}/partial.json
+          TARGET_FILE: ${{ matrix.file }}
+        run: |
+          set -euo pipefail
+          # A backend-unreachable shard exits 0 without writing
+          # partial.json. Guard against recording an empty result that
+          # would later be reused as if it were a real review.
+          if [ ! -s "$PARTIAL_PATH" ]; then
+            echo "No partial produced (backend skip?); not updating state"
+            echo "updated=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # GitHub's blob SHA == git's blob SHA, so we can read it
+          # straight from the working tree without an extra API call.
+          if ! BLOB_SHA=$(git rev-parse "HEAD:$TARGET_FILE" 2>/dev/null); then
+            echo "Could not get blob SHA for $TARGET_FILE; skipping state update"
+            echo "updated=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          PARTIAL_PATH="$PARTIAL_PATH" \
+          TARGET_FILE="$TARGET_FILE" \
+          BLOB_SHA="$BLOB_SHA" \
+          python3 <<'PY'
+          import hashlib, json, os, shutil
+          from pathlib import Path
+
+          target = os.environ["TARGET_FILE"]
+          blob_sha = os.environ["BLOB_SHA"]
+          partial_src = Path(os.environ["PARTIAL_PATH"])
+
+          state = Path(".prthinker/pr-state")
+          partials_dir = state / "partials"
+          partials_dir.mkdir(parents=True, exist_ok=True)
+
+          digest = hashlib.sha256(target.encode("utf-8")).hexdigest()
+          shutil.copy2(partial_src, partials_dir / f"{digest}.json")
+
+          manifest_path = state / "manifest.json"
+          files = []
+          if manifest_path.is_file():
+              try:
+                  data = json.loads(manifest_path.read_text(encoding="utf-8"))
+                  files = [
+                      e for e in data.get("files", [])
+                      if e["path"] != target
+                  ]
+              except Exception:  # noqa: BLE001 — corrupt cache rebuilds itself
+                  files = []
+          files.append({"path": target, "blob_sha": blob_sha})
+          manifest_path.write_text(
+              json.dumps({"files": files}, indent=2), encoding="utf-8",
+          )
+          print(f"Checkpointed {target} -> {blob_sha[:12]}")
+          PY
+          echo "updated=true" >> "$GITHUB_OUTPUT"
+
+      - name: Save shard state checkpoint
+        if: success() && steps.shard-state.outputs.updated == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .prthinker/
+          key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-shard-${{ strategy.job-index }}
+
   # 3. Aggregate: download every matrix shard's partial JSON (plus
   #    any partial-skipped artifact carried over from enumerate),
   #    merge them, post ONE summary + ONE inline review, close the
