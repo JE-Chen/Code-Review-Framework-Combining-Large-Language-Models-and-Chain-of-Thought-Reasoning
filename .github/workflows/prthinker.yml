@@ -204,6 +204,14 @@ jobs:
           PRTHINKER_REMOTE_URL: ${{ secrets.PRTHINKER_BACKEND_URL }}
           PRTHINKER_REMOTE_API_KEY: ${{ secrets.PRTHINKER_BACKEND_API_KEY }}
           PRTHINKER_USE_REMOTE_PIPELINE: "true"
+          # How long the client polls /review/result before giving up.
+          # The CLI's default is 600s, but a real multi-step CoT review of
+          # one file on the 30B-A3B backend can exceed that, surfacing as
+          # "Remote review job ... did not finish within 600.0s". The
+          # job/poll pattern keeps each individual poll short (well under
+          # any reverse-proxy edge timeout), so a long overall budget is
+          # safe; the server keeps working regardless of this value.
+          PRTHINKER_REMOTE_TIMEOUT: "1800"
 
           PRTHINKER_PER_FILE: "true"
           PRTHINKER_INLINE_REVIEW: "true"
