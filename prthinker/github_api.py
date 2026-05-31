@@ -249,6 +249,98 @@ def _dismiss_stale_inline_reviews(config: GitHubConfig) -> None:
         )
 
 
+def _new_side_lines(diff_text: str) -> dict[str, set[int]]:
+    """Map every file in a unified diff to the new-side line numbers
+    that appear inside a hunk.
+
+    GitHub's PR review API rejects the entire review with 422
+    ``Line could not be resolved`` if any single comment targets a
+    ``side: RIGHT`` line outside the diff hunks. Pre-filtering
+    against this set keeps a hallucinated line from one file from
+    poisoning every other finding in the review.
+
+    Returns ``{filename: {new_line_no, ...}}``. ``filename`` is taken
+    from the ``+++ b/<path>`` header (stripped of the ``b/`` prefix).
+    Files that the diff records as deleted (``+++ /dev/null``) are
+    excluded.
+    """
+    result: dict[str, set[int]] = {}
+    current_path: str | None = None
+    new_line = 0
+    in_hunk = False
+
+    for raw in diff_text.splitlines():
+        if raw.startswith("+++ "):
+            path = raw[4:].split("\t", 1)[0].strip()
+            if path == "/dev/null":
+                current_path = None
+            else:
+                current_path = path[2:] if path.startswith("b/") else path
+            in_hunk = False
+            continue
+        if raw.startswith("@@"):
+            # @@ -old_start[,old_count] +new_start[,new_count] @@
+            try:
+                hunk_meta = raw.split("@@", 2)[1].strip()
+                new_part = next(
+                    p for p in hunk_meta.split() if p.startswith("+")
+                )
+                new_start = int(new_part[1:].split(",", 1)[0])
+                new_line = new_start - 1
+                in_hunk = True
+            except (StopIteration, ValueError, IndexError):
+                in_hunk = False
+            continue
+        if not in_hunk or current_path is None:
+            continue
+        if raw.startswith("+"):
+            new_line += 1
+            result.setdefault(current_path, set()).add(new_line)
+        elif raw.startswith(" "):
+            new_line += 1
+            result.setdefault(current_path, set()).add(new_line)
+        # "-" lines are deletions on the old side — they don't advance
+        # the new-side line counter.
+    return result
+
+
+def _filter_findings_to_diff(
+    findings: list[InlineFinding], diff_text: str
+) -> list[InlineFinding]:
+    """Drop findings whose ``(path, line)`` is outside any diff hunk."""
+    valid = _new_side_lines(diff_text)
+    kept: list[InlineFinding] = []
+    dropped = 0
+    for f in findings:
+        file_lines = valid.get(f.path)
+        if not file_lines or f.line not in file_lines:
+            log.warning(
+                "Dropping inline finding %s:%d — line not on a diff hunk",
+                f.path, f.line,
+            )
+            dropped += 1
+            continue
+        # Multi-line comment: BOTH endpoints must be hunk lines.
+        if (
+            f.is_multiline
+            and f.start_line is not None
+            and f.start_line not in file_lines
+        ):
+            log.warning(
+                "Dropping multi-line finding %s:%d-%d — start_line not on a diff hunk",
+                f.path, f.start_line, f.line,
+            )
+            dropped += 1
+            continue
+        kept.append(f)
+    if dropped:
+        log.info(
+            "Pre-filtered %d inline finding(s) outside the diff; %d remain",
+            dropped, len(kept),
+        )
+    return kept
+
+
 def submit_inline_review(
     config: GitHubConfig,
     findings: Iterable[InlineFinding],
@@ -265,10 +357,32 @@ def submit_inline_review(
     Before posting, deletes inline comments from every previous prthinker
     review on this PR (identified by ``_INLINE_REVIEW_MARKER`` in their
     body) so the diff doesn't accumulate duplicates across re-pushes.
+
+    Findings whose line falls outside the PR's diff hunks are dropped
+    silently — GitHub returns ``422 Line could not be resolved`` and
+    rejects the entire review (not just the offending comment) if any
+    single entry points at an unresolvable line.
     """
     items = list(findings)
     if not items:
         log.info("No inline findings — skipping review submission")
+        return None
+
+    # Pre-filter against the PR diff so a single hallucinated line
+    # number doesn't 422 the whole review. Failure to fetch the diff
+    # falls through to the unfiltered submission below — the caller
+    # already handles 422 by logging and continuing.
+    try:
+        diff_text = fetch_pr_diff(config)
+        items = _filter_findings_to_diff(items, diff_text)
+    except Exception as exc:  # noqa: BLE001 — pre-filter is best-effort
+        log.warning(
+            "Could not pre-filter findings against diff (%s); "
+            "submitting all", exc,
+        )
+
+    if not items:
+        log.info("All inline findings dropped — skipping review submission")
         return None
 
     try:

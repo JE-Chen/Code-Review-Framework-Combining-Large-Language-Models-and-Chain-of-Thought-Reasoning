@@ -1875,12 +1875,27 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
             log.info("Judge verdict aggregated → %s", review_event)
 
     if args.inline_review and merged.inline_findings:
-        review_id = adapter.submit_inline_review(
-            merged.inline_findings,
-            summary_body="prthinker — inline findings",
-            event=review_event,
-        )
-        log.info("Posted inline review id=%s (event=%s)", review_id, review_event)
+        # Inline submission can still 422 on edge cases the diff-hunk
+        # pre-filter misses (e.g. renamed files where the new path's
+        # blob SHA differs from what `+++ b/<path>` records). Log and
+        # continue — the summary comment is already posted above, and
+        # the check-run gate below still needs to run to unblock merge.
+        try:
+            review_id = adapter.submit_inline_review(
+                merged.inline_findings,
+                summary_body="prthinker — inline findings",
+                event=review_event,
+            )
+            log.info(
+                "Posted inline review id=%s (event=%s)",
+                review_id, review_event,
+            )
+        except Exception as exc:  # noqa: BLE001 — must not skip the gate below
+            log.error(
+                "Inline review submission failed (%s); summary comment "
+                "and check run will still be posted",
+                exc,
+            )
 
     if gate_handle is not None:
         gate_result = evaluate_gate(merged.inline_findings, gate_on=args.gate_on)
