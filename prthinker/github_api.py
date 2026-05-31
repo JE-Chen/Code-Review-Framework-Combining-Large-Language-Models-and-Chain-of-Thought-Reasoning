@@ -96,10 +96,40 @@ def _iter_existing_comments(
     return comments
 
 
+# GitHub rejects an issue / PR comment body longer than 65 536 chars
+# with a 422. The aggregate summary on a multi-file matrix run easily
+# clears that when every shard's per-file block lands in one comment.
+# Cap at 60 000 to leave headroom for the marker + the truncation
+# notice; the per-file detail still lives in the matrix shards'
+# job logs.
+_GITHUB_COMMENT_BODY_MAX = 60000
+
+
+def _cap_comment_body(body: str, marker: str) -> str:
+    if len(body) <= _GITHUB_COMMENT_BODY_MAX:
+        return body
+    notice = (
+        f"\n\n---\n\n_⚠️ Comment truncated from {len(body)} to "
+        f"{_GITHUB_COMMENT_BODY_MAX} chars to fit GitHub's 65 536 char "
+        "limit. Full per-step output is in the matrix shard job logs._\n"
+    )
+    keep = _GITHUB_COMMENT_BODY_MAX - len(notice) - len(marker) - 4
+    if keep < 0:
+        # Should never happen: marker + notice alone fits comfortably.
+        return marker + notice
+    head = body[:keep]
+    # Always keep the marker so the next run's upsert can find this
+    # comment.
+    if marker not in head:
+        head = marker + "\n" + head[len(marker) + 1:]
+    return head + notice
+
+
 def upsert_pr_comment(config: GitHubConfig, body: str) -> int:
     """Create or update the marker-tagged PR comment. Returns its id."""
     if config.comment_marker not in body:
         raise ValueError("body must contain the configured comment marker")
+    body = _cap_comment_body(body, config.comment_marker)
 
     with _client(config.token) as client:
         existing = next(
