@@ -28,7 +28,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
     HF_HOME=/cache/huggingface \
-    TRANSFORMERS_CACHE=/cache/huggingface \
+    # Must include the /hub segment: the huggingface_hub cache root is
+    # $HF_HOME/hub. transformers 4.x obeys this deprecated var, so without
+    # /hub it looks in /cache/huggingface/models--* (empty) and fails to
+    # find the weights that live under /cache/huggingface/hub/models--*.
+    TRANSFORMERS_CACHE=/cache/huggingface/hub \
     PRTHINKER_DISMISSED_PATH=/data/dismissed.jsonl \
     PRTHINKER_ACCEPTED_PATH=/data/accepted.jsonl
 
