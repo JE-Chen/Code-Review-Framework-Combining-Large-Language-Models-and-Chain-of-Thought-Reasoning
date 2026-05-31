@@ -42,7 +42,7 @@ FLASH_ATTN_MAX_JOBS="${FLASH_ATTN_MAX_JOBS:-16}"
 COMPOSE="docker compose -f docker/docker-compose.yml"
 
 echo ">>> [1/5] Stopping running server container to free host RAM"
-$COMPOSE stop server || true
+$COMPOSE stop prthinker || true
 
 echo ">>> [2/5] git pull origin dev"
 git pull --ff-only origin dev
@@ -68,7 +68,7 @@ $COMPOSE build \
     --no-cache \
     --progress=plain \
     --build-arg "FLASH_ATTN_MAX_JOBS=${FLASH_ATTN_MAX_JOBS}" \
-    server 2>&1 | tee "$BUILD_LOG" || BUILD_RC=$?
+    prthinker 2>&1 | tee "$BUILD_LOG" || BUILD_RC=$?
 
 kill "$MEM_PID" 2>/dev/null || true
 trap - EXIT
@@ -94,7 +94,7 @@ if [ "$BUILD_RC" -ne 0 ]; then
 fi
 
 echo ">>> [5/5] Bringing server up and verifying attention impl"
-$COMPOSE up -d server
+$COMPOSE up -d prthinker
 
 HEALTH_URL="http://127.0.0.1:9000/healthz"
 echo "    waiting for ${HEALTH_URL} ..."
@@ -106,11 +106,16 @@ for _ in $(seq 1 60); do
     sleep 5
 done
 
-ATTN_LINE="$($COMPOSE logs --tail=200 server 2>/dev/null \
-    | grep -E 'Attention implementation verified|Refusing to start|PRTHINKER_ALLOW_EAGER_ATTENTION' \
+ATTN_LINE="$($COMPOSE logs --tail=200 prthinker 2>/dev/null \
+    | grep -E 'Attention implementation:|Refusing to start|PRTHINKER_ALLOW_EAGER_ATTENTION' \
     | tail -1 || true)"
-if echo "$ATTN_LINE" | grep -q "Attention implementation verified"; then
+if echo "$ATTN_LINE" | grep -qE 'Attention implementation: *(flash_attention_2|sdpa)'; then
     echo "    OK: ${ATTN_LINE}"
+elif echo "$ATTN_LINE" | grep -qE 'Attention implementation: *eager'; then
+    echo "!!! Server booted on EAGER attention — the O(N^2) path that"
+    echo "!!! caused the 269 GiB runtime OOM. The boot guard should have"
+    echo "!!! refused this; investigate qwen3_util._verify_non_eager_attention."
+    exit 1
 elif echo "$ATTN_LINE" | grep -q "Refusing to start"; then
     echo "!!! Boot guard refused to start: ${ATTN_LINE}"
     echo "!!! Image build succeeded but flash-attn / SDPA is not"
@@ -118,7 +123,7 @@ elif echo "$ATTN_LINE" | grep -q "Refusing to start"; then
     exit 1
 elif [ -z "$ATTN_LINE" ]; then
     echo "??? Could not find an attention-impl line in the last 200"
-    echo "??? log lines. Inspect:  ${COMPOSE} logs --tail=500 server"
+    echo "??? log lines. Inspect:  ${COMPOSE} logs --tail=500 prthinker"
 else
     echo "WARN: ${ATTN_LINE}"
 fi
