@@ -18,7 +18,7 @@ env:
   # fnmatch patterns (comma-separated) for paths that should not be
   # reviewed. Shared with the prthinker CLI via PRTHINKER_EXCLUDE_GLOBS
   # so the enumerate job and the runner agree on the same filter.
-  PRTHINKER_EXCLUDE_GLOBS: ".idea/*,.idea/**/*,datas/*,datas/**/*,*.md,*.lock,*.json,docs/**/*"
+  PRTHINKER_EXCLUDE_GLOBS: ".idea/*,.idea/**/*,datas/*,datas/**/*,.prthinker/*,.prthinker/**/*,*.md,*.lock,*.json,docs/**/*"
 
 jobs:
   # 1. List PR files (after dropping noise paths) and emit JSON for

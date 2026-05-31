@@ -33,7 +33,7 @@ class RemoteBackendConfig:
     """Self-hosted FastAPI server (the project's own /ask + /review)."""
 
     url: str
-    timeout_seconds: float = 600.0
+    timeout_seconds: float = 1800.0
     api_key: str | None = None
 
     def __post_init__(self) -> None:
@@ -53,7 +53,7 @@ class OpenAICompatConfig:
     api_key: str
     base_url: str = "https://api.openai.com/v1"
     organization: str | None = None
-    timeout_seconds: float = 600.0
+    timeout_seconds: float = 1800.0
     temperature: float = 0.0
 
     def __post_init__(self) -> None:
@@ -73,7 +73,7 @@ class AnthropicConfig:
     api_key: str
     base_url: str = "https://api.anthropic.com"
     anthropic_version: str = "2023-06-01"
-    timeout_seconds: float = 600.0
+    timeout_seconds: float = 1800.0
     temperature: float = 0.0
 
     def __post_init__(self) -> None:
