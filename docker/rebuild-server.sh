@@ -39,7 +39,18 @@ MEM_LOG="$LOG_DIR/mem-${TS}.log"
 DMESG_MARK="$(dmesg -T 2>/dev/null | tail -1 || true)"
 
 FLASH_ATTN_MAX_JOBS="${FLASH_ATTN_MAX_JOBS:-16}"
+
+# Compose files. The monitoring overlay (Prometheus / Grafana / DCGM /
+# cAdvisor + the nginx that fronts host:9000 and serves /prometheus/,
+# /grafana/, /cadvisor/, /kg/) is included by default so a rebuild
+# brings the whole observability stack back up — not just the model
+# server. Without it, `up -d` would recreate prthinker with its own
+# 9000 host binding and the monitoring containers would be left behind.
+# Set PRTHINKER_WITH_MONITORING=0 to rebuild the bare server only.
 COMPOSE="docker compose -f docker/docker-compose.yml"
+if [ "${PRTHINKER_WITH_MONITORING:-1}" != "0" ]; then
+    COMPOSE="$COMPOSE -f docker/docker-compose.monitoring.yml"
+fi
 
 echo ">>> [1/5] Stopping running server container to free host RAM"
 $COMPOSE stop prthinker || true
@@ -93,8 +104,11 @@ if [ "$BUILD_RC" -ne 0 ]; then
     exit "$BUILD_RC"
 fi
 
-echo ">>> [5/5] Bringing server up and verifying attention impl"
-$COMPOSE up -d prthinker
+echo ">>> [5/5] Bringing the stack up and verifying attention impl"
+# No service arg: bring up every service in the selected compose files
+# (prthinker alone if monitoring is disabled, the full overlay otherwise)
+# so a rebuild never leaves the monitoring containers behind.
+$COMPOSE up -d
 
 HEALTH_URL="http://127.0.0.1:9000/healthz"
 echo "    waiting for ${HEALTH_URL} ..."
