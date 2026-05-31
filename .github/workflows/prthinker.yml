@@ -103,6 +103,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[runner]"
 
+      # Restore the per-PR diff-since-last cache so a file whose
+      # post-change content matches a prior push's hash skips the
+      # whole CoT pipeline and reuses the stored findings. The key
+      # is unique per (PR, run, shard) so each shard can save without
+      # conflict; the restore-key prefix grabs the most recent
+      # matching entry from any earlier run on this PR.
+      - name: Restore diff-since-last cache
+        id: diff-cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .prthinker/diff-cache.sqlite
+          key: prthinker-diff-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ strategy.job-index }}
+          restore-keys: |
+            prthinker-diff-pr-${{ github.event.pull_request.number }}-
+
       - name: Run PRThinker for ${{ matrix.file }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -137,6 +152,13 @@ jobs:
           # in that job's env.
           PRTHINKER_GATE_ON: "none"
           PRTHINKER_INCLUDE_CI_SIGNALS: "true"
+
+          # Hash each file's post-change content. On a re-push to the
+          # same PR, files whose hash matches the previous run skip
+          # the CoT pipeline and reuse the cached findings — saves
+          # the bulk of GPU time on incremental fixes that only touch
+          # one file.
+          PRTHINKER_DIFF_SINCE_LAST: "true"
         run: |
           # Preflight: if the remote backend is unreachable, skip this
           # file. The aggregate job still runs and reports whatever
@@ -157,6 +179,18 @@ jobs:
           fi
 
           python -m prthinker review-pr
+
+      # Persist the updated diff-since-last SQLite back to the cache
+      # under the same per-(PR, run, shard) key so the next push
+      # restores it via the prefix restore-key. always() so a
+      # partially-populated cache from a failed shard still survives
+      # — that is exactly what makes the next attempt faster.
+      - name: Save diff-since-last cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .prthinker/diff-cache.sqlite
+          key: prthinker-diff-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ strategy.job-index }}
 
       - name: Upload partial review JSON
         # always() so a skipped review (backend down) doesn't break
