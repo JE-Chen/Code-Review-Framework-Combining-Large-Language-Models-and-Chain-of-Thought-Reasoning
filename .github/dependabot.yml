@@ -1,0 +1,38 @@
+# Dependabot configuration.
+#
+# Explicit so a future misnamed "*requirements*.txt" file (e.g. the
+# conda install notes that previously lived at conda_requirements.txt)
+# does not crash the update job by getting auto-detected as a pip
+# manifest. Real pip surfaces are pyproject.toml (the source of truth
+# for [runner] / [local] / [server] extras) plus the legacy
+# requirements.txt / dev_requirements.txt at the repo root that ship
+# the example-code dependency list.
+
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
+
+  - package-ecosystem: "docker"
+    directory: "/docker"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(docker)"
+      include: "scope"
