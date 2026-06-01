@@ -134,6 +134,28 @@ def test_self_import_loops_are_dropped(tmp_path):
     assert all(src != tgt for src, tgt in edges)
 
 
+def test_symbol_less_import_source_gets_a_node(tmp_path):
+    """A file with no def/class (so no symbol nodes) but that imports a
+    known file must still get a file node — otherwise the import edge's
+    source is a dangling id and d3's forceLink throws, blanking the
+    whole graph. Regression for the empty-/kg/ render.
+    """
+    _write(tmp_path, "pkg/__init__.py", "")
+    _write(tmp_path, "pkg/a.py", "def foo():\n    return 1\n")
+    # entry.py has only an import — no top-level def/class -> no symbols.
+    _write(tmp_path, "pkg/entry.py", "from pkg.a import foo\n")
+    store = _build(tmp_path, tmp_path / ".kg.sqlite")
+    data = build_graph_data(store, tmp_path)
+
+    node_ids = {n["id"] for n in data["nodes"]}
+    # No symbol pass created it, but the import-edge pass must.
+    assert "file::pkg/entry.py" in node_ids
+    # And every link endpoint resolves to a real node (no dangling refs).
+    for link in data["links"]:
+        assert link["source"] in node_ids, f"dangling source {link['source']}"
+        assert link["target"] in node_ids, f"dangling target {link['target']}"
+
+
 @pytest.mark.parametrize("rel", ["pkg/c.py", "pkg/d.py"])
 def test_graph_becomes_connected_with_imports(tmp_path, rel):
     """The core property: with imports, what used to be N stars

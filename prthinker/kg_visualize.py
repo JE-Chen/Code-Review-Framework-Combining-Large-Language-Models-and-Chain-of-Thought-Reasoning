@@ -180,6 +180,20 @@ def build_graph_data(store: KnowledgeGraphStore, workdir: Path) -> dict:
             )
         if not resolved or resolved == imp.from_file:
             continue
+        # A symbol-less source file (e.g. __main__.py, __init__.py, or an
+        # example script with no def/class) gets no node from the symbol
+        # passes above, but can still originate an import edge. Add its
+        # file node here so the edge endpoint is not dangling — d3's
+        # forceLink throws on a link to a missing node id, which blanks
+        # the entire graph. (`resolved` is always a seen file already.)
+        if imp.from_file not in seen_files:
+            seen_files.add(imp.from_file)
+            nodes.append({
+                "id": _file_node_id(imp.from_file),
+                "label": imp.from_file,
+                "kind": "file",
+                "group": _KIND_GROUP["file"],
+            })
         edge = (imp.from_file, resolved)
         if edge in seen_edges:
             continue
