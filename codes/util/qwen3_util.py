@@ -243,7 +243,10 @@ def _force_efficient_sdpa():
     with whatever default PyTorch picks (i.e. the previous behaviour).
     """
     try:
-        from torch.nn.attention import (  # type: ignore[attr-defined]
+        # Lazy by design: the new ``torch.nn.attention`` namespace
+        # only exists on PyTorch >= 2.5; the legacy fallback below
+        # covers older runtimes.
+        from torch.nn.attention import (  # type: ignore[attr-defined]  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
             SDPBackend,
             sdpa_kernel,
         )

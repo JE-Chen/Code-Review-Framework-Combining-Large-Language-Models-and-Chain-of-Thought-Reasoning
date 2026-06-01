@@ -90,6 +90,28 @@ class Import:
 # ---------------------------------------------------------------------------
 
 
+def _imports_from_import_node(node: ast.Import, rel: str) -> list[Import]:
+    """Convert one ``ast.Import`` (``import foo, bar``) into Import rows."""
+    return [
+        Import(from_file=rel, target=alias.name, kind="py_absolute")
+        for alias in node.names if alias.name
+    ]
+
+
+def _import_from_node(node: ast.ImportFrom, rel: str) -> Import | None:
+    """Convert one ``ast.ImportFrom`` into an Import row, or None."""
+    module = node.module or ""
+    if node.level > 0:
+        return Import(
+            from_file=rel,
+            target=("." * node.level) + module,
+            kind="py_relative",
+        )
+    if module:
+        return Import(from_file=rel, target=module, kind="py_absolute")
+    return None
+
+
 def _extract_python_imports(tree: ast.AST, rel: str) -> list[Import]:
     """Collect every Import / ImportFrom row from a parsed Python tree.
 
@@ -99,25 +121,11 @@ def _extract_python_imports(tree: ast.AST, rel: str) -> list[Import]:
     imports: list[Import] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.name:
-                    imports.append(Import(
-                        from_file=rel, target=alias.name,
-                        kind="py_absolute",
-                    ))
+            imports.extend(_imports_from_import_node(node, rel))
         elif isinstance(node, ast.ImportFrom):
-            module = node.module or ""
-            if node.level > 0:
-                imports.append(Import(
-                    from_file=rel,
-                    target=("." * node.level) + module,
-                    kind="py_relative",
-                ))
-            elif module:
-                imports.append(Import(
-                    from_file=rel, target=module,
-                    kind="py_absolute",
-                ))
+            row = _import_from_node(node, rel)
+            if row is not None:
+                imports.append(row)
     return imports
 
 
