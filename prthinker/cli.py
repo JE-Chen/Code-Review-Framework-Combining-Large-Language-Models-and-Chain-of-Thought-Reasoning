@@ -60,6 +60,11 @@ from prthinker.incremental_save import (
     ReviewMeta,
 )
 from prthinker.kg_visualize import build_graph_data, render_html
+from prthinker.repo_kg import (
+    KnowledgeGraphStore,
+    format_kg_block,
+    scan_workdir_full,
+)
 from prthinker.pipeline import (
     CoTPipeline,
     FileReviewResult,
@@ -1602,7 +1607,6 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
                          len(recent))
 
     if getattr(args, "kg_ground", False) and args.inline_review:
-        from prthinker.repo_kg import KnowledgeGraphStore, format_kg_block
         kg_store_path = Path(getattr(args, "kg_store", "") or
                              ".prthinker/repo-kg.sqlite")
         kg_workdir = Path(getattr(args, "kg_workdir", "") or ".")
@@ -2019,8 +2023,6 @@ def _cmd_adversarial_eval(args: argparse.Namespace) -> int:
 
 def _cmd_build_kg(args: argparse.Namespace) -> int:
     """Scan workdir + persist symbols (with import edges) to SQLite."""
-    from prthinker.repo_kg import KnowledgeGraphStore, scan_workdir_full
-
     workdir = args.workdir.resolve()
     if not workdir.exists():
         raise SystemExit(f"build-kg: workdir does not exist: {workdir}")
@@ -2036,8 +2038,6 @@ def _cmd_build_kg(args: argparse.Namespace) -> int:
 
 def _cmd_visualize_kg(args: argparse.Namespace) -> int:
     """Render the KG SQLite as a self-contained D3 force-graph HTML page."""
-    from prthinker.repo_kg import KnowledgeGraphStore, scan_workdir_full
-
     workdir = args.workdir.resolve()
     if not workdir.exists():
         raise SystemExit(f"visualize-kg: workdir does not exist: {workdir}")
