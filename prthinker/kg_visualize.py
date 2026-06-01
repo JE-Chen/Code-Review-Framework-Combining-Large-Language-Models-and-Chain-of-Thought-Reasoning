@@ -34,6 +34,45 @@ def _symbol_node_id(s: Symbol) -> str:
     return f"sym::{s.file_path}::{parent}::{s.symbol}"
 
 
+def _python_relative_candidates(
+    target: str, from_file: str
+) -> list[str]:
+    """Candidate file paths for a Python relative import (`.x`, `..y`)."""
+    dots = len(target) - len(target.lstrip("."))
+    module = target[dots:]
+    base_parts = from_file.split("/")[:-1]
+    if dots - 1 > len(base_parts):
+        return []
+    if dots - 1 > 0:
+        base_parts = base_parts[: -(dots - 1)]
+    prefix = "/".join(base_parts) + ("/" if base_parts else "")
+    if module:
+        mod_path = module.replace(".", "/")
+        return [prefix + mod_path + ".py", prefix + mod_path + "/__init__.py"]
+    return [prefix + "__init__.py"]
+
+
+def _python_absolute_candidates(target: str) -> list[str]:
+    """Candidate file paths for a Python absolute import."""
+    mod_path = target.replace(".", "/")
+    return [mod_path + ".py", mod_path + "/__init__.py"]
+
+
+def _walk_dotted_parents(target: str, file_set: set[str]) -> str | None:
+    """Walk up a dotted target — ``from foo.bar.baz import X`` may name
+    a symbol exported by ``foo/bar.py`` rather than its own module.
+    """
+    parts = target.lstrip(".").split(".")
+    while len(parts) > 1:
+        parts = parts[:-1]
+        stem = "/".join(parts)
+        for suf in (".py", "/__init__.py"):
+            cand = stem + suf
+            if cand in file_set:
+                return cand
+    return None
+
+
 def _resolve_python_target(
     target: str, kind: str, from_file: str, file_set: set[str]
 ) -> str | None:
@@ -46,43 +85,40 @@ def _resolve_python_target(
     are dropped so external deps don't add orphan nodes.
     """
     if kind == "py_relative":
-        # target looks like "..mod" or "." — count leading dots.
-        dots = len(target) - len(target.lstrip("."))
-        module = target[dots:]
-        # Walk up from from_file's directory by (dots-1) levels.
-        # `from . import X` → same package, dots=1 → no upward step.
-        base_parts = from_file.split("/")[:-1]
-        if dots - 1 > len(base_parts):
-            return None
-        if dots - 1 > 0:
-            base_parts = base_parts[: -(dots - 1)]
-        prefix = "/".join(base_parts) + ("/" if base_parts else "")
-        candidates = [
-            prefix + module.replace(".", "/") + ".py" if module else None,
-            prefix + module.replace(".", "/") + "/__init__.py" if module else (
-                prefix + "__init__.py"
-            ),
-        ]
+        candidates = _python_relative_candidates(target, from_file)
     else:
-        candidates = [
-            target.replace(".", "/") + ".py",
-            target.replace(".", "/") + "/__init__.py",
-        ]
+        candidates = _python_absolute_candidates(target)
     for cand in candidates:
-        if cand and cand in file_set:
-            return cand
-    # Walk up the dotted target — `from foo.bar.baz import X` may name
-    # a symbol exported by foo/bar.py rather than its own module file.
-    parts = target.lstrip(".").split(".")
-    while len(parts) > 1:
-        parts = parts[:-1]
-        cand = "/".join(parts) + ".py"
         if cand in file_set:
             return cand
-        cand = "/".join(parts) + "/__init__.py"
-        if cand in file_set:
-            return cand
-    return None
+    return _walk_dotted_parents(target, file_set)
+
+
+_TSJS_RESOLVE_SUFFIXES: tuple[str, ...] = (
+    "", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs",
+    "/index.ts", "/index.tsx", "/index.js", "/index.jsx",
+)
+
+
+def _walk_relative_tsjs_path(
+    target: str, from_file: str
+) -> list[str] | None:
+    """Walk a TS/JS relative specifier against ``from_file``'s directory.
+
+    Returns the resolved path segments, or ``None`` if a ``../`` step
+    would escape above the repo root.
+    """
+    base_parts = from_file.split("/")[:-1]
+    for p in target.split("/"):
+        if p in (".", ""):
+            continue
+        if p == "..":
+            if not base_parts:
+                return None
+            base_parts = base_parts[:-1]
+        else:
+            base_parts.append(p)
+    return base_parts
 
 
 def _resolve_tsjs_target(
@@ -91,21 +127,11 @@ def _resolve_tsjs_target(
     """Resolve a TS/JS import specifier (relative paths only) to a file."""
     if not (target.startswith("./") or target.startswith("../")):
         return None  # bare module specifier → external dep, skip.
-    base_parts = from_file.split("/")[:-1]
-    parts = target.split("/")
-    for p in parts:
-        if p == "." or p == "":
-            continue
-        if p == "..":
-            if not base_parts:
-                return None
-            base_parts = base_parts[:-1]
-        else:
-            base_parts.append(p)
-    stem = "/".join(base_parts)
-    suffixes = ("", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs",
-                "/index.ts", "/index.tsx", "/index.js", "/index.jsx")
-    for suf in suffixes:
+    parts = _walk_relative_tsjs_path(target, from_file)
+    if parts is None:
+        return None
+    stem = "/".join(parts)
+    for suf in _TSJS_RESOLVE_SUFFIXES:
         cand = stem + suf
         if cand in file_set:
             return cand
@@ -278,7 +304,9 @@ const g = svg.append("g");
 svg.call(d3.zoom().scaleExtent([0.1, 8]).on("zoom", (e) => g.attr("transform", e.transform)));
 
 const sim = d3.forceSimulation(data.nodes)
-  .force("link", d3.forceLink(data.links).id(d => d.id).distance(d => d.rel === "method-of" ? 40 : (d.rel === "imports" ? 140 : 60)).strength(d => d.rel === "imports" ? 0.15 : 0.4))
+  .force("link", d3.forceLink(data.links).id(d => d.id)
+    .distance(d => d.rel === "method-of" ? 40 : (d.rel === "imports" ? 140 : 60))
+    .strength(d => d.rel === "imports" ? 0.15 : 0.4))
   .force("charge", d3.forceManyBody().strength(-90))
   .force("center", d3.forceCenter(width / 2, height / 2))
   .force("collide", d3.forceCollide().radius(d => d.kind === "file" ? 12 : 6));

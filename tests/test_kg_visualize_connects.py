@@ -156,6 +156,32 @@ def test_symbol_less_import_source_gets_a_node(tmp_path):
         assert link["target"] in node_ids, f"dangling target {link['target']}"
 
 
+def _undirected_import_adjacency(data: dict) -> dict[str, set[str]]:
+    """Build an undirected adjacency map from the import-edge subset."""
+    adj: dict[str, set[str]] = {}
+    for link in data["links"]:
+        if link["rel"] != "imports":
+            continue
+        s, t = link["source"], link["target"]
+        adj.setdefault(s, set()).add(t)
+        adj.setdefault(t, set()).add(s)
+    return adj
+
+
+def _bfs_reachable(adj: dict[str, set[str]], start: str) -> set[str]:
+    seen: set[str] = {start}
+    frontier = [start]
+    while frontier:
+        nxt: list[str] = []
+        for v in frontier:
+            for nb in adj.get(v, ()):
+                if nb not in seen:
+                    seen.add(nb)
+                    nxt.append(nb)
+        frontier = nxt
+    return seen
+
+
 @pytest.mark.parametrize("rel", ["pkg/c.py", "pkg/d.py"])
 def test_graph_becomes_connected_with_imports(tmp_path, rel):
     """The core property: with imports, what used to be N stars
@@ -173,25 +199,7 @@ def test_graph_becomes_connected_with_imports(tmp_path, rel):
     store = _build(tmp_path, tmp_path / ".kg.sqlite")
     data = build_graph_data(store, tmp_path)
 
-    adj: dict[str, set[str]] = {}
-    for link in data["links"]:
-        if link["rel"] != "imports":
-            continue
-        s = link["source"]
-        t = link["target"]
-        adj.setdefault(s, set()).add(t)
-        adj.setdefault(t, set()).add(s)
+    adj = _undirected_import_adjacency(data)
     file_ids = {n["id"] for n in data["nodes"] if n["kind"] == "file"}
-
-    start = "file::" + rel
-    seen: set[str] = {start}
-    frontier = [start]
-    while frontier:
-        nxt = []
-        for v in frontier:
-            for nb in adj.get(v, ()):
-                if nb not in seen and nb in file_ids:
-                    seen.add(nb)
-                    nxt.append(nb)
-        frontier = nxt
-    assert file_ids.issubset(seen), f"unreachable files: {file_ids - seen}"
+    reached = _bfs_reachable(adj, "file::" + rel) & file_ids
+    assert file_ids.issubset(reached), f"unreachable files: {file_ids - reached}"

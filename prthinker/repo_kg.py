@@ -90,28 +90,12 @@ class Import:
 # ---------------------------------------------------------------------------
 
 
-def _scan_python(
-    file_path: Path, rel: str
-) -> tuple[list[Symbol], list[Import]]:
-    """Walk a Python file's AST and yield top-level + class-method symbols
-    plus the file's import edges.
+def _extract_python_imports(tree: ast.AST, rel: str) -> list[Import]:
+    """Collect every Import / ImportFrom row from a parsed Python tree.
 
-    Private names (``_x``) are kept — they're still canonical and the
-    reviewer should still treat them as real. We skip generated /
-    obviously-broken files via try/except around the parse.
-
-    Imports are emitted as :class:`Import` rows so the visualization
-    layer can resolve them back to file nodes and turn what used to
-    be a forest of disconnected per-file stars into a connected graph.
-    Relative imports are emitted with ``kind="py_relative"`` and the
-    target prefixed by ``.``-dots so the resolver can walk up from
-    ``rel``'s directory.
+    Relative imports keep their leading dots in ``target`` so the
+    resolver can walk up from ``rel``'s directory.
     """
-    try:
-        tree = ast.parse(file_path.read_text(encoding="utf-8"))
-    except (UnicodeDecodeError, SyntaxError):
-        return [], []
-
     imports: list[Import] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -134,7 +118,37 @@ def _scan_python(
                     from_file=rel, target=module,
                     kind="py_absolute",
                 ))
+    return imports
 
+
+def _class_member_symbols(cls: ast.ClassDef, rel: str) -> list[Symbol]:
+    """Methods defined directly inside a class body."""
+    out: list[Symbol] = []
+    for inner in cls.body:
+        if isinstance(inner, ast.FunctionDef | ast.AsyncFunctionDef):
+            out.append(Symbol(
+                symbol=inner.name, kind="method",
+                file_path=rel, line=inner.lineno,
+                parent=cls.name,
+            ))
+    return out
+
+
+def _const_targets_in(assign: ast.Assign) -> list[str]:
+    """ALL_CAPS top-level assignment targets, heuristic for constants."""
+    names: list[str] = []
+    for target in assign.targets:
+        if (
+            isinstance(target, ast.Name)
+            and target.id.isupper()
+            and target.id.replace("_", "").isalnum()
+        ):
+            names.append(target.id)
+    return names
+
+
+def _extract_python_symbols(tree: ast.Module, rel: str) -> list[Symbol]:
+    """Top-level functions / classes (+ methods) / ALL_CAPS constants."""
     out: list[Symbol] = []
     for node in tree.body:
         if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
@@ -147,26 +161,35 @@ def _scan_python(
                 symbol=node.name, kind="class",
                 file_path=rel, line=node.lineno,
             ))
-            for inner in node.body:
-                if isinstance(inner, ast.FunctionDef | ast.AsyncFunctionDef):
-                    out.append(Symbol(
-                        symbol=inner.name, kind="method",
-                        file_path=rel, line=inner.lineno,
-                        parent=node.name,
-                    ))
+            out.extend(_class_member_symbols(node, rel))
         elif isinstance(node, ast.Assign):
-            # Top-level constants — heuristic: ALL_CAPS names.
-            for target in node.targets:
-                if (
-                    isinstance(target, ast.Name)
-                    and target.id.isupper()
-                    and target.id.replace("_", "").isalnum()
-                ):
-                    out.append(Symbol(
-                        symbol=target.id, kind="const",
-                        file_path=rel, line=node.lineno,
-                    ))
-    return out, imports
+            for name in _const_targets_in(node):
+                out.append(Symbol(
+                    symbol=name, kind="const",
+                    file_path=rel, line=node.lineno,
+                ))
+    return out
+
+
+def _scan_python(
+    file_path: Path, rel: str
+) -> tuple[list[Symbol], list[Import]]:
+    """Walk a Python file's AST and yield top-level + class-method symbols
+    plus the file's import edges.
+
+    Private names (``_x``) are kept — they're still canonical and the
+    reviewer should still treat them as real. We skip generated /
+    obviously-broken files via try/except around the parse.
+
+    Imports are emitted as :class:`Import` rows so the visualization
+    layer can resolve them back to file nodes and turn what used to
+    be a forest of disconnected per-file stars into a connected graph.
+    """
+    try:
+        tree = ast.parse(file_path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, SyntaxError):
+        return [], []
+    return _extract_python_symbols(tree, rel), _extract_python_imports(tree, rel)
 
 
 # ---------------------------------------------------------------------------

@@ -1754,6 +1754,42 @@ def _maybe_open_auto_fix_pr(
     )
 
 
+def _load_partial_payload(jp: Path) -> dict | None:
+    try:
+        return json.loads(Path(jp).read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001 — surface the offending file
+        log.warning("Skipping %s — not valid JSON (%s)", jp, exc)
+        return None
+
+
+def _absorb_partial(
+    partial: ReviewResult,
+    merged_per_file: list[FileReviewResult],
+    merged_step_outputs: dict[str, str],
+    rag_docs: list[str],
+    rag_docs_seen: set[str],
+    paths_seen: set[str],
+) -> list[FileReviewResult]:
+    """Merge one deserialized partial into the running aggregate.
+
+    Returns the (possibly rebuilt) ``merged_per_file`` list. The other
+    accumulators are mutated in place. Dedupes per_file by path with
+    last-write-wins, relying on the caller sorting prior-state partials
+    BEFORE this run's shard partials so matrix output overrides prior.
+    """
+    merged_step_outputs.update(partial.step_outputs)
+    for d in partial.rag_docs:
+        if d not in rag_docs_seen:
+            rag_docs_seen.add(d)
+            rag_docs.append(d)
+    for fr in partial.per_file:
+        if fr.path in paths_seen:
+            merged_per_file = [x for x in merged_per_file if x.path != fr.path]
+        paths_seen.add(fr.path)
+        merged_per_file.append(fr)
+    return merged_per_file
+
+
 def merge_partial_reviews(json_paths: list[Path]) -> ReviewResult:
     """Merge partial review JSONs into a single ReviewResult.
 
@@ -1772,26 +1808,14 @@ def merge_partial_reviews(json_paths: list[Path]) -> ReviewResult:
     rag_docs: list[str] = []
     paths_seen: set[str] = set()
     for jp in sorted(json_paths):
-        try:
-            payload = json.loads(Path(jp).read_text(encoding="utf-8"))
-        except Exception as exc:  # noqa: BLE001 — surface the offending file
-            log.warning("Skipping %s — not valid JSON (%s)", jp, exc)
+        payload = _load_partial_payload(jp)
+        if payload is None:
             continue
         partial = _deserialize_partial_review(payload)
-        merged_step_outputs.update(partial.step_outputs)
-        for d in partial.rag_docs:
-            if d not in rag_docs_seen:
-                rag_docs_seen.add(d)
-                rag_docs.append(d)
-        for fr in partial.per_file:
-            # Dedupe by path so re-runs of the same matrix shard don't
-            # double-up. Last-write-wins on duplicate paths — relies on
-            # the caller sorting prior-state partials BEFORE this run's
-            # shard partials so the matrix output overrides the prior.
-            if fr.path in paths_seen:
-                merged_per_file = [x for x in merged_per_file if x.path != fr.path]
-            paths_seen.add(fr.path)
-            merged_per_file.append(fr)
+        merged_per_file = _absorb_partial(
+            partial, merged_per_file, merged_step_outputs,
+            rag_docs, rag_docs_seen, paths_seen,
+        )
 
     merged_findings: list[InlineFinding] = [
         f for fr in merged_per_file for f in fr.inline_findings
