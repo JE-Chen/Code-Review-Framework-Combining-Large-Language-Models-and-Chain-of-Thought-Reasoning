@@ -2,6 +2,8 @@
 
 **English** · [繁體中文](READMEs/README.zh-TW.md) · [简体中文](READMEs/README.zh-CN.md)
 
+📖 **Documentation:** <https://code-review-framework.readthedocs.io/en/latest/>
+
 > A Chain-of-Thought code review framework for GitHub PRs, backed by a
 > fine-tuned Qwen3-Coder model with retrieval-augmented prompting.
 
@@ -213,8 +215,9 @@ for the full architecture.
 - **[`docs/`](docs/)** — Read-the-Docs-style deep-dives (English +
   Traditional + Simplified Chinese).
 
-Full documentation lives in [`docs/`](docs/) and is published via Read the
-Docs:
+Full documentation is published on Read the Docs at
+**<https://code-review-framework.readthedocs.io/en/latest/>** (source in
+[`docs/`](docs/)):
 
 - **Guide** — installation, quickstart, configuration, GitHub Actions
 - **Concepts** — architecture, pipeline, RAG, corpora, CI signals, the gate

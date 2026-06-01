@@ -2,6 +2,8 @@
 
 [English](../README.md) · [繁體中文](README.zh-TW.md) · **简体中文**
 
+📖 **在线文档：** <https://code-review-framework.readthedocs.io/en/latest/>
+
 > 为 GitHub Pull Request 设计的思维链（Chain-of-Thought）代码审查框架，
 > 底层由微调后的 Qwen3-Coder 模型加上检索增强（RAG）提示驱动。
 
@@ -172,7 +174,9 @@ PATCH 成 *superseded* 灰色状态。完整架构见
 - **[`features.zh-CN.md`](features.zh-CN.md)** — 完整功能总览。
 - **[`docs/zh-CN/`](../docs/zh-CN/)** — Read-the-Docs 风格深度章节。
 
-完整文档在 [`docs/`](../docs/) 并通过 Read the Docs 发布，三种语言并行维护：
+完整文档发布于 Read the Docs：
+**<https://code-review-framework.readthedocs.io/en/latest/>**（源码在
+[`docs/`](../docs/)），三种语言并行维护：
 
 - `docs/`（英文，主版本）
 - `docs/zh-TW/`（繁体中文）
