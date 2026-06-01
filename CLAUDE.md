@@ -375,6 +375,13 @@ The supported deploy is the `docker/Dockerfile.server` shipped here: CUDA
 obeys the deprecated var and looks in an empty dir, hanging (online) or OSErroring
 (offline) on load even though the weights are cached.
 
+`qwen3_ask` wraps `model.generate` in a `sdpa_kernel([FLASH, EFFICIENT])` context
+(falls back to `torch.backends.cuda.sdp_kernel(enable_math=False)` on older PyTorch).
+The math backend is *explicitly disabled* for the generate call so a long-context run
+either dispatches to the memory-efficient kernel or raises a clear "no available SDPA
+backend" error — never the silent 127 GiB attention-score materialisation that the
+default dispatcher fell into at ~35K total tokens.
+
 ### Three-Language Docs Parity
 
 Every change to `docs/en/concepts/` or `docs/en/guide/` MUST be mirrored to `docs/zh-TW/` and

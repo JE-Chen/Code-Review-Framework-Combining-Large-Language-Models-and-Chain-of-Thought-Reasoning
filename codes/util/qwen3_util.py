@@ -1,3 +1,4 @@
+import contextlib
 import datetime
 import logging
 import os
@@ -225,6 +226,47 @@ def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3
 
     return model, tokenizer
 
+@contextlib.contextmanager
+def _force_efficient_sdpa():
+    """Force SDPA to flash or mem-efficient backends; disable math.
+
+    The math backend materialises a full L^2 score matrix and is what
+    silently OOMs at long context (the "127 GiB at 35K tokens" failure
+    mode at bf16 + 4-bit + sdpa on a 44 GiB L40S). Disabling it makes
+    long generations either dispatch to a memory-efficient kernel
+    (which is O(N) in memory) or fail loudly with a clear "no
+    available SDPA backend" error instead of swallowing 100+ GiB.
+
+    Tries the new ``torch.nn.attention.sdpa_kernel`` (PyTorch 2.5+)
+    first, then the older ``torch.backends.cuda.sdp_kernel``. If
+    neither is available the context is a no-op and generate runs
+    with whatever default PyTorch picks (i.e. the previous behaviour).
+    """
+    try:
+        from torch.nn.attention import (  # type: ignore[attr-defined]
+            SDPBackend,
+            sdpa_kernel,
+        )
+        with sdpa_kernel(
+            [SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION]
+        ):
+            yield
+        return
+    except (ImportError, AttributeError):
+        pass
+    try:
+        with torch.backends.cuda.sdp_kernel(
+            enable_flash=True,
+            enable_mem_efficient=True,
+            enable_math=False,
+        ):
+            yield
+        return
+    except (AttributeError, RuntimeError):
+        pass
+    yield
+
+
 def qwen3_ask(prompt: str, model, tokenizer, max_new_tokens: int = 16784, cancel_event=None):
     messages = [
         {"role": "user", "content": prompt}
@@ -243,11 +285,12 @@ def qwen3_ask(prompt: str, model, tokenizer, max_new_tokens: int = 16784, cancel
         )
 
     try:
-        generated_ids = model.generate(
-            **model_inputs,
-            max_new_tokens=max_new_tokens,
-            stopping_criteria=stopping_criteria,
-        )
+        with _force_efficient_sdpa():
+            generated_ids = model.generate(
+                **model_inputs,
+                max_new_tokens=max_new_tokens,
+                stopping_criteria=stopping_criteria,
+            )
     except torch.cuda.OutOfMemoryError as exc:
         impl = getattr(model.config, "_attn_implementation", "unknown")
         input_len = model_inputs["input_ids"].shape[-1]
