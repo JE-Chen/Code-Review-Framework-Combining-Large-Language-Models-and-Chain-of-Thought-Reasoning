@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from prthinker.repo_kg import KnowledgeGraphStore, Symbol
+from prthinker.repo_kg import Import, KnowledgeGraphStore, Symbol
 
 
 _KIND_GROUP: dict[str, int] = {
@@ -34,15 +34,103 @@ def _symbol_node_id(s: Symbol) -> str:
     return f"sym::{s.file_path}::{parent}::{s.symbol}"
 
 
+def _resolve_python_target(
+    target: str, kind: str, from_file: str, file_set: set[str]
+) -> str | None:
+    """Resolve a Python import target string to a known file path.
+
+    Tries both ``foo/bar.py`` (a module file) and
+    ``foo/bar/__init__.py`` (a package's init). Relative imports
+    (``kind == "py_relative"``) are walked up from ``from_file``'s
+    directory. Returns ``None`` if no known file matches — those edges
+    are dropped so external deps don't add orphan nodes.
+    """
+    if kind == "py_relative":
+        # target looks like "..mod" or "." — count leading dots.
+        dots = len(target) - len(target.lstrip("."))
+        module = target[dots:]
+        # Walk up from from_file's directory by (dots-1) levels.
+        # `from . import X` → same package, dots=1 → no upward step.
+        base_parts = from_file.split("/")[:-1]
+        if dots - 1 > len(base_parts):
+            return None
+        if dots - 1 > 0:
+            base_parts = base_parts[: -(dots - 1)]
+        prefix = "/".join(base_parts) + ("/" if base_parts else "")
+        candidates = [
+            prefix + module.replace(".", "/") + ".py" if module else None,
+            prefix + module.replace(".", "/") + "/__init__.py" if module else (
+                prefix + "__init__.py"
+            ),
+        ]
+    else:
+        candidates = [
+            target.replace(".", "/") + ".py",
+            target.replace(".", "/") + "/__init__.py",
+        ]
+    for cand in candidates:
+        if cand and cand in file_set:
+            return cand
+    # Walk up the dotted target — `from foo.bar.baz import X` may name
+    # a symbol exported by foo/bar.py rather than its own module file.
+    parts = target.lstrip(".").split(".")
+    while len(parts) > 1:
+        parts = parts[:-1]
+        cand = "/".join(parts) + ".py"
+        if cand in file_set:
+            return cand
+        cand = "/".join(parts) + "/__init__.py"
+        if cand in file_set:
+            return cand
+    return None
+
+
+def _resolve_tsjs_target(
+    target: str, from_file: str, file_set: set[str]
+) -> str | None:
+    """Resolve a TS/JS import specifier (relative paths only) to a file."""
+    if not (target.startswith("./") or target.startswith("../")):
+        return None  # bare module specifier → external dep, skip.
+    base_parts = from_file.split("/")[:-1]
+    parts = target.split("/")
+    for p in parts:
+        if p == "." or p == "":
+            continue
+        if p == "..":
+            if not base_parts:
+                return None
+            base_parts = base_parts[:-1]
+        else:
+            base_parts.append(p)
+    stem = "/".join(base_parts)
+    suffixes = ("", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs",
+                "/index.ts", "/index.tsx", "/index.js", "/index.jsx")
+    for suf in suffixes:
+        cand = stem + suf
+        if cand in file_set:
+            return cand
+    return None
+
+
 def build_graph_data(store: KnowledgeGraphStore, workdir: Path) -> dict:
-    """Convert KG rows into ``{nodes, links}`` for the D3 force layout."""
+    """Convert KG rows into ``{nodes, links}`` for the D3 force layout.
+
+    Three edge families are emitted:
+
+    - ``file-of``: a symbol belongs to a file (every symbol star).
+    - ``method-of``: a method belongs to its enclosing class.
+    - ``imports``: a file imports a symbol / module that resolves to
+      another file in the workdir. These are the connectivity edges
+      that make the graph one connected component instead of N
+      disconnected per-file stars. External deps that don't resolve
+      to a known file are dropped (no orphan boxes).
+    """
     symbols = store.all_symbols(workdir)
+    imports = store.all_imports(workdir)
 
     nodes: list[dict] = []
     links: list[dict] = []
     seen_files: set[str] = set()
-    # Map (file_path, class_name) → symbol node id so methods can link
-    # to their enclosing class node, not to a stale string.
     class_index: dict[tuple[str, str], str] = {}
 
     for s in symbols:
@@ -82,6 +170,26 @@ def build_graph_data(store: KnowledgeGraphStore, workdir: Path) -> dict:
                 "rel": "method-of",
             })
 
+    seen_edges: set[tuple[str, str]] = set()
+    for imp in imports:
+        if imp.kind == "tsjs":
+            resolved = _resolve_tsjs_target(imp.target, imp.from_file, seen_files)
+        else:
+            resolved = _resolve_python_target(
+                imp.target, imp.kind, imp.from_file, seen_files,
+            )
+        if not resolved or resolved == imp.from_file:
+            continue
+        edge = (imp.from_file, resolved)
+        if edge in seen_edges:
+            continue
+        seen_edges.add(edge)
+        links.append({
+            "source": _file_node_id(imp.from_file),
+            "target": _file_node_id(resolved),
+            "rel": "imports",
+        })
+
     return {"nodes": nodes, "links": links}
 
 
@@ -107,6 +215,7 @@ _HTML_TEMPLATE = """<!doctype html>
   svg { width: 100vw; height: 100vh; cursor: grab; }
   .link { stroke: #353945; stroke-opacity: 0.5; }
   .link.method-of { stroke: #6c5ce7; stroke-opacity: 0.7; stroke-dasharray: 2 2; }
+  .link.imports { stroke: #5fb3b3; stroke-opacity: 0.7; stroke-width: 1.4px; }
   .node text { font-size: 10px; fill: #c8cdd6; pointer-events: none; }
   .node.file text { font-weight: 600; fill: #f6c177; }
   .node circle { stroke: #0f1115; stroke-width: 1.5px; cursor: pointer; }
@@ -155,7 +264,7 @@ const g = svg.append("g");
 svg.call(d3.zoom().scaleExtent([0.1, 8]).on("zoom", (e) => g.attr("transform", e.transform)));
 
 const sim = d3.forceSimulation(data.nodes)
-  .force("link", d3.forceLink(data.links).id(d => d.id).distance(d => d.rel === "method-of" ? 40 : 60).strength(0.4))
+  .force("link", d3.forceLink(data.links).id(d => d.id).distance(d => d.rel === "method-of" ? 40 : (d.rel === "imports" ? 140 : 60)).strength(d => d.rel === "imports" ? 0.15 : 0.4))
   .force("charge", d3.forceManyBody().strength(-90))
   .force("center", d3.forceCenter(width / 2, height / 2))
   .force("collide", d3.forceCollide().radius(d => d.kind === "file" ? 12 : 6));
@@ -223,4 +332,4 @@ def render_html(data: dict, output_path: Path) -> None:
     )
 
 
-__all__ = ["build_graph_data", "render_html"]
+__all__ = ["Import", "Symbol", "build_graph_data", "render_html"]

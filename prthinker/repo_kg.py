@@ -44,6 +44,17 @@ CREATE INDEX IF NOT EXISTS idx_symbols_name
     ON symbols (workdir, symbol);
 CREATE INDEX IF NOT EXISTS idx_symbols_file
     ON symbols (workdir, file_path);
+
+CREATE TABLE IF NOT EXISTS imports (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    workdir     TEXT    NOT NULL,
+    from_file   TEXT    NOT NULL,
+    target      TEXT    NOT NULL,
+    kind        TEXT    NOT NULL,
+    ts          REAL    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_imports_from
+    ON imports (workdir, from_file);
 """
 
 
@@ -58,22 +69,71 @@ class Symbol:
     parent: str = ""  # enclosing class for methods, else ""
 
 
+@dataclass(frozen=True)
+class Import:
+    """One file→target relationship parsed from the source.
+
+    ``target`` is a raw module / path string as it appeared in the
+    source. The resolver in :mod:`prthinker.kg_visualize` maps it back
+    to a known file node when possible so the KG graph becomes
+    connected across files; external / unresolvable targets are
+    dropped from the visualization (no orphan boxes).
+    """
+
+    from_file: str
+    target: str
+    kind: str  # "py_absolute" / "py_relative" / "tsjs"
+
+
 # ---------------------------------------------------------------------------
 # Python AST scanner
 # ---------------------------------------------------------------------------
 
 
-def _scan_python(file_path: Path, rel: str) -> list[Symbol]:
-    """Walk a Python file's AST and yield top-level + class-method symbols.
+def _scan_python(
+    file_path: Path, rel: str
+) -> tuple[list[Symbol], list[Import]]:
+    """Walk a Python file's AST and yield top-level + class-method symbols
+    plus the file's import edges.
 
     Private names (``_x``) are kept — they're still canonical and the
     reviewer should still treat them as real. We skip generated /
     obviously-broken files via try/except around the parse.
+
+    Imports are emitted as :class:`Import` rows so the visualization
+    layer can resolve them back to file nodes and turn what used to
+    be a forest of disconnected per-file stars into a connected graph.
+    Relative imports are emitted with ``kind="py_relative"`` and the
+    target prefixed by ``.``-dots so the resolver can walk up from
+    ``rel``'s directory.
     """
     try:
         tree = ast.parse(file_path.read_text(encoding="utf-8"))
     except (UnicodeDecodeError, SyntaxError):
-        return []
+        return [], []
+
+    imports: list[Import] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name:
+                    imports.append(Import(
+                        from_file=rel, target=alias.name,
+                        kind="py_absolute",
+                    ))
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            if node.level > 0:
+                imports.append(Import(
+                    from_file=rel,
+                    target=("." * node.level) + module,
+                    kind="py_relative",
+                ))
+            elif module:
+                imports.append(Import(
+                    from_file=rel, target=module,
+                    kind="py_absolute",
+                ))
 
     out: list[Symbol] = []
     for node in tree.body:
@@ -106,7 +166,7 @@ def _scan_python(file_path: Path, rel: str) -> list[Symbol]:
                         symbol=target.id, kind="const",
                         file_path=rel, line=node.lineno,
                     ))
-    return out
+    return out, imports
 
 
 # ---------------------------------------------------------------------------
@@ -123,12 +183,23 @@ _TS_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("default",  re.compile(r"^export\s+default\s+(?:function\s+)?(\w+)", re.MULTILINE)),
 )
 
+_TS_IMPORT_PATTERNS: tuple[re.Pattern[str], ...] = (
+    # `import X from "..."` / `import { x } from "..."`
+    re.compile(r"""^\s*import\s+[^'"]+from\s+['"]([^'"]+)['"]""", re.MULTILINE),
+    # `import "..."` (side-effect imports)
+    re.compile(r"""^\s*import\s+['"]([^'"]+)['"]""", re.MULTILINE),
+    # `export { x } from "..."` (re-exports)
+    re.compile(r"""^\s*export\s+[^'"]+from\s+['"]([^'"]+)['"]""", re.MULTILINE),
+)
 
-def _scan_jsts(file_path: Path, rel: str) -> list[Symbol]:
+
+def _scan_jsts(
+    file_path: Path, rel: str
+) -> tuple[list[Symbol], list[Import]]:
     try:
         body = file_path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
-        return []
+        return [], []
     out: list[Symbol] = []
     for kind, pat in _TS_PATTERNS:
         for m in pat.finditer(body):
@@ -136,7 +207,18 @@ def _scan_jsts(file_path: Path, rel: str) -> list[Symbol]:
                 symbol=m.group(1), kind=kind, file_path=rel,
                 line=body.count("\n", 0, m.start()) + 1,
             ))
-    return out
+    imports: list[Import] = []
+    seen: set[str] = set()
+    for pat in _TS_IMPORT_PATTERNS:
+        for m in pat.finditer(body):
+            target = m.group(1)
+            if target in seen:
+                continue
+            seen.add(target)
+            imports.append(Import(
+                from_file=rel, target=target, kind="tsjs",
+            ))
+    return out, imports
 
 
 _LANG_DISPATCH: dict[str, callable] = {
@@ -157,8 +239,28 @@ _IGNORED_DIRS = frozenset({
 
 
 def scan_workdir(workdir: Path) -> list[Symbol]:
-    """Walk ``workdir`` and extract every Symbol in supported languages."""
-    out: list[Symbol] = []
+    """Walk ``workdir`` and extract every Symbol in supported languages.
+
+    Back-compat shim that ignores import edges. New callers should
+    prefer :func:`scan_workdir_full`, which also returns import edges
+    so the visualization can render a connected cross-file graph.
+    """
+    syms, _ = scan_workdir_full(workdir)
+    return syms
+
+
+def scan_workdir_full(
+    workdir: Path,
+) -> tuple[list[Symbol], list[Import]]:
+    """Walk ``workdir`` and extract every Symbol and Import edge.
+
+    Imports are how the visualization wires per-file stars into a
+    single connected graph. The resolver in :mod:`kg_visualize`
+    handles the module-string → file-path mapping; this scanner just
+    captures what the source actually wrote.
+    """
+    syms: list[Symbol] = []
+    imps: list[Import] = []
     for file in workdir.rglob("*"):
         if not file.is_file():
             continue
@@ -168,8 +270,10 @@ def scan_workdir(workdir: Path) -> list[Symbol]:
         if scanner is None:
             continue
         rel = file.relative_to(workdir).as_posix()
-        out.extend(scanner(file, rel))
-    return out
+        file_syms, file_imps = scanner(file, rel)
+        syms.extend(file_syms)
+        imps.extend(file_imps)
+    return syms, imps
 
 
 # ---------------------------------------------------------------------------
@@ -194,26 +298,45 @@ class KnowledgeGraphStore:
         finally:
             conn.close()
 
-    def rebuild(self, workdir: Path, symbols: Iterable[Symbol]) -> int:
-        """Drop every symbol for ``workdir`` and insert ``symbols``.
+    def rebuild(
+        self,
+        workdir: Path,
+        symbols: Iterable[Symbol],
+        imports: Iterable[Import] | None = None,
+    ) -> int:
+        """Drop every symbol + import for ``workdir`` and re-insert.
 
         Wholesale-rebuild semantics so the store always reflects HEAD;
-        partial updates are deferred to future work.
+        partial updates are deferred to future work. ``imports`` is
+        optional to keep older callers (that pass symbols only)
+        working — the visualization will fall back to file-stars-only
+        when no imports are stored.
         """
         wd = str(workdir.resolve())
         now = time.time()
-        rows = [
+        sym_rows = [
             (wd, s.file_path, s.symbol, s.kind, s.line, s.parent, now)
             for s in symbols
         ]
+        imp_rows = [
+            (wd, i.from_file, i.target, i.kind, now)
+            for i in (imports or ())
+        ]
         with self._connect() as conn:
             conn.execute("DELETE FROM symbols WHERE workdir = ?", (wd,))
+            conn.execute("DELETE FROM imports WHERE workdir = ?", (wd,))
             conn.executemany(
                 "INSERT INTO symbols (workdir, file_path, symbol, kind, "
                 "line, parent, ts) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                rows,
+                sym_rows,
             )
-        return len(rows)
+            if imp_rows:
+                conn.executemany(
+                    "INSERT INTO imports (workdir, from_file, target, "
+                    "kind, ts) VALUES (?, ?, ?, ?, ?)",
+                    imp_rows,
+                )
+        return len(sym_rows)
 
     def all_symbols(self, workdir: Path) -> list[Symbol]:
         wd = str(workdir.resolve())
@@ -228,6 +351,19 @@ class KnowledgeGraphStore:
                 symbol=str(r[0]), kind=str(r[1]),
                 file_path=str(r[2]), line=int(r[3]), parent=str(r[4]),
             )
+            for r in rows
+        ]
+
+    def all_imports(self, workdir: Path) -> list[Import]:
+        wd = str(workdir.resolve())
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT from_file, target, kind "
+                "FROM imports WHERE workdir = ? ORDER BY from_file, target",
+                (wd,),
+            ).fetchall()
+        return [
+            Import(from_file=str(r[0]), target=str(r[1]), kind=str(r[2]))
             for r in rows
         ]
 
@@ -263,8 +399,10 @@ def format_kg_block(symbols: Iterable[Symbol], *, max_symbols: int = 200) -> str
 
 
 __all__ = [
+    "Import",
     "KnowledgeGraphStore",
     "Symbol",
     "format_kg_block",
     "scan_workdir",
+    "scan_workdir_full",
 ]

@@ -1999,15 +1999,15 @@ def _cmd_adversarial_eval(args: argparse.Namespace) -> int:
 
 
 def _cmd_build_kg(args: argparse.Namespace) -> int:
-    """Scan workdir + persist symbols to SQLite."""
-    from prthinker.repo_kg import KnowledgeGraphStore, scan_workdir
+    """Scan workdir + persist symbols (with import edges) to SQLite."""
+    from prthinker.repo_kg import KnowledgeGraphStore, scan_workdir_full
 
     workdir = args.workdir.resolve()
     if not workdir.exists():
         raise SystemExit(f"build-kg: workdir does not exist: {workdir}")
-    symbols = scan_workdir(workdir)
+    symbols, imports = scan_workdir_full(workdir)
     store = KnowledgeGraphStore(args.kg_store)
-    n = store.rebuild(workdir, symbols)
+    n = store.rebuild(workdir, symbols, imports)
     sys.stdout.write(
         f"build-kg: extracted {n} symbol(s) from {workdir} "
         f"into {args.kg_store}.\n"
@@ -2017,7 +2017,7 @@ def _cmd_build_kg(args: argparse.Namespace) -> int:
 
 def _cmd_visualize_kg(args: argparse.Namespace) -> int:
     """Render the KG SQLite as a self-contained D3 force-graph HTML page."""
-    from prthinker.repo_kg import KnowledgeGraphStore, scan_workdir
+    from prthinker.repo_kg import KnowledgeGraphStore, scan_workdir_full
 
     workdir = args.workdir.resolve()
     if not workdir.exists():
@@ -2026,11 +2026,12 @@ def _cmd_visualize_kg(args: argparse.Namespace) -> int:
     store = KnowledgeGraphStore(args.kg_store)
     if len(store.all_symbols(workdir)) == 0:
         if getattr(args, "auto_build", False):
-            symbols = scan_workdir(workdir)
-            store.rebuild(workdir, symbols)
+            symbols, imports = scan_workdir_full(workdir)
+            store.rebuild(workdir, symbols, imports)
             sys.stdout.write(
                 f"visualize-kg: auto-built {len(symbols)} symbol(s) "
-                f"for {workdir} into {args.kg_store}\n"
+                f"+ {len(imports)} import edge(s) for {workdir} "
+                f"into {args.kg_store}\n"
             )
         else:
             raise SystemExit(
