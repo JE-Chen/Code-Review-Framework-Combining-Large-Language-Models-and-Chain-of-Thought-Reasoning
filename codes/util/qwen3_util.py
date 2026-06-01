@@ -35,7 +35,9 @@ def _pick_attn_implementation() -> str:
     of at the first review.
     """
     try:
-        import flash_attn  # noqa: F401
+        # Lazy by design: probe whether flash_attn is installed without
+        # forcing it as a hard dependency of the server module.
+        import flash_attn  # noqa: F401  # pylint: disable=import-outside-toplevel,unused-import
         return "flash_attention_2"
     except ImportError:
         log.warning(

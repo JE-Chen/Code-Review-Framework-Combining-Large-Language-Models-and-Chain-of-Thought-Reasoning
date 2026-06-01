@@ -93,10 +93,16 @@ _HTML_TEMPLATE = """<!doctype html>
 <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 <style>
   html, body { margin: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f1115; color: #e6e6e6; }
-  #toolbar { position: fixed; top: 12px; left: 12px; z-index: 10; background: rgba(20,22,28,0.85); padding: 10px 14px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
-  #toolbar input { background: #1c1f26; border: 1px solid #2a2e38; color: #e6e6e6; padding: 6px 10px; border-radius: 4px; width: 220px; font-size: 13px; }
+  #toolbar { position: fixed; top: 12px; left: 12px; z-index: 10;
+    background: rgba(20,22,28,0.85); padding: 10px 14px;
+    border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+  #toolbar input { background: #1c1f26; border: 1px solid #2a2e38;
+    color: #e6e6e6; padding: 6px 10px; border-radius: 4px;
+    width: 220px; font-size: 13px; }
   #toolbar .legend { font-size: 12px; margin-top: 8px; line-height: 1.5; }
-  #toolbar .legend span.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 4px 0 8px; vertical-align: middle; }
+  #toolbar .legend span.swatch { display: inline-block; width: 10px;
+    height: 10px; border-radius: 50%; margin: 0 4px 0 8px;
+    vertical-align: middle; }
   #toolbar .stats { font-size: 11px; color: #8a8f9b; margin-top: 6px; }
   svg { width: 100vw; height: 100vh; cursor: grab; }
   .link { stroke: #353945; stroke-opacity: 0.5; }
@@ -106,7 +112,9 @@ _HTML_TEMPLATE = """<!doctype html>
   .node circle { stroke: #0f1115; stroke-width: 1.5px; cursor: pointer; }
   .node.dim circle { opacity: 0.12; }
   .node.dim text { opacity: 0.15; }
-  .tooltip { position: absolute; background: rgba(20,22,28,0.95); padding: 6px 10px; border-radius: 4px; font-size: 12px; pointer-events: none; border: 1px solid #2a2e38; }
+  .tooltip { position: absolute; background: rgba(20,22,28,0.95);
+    padding: 6px 10px; border-radius: 4px; font-size: 12px;
+    pointer-events: none; border: 1px solid #2a2e38; }
 </style>
 </head>
 <body>

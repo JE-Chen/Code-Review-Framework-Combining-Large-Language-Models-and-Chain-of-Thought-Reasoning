@@ -249,6 +249,40 @@ def _dismiss_stale_inline_reviews(config: GitHubConfig) -> None:
         )
 
 
+def _parse_new_side_file_header(raw: str) -> tuple[bool, str | None]:
+    """Parse a unified diff ``+++ ...`` header.
+
+    Returns ``(is_file_header, current_path)``. ``current_path`` is
+    ``None`` when the file header points at ``/dev/null`` (deletion).
+    """
+    if not raw.startswith("+++ "):
+        return False, None
+    path = raw[4:].split("\t", 1)[0].strip()
+    if path == "/dev/null":
+        return True, None
+    return True, (path[2:] if path.startswith("b/") else path)
+
+
+def _parse_new_side_hunk_header(raw: str) -> tuple[bool, int]:
+    """Parse a unified diff ``@@ -... +new_start[,new_count] @@`` header.
+
+    Returns ``(is_hunk_header, new_start)``. ``new_start`` is ``0`` when
+    the line begins with ``@@`` but cannot be parsed (degenerate hunk);
+    the caller treats that as "stop tracking until the next valid
+    header".
+    """
+    if not raw.startswith("@@"):
+        return False, 0
+    try:
+        hunk_meta = raw.split("@@", 2)[1].strip()
+        new_part = next(
+            p for p in hunk_meta.split() if p.startswith("+")
+        )
+        return True, int(new_part[1:].split(",", 1)[0])
+    except (StopIteration, ValueError, IndexError):
+        return True, 0
+
+
 def _new_side_lines(diff_text: str) -> dict[str, set[int]]:
     """Map every file in a unified diff to the new-side line numbers
     that appear inside a hunk.
@@ -270,37 +304,23 @@ def _new_side_lines(diff_text: str) -> dict[str, set[int]]:
     in_hunk = False
 
     for raw in diff_text.splitlines():
-        if raw.startswith("+++ "):
-            path = raw[4:].split("\t", 1)[0].strip()
-            if path == "/dev/null":
-                current_path = None
-            else:
-                current_path = path[2:] if path.startswith("b/") else path
+        is_file, path = _parse_new_side_file_header(raw)
+        if is_file:
+            current_path = path
             in_hunk = False
             continue
-        if raw.startswith("@@"):
-            # @@ -old_start[,old_count] +new_start[,new_count] @@
-            try:
-                hunk_meta = raw.split("@@", 2)[1].strip()
-                new_part = next(
-                    p for p in hunk_meta.split() if p.startswith("+")
-                )
-                new_start = int(new_part[1:].split(",", 1)[0])
-                new_line = new_start - 1
-                in_hunk = True
-            except (StopIteration, ValueError, IndexError):
-                in_hunk = False
+        is_hunk, new_start = _parse_new_side_hunk_header(raw)
+        if is_hunk:
+            new_line = new_start - 1
+            in_hunk = new_start > 0
             continue
         if not in_hunk or current_path is None:
             continue
-        if raw.startswith("+"):
+        # "+" and " " advance the new-side counter; "-" is an old-side
+        # deletion and is intentionally ignored.
+        if raw[:1] in ("+", " "):
             new_line += 1
             result.setdefault(current_path, set()).add(new_line)
-        elif raw.startswith(" "):
-            new_line += 1
-            result.setdefault(current_path, set()).add(new_line)
-        # "-" lines are deletions on the old side — they don't advance
-        # the new-side line counter.
     return result
 
 

@@ -58,6 +58,7 @@ from prthinker.incremental_save import (
     IncrementalReviewWriter,
     ReviewMeta,
 )
+from prthinker.kg_visualize import build_graph_data, render_html
 from prthinker.pipeline import (
     CoTPipeline,
     FileReviewResult,
@@ -2016,7 +2017,6 @@ def _cmd_build_kg(args: argparse.Namespace) -> int:
 
 def _cmd_visualize_kg(args: argparse.Namespace) -> int:
     """Render the KG SQLite as a self-contained D3 force-graph HTML page."""
-    from prthinker.kg_visualize import build_graph_data, render_html
     from prthinker.repo_kg import KnowledgeGraphStore, scan_workdir
 
     workdir = args.workdir.resolve()

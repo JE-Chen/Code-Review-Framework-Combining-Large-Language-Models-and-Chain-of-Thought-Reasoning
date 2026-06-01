@@ -90,7 +90,9 @@ OOM_HITS="$(dmesg -T 2>/dev/null \
     | grep -iE 'killed process|oom-killer|out of memory' || true)"
 if [ -n "$OOM_HITS" ]; then
     echo "!!! OOM-killer fired during build:"
-    echo "$OOM_HITS" | sed 's/^/    /'
+    # Indent each line of OOM_HITS by 4 spaces using bash parameter
+    # expansion (avoids the extra sed process; shellcheck SC2001).
+    echo "    ${OOM_HITS//$'\n'/$'\n    '}"
     echo "!!! Common victims (cloudflared, sshd, dockerd, server container)"
     echo "!!! mean the host RAM ceiling was breached. Reduce"
     echo "!!! FLASH_ATTN_MAX_JOBS (current=${FLASH_ATTN_MAX_JOBS}) or stop"

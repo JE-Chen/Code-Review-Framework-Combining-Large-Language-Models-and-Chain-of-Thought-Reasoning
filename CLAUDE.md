@@ -357,6 +357,7 @@ that quantization does not engage, so the model loads bf16 — ~75 GB across the
 ~14 tok/s.
 
 On this hardware, do **NOT**:
+
 - **install flash-attn** (the image must dispatch attention to SDPA), or
 - **pin `transformers<5`**.
 
@@ -381,9 +382,9 @@ Every change to `docs/en/concepts/` or `docs/en/guide/` MUST be mirrored to `doc
 other two trees are sub-toctrees of the en index, so a missing translation surfaces as a
 warning (or an error if the toctree reference is broken).
 
-CJK punctuation adjacent to RST inline markup needs the `\ ` (backslash-space) zero-width
-separator — `（前文）\ ``code`` 之 ...` not `（前文）``code`` 之 ...`. The latter parses as
-inline-markup-without-end-string.
+CJK punctuation adjacent to RST inline markup needs a backslash-space (`\` followed by a
+space) zero-width separator — for example, write `（前文）\ ``code`` 之 ...` rather than
+`（前文）``code`` 之 ...`. The latter parses as inline-markup-without-end-string.
 
 ### Paper Inserts Follow `paper_rule.md`
 
@@ -468,6 +469,7 @@ Current project-wide bandit skips (`pyproject.toml`):
 - `B607` — partial executable path (`git`, `gh`). Intentional reliance on `$PATH`.
 
 When adding a new bandit skip:
+
 1. Add it to `pyproject.toml` `[tool.bandit].skips` with a `# B<NNN>: <one-line reason>` comment.
 2. Verify locally: `py -m bandit -c pyproject.toml -r prthinker/` must return
    `No issues identified`.
@@ -484,9 +486,12 @@ Before pushing, reproduce each engine locally so CI does not have to tell you:
 
 ## External Dashboards
 
-- **Codacy project issues**: https://app.codacy.com/gh/JE-Chen/Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning
-- **GitHub Actions workflow logs**: https://github.com/JE-Chen/Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning/actions
-- **Read the Docs build**: https://app.readthedocs.org/projects/code-review-framework-combining-large-language-models-and-chain/
+- **Codacy project issues**:
+  <https://app.codacy.com/gh/JE-Chen/Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning>
+- **GitHub Actions workflow logs**:
+  <https://github.com/JE-Chen/Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning/actions>
+- **Read the Docs build**:
+  <https://app.readthedocs.org/projects/code-review-framework-combining-large-language-models-and-chain/>
 
 The longer architectural overview, prompt-template anatomy, GitHub integration permissions,
 defense-slides build process, and full directory inventory live at `READMEs/CLAUDE.md`. This
