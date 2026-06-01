@@ -43,6 +43,7 @@ jobs:
       files: ${{ steps.list.outputs.files }}
       empty: ${{ steps.list.outputs.empty }}
       skipped: ${{ steps.list.outputs.skipped }}
+      deleted: ${{ steps.list.outputs.deleted }}
     steps:
       - name: Restore prthinker state cache
         id: state-restore
@@ -123,13 +124,37 @@ jobs:
                       continue
               matrix.append(path)
 
+          # Deleted (status "removed") files never enter the matrix —
+          # there is nothing in the head checkout to review — but the PR
+          # still touched them, so emit a finding-less, is_deleted partial
+          # the aggregate will merge and render as "skipped (deleted)".
+          deleted = [
+              e["path"] for e in raw
+              if e["status"] == "removed" and not excluded(e["path"])
+          ]
+          if deleted:
+              deleted_dir = Path(os.environ["RUNNER_TEMP"]) / "deleted"
+              deleted_dir.mkdir(parents=True, exist_ok=True)
+              partial = {
+                  "code_diff": "", "rag_docs": [], "step_outputs": {},
+                  "inline_findings": [],
+                  "per_file": [
+                      {"path": p, "rag_docs": [], "step_outputs": {},
+                       "inline_findings": [], "is_deleted": True}
+                      for p in deleted
+                  ],
+              }
+              (deleted_dir / "partial-deleted.json").write_text(
+                  json.dumps(partial), encoding="utf-8")
+
           out = os.environ["GITHUB_OUTPUT"]
           with open(out, "a", encoding="utf-8") as fh:
               fh.write(f"files={json.dumps(matrix)}\n")
               fh.write(f"skipped={skipped}\n")
+              fh.write(f"deleted={len(deleted)}\n")
               fh.write(f"empty={'true' if not matrix else 'false'}\n")
           print(f"Matrix ({len(matrix)} files): {matrix}")
-          print(f"Skipped (unchanged): {skipped}")
+          print(f"Skipped (unchanged): {skipped} · deleted: {len(deleted)}")
           PY
 
       - name: Upload reused partials for skipped files
@@ -138,6 +163,17 @@ jobs:
         with:
           name: partial-skipped
           path: ${{ runner.temp }}/skipped/
+          if-no-files-found: ignore
+          retention-days: 1
+
+      # Deleted files don't get a matrix shard; this partial carries them
+      # into the aggregate so the comment lists them as skipped (deleted).
+      - name: Upload deleted-file partial
+        if: steps.list.outputs.deleted != '0' && steps.list.outputs.deleted != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: partial-deleted
+          path: ${{ runner.temp }}/deleted/
           if-no-files-found: ignore
           retention-days: 1
 
