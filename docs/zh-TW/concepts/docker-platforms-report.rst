@@ -12,15 +12,17 @@ Docker、多平台、縱向報告
 --------------------------
 
 ``docker/`` 目錄下之 bundle 一指令即可部署 FastAPI 推論伺服器，預設直接
-exposed 在 port ``9000`` 上。正式部署可疊用 TLS overlay，加上 nginx 做
-TLS termination + bearer-token 驗證。兩項主機需求（使用 overlay 才需要
-TLS 憑證）：
+exposed 在 port ``9000`` 上。base compose 之上可再疊兩個 overlay：\
+**TLS overlay** 以 nginx 做 TLS termination + bearer-token 驗證；\
+**monitoring overlay** 再加上 Prometheus + Grafana + DCGM（GPU）+
+cAdvisor（容器），全部藏在單一 nginx reverse proxy 後面。兩項主機需求
+（使用 TLS overlay 才需要 TLS 憑證）：
 
-* NVIDIA GPU 加上與設定之 CUDA 版本相容之驅動（預設 ``12.2.0``\ ）。
+* NVIDIA GPU 加上與設定之 CUDA 版本相容之驅動（預設 ``13.0.1``\ ）。
 * Docker 24+ 並配置 NVIDIA container runtime（\ ``docker-compose.yml``
   內 ``runtime: nvidia``\ ）。
-* （Overlay 才需）TLS 憑證（Let's Encrypt 或 self-signed），mount 進
-  nginx container。
+* （TLS overlay 才需）TLS 憑證（Let's Encrypt 或 self-signed），mount
+  進 nginx container。
 
 檔案清單：
 
@@ -38,17 +40,35 @@ TLS 憑證）：
        ``${PRTHINKER_HOST_PORT:-9000}``\ ；兩個 volume（\ ``hf_cache``\ 、
        ``data``\ ）。HTTP only，無 TLS\ 。
    * - ``docker/docker-compose.tls.yml``
-     - 可選 overlay：加上 ``nginx`` service 做 TLS + bearer-token 驗證，
-       把 ``prthinker`` 藏在內網後面\ 。
+     - 可選 TLS overlay：加上 ``nginx`` service 做 TLS + bearer-token
+       驗證，把 ``prthinker`` 藏在內網後面（nginx 預設在 host ``443``\ ）\ 。
    * - ``docker/nginx.conf``
-     - Overlay 使用\ 。TLS termination；\ ``/healthz`` 不檢查 auth，
+     - TLS overlay 使用\ 。TLS termination；\ ``/healthz`` 不檢查 auth，
        其他路徑要求 ``Authorization: Bearer <PRTHINKER_BACKEND_TOKEN>``\ 。
    * - ``docker/entrypoint-nginx.sh``
-     - Overlay 使用\ 。container 啟動時把 token 注入 ``nginx.conf``\ ；
+     - TLS overlay 使用\ 。container 啟動時把 token 注入 ``nginx.conf``\ ；
        env 變數缺失時拒絕啟動（fail-fast）\ 。
+   * - ``docker/docker-compose.monitoring.yml``
+     - 可選 monitoring overlay：加上 ``prometheus``\ 、\ ``grafana``\ 、
+       ``dcgm-exporter``\ （GPU 指標）、\ ``cadvisor``\ （容器指標），
+       以及一個占用 host ``9000`` 的 ``nginx`` reverse proxy，依路徑把所有
+       儀表板收斂到同一個 port\ 。
+   * - ``docker/monitoring/nginx.conf``
+     - monitoring overlay 使用\ 。依路徑分流 ``/grafana/``\ 、
+       ``/prometheus/``\ 、\ ``/cadvisor/`` 與靜態 ``/kg/`` repo
+       knowledge-graph 頁；其餘一律 proxy 給 ``prthinker``\ 。
+   * - ``docker/monitoring/prometheus.yml``
+     - monitoring overlay 之 scrape 設定（prthinker ``/metrics``\ 、
+       DCGM、cAdvisor）\ 。
+   * - ``docker/monitoring/grafana/``
+     - 預先佈建之 Grafana datasource 與 ``prthinker-overview`` 儀表板，
+       首次啟動自動載入\ 。
+   * - ``docker/rebuild-server.sh``
+     - 不含 flash-attn / transformers pin 重建 server image 之 helper
+       （本 repo 支援之 bf16 + SDPA 部署）\ 。
    * - ``docker/.env.example``
-     - host port、CUDA tag 範本，以及可選之 overlay 用 bearer token /
-       TLS 憑證目錄\ 。
+     - host port、CUDA tag 範本，以及可選之 TLS overlay 用 bearer token /
+       TLS 憑證目錄、monitoring overlay 用 Grafana 管理帳密\ 。
 
 啟動（預設 — HTTP on :9000）：
 
@@ -74,6 +94,47 @@ TLS 憑證）：
    curl https://your-host/healthz \
        -H "Authorization: Bearer $PRTHINKER_BACKEND_TOKEN"
 
+啟動（monitoring overlay — 儀表板 on :9000）：
+
+.. code-block:: bash
+
+   cd docker
+   # .env 可選：
+   #   GRAFANA_ADMIN_USER=admin
+   #   GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 16)
+   docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+
+   # 全部收在單一 host port（預設 9000）後面：
+   curl http://your-host:9000/healthz          # prthinker
+   #   開 http://your-host:9000/grafana/        # Grafana（預設 admin / admin）
+
+monitoring overlay 之 nginx 占用 host ``9000`` 並依路徑分流，因此單一對外
+port（或一個上游 proxy / Cloudflare tunnel）即可同時 expose 伺服器與所有
+儀表板：
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 72
+
+   * - URL 路徑（host ``9000`` 之下）
+     - 提供
+   * - ``/healthz``\ 、\ ``/review/*``\ 、\ ``/ask/*``\ 、\ ``/metrics``\ …
+     - prthinker FastAPI 伺服器（未被下列規則命中之路徑）\ 。
+   * - ``/grafana/``
+     - Grafana UI——自動佈建之 ``prthinker-overview`` 儀表板。預設登入
+       ``admin`` / ``admin``\ （以 ``GRAFANA_ADMIN_USER`` /
+       ``GRAFANA_ADMIN_PASSWORD`` 覆寫）\ 。
+   * - ``/prometheus/``
+     - Prometheus UI / query API（保留 30 天）\ 。
+   * - ``/cadvisor/``
+     - cAdvisor 容器資源 UI\ 。
+   * - ``/kg/``
+     - 由 ``.prthinker/`` 渲染之靜態 repo knowledge-graph 頁\ 。
+
+DCGM GPU 指標 exporter 無對外路徑——只由 Prometheus 在內網 docker network
+上 scrape。TLS 與 monitoring overlay 都會占用 host ``9000``/nginx，請透過
+上游 proxy 整合，不要三個 compose 檔同時疊用\ 。
+
 Volume 說明：
 
 * ``hf_cache``\ ──HuggingFace 權重。\ ``docker compose down`` 不會清除；
@@ -81,6 +142,8 @@ Volume 說明：
 * ``data``\ ──cache.sqlite、telemetry.sqlite、dismissed.jsonl、
   accepted.jsonl，請納入備份。
 * TLS 目錄為 **host bind-mount**\ ，憑證更新與 compose 生命週期分開管。
+* ``prometheus_data`` / ``grafana_data``\ （僅 monitoring overlay）──
+  指標歷史與 Grafana 狀態；想重置儀表板可安全刪除\ 。
 
 Image 刻意不烤入權重——image 重建不應作廢 ~80 GB 下載。代價是
 ``docker compose up`` 首次請求要等權重下載；後續即熱。

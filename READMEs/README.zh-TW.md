@@ -123,6 +123,22 @@ pip install -e ".[server]"
 uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 9000
 ```
 
+或使用 `docker/` compose bundle。base 部署把 FastAPI 伺服器 expose 在
+`:9000`；其上可再疊兩個可選 overlay：
+
+```bash
+cd docker && cp .env.example .env
+docker compose up -d                                                  # :9000
+docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d        # +TLS+token :443
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d # +儀表板 :9000
+```
+
+monitoring overlay 把所有東西依路徑收在 host `:9000` 之下——`/grafana/`
+（Grafana，預設 `admin`/`admin`）、`/prometheus/`、`/cadvisor/`、`/kg/`
+（repo knowledge-graph 頁），其餘路徑一律由 prthinker 提供。完整參考
+（檔案、volume、路由 URL）：
+[`docs/zh-TW/concepts/docker-platforms-report.rst`](../docs/zh-TW/concepts/docker-platforms-report.rst)。
+
 ## GitHub Actions
 
 複製 `.github/workflows/prthinker.yml`，然後在 repo 設定兩個 secrets：

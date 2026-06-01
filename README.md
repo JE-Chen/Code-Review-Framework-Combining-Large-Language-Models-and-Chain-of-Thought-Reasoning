@@ -158,6 +158,22 @@ pip install -e ".[server]"
 uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 9000
 ```
 
+Or use the `docker/` compose bundle. Base deploy publishes the FastAPI
+server on `:9000`; two optional overlays stack on top:
+
+```bash
+cd docker && cp .env.example .env
+docker compose up -d                                                  # :9000
+docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d        # +TLS+token :443
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d # +dashboards :9000
+```
+
+The monitoring overlay routes everything under host `:9000` by path —
+`/grafana/` (Grafana, `admin`/`admin` by default), `/prometheus/`,
+`/cadvisor/`, and `/kg/` (repo knowledge-graph page) — with prthinker
+serving every other path. Full reference (files, volumes, routed URLs):
+[`docs/en/concepts/docker-platforms-report.rst`](docs/en/concepts/docker-platforms-report.rst).
+
 ## GitHub Actions
 
 Copy `.github/workflows/prthinker.yml`, then set two repo secrets:

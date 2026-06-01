@@ -221,6 +221,31 @@ uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 9000
 curl http://my-host:9000/healthz   # → {"status": "ok", "model": "..."}
 ```
 
+**或用 Docker compose**（`docker/` bundle，免手動建 venv）：
+
+```bash
+cd docker
+cp .env.example .env            # PRTHINKER_HOST_PORT 預設 9000
+docker compose up -d            # base：prthinker FastAPI on :9000
+curl http://my-host:9000/healthz
+
+# 可選 TLS overlay — nginx TLS + bearer-token 驗證 on :443：
+#   .env 內 PRTHINKER_BACKEND_TOKEN=$(openssl rand -hex 32)
+docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
+curl https://my-host/healthz -H "Authorization: Bearer $PRTHINKER_BACKEND_TOKEN"
+
+# 可選 monitoring overlay — Prometheus + Grafana + DCGM + cAdvisor，
+# 全部依路徑收在 host :9000 之下：
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+#   http://my-host:9000/grafana/     Grafana   （預設 admin / admin）
+#   http://my-host:9000/prometheus/  Prometheus UI
+#   http://my-host:9000/cadvisor/    cAdvisor
+#   http://my-host:9000/kg/          repo knowledge-graph 頁
+```
+
+完整部署參考（檔案、volume、路由 URL 表）：
+`docs/zh-TW/concepts/docker-platforms-report.rst`。
+
 **Repo 內：**
 
 `.prthinker.yaml`\ ：
