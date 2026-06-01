@@ -1,0 +1,205 @@
+"""Tests for the cross-file connectivity edges in the KG visualization.
+
+Before imports were captured, the visualization rendered N disconnected
+per-file stars — every file became its own island because the only
+edges in the graph were file→symbol (`file-of`) and class→method
+(`method-of`). These tests pin the rule that a workdir where one file
+imports another emits a file→file `imports` edge that turns those
+islands into a connected graph.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from prthinker.kg_visualize import build_graph_data
+from prthinker.repo_kg import KnowledgeGraphStore, scan_workdir_full
+
+
+def _write(workdir: Path, rel: str, body: str) -> None:
+    target = workdir / rel
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(body, encoding="utf-8")
+
+
+def _build(workdir: Path, kg_path: Path):
+    symbols, imports = scan_workdir_full(workdir)
+    store = KnowledgeGraphStore(kg_path)
+    store.rebuild(workdir, symbols, imports)
+    return store
+
+
+def _file_to_file_edges(data: dict) -> set[tuple[str, str]]:
+    edges: set[tuple[str, str]] = set()
+    for link in data["links"]:
+        if link["rel"] != "imports":
+            continue
+        src = link["source"][len("file::"):]
+        tgt = link["target"][len("file::"):]
+        edges.add((src, tgt))
+    return edges
+
+
+def test_python_absolute_import_links_two_files(tmp_path):
+    _write(tmp_path, "pkg/__init__.py", "")
+    _write(tmp_path, "pkg/a.py", "def foo():\n    return 1\n")
+    _write(tmp_path, "pkg/b.py", "from pkg.a import foo\n\ndef bar():\n    return foo()\n")
+    store = _build(tmp_path, tmp_path / ".kg.sqlite")
+    data = build_graph_data(store, tmp_path)
+    edges = _file_to_file_edges(data)
+    assert ("pkg/b.py", "pkg/a.py") in edges
+
+
+def test_python_relative_import_links_sibling_files(tmp_path):
+    _write(tmp_path, "pkg/__init__.py", "")
+    _write(tmp_path, "pkg/a.py", "X = 1\n")
+    _write(tmp_path, "pkg/b.py", "from .a import X\n\nY = X + 1\n")
+    store = _build(tmp_path, tmp_path / ".kg.sqlite")
+    data = build_graph_data(store, tmp_path)
+    edges = _file_to_file_edges(data)
+    assert ("pkg/b.py", "pkg/a.py") in edges
+
+
+def test_python_relative_import_walks_up_parents(tmp_path):
+    _write(tmp_path, "pkg/__init__.py", "")
+    _write(tmp_path, "pkg/sub/__init__.py", "")
+    _write(tmp_path, "pkg/a.py", "Z = 9\n")
+    _write(tmp_path, "pkg/sub/b.py", "from ..a import Z\n")
+    store = _build(tmp_path, tmp_path / ".kg.sqlite")
+    data = build_graph_data(store, tmp_path)
+    edges = _file_to_file_edges(data)
+    assert ("pkg/sub/b.py", "pkg/a.py") in edges
+
+
+def test_external_imports_are_dropped(tmp_path):
+    _write(tmp_path, "pkg/__init__.py", "")
+    _write(tmp_path, "pkg/a.py", "import httpx\nimport json\n\ndef f():\n    return httpx.Client()\n")
+    store = _build(tmp_path, tmp_path / ".kg.sqlite")
+    data = build_graph_data(store, tmp_path)
+    edges = _file_to_file_edges(data)
+    assert edges == set()
+    file_ids = [n["id"] for n in data["nodes"] if n["kind"] == "file"]
+    assert "file::pkg/a.py" in file_ids
+    assert not any(fid.endswith("httpx") for fid in file_ids)
+
+
+def test_from_dotted_target_resolves_to_package_init(tmp_path):
+    _write(tmp_path, "pkg/__init__.py", "")
+    _write(tmp_path, "pkg/sub/__init__.py", "Q = 1\n")
+    _write(tmp_path, "pkg/sub/inner.py", "")
+    _write(tmp_path, "pkg/a.py", "from pkg.sub import Q\n")
+    store = _build(tmp_path, tmp_path / ".kg.sqlite")
+    data = build_graph_data(store, tmp_path)
+    edges = _file_to_file_edges(data)
+    assert ("pkg/a.py", "pkg/sub/__init__.py") in edges
+
+
+def test_tsjs_relative_import_links_two_files(tmp_path):
+    _write(tmp_path, "src/a.ts", "export const A = 1;\n")
+    _write(tmp_path, "src/b.ts", 'import { A } from "./a";\nexport const B = A + 1;\n')
+    store = _build(tmp_path, tmp_path / ".kg.sqlite")
+    data = build_graph_data(store, tmp_path)
+    edges = _file_to_file_edges(data)
+    assert ("src/b.ts", "src/a.ts") in edges
+
+
+def test_tsjs_index_resolution(tmp_path):
+    _write(tmp_path, "src/lib/index.ts", "export const X = 1;\n")
+    _write(tmp_path, "src/main.ts", 'import { X } from "./lib";\n')
+    store = _build(tmp_path, tmp_path / ".kg.sqlite")
+    data = build_graph_data(store, tmp_path)
+    edges = _file_to_file_edges(data)
+    assert ("src/main.ts", "src/lib/index.ts") in edges
+
+
+def test_tsjs_bare_specifier_is_dropped(tmp_path):
+    _write(tmp_path, "src/a.ts", "export const A = 1;\n")
+    _write(tmp_path, "src/main.ts",
+           'import { thing } from "lodash";\nimport { A } from "./a";\n')
+    store = _build(tmp_path, tmp_path / ".kg.sqlite")
+    data = build_graph_data(store, tmp_path)
+    edges = _file_to_file_edges(data)
+    assert ("src/main.ts", "src/a.ts") in edges
+    assert all(tgt != "lodash" for _, tgt in edges)
+
+
+def test_self_import_loops_are_dropped(tmp_path):
+    _write(tmp_path, "pkg/__init__.py", "")
+    _write(tmp_path, "pkg/a.py", "import pkg.a\n")
+    store = _build(tmp_path, tmp_path / ".kg.sqlite")
+    data = build_graph_data(store, tmp_path)
+    edges = _file_to_file_edges(data)
+    assert all(src != tgt for src, tgt in edges)
+
+
+def test_symbol_less_import_source_gets_a_node(tmp_path):
+    """A file with no def/class (so no symbol nodes) but that imports a
+    known file must still get a file node — otherwise the import edge's
+    source is a dangling id and d3's forceLink throws, blanking the
+    whole graph. Regression for the empty-/kg/ render.
+    """
+    _write(tmp_path, "pkg/__init__.py", "")
+    _write(tmp_path, "pkg/a.py", "def foo():\n    return 1\n")
+    # entry.py has only an import — no top-level def/class -> no symbols.
+    _write(tmp_path, "pkg/entry.py", "from pkg.a import foo\n")
+    store = _build(tmp_path, tmp_path / ".kg.sqlite")
+    data = build_graph_data(store, tmp_path)
+
+    node_ids = {n["id"] for n in data["nodes"]}
+    # No symbol pass created it, but the import-edge pass must.
+    assert "file::pkg/entry.py" in node_ids
+    # And every link endpoint resolves to a real node (no dangling refs).
+    for link in data["links"]:
+        assert link["source"] in node_ids, f"dangling source {link['source']}"
+        assert link["target"] in node_ids, f"dangling target {link['target']}"
+
+
+def _undirected_import_adjacency(data: dict) -> dict[str, set[str]]:
+    """Build an undirected adjacency map from the import-edge subset."""
+    adj: dict[str, set[str]] = {}
+    for link in data["links"]:
+        if link["rel"] != "imports":
+            continue
+        s, t = link["source"], link["target"]
+        adj.setdefault(s, set()).add(t)
+        adj.setdefault(t, set()).add(s)
+    return adj
+
+
+def _bfs_reachable(adj: dict[str, set[str]], start: str) -> set[str]:
+    seen: set[str] = {start}
+    frontier = [start]
+    while frontier:
+        nxt: list[str] = []
+        for v in frontier:
+            for nb in adj.get(v, ()):
+                if nb not in seen:
+                    seen.add(nb)
+                    nxt.append(nb)
+        frontier = nxt
+    return seen
+
+
+@pytest.mark.parametrize("rel", ["pkg/c.py", "pkg/d.py"])
+def test_graph_becomes_connected_with_imports(tmp_path, rel):
+    """The core property: with imports, what used to be N stars
+    becomes a single connected component.
+
+    Build a tiny pkg where a imports b imports c imports d. Each file
+    has at most one symbol so per-file stars are trivial; the test
+    checks that BFS from any file node touches every file node.
+    """
+    _write(tmp_path, "pkg/__init__.py", "")
+    _write(tmp_path, "pkg/a.py", "from pkg.b import B\ndef A(): return B\n")
+    _write(tmp_path, "pkg/b.py", "from pkg.c import C\nB = C\n")
+    _write(tmp_path, "pkg/c.py", "from pkg.d import D\nC = D\n")
+    _write(tmp_path, "pkg/d.py", "D = 0\n")
+    store = _build(tmp_path, tmp_path / ".kg.sqlite")
+    data = build_graph_data(store, tmp_path)
+
+    adj = _undirected_import_adjacency(data)
+    file_ids = {n["id"] for n in data["nodes"] if n["kind"] == "file"}
+    reached = _bfs_reachable(adj, "file::" + rel) & file_ids
+    assert file_ids.issubset(reached), f"unreachable files: {file_ids - reached}"

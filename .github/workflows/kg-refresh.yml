@@ -1,0 +1,76 @@
+name: KG Refresh
+
+# Rebuild the per-repo knowledge graph after code lands on a long-lived
+# branch and commit the refreshed artifacts. The server serves
+# .prthinker/repo-kg.html at /kg/ straight from the checked-out repo, and
+# --kg-ground reads .prthinker/repo-kg.sqlite, so both go stale as code
+# evolves unless something regenerates them. build-kg / visualize-kg only
+# touch stdlib (ast / re / sqlite3), so this needs no GPU and no ML deps.
+#
+# This is intentionally a separate, push-triggered workflow rather than a
+# step in the PR review flow: committing back from the PR workflow would
+# re-trigger the review on `synchronize`. Here the trigger filters on
+# source files only, and the artifacts this job commits (*.html / *.sqlite)
+# do not match that filter, so the commit cannot re-trigger the workflow.
+
+on:
+  push:
+    branches: [dev, main]
+    paths:
+      - "**.py"
+      - "**.ts"
+      - "**.tsx"
+      - "**.js"
+      - "**.jsx"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kg-refresh-${{ github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install prthinker (base deps only — build-kg is stdlib)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Rebuild knowledge graph
+        run: |
+          python -m prthinker build-kg \
+            --workdir . --kg-store .prthinker/repo-kg.sqlite
+          python -m prthinker visualize-kg \
+            --workdir . --kg-store .prthinker/repo-kg.sqlite \
+            --output .prthinker/repo-kg.html
+
+      - name: Commit refreshed artifacts if changed
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- .prthinker/repo-kg.html .prthinker/repo-kg.sqlite; then
+            echo "KG unchanged — nothing to commit."
+            exit 0
+          fi
+          git add .prthinker/repo-kg.html .prthinker/repo-kg.sqlite
+          git commit -m "chore(kg): refresh repo knowledge-graph artifacts"
+          git push origin "HEAD:${{ github.ref_name }}"

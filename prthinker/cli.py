@@ -24,6 +24,7 @@ import json
 import logging
 import sys
 import time
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -57,6 +58,12 @@ from prthinker.harvest import harvest, harvest_accepted
 from prthinker.incremental_save import (
     IncrementalReviewWriter,
     ReviewMeta,
+)
+from prthinker.kg_visualize import build_graph_data, render_html
+from prthinker.repo_kg import (
+    KnowledgeGraphStore,
+    format_kg_block,
+    scan_workdir_full,
 )
 from prthinker.pipeline import (
     CoTPipeline,
@@ -1600,7 +1607,6 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
                          len(recent))
 
     if getattr(args, "kg_ground", False) and args.inline_review:
-        from prthinker.repo_kg import KnowledgeGraphStore, format_kg_block
         kg_store_path = Path(getattr(args, "kg_store", "") or
                              ".prthinker/repo-kg.sqlite")
         kg_workdir = Path(getattr(args, "kg_workdir", "") or ".")
@@ -1753,6 +1759,75 @@ def _maybe_open_auto_fix_pr(
     )
 
 
+def _load_partial_payload(jp: Path) -> dict | None:
+    try:
+        return json.loads(Path(jp).read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001 — surface the offending file
+        log.warning("Skipping %s — not valid JSON (%s)", jp, exc)
+        return None
+
+
+@dataclass
+class _MergeAccumulator:
+    """Mutable buckets the per-partial merge loop appends into."""
+
+    per_file: list[FileReviewResult] = field(default_factory=list)
+    step_outputs: dict[str, str] = field(default_factory=dict)
+    rag_docs: list[str] = field(default_factory=list)
+    rag_docs_seen: set[str] = field(default_factory=set)
+    paths_seen: set[str] = field(default_factory=set)
+
+
+def _absorb_partial(partial: ReviewResult, acc: _MergeAccumulator) -> None:
+    """Merge one deserialized partial into the running aggregate.
+
+    Mutates ``acc`` in place. Dedupes per_file by path with last-
+    write-wins, relying on the caller sorting prior-state partials
+    BEFORE this run's shard partials so matrix output overrides prior.
+    """
+    acc.step_outputs.update(partial.step_outputs)
+    for d in partial.rag_docs:
+        if d not in acc.rag_docs_seen:
+            acc.rag_docs_seen.add(d)
+            acc.rag_docs.append(d)
+    for fr in partial.per_file:
+        if fr.path in acc.paths_seen:
+            acc.per_file = [x for x in acc.per_file if x.path != fr.path]
+        acc.paths_seen.add(fr.path)
+        acc.per_file.append(fr)
+
+
+def merge_partial_reviews(json_paths: list[Path]) -> ReviewResult:
+    """Merge partial review JSONs into a single ReviewResult.
+
+    per_file results are the single source of truth: the flat
+    inline_findings list is derived from them AFTER merging, so a
+    prior-run partial carried forward through the per-PR state cache
+    (whose top-level inline_findings has been intentionally zeroed
+    out, with the real data on per_file[i].inline_findings) still
+    reaches submit_inline_review() and evaluate_gate(). This honours
+    the project rule that a file's prior review result is never lost
+    just because this run could not refresh it.
+    """
+    acc = _MergeAccumulator()
+    for jp in sorted(json_paths):
+        payload = _load_partial_payload(jp)
+        if payload is None:
+            continue
+        _absorb_partial(_deserialize_partial_review(payload), acc)
+
+    merged_findings: list[InlineFinding] = [
+        f for fr in acc.per_file for f in fr.inline_findings
+    ]
+    return ReviewResult(
+        code_diff="",  # the aggregate doesn't need the raw diff
+        rag_docs=acc.rag_docs,
+        step_outputs=acc.step_outputs,
+        inline_findings=merged_findings,
+        per_file=acc.per_file,
+    )
+
+
 def _cmd_aggregate(args: argparse.Namespace) -> int:
     """Merge partial review JSONs and post a single review to the PR.
 
@@ -1784,48 +1859,15 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
         log.warning("No *.json found under %s — nothing to aggregate", input_dir)
         return 0
 
-    merged_findings: list[InlineFinding] = []
-    merged_per_file: list[FileReviewResult] = []
-    merged_step_outputs: dict[str, str] = {}
-    rag_docs_seen: set[str] = set()
-    rag_docs: list[str] = []
-    paths_seen: set[str] = set()
-    for jp in json_paths:
-        try:
-            payload = json.loads(jp.read_text(encoding="utf-8"))
-        except Exception as exc:  # noqa: BLE001 — surface the offending file
-            log.warning("Skipping %s — not valid JSON (%s)", jp, exc)
-            continue
-        partial = _deserialize_partial_review(payload)
-        merged_findings.extend(partial.inline_findings)
-        merged_step_outputs.update(partial.step_outputs)
-        for d in partial.rag_docs:
-            if d not in rag_docs_seen:
-                rag_docs_seen.add(d)
-                rag_docs.append(d)
-        for fr in partial.per_file:
-            # Dedupe by path so re-runs of the same matrix shard don't
-            # double-up. Last-write-wins on duplicate paths.
-            if fr.path in paths_seen:
-                merged_per_file = [x for x in merged_per_file if x.path != fr.path]
-            paths_seen.add(fr.path)
-            merged_per_file.append(fr)
-
-    merged = ReviewResult(
-        code_diff="",  # the aggregate doesn't need the raw diff
-        rag_docs=rag_docs,
-        step_outputs=merged_step_outputs,
-        inline_findings=merged_findings,
-        per_file=merged_per_file,
-    )
+    merged = merge_partial_reviews(json_paths)
     log.info(
         "Aggregated %d partial(s): files=%d findings=%d",
         len(json_paths),
-        len(merged_per_file),
-        len(merged_findings),
+        len(merged.per_file),
+        len(merged.inline_findings),
     )
 
-    overall = _synthesize_overall_summary(merged_per_file)
+    overall = _synthesize_overall_summary(merged.per_file)
     if overall:
         merged.step_outputs["total_summary"] = overall
 
@@ -1980,15 +2022,13 @@ def _cmd_adversarial_eval(args: argparse.Namespace) -> int:
 
 
 def _cmd_build_kg(args: argparse.Namespace) -> int:
-    """Scan workdir + persist symbols to SQLite."""
-    from prthinker.repo_kg import KnowledgeGraphStore, scan_workdir
-
+    """Scan workdir + persist symbols (with import edges) to SQLite."""
     workdir = args.workdir.resolve()
     if not workdir.exists():
         raise SystemExit(f"build-kg: workdir does not exist: {workdir}")
-    symbols = scan_workdir(workdir)
+    symbols, imports = scan_workdir_full(workdir)
     store = KnowledgeGraphStore(args.kg_store)
-    n = store.rebuild(workdir, symbols)
+    n = store.rebuild(workdir, symbols, imports)
     sys.stdout.write(
         f"build-kg: extracted {n} symbol(s) from {workdir} "
         f"into {args.kg_store}.\n"
@@ -1998,9 +2038,6 @@ def _cmd_build_kg(args: argparse.Namespace) -> int:
 
 def _cmd_visualize_kg(args: argparse.Namespace) -> int:
     """Render the KG SQLite as a self-contained D3 force-graph HTML page."""
-    from prthinker.kg_visualize import build_graph_data, render_html
-    from prthinker.repo_kg import KnowledgeGraphStore, scan_workdir
-
     workdir = args.workdir.resolve()
     if not workdir.exists():
         raise SystemExit(f"visualize-kg: workdir does not exist: {workdir}")
@@ -2008,11 +2045,12 @@ def _cmd_visualize_kg(args: argparse.Namespace) -> int:
     store = KnowledgeGraphStore(args.kg_store)
     if len(store.all_symbols(workdir)) == 0:
         if getattr(args, "auto_build", False):
-            symbols = scan_workdir(workdir)
-            store.rebuild(workdir, symbols)
+            symbols, imports = scan_workdir_full(workdir)
+            store.rebuild(workdir, symbols, imports)
             sys.stdout.write(
                 f"visualize-kg: auto-built {len(symbols)} symbol(s) "
-                f"for {workdir} into {args.kg_store}\n"
+                f"+ {len(imports)} import edge(s) for {workdir} "
+                f"into {args.kg_store}\n"
             )
         else:
             raise SystemExit(

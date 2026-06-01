@@ -367,11 +367,24 @@ class CoTPipeline:
         aggregated_steps: dict[str, str] = {}
 
         for fd in file_diffs:
-            if skip_binary and fd.is_binary:
-                log.info("Skipping binary file %s", fd.path)
-                continue
-            if fd.is_deleted:
-                log.info("Skipping deleted file %s", fd.path)
+            # Binary / deleted files are not reviewed, but they MUST still
+            # appear in the result so every file the PR touched is
+            # accounted for in the summary comment (an absent file reads
+            # as "never looked at"). Emit a marked, finding-less entry
+            # instead of dropping it; the formatter renders it as skipped.
+            if (skip_binary and fd.is_binary) or fd.is_deleted:
+                reason = "binary" if fd.is_binary else "deleted"
+                log.info("Recording %s file %s as skipped", reason, fd.path)
+                skipped_fr = FileReviewResult(
+                    path=fd.path,
+                    rag_docs=[],
+                    step_outputs={},
+                    inline_findings=[],
+                    is_binary=fd.is_binary,
+                    is_deleted=fd.is_deleted,
+                )
+                per_file_results.append(skipped_fr)
+                _invoke_on_file_done(on_file_done, skipped_fr)
                 continue
 
             cache_key: CacheKey | None = None

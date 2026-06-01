@@ -1,3 +1,10 @@
+<!-- markdownlint-disable-file MD029 -->
+<!-- Ordered-list numbering follows the paper's §1.5 / §3.7 / §6.4.5
+     contribution numbering (items 4-7 continue 1-3 across a paragraph
+     break, 3.7.14 sub-items run (a)-(p), 6.4.5 sub-items run (a)-(q)).
+     Reformatting them to restart at 1 would lose the cross-section
+     numbering that the paper itself uses. -->
+
 # 論文補充內容（drop-in 段落集 — v3.1 修正版）
 
 ## 修正聲明

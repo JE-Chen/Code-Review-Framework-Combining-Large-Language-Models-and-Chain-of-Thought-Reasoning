@@ -96,5 +96,13 @@ def test_binary_and_deleted_files_skip_pipeline() -> None:
         "Binary files a/logo.png and b/logo.png differ\n"
     )
     result = pipeline.run_per_file(diff, inline_review=False)
-    assert [fr.path for fr in result.per_file] == ["keep.py"]
-    assert len(backend.calls) == 5  # only the kept file
+    # All three files are RECORDED so the summary accounts for every
+    # touched path, but only the reviewable one calls the backend.
+    assert [fr.path for fr in result.per_file] == ["keep.py", "gone.py", "logo.png"]
+    assert len(backend.calls) == 5  # only the kept file is actually reviewed
+    by_path = {fr.path: fr for fr in result.per_file}
+    assert not (by_path["keep.py"].is_binary or by_path["keep.py"].is_deleted)
+    assert by_path["gone.py"].is_deleted and not by_path["gone.py"].inline_findings
+    assert by_path["logo.png"].is_binary and not by_path["logo.png"].inline_findings
+    # Skipped files contribute no findings to the flat list.
+    assert result.inline_findings == []
