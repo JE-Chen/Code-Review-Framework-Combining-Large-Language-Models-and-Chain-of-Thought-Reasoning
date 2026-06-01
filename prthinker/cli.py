@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
 import sys
 import time
 from dataclasses import dataclass, field
@@ -878,6 +879,13 @@ def _build_parser() -> argparse.ArgumentParser:
         default=Path(env_str("PRTHINKER_KG_HTML",
                               ".prthinker/repo-kg.html") or
                      ".prthinker/repo-kg.html"),
+    )
+    p_viz_kg.add_argument(
+        "--name",
+        default=env_str("PRTHINKER_KG_NAME", "") or "",
+        help="Per-repo label. When set, the page is written to "
+             "repo-kg-<name>.html next to --output, so one server can host "
+             "many repos' graphs (nginx routes /kg/<name>/ to each).",
     )
     p_viz_kg.add_argument(
         "--auto-build",
@@ -2036,6 +2044,20 @@ def _cmd_build_kg(args: argparse.Namespace) -> int:
     return 0
 
 
+def _kg_html_path(output: Path, name: str) -> Path:
+    """Resolve the KG page path. With a repo ``name`` the page is written
+    to ``repo-kg-<slug>.html`` next to ``output`` so one server can host
+    many repos' graphs (nginx routes ``/kg/<slug>/`` to each). The slug is
+    restricted to the same charset nginx accepts, so it cannot path-
+    traverse. With no name, ``output`` is returned unchanged.
+    """
+    name = (name or "").strip()
+    if not name:
+        return output
+    slug = re.sub(r"[^A-Za-z0-9._-]", "-", name).strip("-.") or "repo"
+    return output.parent / f"repo-kg-{slug}.html"
+
+
 def _cmd_visualize_kg(args: argparse.Namespace) -> int:
     """Render the KG SQLite as a self-contained D3 force-graph HTML page."""
     workdir = args.workdir.resolve()
@@ -2060,10 +2082,11 @@ def _cmd_visualize_kg(args: argparse.Namespace) -> int:
             )
 
     data = build_graph_data(store, workdir)
-    render_html(data, args.output)
+    out_path = _kg_html_path(args.output, getattr(args, "name", ""))
+    render_html(data, out_path)
     sys.stdout.write(
         f"visualize-kg: wrote {len(data['nodes'])} node(s) / "
-        f"{len(data['links'])} edge(s) to {args.output}\n"
+        f"{len(data['links'])} edge(s) to {out_path}\n"
     )
     return 0
 
