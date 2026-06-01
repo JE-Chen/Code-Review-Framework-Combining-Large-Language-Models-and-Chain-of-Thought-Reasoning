@@ -10,29 +10,15 @@
 # run into the mounted HuggingFace cache volume so an image rebuild does
 # not invalidate ~80 GB of weights.
 
-ARG CUDA_VERSION=13.0.1
-# `-devel` (not `-runtime`) so nvcc + CUDA headers are present and
-# flash-attn can compile its C++ extension from source. Adds ~2 GB
-# to the image vs. -runtime; in exchange the attention path runs at
-# O(N) memory instead of SDPA's potential O(N²) math fallback, which
-# was the root cause of the total_summary OOM at ~50K input tokens.
-#
-# CUDA 13.x matches what the default PyPI torch wheel
-# (torch-2.12.0+cu13) is compiled against — flash-attn's setup.py
-# checks `torch.version.cuda` against the host nvcc version and
-# refuses to build on a mismatch, so 12.2 base + cu13 torch fails.
-FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu22.04 AS base
+ARG CUDA_VERSION=12.2.0
+FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu22.04 AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
     HF_HOME=/cache/huggingface \
-    # Must include the /hub segment: the huggingface_hub cache root is
-    # $HF_HOME/hub. transformers 4.x obeys this deprecated var, so without
-    # /hub it looks in /cache/huggingface/models--* (empty) and fails to
-    # find the weights that live under /cache/huggingface/hub/models--*.
-    TRANSFORMERS_CACHE=/cache/huggingface/hub \
+    TRANSFORMERS_CACHE=/cache/huggingface \
     PRTHINKER_DISMISSED_PATH=/data/dismissed.jsonl \
     PRTHINKER_ACCEPTED_PATH=/data/accepted.jsonl
 
@@ -57,47 +43,8 @@ COPY prthinker/ ./prthinker/
 COPY codes/ ./codes/
 COPY datas/RAG_data/ ./datas/RAG_data/
 
-RUN pip install --upgrade pip wheel setuptools packaging ninja \
+RUN pip install --upgrade pip \
  && pip install -e ".[server]"
-
-# flash-attn install runs AFTER [server] is in place so torch is
-# importable (flash-attn's setup.py imports torch at build time,
-# which would otherwise fail under --no-build-isolation). nvcc is
-# present in the -devel base image, so the source build succeeds.
-#
-# This step is FAIL-FAST on purpose. A previous version masked
-# failures with `|| echo WARN`; that turned a build-time problem
-# (no flash-attn) into a runtime 269 GiB OOM the first time a real
-# review hit the GPU. Failing here surfaces the problem when there
-# is still a human watching the build log. If flash-attn truly is
-# unavailable for this CUDA + torch combo, the operator can rebuild
-# with --build-arg ALLOW_NO_FLASH_ATTN=1 (and accept that the runtime
-# safeguard in qwen3_util._verify_non_eager_attention may refuse to
-# start the server unless SDPA can be confirmed).
-ARG ALLOW_NO_FLASH_ATTN=0
-# Cap nvcc parallelism. Unbounded, the build uses N_CPUs workers (often
-# 16-32 on a GPU host); each worker peaks at 2-3 GB RAM compiling one
-# CUDA kernel, so it can allocate 50-90 GB and OOM the Docker daemon
-# itself or kill the still-running model container and the host's SSH /
-# cloudflared session via the Linux OOM killer.
-# The default of 16 keeps the peak near ~48 GB with a ~10 min build,
-# sized for this host's 503 GiB RAM (16 jobs leaves a >10x headroom).
-# On a smaller host (<=128 GiB, or one still running the model
-# container) drop this to 4 to keep the peak under ~12 GB:
-#   docker compose build --build-arg FLASH_ATTN_MAX_JOBS=4 server
-ARG FLASH_ATTN_MAX_JOBS=16
-ENV MAX_JOBS=${FLASH_ATTN_MAX_JOBS}
-ENV NVCC_THREADS=2
-RUN if [ "$ALLOW_NO_FLASH_ATTN" = "1" ]; then \
-        pip install --no-build-isolation flash-attn \
-        || echo "WARN: flash-attn install failed (ALLOW_NO_FLASH_ATTN=1)"; \
-    else \
-        pip install --no-build-isolation flash-attn; \
-    fi \
- && python -c "import flash_attn; print('flash_attn', flash_attn.__version__)" \
-    || ([ "$ALLOW_NO_FLASH_ATTN" = "1" ] \
-        && echo "WARN: flash_attn not importable; runtime will check SDPA" \
-        || (echo "ERROR: flash_attn not importable after install" && exit 1))
 
 # Cache + JSONL stores live on a mounted volume so they survive image rebuilds.
 RUN mkdir -p /cache/huggingface /data

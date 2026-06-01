@@ -31,7 +31,7 @@ dev = [
 # in bf16, ~59 GiB). A `--no-cache` rebuild pulled 5.9.0 because these
 # were unpinned; 4.x (resolves to 4.57.x) keeps sparse MoE + 4-bit.
 local = [
-    "transformers>=4.51,<5",
+    "transformers",
     "torch",
     "accelerate",
     "bitsandbytes",
