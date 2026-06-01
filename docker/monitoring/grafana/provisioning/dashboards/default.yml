@@ -1,0 +1,15 @@
+# Auto-load every JSON dashboard under /var/lib/grafana/dashboards
+# at startup so the stack ships with at least one usable view.
+
+apiVersion: 1
+
+providers:
+  - name: prthinker
+    orgId: 1
+    folder: 'prthinker'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

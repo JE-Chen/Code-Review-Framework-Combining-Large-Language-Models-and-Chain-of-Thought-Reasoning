@@ -4,6 +4,18 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.12"
+  # XeLaTeX + Noto CJK so the PDF format below renders the trilingual docs
+  # end-to-end. pdflatex cannot handle CJK without heavy third-party packages;
+  # XeLaTeX + fonts-noto-cjk is the standard-fixture path on Read the Docs.
+  apt_packages:
+    - texlive-xetex
+    - texlive-fonts-recommended
+    - texlive-fonts-extra
+    - texlive-latex-recommended
+    - texlive-latex-extra
+    - texlive-lang-chinese
+    - fonts-noto-cjk
+    - latexmk
 
 sphinx:
   configuration: docs/conf.py

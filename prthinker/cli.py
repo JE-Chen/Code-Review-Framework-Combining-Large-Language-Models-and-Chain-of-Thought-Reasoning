@@ -23,7 +23,11 @@ import argparse
 import json
 import logging
 import sys
+import time
+from datetime import datetime, timezone
 from pathlib import Path
+
+import httpx
 
 from prthinker.backends import create_backend
 from prthinker.backends.remote import RemotePipelineClient
@@ -50,6 +54,10 @@ from prthinker.diff import parse_unified_diff
 from prthinker.dismissed import DismissedExamplesStore
 from prthinker.formatters import format_pr_comment
 from prthinker.harvest import harvest, harvest_accepted
+from prthinker.incremental_save import (
+    IncrementalReviewWriter,
+    ReviewMeta,
+)
 from prthinker.pipeline import (
     CoTPipeline,
     FileReviewResult,
@@ -66,6 +74,7 @@ from prthinker.repo_config import (
     load_repo_config,
     to_argparse_defaults,
 )
+from prthinker.review_cache import ReviewCache
 from prthinker.rules import load_rules_dir
 from prthinker.schemas import InlineFinding, ReviewRequest
 
@@ -252,6 +261,17 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     common.add_argument(
+        "--incremental-save-dir",
+        default=env_str("PRTHINKER_INCREMENTAL_SAVE_DIR", ""),
+        help=(
+            "Persist each per-file review to <dir>/files/<slug>.json as the "
+            "file finishes, plus a final <dir>/review.json once the run "
+            "completes. If the run is cancelled or crashes mid-PR the "
+            "files written so far are still on disk for inspection. "
+            "Local pipeline only; takes effect with --per-file."
+        ),
+    )
+    common.add_argument(
         "--aggregate-from",
         default=env_str("PRTHINKER_AGGREGATE_FROM", ""),
         help=(
@@ -336,7 +356,7 @@ def _build_parser() -> argparse.ArgumentParser:
     common.add_argument(
         "--diff-since-last",
         action="store_true",
-        default=env_bool("REVIEWMIND_DIFF_SINCE_LAST", False),
+        default=env_bool("PRTHINKER_DIFF_SINCE_LAST", False),
         help=(
             "Force-push differential review: hash each file's post-change "
             "content and look up cached findings keyed on "
@@ -347,7 +367,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     common.add_argument(
         "--diff-cache-path",
-        default=env_str("REVIEWMIND_DIFF_CACHE_PATH", ".reviewmind/diff-cache.sqlite"),
+        default=env_str("PRTHINKER_DIFF_CACHE_PATH", ".prthinker/diff-cache.sqlite"),
         help="SQLite file for the differential-review cache.",
     )
     common.add_argument(
@@ -827,6 +847,39 @@ def _build_parser() -> argparse.ArgumentParser:
                      ".prthinker/repo-kg.sqlite"),
     )
 
+    p_viz_kg = sub.add_parser(
+        "visualize-kg",
+        help="Render the per-repo knowledge graph as a self-contained "
+             "D3 force-directed HTML page. Opens in any browser; no "
+             "server. Run `build-kg` first if the store is empty.",
+    )
+    p_viz_kg.add_argument(
+        "--workdir",
+        type=Path,
+        default=Path(env_str("PRTHINKER_KG_WORKDIR") or "."),
+    )
+    p_viz_kg.add_argument(
+        "--kg-store",
+        type=Path,
+        default=Path(env_str("PRTHINKER_KG_STORE",
+                              ".prthinker/repo-kg.sqlite") or
+                     ".prthinker/repo-kg.sqlite"),
+    )
+    p_viz_kg.add_argument(
+        "--output",
+        type=Path,
+        default=Path(env_str("PRTHINKER_KG_HTML",
+                              ".prthinker/repo-kg.html") or
+                     ".prthinker/repo-kg.html"),
+    )
+    p_viz_kg.add_argument(
+        "--auto-build",
+        action="store_true",
+        default=env_bool("PRTHINKER_KG_AUTO_BUILD", False),
+        help="If the store is empty, run build-kg first instead of "
+             "exiting with an error.",
+    )
+
     p_discover = sub.add_parser(
         "discover-rules",
         parents=[common],
@@ -1097,6 +1150,113 @@ def _deserialize_partial_review(data: dict) -> ReviewResult:
     )
 
 
+_OVERALL_SUMMARY_PER_CALL_TIMEOUT = 30.0
+_OVERALL_SUMMARY_POLL_INTERVAL = 5.0
+_OVERALL_SUMMARY_DEADLINE_SECONDS = 1800.0
+_OVERALL_SUMMARY_MAX_NEW_TOKENS = 16784
+
+
+def _collect_overall_summary_inputs(per_file: list) -> list[str]:
+    """Return the non-empty per-file total summaries, ready for the prompt."""
+    summaries: list[str] = []
+    for fr in per_file:
+        text = (fr.total_summary or "").strip()
+        if text:
+            summaries.append(f"### {fr.path}\n{text}")
+    return summaries
+
+
+def _build_overall_summary_prompt(summaries: list[str]) -> str:
+    return (
+        "You are summarising a code-review run. Below are per-file "
+        "summaries from a single pull request. Write ONE concise PR-wide "
+        "summary in 3-5 sentences. Capture the common themes, the most "
+        "important findings, and the residual risk. Do not enumerate the "
+        "per-file blocks verbatim.\n\n"
+        + "\n\n".join(summaries)
+    )
+
+
+def _best_effort_cancel_ask_job(client: httpx.Client, job_id: str) -> None:
+    """Tell the backend to release the GPU; ignore failures by design."""
+    try:
+        client.post(f"/ask/cancel/{job_id}")
+    except httpx.HTTPError as exc:
+        log.debug("Cancel for ask job %s failed (ignored): %s", job_id, exc)
+
+
+def _poll_overall_summary(
+    client: httpx.Client, job_id: str, deadline: float
+) -> str:
+    while True:
+        if time.monotonic() >= deadline:
+            _best_effort_cancel_ask_job(client, job_id)
+            log.warning(
+                "Overall summary synthesis exceeded deadline; skipping",
+            )
+            return ""
+        time.sleep(_OVERALL_SUMMARY_POLL_INTERVAL)
+        poll = client.get(f"/ask/result/{job_id}")
+        poll.raise_for_status()
+        payload = poll.json()
+        status = payload.get("status")
+        if status == "done":
+            return (payload.get("result") or "").strip()
+        if status == "error":
+            log.warning(
+                "Overall summary synthesis failed server-side: %s",
+                payload.get("error"),
+            )
+            return ""
+        if status == "cancelled":
+            log.warning("Overall summary synthesis cancelled server-side")
+            return ""
+
+
+def _synthesize_overall_summary(per_file: list) -> str:
+    """Ask the remote backend for a single PR-wide summary.
+
+    Each matrix shard already produced its own per-file
+    ``total_summary``; the aggregate needs to roll them up into one
+    paragraph that captures the PR's overall shape — common themes,
+    the heaviest findings, residual risk — without restating every
+    file. Best-effort: a missing backend, a timeout, or any other
+    failure logs a warning and returns an empty string so the
+    formatter falls back to the per-file blocks alone.
+    """
+    summaries = _collect_overall_summary_inputs(per_file)
+    if len(summaries) < 2:
+        return ""
+
+    remote_url = (env_str("PRTHINKER_REMOTE_URL", "") or "").strip()
+    if not remote_url:
+        return ""
+
+    api_key = (env_str("PRTHINKER_REMOTE_API_KEY", "") or "").strip()
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    deadline = time.monotonic() + _OVERALL_SUMMARY_DEADLINE_SECONDS
+    prompt = _build_overall_summary_prompt(summaries)
+    try:
+        with httpx.Client(
+            base_url=remote_url.rstrip("/"),
+            timeout=_OVERALL_SUMMARY_PER_CALL_TIMEOUT,
+            headers=headers,
+        ) as client:
+            submit = client.post(
+                "/ask/submit",
+                json={
+                    "prompt": prompt,
+                    "max_new_tokens": _OVERALL_SUMMARY_MAX_NEW_TOKENS,
+                },
+            )
+            submit.raise_for_status()
+            job_id = submit.json()["job_id"]
+            return _poll_overall_summary(client, job_id, deadline)
+    except (httpx.HTTPError, KeyError, ValueError) as exc:
+        log.warning("Overall summary synthesis failed (%s); skipping", exc)
+        return ""
+
+
 def _filter_per_file_targets(
     files: list, args: argparse.Namespace
 ) -> list:
@@ -1223,11 +1383,15 @@ def _review_via_pipeline(
             cache_repo = ""
             cache_pr_number = 0
             if getattr(args, "diff_since_last", False) and args.inline_review:
-                from reviewmind.review_cache import ReviewCache
                 review_cache_obj = ReviewCache(Path(args.diff_cache_path))
                 cache_repo = getattr(args, "repo", "") or ""
                 cache_pr_number = int(getattr(args, "pr_number", 0) or 0)
-            return pipeline.run_per_file(
+            incremental_writer = _build_incremental_writer(args)
+            on_file_done = (
+                incremental_writer.write_file_result
+                if incremental_writer is not None else None
+            )
+            result = pipeline.run_per_file(
                 diff_text,
                 inline_review=args.inline_review,
                 judge=bool(getattr(args, "judge", False)),
@@ -1257,12 +1421,36 @@ def _review_via_pipeline(
                 risk_weighted=bool(getattr(args, "risk_weighted", False)),
                 risk_workdir=getattr(args, "risk_workdir", None),
                 diff_entropy_check=bool(getattr(args, "diff_entropy", False)),
+                on_file_done=on_file_done,
             )
+            if incremental_writer is not None:
+                incremental_writer.write_final(result)
+            return result
         return pipeline.run(diff_text, output_dir=output_dir)
     finally:
         backend.close()
         if isinstance(retriever, RemoteRAGRetriever):
             retriever.close()
+
+
+def _build_incremental_writer(
+    args: argparse.Namespace,
+) -> IncrementalReviewWriter | None:
+    """Construct an IncrementalReviewWriter from args (or return None)."""
+    path = (getattr(args, "incremental_save_dir", "") or "").strip()
+    if not path:
+        return None
+    meta = ReviewMeta(
+        repo=(getattr(args, "repo", "") or "").strip(),
+        pr_number=int(getattr(args, "pr_number", 0) or 0),
+        head_sha=(getattr(args, "head_sha", "") or "").strip(),
+        started_at=_iso_now(),
+    )
+    return IncrementalReviewWriter(Path(path), meta=meta)
+
+
+def _iso_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def _run_review(
@@ -1637,6 +1825,10 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
         len(merged_findings),
     )
 
+    overall = _synthesize_overall_summary(merged_per_file)
+    if overall:
+        merged.step_outputs["total_summary"] = overall
+
     from prthinker.platforms import PlatformKind, create_platform_adapter
 
     platform_kind = PlatformKind(args.platform)
@@ -1683,12 +1875,27 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
             log.info("Judge verdict aggregated → %s", review_event)
 
     if args.inline_review and merged.inline_findings:
-        review_id = adapter.submit_inline_review(
-            merged.inline_findings,
-            summary_body="prthinker — inline findings",
-            event=review_event,
-        )
-        log.info("Posted inline review id=%s (event=%s)", review_id, review_event)
+        # Inline submission can still 422 on edge cases the diff-hunk
+        # pre-filter misses (e.g. renamed files where the new path's
+        # blob SHA differs from what `+++ b/<path>` records). Log and
+        # continue — the summary comment is already posted above, and
+        # the check-run gate below still needs to run to unblock merge.
+        try:
+            review_id = adapter.submit_inline_review(
+                merged.inline_findings,
+                summary_body="prthinker — inline findings",
+                event=review_event,
+            )
+            log.info(
+                "Posted inline review id=%s (event=%s)",
+                review_id, review_event,
+            )
+        except Exception as exc:  # noqa: BLE001 — must not skip the gate below
+            log.error(
+                "Inline review submission failed (%s); summary comment "
+                "and check run will still be posted",
+                exc,
+            )
 
     if gate_handle is not None:
         gate_result = evaluate_gate(merged.inline_findings, gate_on=args.gate_on)
@@ -1785,6 +1992,40 @@ def _cmd_build_kg(args: argparse.Namespace) -> int:
     sys.stdout.write(
         f"build-kg: extracted {n} symbol(s) from {workdir} "
         f"into {args.kg_store}.\n"
+    )
+    return 0
+
+
+def _cmd_visualize_kg(args: argparse.Namespace) -> int:
+    """Render the KG SQLite as a self-contained D3 force-graph HTML page."""
+    from prthinker.kg_visualize import build_graph_data, render_html
+    from prthinker.repo_kg import KnowledgeGraphStore, scan_workdir
+
+    workdir = args.workdir.resolve()
+    if not workdir.exists():
+        raise SystemExit(f"visualize-kg: workdir does not exist: {workdir}")
+
+    store = KnowledgeGraphStore(args.kg_store)
+    if len(store.all_symbols(workdir)) == 0:
+        if getattr(args, "auto_build", False):
+            symbols = scan_workdir(workdir)
+            store.rebuild(workdir, symbols)
+            sys.stdout.write(
+                f"visualize-kg: auto-built {len(symbols)} symbol(s) "
+                f"for {workdir} into {args.kg_store}\n"
+            )
+        else:
+            raise SystemExit(
+                f"visualize-kg: no symbols for {workdir} in "
+                f"{args.kg_store}. Run `prthinker build-kg --workdir "
+                f"{workdir}` first, or pass --auto-build."
+            )
+
+    data = build_graph_data(store, workdir)
+    render_html(data, args.output)
+    sys.stdout.write(
+        f"visualize-kg: wrote {len(data['nodes'])} node(s) / "
+        f"{len(data['links'])} edge(s) to {args.output}\n"
     )
     return 0
 
@@ -2074,6 +2315,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_discover_rules(args)
     if args.command == "build-kg":
         return _cmd_build_kg(args)
+    if args.command == "visualize-kg":
+        return _cmd_visualize_kg(args)
     if args.command == "mcp":
         from prthinker.mcp_server import run as run_mcp
         return run_mcp()

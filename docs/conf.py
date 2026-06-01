@@ -82,3 +82,47 @@ intersphinx_mapping = {
 copybutton_prompt_text = r">>> |\.\.\. |\$ |# "
 copybutton_prompt_is_regexp = True
 copybutton_only_copy_prompt_lines = False
+
+# -- LaTeX / PDF output ------------------------------------------------------
+# This documentation set mixes English, Traditional Chinese, and Simplified
+# Chinese. pdflatex cannot render CJK without third-party packages; XeLaTeX
+# with xeCJK + Noto CJK fonts handles all three without per-language
+# preprocessing. The apt_packages installed by .readthedocs.yaml
+# (texlive-xetex + fonts-noto-cjk + texlive-lang-chinese) and the
+# latexmkrc at the repo root ($pdf_mode = 5) make this configuration
+# build end-to-end on Read the Docs.
+
+latex_engine = "xelatex"
+
+latex_elements = {
+    "papersize": "a4paper",
+    "pointsize": "11pt",
+    "figure_align": "H",
+    "fontpkg": "",
+    "fncychap": "",
+    "preamble": r"""
+\usepackage{fontspec}
+\usepackage{xeCJK}
+
+\setmainfont{Noto Serif}[Scale=1.0]
+\setsansfont{Noto Sans}[Scale=1.0]
+\setmonofont{Noto Sans Mono}[Scale=0.9]
+
+% Noto CJK TC covers Simplified Chinese codepoints too, so a single
+% face renders both zh-TW and zh-CN sections.
+\setCJKmainfont{Noto Serif CJK TC}[Scale=1.0]
+\setCJKsansfont{Noto Sans CJK TC}[Scale=1.0]
+\setCJKmonofont{Noto Sans Mono CJK TC}[Scale=0.9]
+
+% Allow line breaks between Latin and CJK runs without hyphenation.
+\XeTeXlinebreaklocale "zh"
+\XeTeXlinebreakskip = 0pt plus 1pt
+""",
+}
+
+latex_documents = [
+    ("index", "code-review-framework.tex",
+     "Code Review Framework documentation",
+     "JeffreyChen", "manual"),
+]
+latex_show_urls = "footnote"

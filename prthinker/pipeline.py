@@ -105,6 +105,35 @@ class ReviewCancelledError(Exception):
     """
 
 
+def _invoke_on_file_done(
+    on_file_done: "object | None", file_result: "FileReviewResult"
+) -> None:
+    """Call the per-file-done hook, swallowing failures so persistence
+    issues never abort the pipeline.
+    """
+    if on_file_done is None:
+        return
+    try:
+        on_file_done(file_result)  # type: ignore[misc]
+    except Exception as exc:  # noqa: BLE001 — hook must never break the run
+        log.warning(
+            "on_file_done hook failed for %s (ignored): %s",
+            file_result.path, exc,
+        )
+
+
+# Char-level cap applied to a step's output BEFORE it is read by the
+# next step's build_prompt. The CoT pipeline's final ``total_summary``
+# step concatenates every prior step's output into one prompt; with the
+# default ``max_new_tokens=32768`` each prior step can emit ~120 KB, so
+# the final prompt grows to hundreds of thousands of tokens and triggers
+# OOM in attention (~300 GiB for 50K tokens × 64 heads). 6000 chars is
+# roughly 1500 tokens, leaving a comfortable budget for the system
+# prompt + RAG docs + final generation. Tune via the
+# ``PRTHINKER_MAX_STEP_RESULT_CHARS`` env var (server side).
+_DEFAULT_MAX_STEP_RESULT_CHARS = 6000
+
+
 class CoTPipeline:
     def __init__(
         self,
@@ -118,6 +147,7 @@ class CoTPipeline:
         stream: bool = False,
         stream_sink: "object | None" = None,
         cancel_event: "object | None" = None,
+        max_step_result_chars: int = _DEFAULT_MAX_STEP_RESULT_CHARS,
     ) -> None:
         self._backend = backend
         self._retriever = retriever
@@ -133,10 +163,25 @@ class CoTPipeline:
         # cancel (client disconnect, idle-poll sweep) preempts at the
         # next step boundary instead of running to completion.
         self._cancel_event = cancel_event
+        # See _DEFAULT_MAX_STEP_RESULT_CHARS — 0 disables the cap.
+        self._max_step_result_chars = max(0, int(max_step_result_chars))
 
     def _check_cancel(self) -> None:
         if self._cancel_event is not None and self._cancel_event.is_set():
             raise ReviewCancelledError("Review cancelled by client")
+
+    def _cap_step_result(self, output: str) -> str:
+        """Char-truncate a step's output before downstream steps read it.
+
+        See ``_DEFAULT_MAX_STEP_RESULT_CHARS`` for the rationale.
+        Full text still hits disk via ``--output-dir`` and is returned
+        in the API response; only the in-pipeline ``ctx.results`` copy
+        is truncated.
+        """
+        cap = self._max_step_result_chars
+        if cap <= 0 or len(output) <= cap:
+            return output
+        return output[:cap] + "\n\n... [truncated]\n"
 
     def _merge_rules(self, retrieved: list[str]) -> list[str]:
         # Always-on team rules are appended after RAG-retrieved rules so the
@@ -225,6 +270,7 @@ class CoTPipeline:
         risk_weighted: bool = False,
         risk_workdir: Path | None = None,
         diff_entropy_check: bool = False,
+        on_file_done: "object | None" = None,
     ) -> ReviewResult:
         """Run the full step sequence once per file in the diff.
 
@@ -352,6 +398,7 @@ class CoTPipeline:
                     )
                     per_file_results.append(file_result)
                     aggregated_findings.extend(cached)
+                    _invoke_on_file_done(on_file_done, file_result)
                     continue
 
             file_out_dir = (
@@ -398,6 +445,7 @@ class CoTPipeline:
                 # Concatenate per-file outputs for the consolidated comment.
                 key = f"{fd.path}::{name}"
                 aggregated_steps[key] = output
+            _invoke_on_file_done(on_file_done, file_result)
 
         dep_upgrades: list[DependencyUpgradeFinding] = []
         if dep_upgrade_check:
@@ -725,7 +773,7 @@ class CoTPipeline:
                     max_new_tokens=self._max_new_tokens,
                     cancel_event=self._cancel_event,
                 )
-            ctx.results[step.name] = output
+            ctx.results[step.name] = self._cap_step_result(output)
             if output_dir is not None:
                 (output_dir / f"{step.name}_result.md").write_text(
                     output, encoding="utf-8"

@@ -166,6 +166,65 @@ The workflow is built to fail gracefully:
   ``*.json`` under ``PRTHINKER_AGGREGATE_FROM``, posts a single
   *PRThinker — skipped* comment under the standard marker, and exits
   0. The PR is not blocked and the next push overwrites the notice.
+* **Workflow cancelled mid-run** — the runner-side client wraps the
+  poll loop in a try/finally that posts ``POST /review/cancel/{id}``
+  on its way out, so a ``concurrency: cancel-in-progress`` or a
+  manual cancel does not leave the backend chewing on a review
+  nobody will read. The backend's idle sweeper is the safety net
+  for any cancellation path that skipped the cleanup (SIGKILL,
+  network partition): every job whose result endpoint has not been
+  polled for 180 s gets its ``cancel_event`` set automatically.
+* **Transient poll failure** — a single ``/review/result`` GET that
+  trips the client's per-call timeout (backend GIL pause, edge
+  hiccup, runner network blip) is retried up to five times in a
+  row before the loop gives up. A successful poll resets the
+  counter, so a long sequence of healthy polls followed by one
+  blip is invisible to the workflow.
+
+PR-wide overall summary
+-----------------------
+
+After merging every shard's partial ``ReviewResult``, the aggregate
+job asks the backend's job-pattern ``/ask/submit`` for a single
+3–5-sentence PR-wide summary built from the per-file summaries.
+The reply is stashed in ``merged.step_outputs["total_summary"]``,
+which the formatter renders as ``### Overall Summary`` at the top
+of the PR comment — right before the per-file ``<details>`` blocks.
+
+The synthesis is best-effort. ``PRTHINKER_REMOTE_URL`` not set, a
+backend timeout, a polling deadline of 30 minutes, or any other
+``httpx`` exception logs a warning and returns an empty string; the
+formatter then falls back to the per-file blocks alone. PRs with
+fewer than two surviving file summaries skip the synthesis entirely
+— the single file's own summary already covers the whole PR.
+
+Comment, review, and gate dedup
+-------------------------------
+
+Re-running a workflow on the same commit (manual *Re-run all jobs*,
+``concurrency: cancel-in-progress`` followed by a fresh push to the
+same branch tip, etc.) used to accumulate one prthinker artifact
+per run on the PR. Each run now cleans up its own predecessors
+before posting:
+
+* **Summary comment** — upserted by HTML marker
+  (``<!-- prthinker:summary -->``), so the same comment is PATCHed
+  in place across runs.
+* **Inline review** — every prthinker inline review carries a
+  hidden ``<!-- prthinker:inline -->`` marker in its body. Before
+  posting a new one, the runner lists the PR's reviews, finds
+  every review whose body contains the marker, and DELETEs each
+  of its child review comments. The wrapper review remains on the
+  timeline (GitHub does not allow dismissing ``COMMENT``-state
+  reviews) but it no longer puts duplicate annotations on the
+  diff. Cleanup failure is logged at WARNING but never blocks the
+  new submission.
+* **Check run** — before opening the gate, the runner lists every
+  check run named ``prthinker`` on the head commit and PATCHes
+  each one to ``status=completed`` /
+  ``conclusion=neutral`` with a *superseded* title. GitHub does
+  not permit deleting check runs, but the UI collapses the
+  superseded ones under the live in-progress entry.
 
 Branch protection
 -----------------

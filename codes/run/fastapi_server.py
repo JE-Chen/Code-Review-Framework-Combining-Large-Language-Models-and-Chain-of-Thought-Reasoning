@@ -36,6 +36,8 @@ from prthinker.dismissed import DismissedExamplesStore, DismissedFilter
 from prthinker.pipeline import CoTPipeline, ReviewCancelledError
 from prthinker.rag import FaissRAGRetriever
 from prthinker.schemas import (
+    AskJobStatusResponse,
+    AskJobSubmitResponse,
     AskRequest,
     JobStatus,
     RagRequest,
@@ -58,6 +60,17 @@ _LORA_BY_MODEL: dict[str, str] = {
 _DEFAULT_LORA = "../train/outputs-lora-qwen3-30b"
 
 app = FastAPI(title="CoT Reviewer Inference Server")
+
+# Expose Prometheus-format metrics at /metrics so the monitoring
+# compose overlay (prometheus + grafana + dcgm + cadvisor) can scrape
+# per-endpoint request count / latency / status without touching the
+# pipeline. Instrumentation is lazy-imported so a runner-profile
+# install does not have to pull in the dependency.
+try:
+    from prometheus_fastapi_instrumentator import Instrumentator
+    Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+except ImportError:
+    log.info("prometheus_fastapi_instrumentator not installed; /metrics disabled")
 
 # ---------------------------------------------------------------------------
 # One-time module-level initialization (per project perf rules).
@@ -173,6 +186,9 @@ def _execute_review(
         dismissed_filter=_dismissed_filter,
         accepted_retriever=_accepted_retriever,
         cancel_event=cancel_event,
+        max_step_result_chars=int(
+            os.environ.get("PRTHINKER_MAX_STEP_RESULT_CHARS", "6000") or "6000"
+        ),
     )
 
     if req.file_path is not None:
@@ -254,7 +270,8 @@ def _sweep_idle_jobs() -> None:
     The matrix runner polls every 5 seconds, so 180 s of silence almost
     certainly means the runner was cancelled (concurrency
     cancel-in-progress, manual cancel, hung CI) and there is no point
-    burning GPU on a review nobody will read.
+    burning GPU on a review nobody will read. Both /review and /ask
+    job tables share the same idle policy.
     """
     while True:
         time.sleep(_SWEEPER_INTERVAL_SECONDS)
@@ -267,7 +284,20 @@ def _sweep_idle_jobs() -> None:
                     continue
                 if now - job.last_polled_at > _IDLE_TIMEOUT_SECONDS:
                     log.warning(
-                        "Job %s idle for %.0fs; setting cancel_event",
+                        "Review job %s idle for %.0fs; setting cancel_event",
+                        jid,
+                        now - job.last_polled_at,
+                    )
+                    job.cancel_event.set()
+        with _ASK_JOBS_LOCK:
+            for jid, job in _ASK_JOBS.items():
+                if job.status != "running":
+                    continue
+                if job.cancel_event.is_set():
+                    continue
+                if now - job.last_polled_at > _IDLE_TIMEOUT_SECONDS:
+                    log.warning(
+                        "Ask job %s idle for %.0fs; setting cancel_event",
                         jid,
                         now - job.last_polled_at,
                     )
@@ -364,6 +394,120 @@ def review_cancel(job_id: str) -> dict[str, str | bool]:
     """
     with _JOBS_LOCK:
         job = _JOBS.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="job not found")
+        if job.status in ("done", "error", "cancelled"):
+            return {"job_id": job_id, "cancelled": False, "status": job.status}
+        job.cancel_event.set()
+        return {"job_id": job_id, "cancelled": True, "status": job.status}
+
+
+# ---------------------------------------------------------------------------
+# Async job pattern for /ask.
+#
+# Mirrors the /review submit + poll pattern. A long single-prompt
+# generation (e.g. the aggregate's PR-wide overall-summary synthesis
+# with max_new_tokens in the tens of thousands) easily exceeds the
+# 100 s Cloudflare idle timeout that the synchronous /ask cannot
+# survive. /ask/submit returns a job id; /ask/result/{id} is polled
+# every few seconds so each round-trip fits inside the proxy budget.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _AskJob:
+    status: JobStatus = "pending"
+    result: str | None = None
+    error: str | None = None
+    created_at: float = field(default_factory=time.time)
+    last_polled_at: float = field(default_factory=time.time)
+    cancel_event: threading.Event = field(default_factory=threading.Event)
+
+
+_ASK_JOBS: dict[str, _AskJob] = {}
+_ASK_JOBS_LOCK = threading.Lock()
+
+
+def _evict_stale_ask_jobs_locked() -> None:
+    now = time.time()
+    stale = [
+        jid for jid, j in _ASK_JOBS.items()
+        if now - j.created_at > _JOB_TTL_SECONDS
+    ]
+    for jid in stale:
+        del _ASK_JOBS[jid]
+
+
+def _run_ask_job(job_id: str, req: AskRequest) -> None:
+    with _ASK_JOBS_LOCK:
+        job = _ASK_JOBS.get(job_id)
+        if job is None:
+            return
+        job.status = "running"
+        cancel_event = job.cancel_event
+    try:
+        text = _backend.generate(
+            req.prompt,
+            max_new_tokens=req.max_new_tokens,
+            cancel_event=cancel_event,
+        )
+        with _ASK_JOBS_LOCK:
+            job = _ASK_JOBS.get(job_id)
+            if job is not None:
+                job.status = "done"
+                job.result = text
+    except ReviewCancelledError:
+        log.info("Ask job %s cancelled by client", job_id)
+        with _ASK_JOBS_LOCK:
+            job = _ASK_JOBS.get(job_id)
+            if job is not None:
+                job.status = "cancelled"
+    except Exception as exc:
+        log.exception("Ask job %s failed", job_id)
+        with _ASK_JOBS_LOCK:
+            job = _ASK_JOBS.get(job_id)
+            if job is not None:
+                job.status = "error"
+                job.error = f"{type(exc).__name__}: {exc}"
+    finally:
+        _release_gpu_memory()
+
+
+@app.post("/ask/submit", response_model=AskJobSubmitResponse)
+def ask_submit(req: AskRequest) -> AskJobSubmitResponse:
+    if not req.prompt.strip():
+        raise HTTPException(status_code=400, detail="prompt is empty")
+    job_id = uuid.uuid4().hex
+    with _ASK_JOBS_LOCK:
+        _evict_stale_ask_jobs_locked()
+        _ASK_JOBS[job_id] = _AskJob()
+    threading.Thread(
+        target=_run_ask_job,
+        args=(job_id, req),
+        daemon=True,
+    ).start()
+    return AskJobSubmitResponse(job_id=job_id)
+
+
+@app.get("/ask/result/{job_id}", response_model=AskJobStatusResponse)
+def ask_result(job_id: str) -> AskJobStatusResponse:
+    with _ASK_JOBS_LOCK:
+        job = _ASK_JOBS.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="job not found")
+        job.last_polled_at = time.time()
+        return AskJobStatusResponse(
+            job_id=job_id,
+            status=job.status,
+            result=job.result,
+            error=job.error,
+        )
+
+
+@app.post("/ask/cancel/{job_id}")
+def ask_cancel(job_id: str) -> dict[str, str | bool]:
+    with _ASK_JOBS_LOCK:
+        job = _ASK_JOBS.get(job_id)
         if job is None:
             raise HTTPException(status_code=404, detail="job not found")
         if job.status in ("done", "error", "cancelled"):

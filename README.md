@@ -175,7 +175,17 @@ runner's partial JSON into a single summary comment + one inline
 review + one gate close. The runner-server transport uses
 `POST /review/submit` + `GET /review/result/{id}` polling so the
 workflow stays within any reverse-proxy idle timeout (Cloudflare's
-100 s cap, for example). See
+100 s cap, for example).
+
+A cancelled workflow stops burning GPU: the runner posts
+`POST /review/cancel/{id}` on its way out and the backend's idle
+sweeper sets the cancel flag on any job that hasn't been polled for
+180 s. The aggregator finishes with a `### Overall Summary` it
+synthesises across every file via `POST /ask/submit`, and every
+re-run on the same SHA deduplicates its predecessor: the summary
+comment is upserted in place, prior inline reviews have their
+child comments deleted, and prior `prthinker` check runs are PATCHed
+to `neutral` with a *superseded* title. See
 [`docs/en/guide/github-actions.rst`](docs/en/guide/github-actions.rst)
 for the full architecture.
 

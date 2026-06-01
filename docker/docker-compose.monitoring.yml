@@ -1,0 +1,124 @@
+# Optional monitoring overlay — adds Prometheus + Grafana + DCGM
+# (GPU) + cAdvisor (containers) on top of the base prthinker
+# deployment, all collapsed onto a single host port via an nginx
+# reverse proxy.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+#
+# Public surface (host:9000, behind any upstream proxy / Cloudflare):
+#   - /healthz, /review/*, /ask/*, /metrics, ... → prthinker
+#   - /grafana/   → Grafana (admin / admin by default)
+#   - /cadvisor/  → cAdvisor
+#   - /prometheus/ → Prometheus UI
+#
+# DCGM exporter stays internal — only Prometheus scrapes it.
+# prthinker's direct 9000 host binding is removed; the nginx in
+# this overlay owns the host port and routes by path.
+
+services:
+  # Drop the base compose's host port binding; nginx takes over.
+  prthinker:
+    ports: !reset []
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    # --web.external-url + --web.route-prefix let Prometheus serve
+    # under /prometheus/ so nginx can proxy_pass without stripping.
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-lifecycle
+      - --web.external-url=/prometheus/
+      - --web.route-prefix=/prometheus
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      # Sub-path config so all asset links resolve under /grafana/
+      # when behind the nginx in this overlay.
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s:%(http_port)s/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+
+  # NVIDIA's official GPU metrics exporter. Internal only — only
+  # Prometheus scrapes it on the docker network.
+  dcgm-exporter:
+    image: nvidia/dcgm-exporter:3.3.9-3.6.1-ubuntu22.04
+    restart: unless-stopped
+    runtime: nvidia
+    cap_add:
+      - SYS_ADMIN
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, utility]
+
+  cadvisor:
+    # v0.49.1 shipped a docker client that can no longer talk to
+    # Docker 27's daemon ("client version 1.41 is too old"). v0.52.x
+    # bumps the client past the 1.44 floor.
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    # Run cAdvisor under /cadvisor so its asset URLs match the
+    # nginx route prefix. The default healthcheck probes /healthz,
+    # which sub-path config moves to /cadvisor/healthz — override
+    # so the container is not flagged unhealthy.
+    command:
+      - --url_base_prefix=/cadvisor
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/cadvisor/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Reverse proxy: owns host:9000 and routes by path. Without this
+  # overlay the base prthinker still binds 9000 directly; with it
+  # nginx fronts everything and the published port stays 9000.
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - prthinker
+      - grafana
+      - cadvisor
+      - prometheus
+    volumes:
+      - ./monitoring/nginx.conf:/etc/nginx/nginx.conf:ro
+      # The repo's .prthinker/ holds the build-kg sqlite + the
+      # rendered repo-kg.html. Mount read-only so nginx can serve
+      # /kg/ as a static page.
+      - ../.prthinker:/usr/share/nginx/kg:ro
+    ports:
+      - "${PRTHINKER_HOST_PORT:-9000}:80"
+
+volumes:
+  prometheus_data:
+  grafana_data:

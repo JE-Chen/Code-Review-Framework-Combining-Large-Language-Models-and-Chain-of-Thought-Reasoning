@@ -1,25 +1,36 @@
-# 論文補充內容（drop-in 段落集 — v3 修正版）
+# 論文補充內容（drop-in 段落集 — v3.1 修正版）
 
 ## 修正聲明
 
-本版相對於 v2 之關鍵差異（v3）：
+本版相對於 v3 之關鍵差異（v3.1）：
 
-- **新增框架設計貢獻段落 §3.7**：v2 完成後，隨附之開源框架（`prthinker`）
-  另實作十四項「框架層」之研究級擴充機制，分別對應 prompt-injection
-  robustness、closed-loop 多輪對話、counterfactual 審查、provenance
-  稽核、force-push 差分、suggestion sandbox 驗證、cross-language API
-  drift、PR 類型自適應、reproducibility 訊號、dependency upgrade impact、
-  reviewer personas + conflict surfacing、risk-weighted attention、
-  diff entropy 偵測，以及部署層之 CI matrix 分片 + 非同步 job-pattern
-  endpoint。其量化效益本論文\ **未予評估**，全部列為設計貢獻
-  並於 §6.4 補上對應之未來工作。
-- **§1.5 第六項貢獻擴寫**：原 v2 僅提「四類推論後端與 IDE 整合」，
-  v3 加入 §3.7 所述之十三項擴充機制條目，逐項註明本論文未予評估。
-- **§6.4 增列 6.4.5**：新增「研究級擴充機制之實證評估」之未來工作項，
-  對十三項機制逐項給出最小可驗證實驗骨架（語料規模、對照變項、評估
-  指標），確保未來補實驗時有可遵循之骨架。
-- 不變項目（沿用 v2）：仍\ **不謊造、不新增 RQ、不新增參考文獻**\ ；
-  既有 §5 之表 1 / 表 2 / 表 3 不更動；§3.5 / §3.6 / §5.3 / §6.4.1–4 沿用。
+- **§3.7 機制清單由 13 項擴充為 17 項**：v3 定稿後，隨附開源框架另實作
+  四項機制──主動學習衍生規則（`derive-lessons` + `--lessons`，§3.7.15）、
+  跨 PR finding 聚類（`discover-rules`，§3.7.16）、Repo 知識圖譜
+  （`build-kg` + `--kg-ground`，含 D3 視覺化，§3.7.17）、每檔遞增存檔
+  與崩潰安全部分結果（`--incremental-save-dir`，§3.7.18）。各機制之
+  端到端品質效益本論文均\ **未予評估**\ ，於 §6.4.5 各補上對應未來
+  工作骨架 (n)–(q)。
+- **§3.7.14 部署層補 (h)–(p)**：v3 定稿後另補上九項生產穩定性工程──
+  step 輸出字元上限以避免 total_summary 階段 attention OOM (h)、本機後端
+  之 FlashAttention 2 / SDPA 與 CUDA 13.0.1-devel 基底鏡像啟用 (i)、
+  client 與 backend 之 timeout 預算由 30 分鐘拉長至 1 小時 (j)、poll
+  重試預算由 5 提升至 60 並加上指數 backoff 以吸收 30B-class 後端重啟
+  / GPU reload 所致之短暫 502 (k)、CI matrix 內以 ``actions/cache``
+  串接 §3.7.5 之 diff-since-last SQLite 使單檔 fix 之 re-push 僅令該檔
+  重跑 (l)、GitHub 留言 65,536 字元上限之保留 marker 之自動截斷以避免
+  aggregate 階段 422 失敗 (m)、per-PR 狀態快取與 enumerate 階段之 matrix
+  預過濾使未變動檔不再 spawn shard 而非僅於 runner 內短路 LLM (n)、每
+  shard 寫 checkpoint 使 aggregate 失敗或 runner 崩潰時下次 push 仍能
+  跳過已完成之檔 (o)、inline findings 對 diff hunks 之預過濾以避開 GitHub
+  review API 因單筆虛構行號而 422 拒絕整份 review (p)。
+- **§1.5 第七項貢獻**\ 之計數由「十三項」改為「十七項」並補列四項機制名稱；
+  §1.3 TCSE 短文之對應字句同步更新計數。
+- **§6.4.5 補 (n)–(q)**：四項新機制各補一段最小可驗證實驗骨架；現有
+  (a)–(m) 段落沿用。
+- 不變項目（沿用 v3）：仍\ **不謊造、不新增 RQ、不新增參考文獻**\ ；
+  既有 §5 之表 1 / 表 2 / 表 3 不更動；§3.5 / §3.6 / §5.3 / §6.4.1–4
+  沿用；§3.7.1–§3.7.14 之既有內容沿用。
 
 本檔每段插入皆對應「實際實驗結果」或「framework 設計／未來工作」二
 類之一；前者引用既有表格之數字，後者僅描述機制不附數字。
@@ -66,15 +77,19 @@
 > 端點，並提供合併前 Check Run gate 與作者反饋語料學習等設計，皆屬本
 > 框架之設計貢獻；其量化驗證須累積實際 PR 流量後另行進行。
 
-> 本研究隨附之開源框架另實作十三項研究級擴充機制（涵蓋 prompt-injection
+> 本研究隨附之開源框架另實作十七項研究級擴充機制（涵蓋 prompt-injection
 > robustness、closed-loop 多輪對話、counterfactual / mutation-style
 > 審查、provenance 稽核、force-push 差分、suggestion sandbox 驗證、
 > cross-language API drift、PR 類型自適應、reproducibility 訊號、
 > dependency upgrade impact、reviewer personas + conflict surfacing、
-> risk-weighted attention 與 diff entropy 偵測），均以 CLI flag 之
-> opt-in 形式提供；其端到端品質效益本研究均未予量化評估，詳細之設計
-> 說明與後續實驗骨架見學位論文 §3.7 與 §6.4.5（對應本框架之 GitHub
-> 倉庫之 `docs/en/concepts/research-extensions.rst`）。
+> risk-weighted attention、diff entropy 偵測、以作者反饋語料主動學習
+> 出之衍生規則（active-learning derived lessons）、跨 PR finding
+> 聚類（self-discovered rules）、Repo 知識圖譜接地（symbol-grounded
+> review）與每檔遞增存檔之崩潰安全部分結果（crash-safe partial
+> review）），均以 CLI flag 之 opt-in 形式提供；其端到端品質效益本
+> 研究均未予量化評估，詳細之設計說明與後續實驗骨架見學位論文 §3.7
+> 與 §6.4.5（對應本框架之 GitHub 倉庫之
+> `docs/en/concepts/research-extensions.rst`）。
 
 > 標示說明：上述段落僅描述機制設計，不附效益數字；本研究實際驗證之
 > 結果見 §5。
@@ -162,16 +177,18 @@
 >    端點與 Anthropic Messages API 四種具體後端，並以 MCP server 將
 >    審查管線暴露為 IDE 可直接調用之 tool。本論文 §5 之實驗以本機後端
 >    為主，跨後端比較與 IDE 內審查觸發率之評估屬未來工作。
-> 7. **十三項研究級擴充機制之設計**（見 §3.7 詳述）：包含 prompt-injection
+> 7. **十七項研究級擴充機制之設計**（見 §3.7 詳述）：包含 prompt-injection
 >    robustness 之 corpus + bypass detection、closed-loop 多輪對話、
 >    counterfactual / mutation-style 審查、provenance 稽核、force-push
 >    差分 cache、suggestion sandbox 驗證、cross-language API drift
 >    偵測、PR 類型自適應、reproducibility 訊號、dependency upgrade
 >    impact 分析、reviewer personas + conflict surfacing、risk-weighted
->    attention 與 diff entropy / 「diff bomb」偵測。每項對應一個 CLI
->    flag、一份單元測試與 `docs/en/concepts/research-extensions.rst`
->    內之設計說明；其端到端品質效益本論文均未予評估，列為 §6.4.5
->    所述之未來工作。
+>    attention、diff entropy / 「diff bomb」偵測、作者反饋語料主動
+>    學習出之衍生規則、跨 PR finding 聚類自我發現規則、Repo 知識
+>    圖譜對 inline finding 之符號接地，與每檔遞增存檔之崩潰安全部分
+>    審查結果。每項對應一個 CLI flag、一份單元測試與
+>    `docs/en/concepts/research-extensions.rst` 內之設計說明；其端到
+>    端品質效益本論文均未予評估，列為 §6.4.5 所述之未來工作。
 
 ---
 
@@ -277,13 +294,15 @@
 
 > 3.7  研究級擴充機制（設計層）
 >
-> 本節描述本研究隨附之開源框架另實作之十三項機制，均對應於 LLM 程式
+> 本節描述本研究隨附之開源框架另實作之十七項機制，均對應於 LLM 程式
 > 碼審查文獻中目前較少實作之研究面向。每項機制皆以 CLI flag 形式
 > opt-in，預設關閉以維持 §5 所驗證之 baseline pipeline 不受干擾。
 > 本論文\ **未對任何單項機制之端到端品質效益進行量化評估**\ ；
 > §6.4.5 將就每項機制給出對應之未來工作骨架。所列機制皆已伴隨單元
 > 測試與設計文件（`docs/en/concepts/research-extensions.rst`），可
-> 直接於工程上使用，僅缺學術評估。
+> 直接於工程上使用，僅缺學術評估。子節編號 §3.7.1–§3.7.13 為 v3 既有
+> 之十三項；§3.7.14 為部署層之工程設計；§3.7.15–§3.7.18 為 v3.1 新增
+> 之四項機制。
 >
 > 3.7.1  Prompt-injection robustness 與 `adversarial-eval` 子指令
 >
@@ -458,9 +477,259 @@
 > ``torch.cuda.empty_cache() + gc.collect()`` 釋出 caching allocator
 > 之保留區塊；於 inference 路徑前以 backend tokenizer 切上限
 > （預設 6000 tokens）之 diff truncation，避免單一過長 diff 在
-> attention 計算階段觸發 OOM。本機制屬部署層設計貢獻，其對端到
-> 端 PR 流量之穩定性與 wall-clock 改善之量化本論文未予評估，列為
-> §6.4.5 之未來工作。
+> attention 計算階段觸發 OOM。
+>
+> (e) **主動式取消與 idle-poll sweeper**：為避免 CI runner 被取消
+> （`concurrency: cancel-in-progress`、手動 cancel、runner crash）
+> 後 backend 仍持續耗用 GPU 跑沒人讀的 review，於 server 新增
+> ``POST /review/cancel/{job_id}`` 與 ``POST /ask/cancel/{job_id}``
+> 兩 endpoint，client 端以 try/finally 在離開 poll loop 時主動發送
+> cancel。另搭配 server 端常駐 sweeper thread：每 30 秒掃描所有
+> running job，180 秒未被 poll 之 job 自動設 ``cancel_event``，涵
+> 蓋 SIGKILL / 網路中斷等 try/finally 來不及執行之路徑。Pipeline
+> 於每個 step 邊界檢查 event；local backend 另注入
+> ``StoppingCriteria`` 於 ``model.generate`` 之每 token decode 後
+> 輪詢，使取消延遲由 step 邊界之 30-60 秒降至約 100 ms（單一 token
+> 之時間）。
+>
+> (f) **summary comment / inline review / check run 之冪等性處理**：
+> 同一 head SHA 之重複 workflow run（manual re-run、cancel-in-progress
+> 後之新 push、CI retry）原本會於 PR 上累積多份 prthinker 產物。
+> 框架以三種機制達成單一 SHA 對應單一可見產物：(i) summary
+> comment 以 HTML marker `<!-- prthinker:summary -->` upsert，PATCH
+> 同一 comment 而非每次 POST 新的；(ii) inline review 之 body 嵌入
+> 隱藏 marker `<!-- prthinker:inline -->`，於 POST 新 review 前列出
+> 所有同 marker 之 review 並 DELETE 其底下之 review comments（GitHub
+> 不允許 dismiss COMMENT-state review，故 wrapper 留為 timeline
+> stub）；(iii) check run 於 open 前對同 head SHA 上所有同名
+> prthinker check PATCH 為 `status=completed` / `conclusion=neutral`
+> 並附 "superseded" 標題，UI 自動將其折疊於 live 之 check 下方。
+>
+> (g) **CI matrix 分片之 PR-wide overall summary 合成**：matrix
+> 各 shard 僅產出 per-file 之 `total_summary`，aggregate 階段缺乏
+> 跨檔之總結。於 aggregate 完成 per-file 合併後，以
+> ``/ask/submit`` 對 backend 發起一次合成 prompt（將所有 per-file
+> summaries 串為輸入，要求 3-5 句之 PR-wide 重點），結果寫入
+> `merged.step_outputs["total_summary"]` 並由 formatter 於 PR 留
+> 言頂部呈現為 ``### Overall Summary``。Best-effort：backend 不
+> 通、timeout、httpx 例外皆 log warning 並 fallback 為僅顯示
+> per-file blocks，不阻擋 PR 留言之 post。
+>
+> (h) **Step 輸出字元上限以避免 final-step OOM**：CoT 最終
+> ``total_summary`` 步驟之 prompt 為前序所有步驟之輸出之串接；於預設
+> `max_new_tokens=32768` 下，前序四步各可吐 ~120 KB，使最終 prompt
+> 易達數十萬 token 並於 attention 計算階段觸發 GPU OOM（50K token
+> × 64 head 之 KV cache 約需 300 GiB）。框架以
+> `_DEFAULT_MAX_STEP_RESULT_CHARS = 6000`（約 1500 token）對\
+> ``ctx.results`` 內每步之 in-pipeline 副本做硬上限截斷，輸出至磁碟
+> 與 API response 之全文保留不動；該上限可由
+> ``PRTHINKER_MAX_STEP_RESULT_CHARS`` 環境變數於 server 端覆寫。
+>
+> (i) **本機後端之 FlashAttention 2 / SDPA 啟用與容器基底升級**：將
+> ``transformers.AutoModelForCausalLM.from_pretrained`` 之
+> ``attn_implementation`` 偏好設為 ``flash_attention_2`` 並 fallback 至
+> ``sdpa``，使 30B-class MoE 之 attention 計算避開 vanilla 路徑之
+> O(L²) 記憶體峰值；配合升級伺服器 Dockerfile 之 CUDA 基底至 ``13.0.1
+> -devel-ubuntu22.04`` 以於映像建構期間提供 flash-attn 之 nvcc，並將
+> ``peft`` 釘住至 ``0.18.0`` 與 LoRA adapter 訓練時版本對齊（``peft``
+> ``0.19.x`` 將 MoE 之 expert projection（``gate_proj`` / ``up_proj`` /
+> ``down_proj``）改派至 ``ParamWrapper``，拒絕訓練時之
+> ``lora_dropout=0.1``）。
+>
+> (j) **timeout 預算之兩端拉長**：原 v3 設計之 client poll deadline
+> 與 backend per-call timeout 均為 30 分鐘；於本機後端跑全 5 步 CoT
+> 之 per-file review 觀察到 30B 模型於 ``total_summary`` 步驟之單一
+> generate 呼叫可逼近此上限。框架將 ``RemoteBackendConfig.
+> timeout_seconds`` 之預設值由 1800.0 提升至 3600.0、CLI 客戶端之
+> deadline 同步至 1800.0 / 3600.0，並於 ``review`` 子指令文件明示
+> 該上限為「全 pipeline 之 wall-clock 上限，非單一 HTTP round-trip
+> 之 idle timeout（後者由 reverse-proxy 控管）」。
+>
+> (k) **poll 重試預算與指數 backoff 以吸收短暫 502**：30B-class
+> 後端之 process 重啟、GPU reload、nginx config reload 易於 ~1 分鐘
+> 時段內持續吐 502；原 v3 之
+> ``_MAX_CONSECUTIVE_POLL_FAILURES = 5`` × ``_POLL_INTERVAL_SECONDS
+> = 5`` 僅能扛 ~25 秒，超過即丟 ``HTTPStatusError`` 並中斷整輪
+> review。框架將預算提升至 60 並引入 ``_POLL_BACKOFF_AFTER_FAILURES
+> = 5`` / ``_POLL_MAX_INTERVAL_SECONDS = 30.0``：前 5 次失敗仍以
+> 5 秒等距重試，第 6 次起以 2 倍 backoff 增長至 30 秒上限，總可
+> 容忍時段約 3 分鐘；超出仍 raise，並由 ``_send_cancel`` 主動於
+> ``finally`` 區塊送 ``/review/cancel`` 釋放 GPU。
+>
+> (l) **CI matrix 內之 diff-since-last 快取串接**：§3.7.5 所述之
+> force-push 差分機制原僅於 CLI 使用層暴露
+> ``--diff-since-last`` flag 與 SQLite cache 檔；於 CI 環境下需搭配
+> GitHub Actions 之 ``actions/cache`` 機制方能跨 workflow run 保留。
+> 框架於 matrix shard 之 review 步驟前後分別加入
+> ``actions/cache/restore`` 與 ``actions/cache/save``，以
+> ``prthinker-diff-pr-<PR>-<run>-<shard>`` 為精確 key 並以
+> ``prthinker-diff-pr-<PR>-`` 為 prefix restore-key 抓取同 PR 上最
+> 近一次成功 run 之 cache；同時於 env 注入
+> ``PRTHINKER_DIFF_SINCE_LAST=true`` 使 ``review-pr`` 對每檔之 post-
+> change 內容做 hash。``save`` 步驟以 ``if: always()`` 包裹，即使
+> shard 中途失敗，已 hash 之檔仍寫回 cache 供下一次 push 跳過。本
+> 機制使單檔小幅 fix 之 re-push 僅令該檔重跑 CoT，其餘 N-1 個 shard
+> 命中 cache 即直接 reuse 前次 findings。本子項屬部署層工程貢獻；
+> 其於真實 PR 流量上之 GPU-second 節省與 cache hit 比率本論文未予
+> 評估。
+>
+> (m) **GitHub 留言之 65536-char 上限自動截斷**：GitHub Issues /
+> PR 之 comment body 超過 65,536 字元時回應 422 Unprocessable
+> Entity；於多檔 matrix run 之 aggregate 階段，將各 shard 之 per-
+> file 區塊（含 §3.7.14 (g) 之 Overall Summary、RAG docs、judge
+> verdicts）串接於同一 upserted 留言中，極易超過該上限而導致整輪
+> aggregate 失敗。框架於 ``upsert_pr_comment`` 內加上 60,000 字元
+> 之硬上限 ``_GITHUB_COMMENT_BODY_MAX``：超過時保留前 60,000 字之
+> 主體並追加 truncation 通知（指向 matrix shard 之 job log 取完整
+> per-step 內容），並\ **保證\ ``comment_marker`` 字串於截斷後仍位
+> 於開頭**\ ，使下一次之 upsert 仍能定位同一留言並 PATCH 之，而非
+> 重新 POST 一條新的（避免破壞 §3.7.14 (f) 之 idempotency 設計）。
+> 本子項屬部署層工程貢獻；其於真實長 PR 上之截斷率與 reviewer 點
+> 入 job log 之頻率本論文未予評估。
+>
+> (n) **enumerate 階段之 per-PR 狀態快取與 matrix 預過濾**：
+> §3.7.14 (l) 之 in-runner SQLite cache 只能讓 shard 內之 LLM
+> 短路，無法避免每個未變動之檔仍消耗一個 runner 之 checkout +
+> ``setup-python`` + ``pip install`` + healthcheck（~1–2 分鐘）。
+> 框架另引入「per-PR 狀態快取」\ 之 enumerate 預過濾：每 PR 之
+> ``actions/cache`` 條目包含
+> ``.prthinker/pr-state/manifest.json``（路徑 → blob SHA 對照表，
+> blob SHA 由 ``git rev-parse HEAD:<path>`` 取得，與 GitHub API
+> 之回應一致）與 ``.prthinker/pr-state/partials/<sha256>.json``
+> （該檔上次 review 之 partial result）。enumerate job 先 restore
+> 該快取，逐 PR file 比對其當前 blob SHA 與 manifest，命中者直接
+> 自 matrix 中剔除\ **不再 spawn shard**\ ，已 reuse 之 partial
+> 上傳為 ``partial-skipped`` artifact 供 aggregate 與新跑之 shard
+> 之 partial 一同 merge；aggregate post 完成後，``write-state``
+> 步驟以 PR head 重建 manifest 與 partials 並做 canonical
+> ``cache/save@v4``，作為下一次 push 之來源。並同時修復 v3 設計
+> 中之 env-var 名稱錯位（``REVIEWMIND_DIFF_SINCE_LAST`` /
+> ``.reviewmind/diff-cache.sqlite`` 重新命名為對應之
+> ``PRTHINKER_*``），使 (l) 之 in-runner SQLite 短路成為第二層
+> 安全網。本子項屬部署層工程貢獻；其相對 (l) 之邊際 CI 分鐘節省
+> 本論文未予評估。
+>
+> (o) **每 shard 之狀態 checkpoint 寫入**：(n) 設計中之 canonical
+> state 由 aggregate job 寫入；若 aggregate 失敗或 runner 於最後
+> 一個 shard 與 aggregate 之間崩潰，整輪所跑之 review 均不被下次
+> push 利用。配合 §3.7.14 (b) 之 ``max-parallel: 1``（既為單 GPU
+> 之必然設計，亦提供本子項所需之序列性），框架讓每 shard 於
+> ``review-pr`` 成功後執行三步：(i) 將其 ``partial.json`` 複製至
+> ``.prthinker/pr-state/partials/<sha256(path)>.json``；(ii) 將
+> ``{path, blob_sha}`` 追加至 ``manifest.json``；(iii) 以
+> ``-shard-<index>`` 後綴另寫一筆 cache entry。aggregate 若成功
+> 寫入無後綴之 canonical entry 則自動取代所有 shard checkpoint；
+> aggregate 失敗時，下次 push 之 restore-keys prefix 仍可抓到最
+> 後一個成功 shard 之 checkpoint，使所有「於 aggregate 失敗\ **前**\
+> 已完成 review 之檔」於下次 matrix 中跳過。``[ -s partial.json ]``
+> 守門確保 backend 不通之 shard（review step 雖以 exit 0 結束但
+> 未產出 partial）不會把空結果寫進 manifest 而於下次被當作
+> 有效 reuse。本子項屬部署層工程貢獻；其於人為注入之 aggregate
+> 失敗實驗下之 CI 分鐘節省量本論文未予評估。
+>
+> (p) **inline findings 對 diff hunks 之預過濾以避開 review 全
+> 局 422**：GitHub 之 PR Review API 對單一 inline comment 若指
+> 向 ``side:RIGHT`` 之非 hunk 範圍行，將以 422 Line could not
+> be resolved 拒絕\ **整份 review**──一條虛構行號之 finding 即
+> 連帶癱瘓同 review 內所有合法 finding，aggregate 因此 short-
+> circuit 而 ``close_gate`` 不執行，required-status branch
+> protection 將永遠看不到綠燈而阻擋 merge。框架施兩道防線：(i)
+> ``github_api._filter_findings_to_diff`` 解析 PR diff 之 hunk
+> header（``@@ -a,b +c,d @@``\ ），對 ``' '`` / ``'+'`` 兩種
+> 行種逐行追蹤 new-side 行號集合，丟棄
+> ``(path, line) ∉`` 該集合之 finding 與
+> ``start_line`` 越 hunk 之 multi-line finding；diff 抓取失敗
+> 之 fall-through 路徑改由外層 try/except 接住而非中斷。(ii)
+> ``_cmd_aggregate`` 將 ``submit_inline_review`` 包入 try/except
+> ──summary comment 與 check run 於該時點均已開立，犧牲 inline
+> 標注屬可接受損失，但若 check run 之 ``close_gate`` 因連動異常
+> 而未執行則 PR 永遠卡住。本子項屬部署層工程貢獻；其於真實 PR
+> 上每輪 review 之被預過濾 finding 數中位數本論文未予評估。
+>
+> 本機制屬部署層設計貢獻，其對端到端 PR 流量之穩定性、wall-clock
+> 改善、reviewer 對重複留言之認知負擔等量化評估本論文未予進行，
+> 列為 §6.4.5 之未來工作。
+>
+> 3.7.15  主動學習衍生規則（active-learning derived lessons）
+>
+> §3.5 所述之 dismissed / accepted 兩語料為一階訊號──「此筆具體
+> 留言被作者拒絕」「此筆具體建議被採納」──兩者本身對未來 PR 無泛化
+> 能力。框架於兩語料之上再加一層：``derive-lessons`` 子指令讀取兩
+> 語料之最近 N 筆，向模型詢問「應從中抽出何種可重用之審查規則
+> （``name`` / ``trigger`` / ``action`` 三欄）」，並明示模型「輸出
+> 空陣列優於虛構規則」。解析後之 ``LessonRule`` 連同其來源 PR 編號
+> 一併追加寫入 ``lessons.jsonl``（append-only，供事後可追溯地檢視
+> 規則演化）。下一次 ``review-pr --lessons`` 時，最近 K 條規則被渲
+> 染為「Repo-derived review lessons」區塊，前置注入 inline-findings
+> prompt，模型被指示將其視為軟性指引而非硬規則。本機制屬框架設計
+> 貢獻；其對作者反饋語料累積後之 inline finding 精確率影響本論文
+> 未予評估。
+>
+> 3.7.16  跨 PR finding 聚類與自我發現規則
+>
+> 若框架反覆於不同 PR 中提出實質相同之 finding，正確之回應不是繼續
+> 重複，而是將其結晶為 ``--rules-dir`` 下之 repo 規則。框架為每條
+> 已產出之 inline finding 將留言文字以 backend embedding 化並與
+> ``(pr_number, file_path, line, comment, embedding)`` fingerprint
+> 一併寫入 ``findings-index.sqlite``。``discover-rules`` 子指令對
+> 該 store 跑貪婪餘弦相似度聚類（預設 brute-force NumPy；大規模時
+> 可換為 ``sqlite-vec`` / FAISS 而不更動 ``greedy_cluster`` API），
+> 列出超過 ``--min-cluster-size`` 且 ``--similarity-threshold`` 以上
+> 之 cluster 並以其\ **最新一筆**\ 為代表（使候選規則隨時間追隨團隊
+> 用語演化而非僵化於舊用詞）。框架\ **不**\ 自動寫入規則檔──候選
+> 必須由人類審查者明示採納。本機制屬框架設計貢獻；其聚類純度與所
+> 衍生規則之實際採納率本論文未予評估。
+>
+> 3.7.17  Repo 知識圖譜與 inline finding 之符號接地
+>
+> LLM 審查器於大型 repo 上常見之失敗模式為虛構符號名稱──宣稱
+> ``auth.py`` 內有 ``get_user`` 函式而該函式實際位於 ``core/users.py``。
+> 既有 RAG 層接地於 repo 之\ *規則*\ ，本機制接地於 repo 之\ *符號*\ ：
+> ``build-kg --workdir .`` 以 Python ``ast`` 走訪
+> ``def`` / ``class`` / 類方法 / ``ALL_CAPS`` 常數，並以正則為主之
+> scanner 走訪 TypeScript / JavaScript 之
+> ``function`` / ``class`` / ``interface`` / ``const`` / ``default``
+> export，將 ``(symbol, kind, file, line, parent)`` 持久化於
+> ``.prthinker/repo-kg.sqlite``。store 以 ``workdir`` 為 key，單一
+> SQLite 檔可同時容納多 repo 之 KG 而無洩漏。``review-pr --kg-ground``
+> 將該表渲染為「Known symbols (treat as canonical, do not
+> hallucinate)」前置區塊，並明示「finding 內若引用符號，該符號必須
+> 出現於表中」。``rebuild()`` 採整批替換（先 delete 該 workdir 之
+> 舊 rows 再插入），確保 store 與 HEAD 對齊；增量更新列為未來工作。
+> 框架另提供 ``kg_visualize`` 子模組將該 SQLite 表輸出為單頁 D3
+> HTML 互動視圖，並於監控 overlay 之 nginx 加 ``/kg/`` 路由直接服務
+> 該頁，使團隊可線上瀏覽框架對 repo 之符號理解。本機制屬框架設計
+> 貢獻；其 grounded prompt 對符號虛構率之降幅與對 inline finding
+> 精確率之影響本論文未予評估。
+>
+> 3.7.18  每檔遞增存檔與崩潰安全部分結果（crash-safe partial review）
+>
+> 30B-class 後端之 per-file CoT 於大 PR 上可累積跑數十分鐘。當該輪
+> 因 idle-poll sweep（§3.7.14 (e)）、GPU OOM、runner timeout 或人工
+> 於 GitHub Actions 介面之 cancel 而中途終結時，原 v3 之
+> ``--output-json`` 僅於審查最末整批落盤──中途死亡即\ **無**\ 任何
+> 部分結果可審視。框架以 ``--incremental-save-dir <path>`` 將
+> per-file 完成事件改寫為「即時 atomic 寫盤」：
+>
+> - ``<path>/files/<slug>.json``：``FileReviewResult`` 加入記憶體
+>   ``per_file_results`` list 之同時，將其序列化（涵蓋
+>   ``inline_findings`` / ``verdict`` / ``counterfactuals`` 等所有
+>   pydantic 欄位）寫入磁碟；slug 將目錄分隔符與非法字元一律換為
+>   ``_`` 以跨 Windows / Linux / macOS 通用。
+> - ``<path>/review.json``：\ **僅於**\ 整輪 sweep 跑完寫入；其存在
+>   即意味著「該次 run 乾淨完成」。
+> - ``<path>/meta.json``：開始時寫入 ``repo`` / ``pr_number`` /
+>   ``head_sha`` / ``started_at``，使事後檢視者可辨識所屬 PR / commit。
+>
+> 所有寫盤透過 ``<target>.tmp`` + ``os.replace`` 達成原子性，半寫
+> 狀態不可見。Writer 內部之任何 ``OSError`` 僅 log 並吞掉──持久化
+> 之失敗不可中斷正在跑之 review。``CoTPipeline.run_per_file`` 為此
+> 暴露 ``on_file_done`` callback，於 cache-hit 與全 review 兩處
+> append 點各觸發一次；本機制限於本機 pipeline 路徑（遠端 pipeline
+> 走 ``--use-remote-pipeline`` 時 server 一次回完整 ``ReviewResult``，
+> per-file 增量在伺服端不適用，``--output-json`` 仍為其對應之單檔
+> 落盤路徑）。本機制屬框架設計貢獻；其於真實 CI 流量上之「中斷
+> -recovery 收益」量化評估本論文未予進行。
 
 ---
 
@@ -562,12 +831,13 @@
 > 並補上 drift watcher：以固定之 golden PR 集合定期重跑審查，比對輸出
 > 相似度，一旦偏離既有 baseline 即觸發告警。
 >
-> 6.4.5  §3.7 所述十三項研究級擴充機制之實證評估
+> 6.4.5  §3.7 所述十七項研究級擴充機制之實證評估
 >
-> §3.7 所述十三項機制目前僅完成框架實作；其端到端品質效益需後續以
+> §3.7 所述十七項機制目前僅完成框架實作；其端到端品質效益需後續以
 > 真實 PR 流量驗證。為避免日後補實驗時設計分歧，本節為各機制標示最
 > 小可驗證實驗骨架；所列指標皆為公開可重現之量度，避免引入新主觀
-> 量表。
+> 量表。v3 既有之 (a)–(m) 對應 §3.7.1–§3.7.13；v3.1 新增之 (n)–(q)
+> 對應 §3.7.15–§3.7.18。
 >
 > (a) Prompt-injection robustness（§3.7.1）：擴充 `seed.jsonl` 至每
 > 攻擊類別 ≥ 30 例，於四類後端各跑一遍，以 SQLite 表格內之
@@ -624,7 +894,38 @@
 > truth，計算 verdict ∈ {focused, wide, bomb} 與「該 PR 後續被拆」
 > 之關聯。
 >
-> 上列十三組實驗皆需累積實際語料；本論文之主要貢獻仍為 §5.1 / §5.2
+> (n) Active-learning derived lessons（§3.7.15）：先令 dismissed /
+> accepted 累積至雙語料各 ≥ 100 筆後，於同一份固定 PR 集合上以
+> paired bootstrap 比較啟用 ``--lessons`` 與否之 inline finding
+> precision 與作者再次按 👎 比率。輔以時間切片：每週重跑
+> ``derive-lessons``，比較其輸出之新規則與既有規則之 Jaccard 重疊，
+> 量化規則庫之收斂速度。
+>
+> (o) Cross-PR finding clustering（§3.7.16）：於 ≥ 500 筆累積 finding
+> 上以 ``discover-rules`` 跑全 grid 之 ``--similarity-threshold`` ∈
+> {0.75, 0.80, 0.85, 0.90} × ``--min-cluster-size`` ∈ {3, 5, 10}；
+> 以 ≥ 3 名人工審查者就「此 cluster 是否確為一條值得寫入規則庫之
+> 真實重複規則」之 Likert 5 點評分作為品質指標，並計算評審間
+> Cohen's κ。並以「成為框架候選 → 被人類採納為 rules-dir 條目」之
+> 漏斗比率作為實用性指標。
+>
+> (p) Repo knowledge graph grounding（§3.7.17）：以 ≥ 30 個跨語言
+> 大 repo 為樣本，於每 repo 上各跑啟用與未啟用 ``--kg-ground`` 之
+> 全 PR 集合。以人工標記之「該 finding 提及之符號是否實際存在於
+> repo」作為 ground-truth，計算「符號虛構率」之相對降幅；輔以
+> ``--kg-ground`` 之 prompt token 開銷與每 PR wall-clock 之 trade-
+> off 表。視覺化模組之效益另以團隊內部使用次數 / page-view 等
+> 工程量度報告，不混入研究主張。
+>
+> (q) Crash-safe partial review（§3.7.18）：刻意於 CI 矩陣
+> 中注入 N 次中斷（``concurrency: cancel-in-progress`` 觸發、
+> 人工 cancel、模擬 GPU OOM 之 ``ask/cancel`` 連發），以
+> ``--incremental-save-dir`` 啟用前後各跑 ≥ 50 次中斷實驗，比較
+> 「中斷後可恢復之 per-file 完成數量」之中位數與「未恢復則需重跑
+> 之 GPU-second 總開銷」之減幅。本項屬可靠性工程量化評估，與品質
+> 研究分流。
+>
+> 上列十七組實驗皆需累積實際語料；本論文之主要貢獻仍為 §5.1 / §5.2
 > 所述之多階段 CoT + LoRA 微調 + RAG 之整合設計與驗證，§3.7 與
 > §6.4.5 之內容明示為框架設計貢獻與後續工作之承接介面，不影響本論
 > 文之核心主張。
@@ -645,35 +946,40 @@
       引入 `[23]+`。
 - [ ] 兩篇引文格式統一為 IEEE `[N]`，未殘留 `(Author, Year)`。
 - [ ] 每個新增之技術名詞於首次出現處附括弧解釋。
-- [ ] 新增之子章節（§3.5.1–4、§3.6.1–2、**§3.7.1–13**、§5.3.1–3、
+- [ ] 新增之子章節（§3.5.1–4、§3.6.1–2、**§3.7.1–18**、§5.3.1–3、
       §6.4.1–5）在 docx 內已以加粗 + 略大字級之段落呈現，不僅以段落
-      換行示意。
+      換行示意。子節編號：§3.7.1–§3.7.13 為原 13 項機制、§3.7.14 為
+      部署層含 (a)–(p)、§3.7.15–§3.7.18 為 v3.1 新增之四項機制。
 - [ ] §1.5 條列之七項貢獻：前三項已對應 §5 表 1 / 表 2 / 表 3 之實驗
       結果；第 4–7 項已明示為「框架設計貢獻、量化驗證屬未來工作」。
+      第 7 項已更新為「十七項」並包含 lessons / clusters / KG /
+      incremental save 四項名稱。
 - [ ] §3.5 / §3.6 / **§3.7** 全部段落內含「本論文未予評估」或等義之
-      免責標示；§3.7 內提及「框架設計貢獻」之頻次 ≥ 13 次（每子節
+      免責標示；§3.7 內提及「框架設計貢獻」之頻次 ≥ 17 次（每子節
       至少一次）。
-- [ ] **§3.7 之十三項機制每項皆對應 §6.4.5 之一個未來工作骨架（a)–(m)**，
-      不漏項；§6.4.5 內每項皆給出具體之 ground-truth 來源、語料規模
-      下限、與不依賴人類主觀量表之量化指標。
+- [ ] **§3.7 之十七項機制每項皆對應 §6.4.5 之一個未來工作骨架
+      (a)–(m) ∪ (n)–(q)**，不漏項；§6.4.5 內每項皆給出具體之
+      ground-truth 來源、語料規模下限、與不依賴人類主觀量表之量化
+      指標。
 - [ ] §5.3 之三段分析所引之每個數字皆可於表 1 / 表 2 / 表 3 中找到。
 - [ ] §6.4 之五項未來工作皆對應到 §1.5 中已明示為「框架設計貢獻」之
       項目（6.4.1 ↔ 第 6 項後端 / 6.4.2 ↔ 第 5 項語料 / 6.4.3 ↔ 第 6
-      項平台與多模型 / 6.4.4 ↔ 第 6 項 MCP / 6.4.5 ↔ 第 7 項十三項
+      項平台與多模型 / 6.4.4 ↔ 第 6 項 MCP / 6.4.5 ↔ 第 7 項十七項
       機制）。
 - [ ] 文中所有「該方法」「上述」「此」之代名詞，往前 3 行內可找到具
       體指稱。
 - [ ] 全文未出現「賦能 / 打造 / 全方位 / 深入探討 / 值得注意的是 /
       綜上所述（於結論章內）」等 AI 口頭禪。
-- [ ] **十三項擴充機制之名稱於論文與隨附之 `docs/en/concepts/
+- [ ] **十七項擴充機制之名稱於論文與隨附之 `docs/en/concepts/
       research-extensions.rst` 完全一致**（避免 `--reply-to-author`
       於論文內被翻為「多輪對話」、於 docs 內被翻為「閉環對話」之
-      不一致）。
+      不一致；新增之 `--lessons` / `discover-rules` / `--kg-ground` /
+      `--incremental-save-dir` 之中譯亦需與 docs 對齊）。
 - [ ] 已驗證每個 `<w:rPr>` 之 `<w:rFonts>` 元素四個 slot 皆設為標楷體 /
       Times New Roman。
 - [ ] TCSE v2.3 之插入後總字元數仍可控制於 6 頁 Word 上限內；§3.7
       與 §6.4.5 主要針對學位論文 v1.8，TCSE 短文版本可僅於 §1.3 之
-      末句後追加一句「本研究隨附之開源框架另實作十三項研究級擴充機
+      末句後追加一句「本研究隨附之開源框架另實作十七項研究級擴充機
       制，詳見學位論文 §3.7 與 §6.4.5；該等機制之量化評估均屬未來
       工作」以同步而不超頁。
 

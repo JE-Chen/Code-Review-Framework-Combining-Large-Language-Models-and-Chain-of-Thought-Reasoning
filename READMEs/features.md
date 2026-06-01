@@ -512,14 +512,80 @@ The FastAPI server in `codes/run/fastapi_server.py` exposes:
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/healthz` | Liveness probe |
-| `POST` | `/ask` | Single prompt → plain text (legacy) |
+| `POST` | `/ask` | Single prompt → plain text (synchronous) |
+| `POST` | `/ask/submit` | Single prompt → `job_id` (job pattern; survives 100 s edge timeouts) |
+| `GET` | `/ask/result/{job_id}` | Poll status + result for a submitted `/ask` job |
+| `POST` | `/ask/cancel/{job_id}` | Stop a running `/ask` job at the next token boundary |
 | `POST` | `/rag` | Query → list of retrieved rules |
 | `POST` | `/review` | Diff → full structured `ReviewResponse` (server orchestrates RAG + steps + dismissed filter + judge) |
+| `POST` | `/review/submit` | Diff → `job_id` (job pattern; recommended behind Cloudflare and other proxies) |
+| `GET` | `/review/result/{job_id}` | Poll status + result for a submitted `/review` job |
+| `POST` | `/review/cancel/{job_id}` | Stop a running review job at the next step boundary |
+
+A background sweeper sets the `cancel_event` on any running job whose
+result endpoint has not been polled for 180 s, so a cancelled CI
+runner cannot leak GPU time. The local backend installs a
+`StoppingCriteria` that checks the same event every decoded token,
+so a server-side cancel preempts within ~100 ms instead of waiting
+for the running `model.generate` call to finish.
 
 Pydantic schemas in `prthinker.schemas` are the **single source of
 truth** for the wire format — both server (FastAPI `response_model`)
 and runner (`model_validate_json`) reference them, so type drift is
 impossible.
+
+---
+
+## Matrix workflow and aggregator
+
+The bundled `.github/workflows/prthinker.yml` ships as a three-job
+pipeline so a slow file or a large PR cannot starve the whole
+review:
+
+1. **`enumerate`** lists the PR's files via the GitHub API,
+   filters them through `PRTHINKER_EXCLUDE_GLOBS` (default skips
+   `.idea/`, `datas/`, `*.md`, `*.lock`, `*.json`, `docs/`), and
+   emits the surviving paths as JSON for the next job's matrix.
+2. **`review`** is a matrix over those files with
+   `max-parallel: 1` (the GPU serialises anyway) and a 60-minute
+   per-shard timeout. Each shard runs
+   `python -m prthinker review-pr` with
+   `PRTHINKER_TARGET_FILE=${{ matrix.file }}` and
+   `PRTHINKER_OUTPUT_JSON=$RUNNER_TEMP/partial.json`, writes the
+   partial `ReviewResult` JSON to an artifact, and skips posting
+   to GitHub. Gate is disabled at this stage.
+3. **`aggregate`** downloads every shard's partial, runs
+   `prthinker aggregate` to merge `inline_findings` + `per_file` +
+   `step_outputs`, asks the backend's `/ask/submit` for a PR-wide
+   3–5-sentence overall summary, then posts **one** summary
+   comment, **one** inline review, and opens + closes the gate
+   exactly once. Runs under `if: always()` so partial-backend
+   outages still produce a comment.
+
+---
+
+## Dedup: no comment / review / check accumulates across runs
+
+Re-running a workflow on the same head SHA (manual *Re-run all
+jobs*, a `concurrency: cancel-in-progress` push, a CI retry) used
+to leave one prthinker artifact per run on the PR. Each artifact
+now cleans up its own predecessors before posting:
+
+- **Summary comment** is upserted by HTML marker
+  (`<!-- prthinker:summary -->`); a single comment is PATCHed in
+  place across runs.
+- **Inline review** carries a hidden
+  `<!-- prthinker:inline -->` marker. Before posting a new one
+  the runner lists every PR review whose body contains the
+  marker and DELETEs each of its child review comments, so the
+  diff never shows duplicate annotations. (GitHub does not allow
+  dismissing `COMMENT`-state reviews, so the wrapper stays as a
+  timeline stub.)
+- **Check run** — before opening the gate, the runner finds every
+  prthinker check on the head commit and PATCHes it to
+  `status=completed` / `conclusion=neutral` with a *superseded*
+  title. The UI collapses the superseded entries under the live
+  in-progress one.
 
 ---
 

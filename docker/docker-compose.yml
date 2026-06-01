@@ -18,7 +18,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.server
       args:
-        CUDA_VERSION: ${CUDA_VERSION:-12.2.0}
+        CUDA_VERSION: ${CUDA_VERSION:-13.0.1}
     image: prthinker:server-latest
     restart: unless-stopped
     runtime: nvidia
@@ -32,6 +32,23 @@ services:
       PRTHINKER_CACHE_ENABLED:    "true"
       PRTHINKER_TELEMETRY_ENABLED: "true"
       HF_HOME: /cache/huggingface
+      # The hub cache lives at $HF_HOME/hub. The image's Dockerfile sets
+      # the deprecated TRANSFORMERS_CACHE=/cache/huggingface (no /hub),
+      # which transformers 4.x obeys and then looks in
+      # /cache/huggingface/models--* (empty) instead of
+      # /cache/huggingface/hub/models--* (the 57 GB of weights) — load
+      # fails offline / hangs online re-downloading. Override to the real
+      # hub path. (transformers 5.x ignored the deprecated var, masking it.)
+      TRANSFORMERS_CACHE: /cache/huggingface/hub
+      # Force local-cache-only model loading. Weights are already in the
+      # mounted hf_cache volume; without this, transformers/huggingface_hub
+      # still contacts huggingface.co (and cdn-lfs, which does not resolve
+      # from this host) to re-check the revision on every boot, and a
+      # stalled CDN request hangs from_pretrained indefinitely (model load
+      # sits idle, all threads sleeping, GPU/RAM flat). Offline mode skips
+      # the network entirely and loads straight from cache.
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
       # Reduce CUDA allocator fragmentation so long-context attention
       # allocations don't trip OOM when contiguous space is scarce.
       PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"

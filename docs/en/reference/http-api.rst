@@ -1,16 +1,26 @@
 HTTP API
 ========
 
-The FastAPI server in ``codes/run/fastapi_server.py`` exposes six
-endpoints. All accept and return JSON (``/ask`` returns plain text for
-backward compatibility).
+The FastAPI server in ``codes/run/fastapi_server.py`` exposes a small
+synchronous surface (``/healthz``, ``/ask``, ``/rag``, ``/review``) and
+a job-pattern surface that mirrors it for long-running calls
+(``/review/{submit,result,cancel}`` and ``/ask/{submit,result,cancel}``).
 
-``/review/submit`` + ``/review/result/{job_id}`` are the async job
-pattern recommended for any deployment that fronts the server with a
-reverse proxy that enforces an HTTP idle timeout (Cloudflare's
-free/pro/business proxy aborts at 100s, which a 30B MoE review trivially
-exceeds). The synchronous ``/review`` endpoint stays for clients that
-own their own timeout.
+The job-pattern endpoints are the only ones safe to use behind a
+reverse proxy with an HTTP idle timeout. Cloudflare's free / pro /
+business plans cap a single request at 100 seconds; the 30B MoE
+backend takes minutes per per-file review and tens of minutes for a
+PR-wide overall-summary synthesis, so any synchronous call through
+the proxy will be aborted before it returns. With the submit/poll
+pattern, every individual HTTP round-trip returns in well under a
+second, while the worker runs to completion server-side.
+
+A single background sweeper thread walks both job tables every 30
+seconds and sets the ``cancel_event`` on any running job whose
+result endpoint has not been polled for 180 s. This protects the
+GPU from continuing to chew on jobs whose client (a cancelled
+GitHub Actions runner, a hung CI job, a lost network) is no longer
+listening — see the cancel endpoints below.
 
 All requests support an optional ``Authorization: Bearer <token>``
 header. The server does not validate the token itself — wrap it behind a
@@ -186,10 +196,83 @@ client's own deadline.
 * ``error`` — ``error`` is populated with ``"<ExceptionClass>: <msg>"``.
   Clients should surface this directly; no retry will help unless
   the underlying cause (OOM, model load, etc.) is fixed.
+* ``cancelled`` — the worker was interrupted by ``/review/cancel`` or
+  by the idle sweeper. Terminal; the client should treat this as a
+  failed run and stop polling.
+
+Every successful poll refreshes the job's ``last_polled_at``
+heartbeat, so a running client never trips the idle sweeper.
 
 **Errors**
 
 * ``404`` — unknown ``job_id`` (or it expired past the TTL).
+
+POST /review/cancel/{job_id}
+----------------------------
+
+Mark a running review job for cancellation. Used by client code on
+its way out (try/finally around the poll loop) and by the workflow's
+own cancellation handlers, so an aborted CI run frees the GPU
+instead of running to completion behind nobody's back.
+
+**Response 200**:
+
+.. code-block:: json
+
+   {"job_id": "...", "cancelled": true, "status": "running"}
+
+The endpoint sets the worker thread's ``cancel_event``; the pipeline
+checks it between steps, and the local backend's
+``StoppingCriteria`` polls it every decoded token so the running
+``model.generate`` call returns within ~100 ms instead of finishing
+the step. Terminal jobs (``done`` / ``error`` / ``cancelled``)
+return ``{"cancelled": false, "status": "<current>"}`` unchanged.
+
+**Errors**
+
+* ``404`` — unknown ``job_id``.
+
+POST /ask/submit
+----------------
+
+Job-pattern wrapper around ``/ask``. Pair with ``GET
+/ask/result/{job_id}`` for any single-prompt generation that would
+otherwise exceed the proxy timeout — for example the aggregator's
+PR-wide overall-summary synthesis, which runs at the full
+``max_new_tokens=16784`` budget.
+
+**Request body** (``AskRequest``) — identical to ``/ask``.
+
+**Response 200** (``AskJobSubmitResponse``):
+
+.. code-block:: json
+
+   {"job_id": "924c5daea164453f91f7a91feb57fb4c"}
+
+GET /ask/result/{job_id}
+------------------------
+
+Poll for the result of a submitted ``/ask`` job. Status semantics
+mirror ``GET /review/result/{job_id}``; ``result`` is the generated
+text when ``status`` reaches ``done``.
+
+**Response 200** (``AskJobStatusResponse``):
+
+.. code-block:: json
+
+   {
+     "job_id": "924c5daea164453f91f7a91feb57fb4c",
+     "status": "done",
+     "result": "<generated text>",
+     "error": null
+   }
+
+POST /ask/cancel/{job_id}
+-------------------------
+
+Mark a running ask job for cancellation. Same contract as
+``/review/cancel`` — sets the worker's ``cancel_event`` so the local
+backend's ``StoppingCriteria`` stops generation at the next token.
 
 Schema definitions
 ------------------

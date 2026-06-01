@@ -1,0 +1,44 @@
+# Prometheus scrape config for the prthinker monitoring overlay.
+# Service names resolve via the docker-compose default network shared
+# with the base prthinker service.
+#
+# cAdvisor and Prometheus itself run under sub-paths (matched by the
+# nginx reverse proxy in this overlay), so their /metrics path moves
+# under that prefix.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+  external_labels:
+    cluster: prthinker
+
+scrape_configs:
+  - job_name: prthinker-fastapi
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['prthinker:9000']
+        labels:
+          service: prthinker
+          component: backend
+
+  - job_name: dcgm-gpu
+    static_configs:
+      - targets: ['dcgm-exporter:9400']
+        labels:
+          service: prthinker
+          component: gpu
+
+  - job_name: cadvisor-containers
+    metrics_path: /cadvisor/metrics
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          component: containers
+
+  - job_name: prometheus-self
+    metrics_path: /prometheus/metrics
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          component: prometheus

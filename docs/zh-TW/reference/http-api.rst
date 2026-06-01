@@ -1,8 +1,22 @@
 HTTP API
 ========
 
-``codes/run/fastapi_server.py`` 的 FastAPI server 提供四個 endpoint。
-``/ask`` 為了向後相容回 plain text，其他都收發 JSON。
+``codes/run/fastapi_server.py`` 的 FastAPI server 提供一組同步端點
+（\ ``/healthz``\ 、\ ``/ask``\ 、\ ``/rag``\ 、\ ``/review``\ ）以及一組
+與之對應的 job-pattern 端點（\ ``/review/{submit,result,cancel}`` 和
+``/ask/{submit,result,cancel}``\ ）。
+
+只有 job-pattern 端點適合放在有 HTTP idle timeout 的 reverse proxy
+後面。Cloudflare 免費 / Pro / Business 方案把單一 request 上限砍在
+100 秒，但 30B MoE backend 跑一個 per-file review 要好幾分鐘、
+跑 PR-wide overall summary 合成要十幾分鐘──任何同步呼叫穿過
+proxy 都會被砍掉。改用 submit/poll 後每一個 HTTP round-trip 都在
+一秒內完成，worker 則於 server 端跑到收尾。
+
+Server 端有一個常駐 sweeper thread 每 30 秒巡所有 job 表，任何
+running job 若 result endpoint 超過 180 秒沒被 poll 就自動 set
+``cancel_event``──避免 GHA runner 被取消後 backend 仍在白燒 GPU
+跑沒人讀的 review（見下方 cancel endpoint）。
 
 所有請求都支援可選的 ``Authorization: Bearer <token>`` header。Server 本身
 不驗 token──如果需要實際的身分驗證，請套在 reverse proxy（nginx、
@@ -124,6 +138,123 @@ POST /review
 * ``422``\ ──payload 通不過 Pydantic 驗證。
 * ``500``\ ──生成或 RAG 失敗。伺服器端有 log；client 應以 backoff 重試。
 
+POST /review/submit
+-------------------
+
+``/review`` 的非同步對應 endpoint，立即回 job id，server 端用 daemon
+thread 跑 CoT pipeline。任何 client 與 server 之間經過 100 秒 idle
+timeout 之 proxy（Cloudflare 免費 / Pro / Business 方案）都應改用
+這條，同步 ``/review`` 必死於 504。
+
+**Request body** (``ReviewRequest``)──與 ``/review`` 一致。
+
+**Response 200** (``ReviewJobSubmitResponse``):
+
+.. code-block:: json
+
+   {"job_id": "fa3d996466ee4666baae72b842d3b149"}
+
+Job 存於 process-local dict，TTL 1 小時；server 重啟即丟。
+
+GET /review/result/{job_id}
+---------------------------
+
+輪詢已 submit 之 job 結果。Client 應以短間隔（如 5 秒）呼叫──
+每次 round-trip 都很快，不會觸發 proxy idle timeout。整體等待
+由 client 自己的 deadline 決定。
+
+**Response 200** (``ReviewJobStatusResponse``):
+
+.. code-block:: json
+
+   {
+     "job_id": "fa3d996466ee4666baae72b842d3b149",
+     "status": "running",
+     "result": null,
+     "error": null
+   }
+
+``status`` 可能的值:
+
+* ``pending``\ ──已 submit 但 worker thread 還沒開始。
+* ``running``\ ──worker thread 正在 ``_execute_review`` 中。
+* ``done``\ ──``result`` 為 ``/review`` 對應的 ``ReviewResponse``\ 。
+* ``error``\ ──``error`` 為 ``"<ExceptionClass>: <msg>"``\ 。
+  Client 應直接呈現；除非根本原因（OOM、模型載入失敗等）解決
+  否則重試無用。
+* ``cancelled``\ ──worker 被 ``/review/cancel`` 或 idle sweeper 中
+  斷。屬 terminal；client 應視同失敗並停止 poll。
+
+每次成功 poll 都會更新 job 的 ``last_polled_at`` heartbeat，正在
+poll 的 client 永遠不會觸發 idle sweeper。
+
+**錯誤**
+
+* ``404``\ ──未知 ``job_id``\ （或已過 TTL 被回收）。
+
+POST /review/cancel/{job_id}
+----------------------------
+
+標記 running review job 取消。Client 端 try/finally 與 workflow
+的取消處理器都會呼叫它，讓被中止的 CI run 不會在 backend 繼續
+燒 GPU。
+
+**Response 200**:
+
+.. code-block:: json
+
+   {"job_id": "...", "cancelled": true, "status": "running"}
+
+Endpoint 設 worker 的 ``cancel_event``\ ；pipeline 於 step 邊界
+檢查它，local backend 的 ``StoppingCriteria`` 在 ``model.generate``
+每 decode 一個 token 就 poll 一次，所以正在跑的 step 約 100 ms 內
+就會返回。Terminal job（\ ``done`` / ``error`` / ``cancelled``\ ）
+回 ``{"cancelled": false, "status": "<current>"}`` 不動。
+
+**錯誤**
+
+* ``404``\ ──未知 ``job_id``\ 。
+
+POST /ask/submit
+----------------
+
+``/ask`` 的 job-pattern 對應 endpoint。任何需要超過 proxy timeout
+的單一 prompt 生成都應改用這條（例如 aggregate 之 PR-wide overall
+summary 合成，預設 ``max_new_tokens=16784``\ ）。
+
+**Request body** (``AskRequest``)──與 ``/ask`` 一致。
+
+**Response 200** (``AskJobSubmitResponse``):
+
+.. code-block:: json
+
+   {"job_id": "924c5daea164453f91f7a91feb57fb4c"}
+
+GET /ask/result/{job_id}
+------------------------
+
+輪詢已 submit 之 ``/ask`` job 結果。Status 語義與
+``GET /review/result/{job_id}`` 相同；``status`` 為 ``done`` 時
+``result`` 為生成出的純文字。
+
+**Response 200** (``AskJobStatusResponse``):
+
+.. code-block:: json
+
+   {
+     "job_id": "924c5daea164453f91f7a91feb57fb4c",
+     "status": "done",
+     "result": "<生成文字>",
+     "error": null
+   }
+
+POST /ask/cancel/{job_id}
+-------------------------
+
+標記 running ask job 取消。與 ``/review/cancel`` 同合約──設
+worker 的 ``cancel_event``\ ，local backend 的 ``StoppingCriteria``
+於下一個 token 中斷生成。
+
 Schema 定義
 -----------
 
@@ -144,6 +275,18 @@ Schema 定義
    :noindex:
 
 .. autoclass:: prthinker.schemas.ReviewResponse
+   :noindex:
+
+.. autoclass:: prthinker.schemas.ReviewJobSubmitResponse
+   :noindex:
+
+.. autoclass:: prthinker.schemas.ReviewJobStatusResponse
+   :noindex:
+
+.. autoclass:: prthinker.schemas.AskJobSubmitResponse
+   :noindex:
+
+.. autoclass:: prthinker.schemas.AskJobStatusResponse
    :noindex:
 
 .. autoclass:: prthinker.schemas.InlineFinding

@@ -423,7 +423,30 @@ server via `POST /review/submit` + `GET /review/result/{id}` (5 s
 poll) so each individual HTTP call returns in well under a second.
 That keeps the workflow safe behind reverse proxies with short HTTP
 idle timeouts (Cloudflare's free / pro / business plans cap at ~100
-s, which a 30B MoE per-file review would otherwise trip).
+s, which a 30B MoE per-file review would otherwise trip). The
+aggregator's PR-wide overall-summary synthesis uses the same job
+pattern via `POST /ask/submit` so its longer single-prompt
+generation also stays within the proxy budget.
+
+**Cancellation and idle GPU.** If a workflow is cancelled
+(`concurrency: cancel-in-progress` from a new push, manual *Cancel
+workflow*, runner crash), the matrix runner's `try/finally` around
+the poll loop calls `POST /review/cancel/{job_id}` on the way out
+so the backend stops the running step at the next token boundary.
+The backend's own idle sweeper is the safety net: any running job
+whose result endpoint has not been polled for 180 s gets its
+cancel event set automatically, so SIGKILL / network partition
+paths still free the GPU.
+
+**Comment / review / check dedup.** Re-running on the same SHA
+used to accumulate one prthinker artifact per run on the PR. Now
+each artifact deduplicates its predecessors:
+
+| Artifact | Mechanism |
+|---|---|
+| Summary comment | Upserted by HTML marker (`<!-- prthinker:summary -->`); single comment PATCHed in place. |
+| Inline review | Hidden `<!-- prthinker:inline -->` marker in the body; before posting, the runner deletes every child review comment of any prior review carrying the marker. The empty review wrapper stays on the timeline (GitHub forbids dismissing COMMENT-state reviews). |
+| Check run | Before opening the gate, every prior `prthinker` check on the head commit is PATCHed to `status=completed` / `conclusion=neutral` with a *superseded* title; the UI collapses them under the live one. |
 
 ---
 

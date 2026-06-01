@@ -88,6 +88,17 @@ def _format_per_file(result: ReviewResult, marker: str) -> str:
         parts.append(f"Posted **{total_findings}** inline finding(s).")
         parts.append("")
 
+    overall = result.total_summary
+    if overall:
+        parts += [
+            "### Overall Summary",
+            "",
+            overall.strip(),
+            "",
+            "---",
+            "",
+        ]
+
     if result.diff_entropy is not None:
         parts += _format_diff_entropy_block(result.diff_entropy)
 

@@ -1,0 +1,150 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "title": "Request rate by endpoint",
+      "type": "timeseries",
+      "id": 1,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+      "targets": [{
+        "expr": "sum by (handler) (rate(http_requests_total{job=\"prthinker-fastapi\"}[5m]))",
+        "legendFormat": "{{handler}}",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    },
+    {
+      "title": "Request latency p50 / p95 / p99 (s)",
+      "type": "timeseries",
+      "id": 2,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum by (le, handler) (rate(http_request_duration_seconds_bucket{job=\"prthinker-fastapi\"}[5m])))", "legendFormat": "p50 {{handler}}", "refId": "A"},
+        {"expr": "histogram_quantile(0.95, sum by (le, handler) (rate(http_request_duration_seconds_bucket{job=\"prthinker-fastapi\"}[5m])))", "legendFormat": "p95 {{handler}}", "refId": "B"},
+        {"expr": "histogram_quantile(0.99, sum by (le, handler) (rate(http_request_duration_seconds_bucket{job=\"prthinker-fastapi\"}[5m])))", "legendFormat": "p99 {{handler}}", "refId": "C"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "title": "HTTP 5xx rate",
+      "type": "timeseries",
+      "id": 3,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+      "targets": [{
+        "expr": "sum by (handler) (rate(http_requests_total{job=\"prthinker-fastapi\", status=~\"5..\"}[5m]))",
+        "legendFormat": "{{handler}}",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    },
+    {
+      "title": "GPU utilization",
+      "type": "timeseries",
+      "id": 4,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+      "targets": [{
+        "expr": "DCGM_FI_DEV_GPU_UTIL",
+        "legendFormat": "GPU {{gpu}} ({{modelName}})",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "percent", "max": 100, "min": 0}}
+    },
+    {
+      "title": "GPU memory used (MiB)",
+      "type": "timeseries",
+      "id": 5,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+      "targets": [{
+        "expr": "DCGM_FI_DEV_FB_USED",
+        "legendFormat": "GPU {{gpu}}",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "decmbytes"}}
+    },
+    {
+      "title": "GPU power draw (W)",
+      "type": "timeseries",
+      "id": 6,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+      "targets": [{
+        "expr": "DCGM_FI_DEV_POWER_USAGE",
+        "legendFormat": "GPU {{gpu}}",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "watt"}}
+    },
+    {
+      "title": "GPU temperature (°C)",
+      "type": "timeseries",
+      "id": 7,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+      "targets": [{
+        "expr": "DCGM_FI_DEV_GPU_TEMP",
+        "legendFormat": "GPU {{gpu}}",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "celsius"}}
+    },
+    {
+      "title": "prthinker container CPU (cores)",
+      "type": "timeseries",
+      "id": 8,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+      "targets": [{
+        "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\".*prthinker.*\"}[5m]))",
+        "legendFormat": "{{name}}",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "title": "prthinker container RAM (bytes)",
+      "type": "timeseries",
+      "id": 9,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
+      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+      "targets": [{
+        "expr": "container_memory_working_set_bytes{name=~\".*prthinker.*\"}",
+        "legendFormat": "{{name}}",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "bytes"}}
+    },
+    {
+      "title": "prthinker container network RX/TX (Bps)",
+      "type": "timeseries",
+      "id": 10,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
+      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+      "targets": [
+        {"expr": "rate(container_network_receive_bytes_total{name=~\".*prthinker.*\"}[5m])", "legendFormat": "rx {{interface}}", "refId": "A"},
+        {"expr": "rate(container_network_transmit_bytes_total{name=~\".*prthinker.*\"}[5m])", "legendFormat": "tx {{interface}}", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "Bps"}}
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["prthinker"],
+  "templating": {"list": []},
+  "time": {"from": "now-1h", "to": "now"},
+  "timezone": "",
+  "title": "prthinker Overview",
+  "uid": "prthinker-overview",
+  "version": 1,
+  "weekStart": ""
+}

@@ -38,6 +38,49 @@ Remote runner 打 ``/review/submit`` 后每五秒轮询
 100 秒 idle timeout 内。同步 ``/review`` POST 会被 30B MoE 卡到 proxy
 100 秒前直接回 504。
 
+取消与闲置 GPU 防护
+~~~~~~~~~~~~~~~~~~~
+
+Workflow 被取消时（``concurrency: cancel-in-progress`` 因新 push 触发、
+手动 cancel、runner crash）matrix runner 的 try/finally 会 post
+``POST /review/cancel/{job_id}`` 通知 server。Backend 在下一个 step
+边界或下一个 decoded token（通过 ``StoppingCriteria``）中断
+``model.generate``。Server 另常驻 idle sweeper：任何 running job 若
+180 秒未被 poll，自动 set ``cancel_event``，覆盖 SIGKILL / 网络中断等
+try/finally 来不及执行之情境，避免 backend 持续耗用 GPU 跑没人读的
+review。
+
+PR-wide overall summary
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Aggregate 合并所有 shard 的 partial 后，会以 job-pattern
+``POST /ask/submit`` 对 backend 发起一次合成：输入为各 file 之
+``total_summary``，要求模型写一段 3-5 句之 PR-wide 总结。结果写入
+``merged.step_outputs["total_summary"]`` 并由 formatter 渲染为
+``### Overall Summary``\ ，置于 PR 评论顶部、per-file ``<details>``
+区块之前。Best-effort：backend 不通 / 超时 / 任何 httpx 例外都 log
+warning 并 fallback 为仅显示 per-file blocks。
+
+Summary comment / inline review / check run 之 dedup
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+对同一 head SHA 重复 run workflow（手动 *Re-run all jobs*、
+``cancel-in-progress`` 后新 push、CI retry）原本会在 PR 上累积多份
+prthinker 产物。每次 post 前都会清理同 SHA 之旧产物：
+
+* **Summary comment** — 以 HTML marker ``<!-- prthinker:summary -->``
+  upsert，永远 PATCH 同一条 comment。
+* **Inline review** — body 嵌入隐藏 marker
+  ``<!-- prthinker:inline -->``\ 。post 新 review 前先列出所有
+  marker-tagged review，并 DELETE 其下每一条 review comment（GitHub
+  不允许 dismiss COMMENT-state review，故 wrapper 留为 timeline stub
+  但 diff 上不再显示重复注解）。Cleanup 失败只 log warning，不阻挡新
+  review 提交。
+* **Check run** — open gate 前先列出 head SHA 上所有同名
+  ``prthinker`` check，逐一 PATCH 为 ``status=completed`` /
+  ``conclusion=neutral`` 并附 *superseded* 标题；UI 会自动将 superseded
+  之 check 折叠于 live 之 check 下方。
+
 必需 secrets
 ------------
 
