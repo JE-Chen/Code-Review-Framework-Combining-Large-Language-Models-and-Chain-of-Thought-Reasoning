@@ -1753,6 +1753,57 @@ def _maybe_open_auto_fix_pr(
     )
 
 
+def merge_partial_reviews(json_paths: list[Path]) -> ReviewResult:
+    """Merge partial review JSONs into a single ReviewResult.
+
+    per_file results are the single source of truth: the flat
+    inline_findings list is derived from them AFTER merging, so a
+    prior-run partial carried forward through the per-PR state cache
+    (whose top-level inline_findings has been intentionally zeroed
+    out, with the real data on per_file[i].inline_findings) still
+    reaches submit_inline_review() and evaluate_gate(). This honours
+    the project rule that a file's prior review result is never lost
+    just because this run could not refresh it.
+    """
+    merged_per_file: list[FileReviewResult] = []
+    merged_step_outputs: dict[str, str] = {}
+    rag_docs_seen: set[str] = set()
+    rag_docs: list[str] = []
+    paths_seen: set[str] = set()
+    for jp in sorted(json_paths):
+        try:
+            payload = json.loads(Path(jp).read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001 — surface the offending file
+            log.warning("Skipping %s — not valid JSON (%s)", jp, exc)
+            continue
+        partial = _deserialize_partial_review(payload)
+        merged_step_outputs.update(partial.step_outputs)
+        for d in partial.rag_docs:
+            if d not in rag_docs_seen:
+                rag_docs_seen.add(d)
+                rag_docs.append(d)
+        for fr in partial.per_file:
+            # Dedupe by path so re-runs of the same matrix shard don't
+            # double-up. Last-write-wins on duplicate paths — relies on
+            # the caller sorting prior-state partials BEFORE this run's
+            # shard partials so the matrix output overrides the prior.
+            if fr.path in paths_seen:
+                merged_per_file = [x for x in merged_per_file if x.path != fr.path]
+            paths_seen.add(fr.path)
+            merged_per_file.append(fr)
+
+    merged_findings: list[InlineFinding] = [
+        f for fr in merged_per_file for f in fr.inline_findings
+    ]
+    return ReviewResult(
+        code_diff="",  # the aggregate doesn't need the raw diff
+        rag_docs=rag_docs,
+        step_outputs=merged_step_outputs,
+        inline_findings=merged_findings,
+        per_file=merged_per_file,
+    )
+
+
 def _cmd_aggregate(args: argparse.Namespace) -> int:
     """Merge partial review JSONs and post a single review to the PR.
 
@@ -1784,48 +1835,15 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
         log.warning("No *.json found under %s — nothing to aggregate", input_dir)
         return 0
 
-    merged_findings: list[InlineFinding] = []
-    merged_per_file: list[FileReviewResult] = []
-    merged_step_outputs: dict[str, str] = {}
-    rag_docs_seen: set[str] = set()
-    rag_docs: list[str] = []
-    paths_seen: set[str] = set()
-    for jp in json_paths:
-        try:
-            payload = json.loads(jp.read_text(encoding="utf-8"))
-        except Exception as exc:  # noqa: BLE001 — surface the offending file
-            log.warning("Skipping %s — not valid JSON (%s)", jp, exc)
-            continue
-        partial = _deserialize_partial_review(payload)
-        merged_findings.extend(partial.inline_findings)
-        merged_step_outputs.update(partial.step_outputs)
-        for d in partial.rag_docs:
-            if d not in rag_docs_seen:
-                rag_docs_seen.add(d)
-                rag_docs.append(d)
-        for fr in partial.per_file:
-            # Dedupe by path so re-runs of the same matrix shard don't
-            # double-up. Last-write-wins on duplicate paths.
-            if fr.path in paths_seen:
-                merged_per_file = [x for x in merged_per_file if x.path != fr.path]
-            paths_seen.add(fr.path)
-            merged_per_file.append(fr)
-
-    merged = ReviewResult(
-        code_diff="",  # the aggregate doesn't need the raw diff
-        rag_docs=rag_docs,
-        step_outputs=merged_step_outputs,
-        inline_findings=merged_findings,
-        per_file=merged_per_file,
-    )
+    merged = merge_partial_reviews(json_paths)
     log.info(
         "Aggregated %d partial(s): files=%d findings=%d",
         len(json_paths),
-        len(merged_per_file),
-        len(merged_findings),
+        len(merged.per_file),
+        len(merged.inline_findings),
     )
 
-    overall = _synthesize_overall_summary(merged_per_file)
+    overall = _synthesize_overall_summary(merged.per_file)
     if overall:
         merged.step_outputs["total_summary"] = overall
 

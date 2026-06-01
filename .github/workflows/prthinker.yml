@@ -402,6 +402,24 @@ jobs:
           pattern: partial-*
           merge-multiple: false
 
+      # HARD RULE: a file's prior review result is NEVER lost from the
+      # posted PR review just because this run failed to refresh it.
+      # The restored per-PR state cache already sits at
+      # .prthinker/pr-state/partials/<sha256(path)>.json; copy them in
+      # under a name that sorts FIRST so the aggregate command
+      # (which is last-write-wins on duplicate paths) lets this run's
+      # matrix output override the prior partial, while any file the
+      # matrix did not touch is still posted with its prior findings.
+      - name: Carry prior partials forward into aggregate input
+        if: hashFiles('.prthinker/pr-state/partials/*.json') != ''
+        run: |
+          set -euo pipefail
+          DEST="${{ runner.temp }}/partials/aaa-prior-state"
+          mkdir -p "$DEST"
+          cp -r .prthinker/pr-state/partials/. "$DEST"/
+          COUNT=$(find "$DEST" -name "*.json" | wc -l)
+          echo "Carried $COUNT prior partial(s) forward into aggregate input."
+
       - name: Aggregate and post
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -453,45 +471,87 @@ jobs:
           ALL=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/files?per_page=100" \
             --jq '[.[] | {path: .filename, sha: .sha, status: .status}]')
           ALL="$ALL" DOWNLOAD_DIR="$DOWNLOAD_DIR" python3 <<'PY'
-          import hashlib, json, os, shutil
+          import hashlib, json, os
           from pathlib import Path
 
           files_data = json.loads(os.environ["ALL"])
           download = Path(os.environ["DOWNLOAD_DIR"])
+          state = Path(".prthinker/pr-state")
+          partials_dir = state / "partials"
+          partials_dir.mkdir(parents=True, exist_ok=True)
+          state.mkdir(parents=True, exist_ok=True)
+
+          # HARD RULE: a file's prior review result is NEVER discarded
+          # just because this run could not refresh it. partial-skipped
+          # upload failures, actions/cache restore misses, and matrix
+          # shard crashes all can leave files out of `download`; we
+          # must fall back to whatever the restored prior state cache
+          # already has on disk before deciding to drop an entry.
+
+          # Read the prior partials / manifest BEFORE writing anything,
+          # so we have a stable fallback layer even if this run produced
+          # nothing for a file.
+          prior_path_to_fr: dict[str, dict] = {}
+          for prior_jp in sorted(partials_dir.rglob("*.json")):
+              try:
+                  prior_payload = json.loads(prior_jp.read_text(encoding="utf-8"))
+              except Exception:
+                  continue
+              for fr in prior_payload.get("per_file", []):
+                  prior_path_to_fr[fr["path"]] = fr
+
+          prior_blob_sha: dict[str, str] = {}
+          prior_manifest_path = state / "manifest.json"
+          if prior_manifest_path.exists():
+              try:
+                  prior_manifest = json.loads(
+                      prior_manifest_path.read_text(encoding="utf-8")
+                  )
+                  prior_blob_sha = {
+                      f["path"]: f["blob_sha"]
+                      for f in prior_manifest.get("files", [])
+                  }
+              except Exception:
+                  prior_blob_sha = {}
 
           # Build path -> latest per_file entry across every downloaded
-          # partial JSON. Last-write-wins matches the merge semantics
-          # the aggregate command itself uses.
-          path_to_fr = {}
+          # partial JSON for THIS run. Last-write-wins matches the merge
+          # semantics the aggregate command itself uses.
+          this_run_path_to_fr: dict[str, dict] = {}
           for jp in sorted(download.rglob("*.json")):
               try:
                   payload = json.loads(jp.read_text(encoding="utf-8"))
               except Exception:
                   continue
               for fr in payload.get("per_file", []):
-                  path_to_fr[fr["path"]] = fr
+                  this_run_path_to_fr[fr["path"]] = fr
 
-          state = Path(".prthinker/pr-state")
-          partials_dir = state / "partials"
-          # Wipe the partials dir so stale entries for files no longer
-          # in the PR don't linger; manifest is fully rewritten below.
-          if partials_dir.is_dir():
-              shutil.rmtree(partials_dir)
-          partials_dir.mkdir(parents=True, exist_ok=True)
+          # Effective per_file = this run, falling back to prior. A file
+          # only gets dropped if BOTH this run AND the prior cache lack
+          # any partial for it (truly never-reviewed) or if it is no
+          # longer in the PR.
+          effective_path_to_fr = dict(prior_path_to_fr)
+          effective_path_to_fr.update(this_run_path_to_fr)
 
-          manifest_files = []
+          # Keep only files still in the PR. Removed files lose their
+          # partial; everything else is preserved.
+          current_paths = {
+              entry["path"] for entry in files_data
+              if entry["status"] != "removed"
+          }
+
+          # Rewrite the partials dir from the effective view. We do NOT
+          # rmtree first — we only overwrite digests we are about to
+          # rewrite and unlink digests for paths that left the PR. This
+          # makes the step idempotent on partial failures.
+          kept_digests: set[str] = set()
           written = 0
-          for entry in files_data:
-              if entry["status"] == "removed":
-                  continue
-              path = entry["path"]
-              fr = path_to_fr.get(path)
-              if fr is None:
-                  # No partial available (backend skip or excluded) —
-                  # don't record it, so the next run treats this file
-                  # as fresh and re-attempts.
+          reused = 0
+          for path, fr in effective_path_to_fr.items():
+              if path not in current_paths:
                   continue
               digest = hashlib.sha256(path.encode("utf-8")).hexdigest()
+              kept_digests.add(digest)
               single = {
                   "code_diff": "",
                   "rag_docs": [],
@@ -502,14 +562,52 @@ jobs:
               (partials_dir / f"{digest}.json").write_text(
                   json.dumps(single, indent=2), encoding="utf-8",
               )
-              manifest_files.append({"path": path, "blob_sha": entry["sha"]})
-              written += 1
+              if path in this_run_path_to_fr:
+                  written += 1
+              else:
+                  reused += 1
+
+          # Drop digests for paths that left the PR (or never existed).
+          dropped = 0
+          for existing in partials_dir.glob("*.json"):
+              if existing.stem not in kept_digests:
+                  existing.unlink()
+                  dropped += 1
+
+          # Rebuild manifest. For files refreshed this run, store the
+          # current blob_sha so the next enumerate skips them on a
+          # genuine no-op push. For files we are merely carrying over
+          # from prior cache (this run didn't touch them), keep the
+          # PRIOR blob_sha — anything else would lie about when this
+          # file's review was actually computed and could mislead the
+          # next enumerate into reusing a stale partial.
+          path_to_current_sha = {
+              entry["path"]: entry["sha"]
+              for entry in files_data
+              if entry["status"] != "removed"
+          }
+          manifest_files = []
+          for path in sorted(current_paths):
+              digest = hashlib.sha256(path.encode("utf-8")).hexdigest()
+              if digest not in kept_digests:
+                  continue
+              if path in this_run_path_to_fr:
+                  blob_sha = path_to_current_sha.get(path, "")
+              else:
+                  blob_sha = prior_blob_sha.get(path, "")
+              if not blob_sha:
+                  continue
+              manifest_files.append({"path": path, "blob_sha": blob_sha})
 
           (state / "manifest.json").write_text(
               json.dumps({"files": manifest_files}, indent=2),
               encoding="utf-8",
           )
-          print(f"State cache rewritten: {written} file(s)")
+          print(
+              f"State cache rewritten: "
+              f"{written} refreshed, {reused} carried over, "
+              f"{dropped} dropped; manifest has {len(manifest_files)} files"
+          )
           PY
 
       - name: Save prthinker state cache
