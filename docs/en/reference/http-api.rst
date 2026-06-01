@@ -37,6 +37,20 @@ Liveness probe.
 
    {"status": "ok", "model": "Qwen/Qwen3-Coder-30B-A3B-Instruct"}
 
+GET /metrics
+------------
+
+Prometheus exposition endpoint. Enabled when
+``prometheus-fastapi-instrumentator`` is installed (the server logs and
+silently skips it otherwise), it exports per-endpoint request counts,
+latency histograms (used for the p50 / p95 / p99 panels), and HTTP
+status counters. Unauthenticated like every other route — the monitoring
+overlay's nginx scrapes it on the internal docker network; do not expose
+it publicly without a reverse-proxy ACL.
+
+**Response 200**: ``text/plain`` in the Prometheus text exposition
+format.
+
 POST /ask
 ---------
 

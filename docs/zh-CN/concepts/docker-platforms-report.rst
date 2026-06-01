@@ -128,11 +128,47 @@ port（或一个上游 proxy / Cloudflare tunnel）即可同时 expose 服务器
    * - ``/cadvisor/``
      - cAdvisor 容器资源 UI\ 。
    * - ``/kg/``
-     - 由 ``.prthinker/`` 渲染之静态 repo knowledge-graph 页\ 。
+     - 由 ``.prthinker/`` 渲染之静态 repo knowledge-graph 页\ 。多 repo
+       部署另有 per-repo 页 ``/kg/<name>/``\ （nginx route 匹配
+       ``[A-Za-z0-9._-]+``\ ），单一主机可为每个被审 repo 各供一份
+       knowledge graph\ 。
 
 DCGM GPU 指标 exporter 无对外路径——只由 Prometheus 在内网 docker network
 上 scrape。TLS 与 monitoring overlay 都会占用 host ``9000``/nginx，请通过
 上游 proxy 整合，不要三个 compose 文件同时叠用\ 。
+
+monitoring overlay 观测什么
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Prometheus scrape 四个 job——``prthinker-fastapi``\ （\ ``/metrics``
+endpoint）、\ ``dcgm-gpu``\ （各 GPU 遥测）、\ ``cadvisor-containers``\
+（各容器资源用量）与 ``prometheus-self``\ ——并保留 30 天历史。预先置备之
+``prthinker-overview`` Grafana 仪表板把它们渲染为十个 panel：
+
+* **服务**\ ──各 endpoint 请求率、延迟 p50 / p95 / p99、HTTP 5xx 率
+  （来自 FastAPI ``/metrics`` histogram）\ 。
+* **GPU**\ ──使用率、已用显存、功耗、温度（来自 DCGM）\ 。
+* **容器**\ ──prthinker CPU cores、RAM、网络 RX/TX（来自 cAdvisor）\ 。
+
+未置备 alerting——请在 ``monitoring/prometheus.yml`` 加 rule（或用同一
+datasource 配置 Grafana alerting），对应你部署在意之阈值\ 。
+
+安全重建 image（``rebuild-server.sh``）
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+在 GPU 主机上直接 ``docker compose build``\ ，build 之峰值 RAM 可能与
+运行中之模型容器相撞而触发 kernel OOM-killer——而它往往先杀
+``cloudflared`` / ``sshd``\ ，表现为「GPU 服务器 build 到一半断线」。
+``docker/rebuild-server.sh`` 把安全流程编进去：停掉模型容器释出其 host
+RAM、pull 最新 ``Dockerfile.server``\ 、build 时每 2 秒快照 ``free -h``\ 、
+build 后扫 ``dmesg`` 找 OOM-killer 指纹，再把服务器拉回并阻塞到
+``/healthz`` 回 200 且 boot guard 确认非 eager attention impl。小主机请
+降低 build 并行度：
+
+.. code-block:: bash
+
+   ./docker/rebuild-server.sh                       # 默认 MAX_JOBS=16
+   FLASH_ATTN_MAX_JOBS=4 ./docker/rebuild-server.sh # <= 128 GiB RAM 主机
 
 Volume 说明：
 

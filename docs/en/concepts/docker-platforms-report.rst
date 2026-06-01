@@ -136,11 +136,53 @@ the server and every dashboard:
      - cAdvisor container-resource UI.
    * - ``/kg/``
      - Static repo knowledge-graph page rendered from ``.prthinker/``.
+       Multi-repo deploys also get per-repo pages at ``/kg/<name>/``
+       (the nginx route matches ``[A-Za-z0-9._-]+``), so one host can
+       serve a knowledge graph per reviewed repository.
 
 The DCGM GPU-metrics exporter has no public route — only Prometheus
 scrapes it on the internal docker network. The TLS and monitoring
 overlays both claim host ``9000``/nginx, so combine them through an
 upstream proxy rather than stacking all three compose files at once.
+
+What the monitoring overlay observes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Prometheus scrapes four jobs — ``prthinker-fastapi`` (the ``/metrics``
+endpoint), ``dcgm-gpu`` (per-GPU telemetry), ``cadvisor-containers``
+(per-container resource use), and ``prometheus-self`` — and keeps 30
+days of history. The provisioned ``prthinker-overview`` Grafana
+dashboard renders them as ten panels:
+
+* **Service** — request rate by endpoint, latency p50 / p95 / p99, and
+  HTTP 5xx rate (from the FastAPI ``/metrics`` histograms).
+* **GPU** — utilization, memory used, power draw, and temperature
+  (from DCGM).
+* **Container** — prthinker CPU cores, RAM, and network RX/TX
+  (from cAdvisor).
+
+Alerting is not provisioned — add rules under
+``monitoring/prometheus.yml`` (or wire Grafana alerting against the same
+datasource) for the thresholds your deploy cares about.
+
+Rebuilding the image safely (``rebuild-server.sh``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A bare ``docker compose build`` on the GPU host can let the image
+build's peak RAM collide with the running model container and trip the
+kernel OOM-killer — which tends to take ``cloudflared`` / ``sshd`` down
+first, presenting as "the GPU server disconnects mid-build".
+``docker/rebuild-server.sh`` encodes the safe sequence: stop the model
+container to free its host RAM, pull the latest ``Dockerfile.server``,
+build while snapshotting ``free -h``, scan ``dmesg`` afterwards for an
+OOM-killer fingerprint, then bring the server back up and block until
+``/healthz`` returns 200 and the boot guard confirms a non-eager
+attention impl. Cap build parallelism on smaller hosts:
+
+.. code-block:: bash
+
+   ./docker/rebuild-server.sh                       # default MAX_JOBS=16
+   FLASH_ATTN_MAX_JOBS=4 ./docker/rebuild-server.sh # hosts <= 128 GiB RAM
 
 Volumes:
 
