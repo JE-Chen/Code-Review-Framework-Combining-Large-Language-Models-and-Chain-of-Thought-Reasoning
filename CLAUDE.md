@@ -344,7 +344,35 @@ the server refuses to start. This is intentional: eager attention OOMs around 15
 input on a 30B-class model with a 44 GiB GPU, and the failure mode is an opaque
 "Tried to allocate 269 GiB" deep inside a review job. Failing at boot turns that into an
 actionable error before any review hits the GPU. Override only with
-`PRTHINKER_ALLOW_EAGER_ATTENTION=1`.
+`PRTHINKER_ALLOW_EAGER_ATTENTION=1`. (The literal "269 GiB" allocation is **not**
+eager attention — see the next section — but eager would also OOM, so the guard stays.)
+
+### GPU Server: bf16, no flash-attn, no dependency pins
+
+The FastAPI server (`Qwen/Qwen3-Coder-30B-A3B-Instruct` + the unmerged 13 GB LoRA) is
+only fast in **bf16**, which it reaches by letting bitsandbytes 4-bit *silently fall
+back*: `load_qwen3_model()` requests `load_in_4bit=True`, but on the supported deploy
+that quantization does not engage, so the model loads bf16 — ~75 GB across the two
+46 GB L40S with `device_map="auto"` (the "~32 GB used on each card" signature),
+~14 tok/s.
+
+On this hardware, do **NOT**:
+- **install flash-attn** (the image must dispatch attention to SDPA), or
+- **pin `transformers<5`**.
+
+Either one makes bnb 4-bit actually engage; per-token nf4 dequant of the MoE then
+crushes decode to ~4.5 tok/s (a single-file CoT review times out past 30 min). The
+flash_attention_2 + 4-bit + transformers-5.x combination is also what produces the
+opaque "Tried to allocate 269 GiB" OOM (a transformers-5.x MoE-densification path,
+linear in input length). Under bf16 + SDPA, transformers 5.x does **not** densify and
+multi-thousand-token prompts run fine (a ~6 K-token prompt completes in ~27 s).
+
+The supported deploy is the `docker/Dockerfile.server` shipped here: CUDA
+`12.2.0-runtime` base, **no** flash-attn step, **unpinned** `[local]` deps,
+`device_map="auto"` (dual-card), LoRA left **unmerged**. Keep
+`TRANSFORMERS_CACHE=/cache/huggingface/hub` — without the `/hub` segment transformers
+obeys the deprecated var and looks in an empty dir, hanging (online) or OSErroring
+(offline) on load even though the weights are cached.
 
 ### Three-Language Docs Parity
 
