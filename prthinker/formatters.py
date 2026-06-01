@@ -68,11 +68,16 @@ def _format_single(result: ReviewResult, marker: str) -> str:
 
 
 def _format_per_file(result: ReviewResult, marker: str) -> str:
+    skipped = [f for f in result.per_file if f.is_binary or f.is_deleted]
+    reviewed_n = len(result.per_file) - len(skipped)
+    header = f"Reviewed **{reviewed_n}** file(s)."
+    if skipped:
+        header += f" Skipped **{len(skipped)}** (binary / deleted)."
     parts: list[str] = [
         marker,
         "## CoT Code Review (per-file)",
         "",
-        f"Reviewed **{len(result.per_file)}** file(s).",
+        header,
         "",
     ]
 
@@ -223,9 +228,15 @@ def _format_api_drift_block(drift: "list") -> list[str]:
 
 
 def _format_file_block(fr: FileReviewResult) -> list[str]:
+    # Skipped files (binary / deleted) are still listed so every touched
+    # file is accounted for — just with the skip reason instead of a review.
+    if fr.is_binary or fr.is_deleted:
+        reason = "binary" if fr.is_binary else "deleted"
+        return [f"- <code>{fr.path}</code> — _skipped ({reason})_", ""]
+
     summary = fr.total_summary or "_no summary_"
     findings_n = len(fr.inline_findings)
-    badge = f" — {findings_n} finding(s)" if findings_n else ""
+    badge = f" — {findings_n} finding(s)" if findings_n else " — no findings"
 
     block: list[str] = [
         f"<details><summary><code>{fr.path}</code>{badge}</summary>",
