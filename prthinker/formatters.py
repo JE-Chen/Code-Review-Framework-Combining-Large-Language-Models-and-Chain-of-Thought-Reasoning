@@ -67,20 +67,19 @@ def _format_single(result: ReviewResult, marker: str) -> str:
     return "\n".join(parts).rstrip() + "\n"
 
 
-def _format_per_file(result: ReviewResult, marker: str) -> str:
+def _per_file_header(result: ReviewResult) -> str:
+    """Build the reviewed / skipped file-count header line."""
     skipped = [f for f in result.per_file if f.is_binary or f.is_deleted]
     reviewed_n = len(result.per_file) - len(skipped)
     header = f"Reviewed **{reviewed_n}** file(s)."
     if skipped:
         header += f" Skipped **{len(skipped)}** (binary / deleted)."
-    parts: list[str] = [
-        marker,
-        "## CoT Code Review (per-file)",
-        "",
-        header,
-        "",
-    ]
+    return header
 
+
+def _format_per_file_intro(result: ReviewResult) -> list[str]:
+    """Render the classification, finding count, and overall summary lead."""
+    parts: list[str] = []
     if result.pr_classification is not None:
         cls = result.pr_classification
         parts.append(
@@ -95,27 +94,34 @@ def _format_per_file(result: ReviewResult, marker: str) -> str:
 
     overall = result.total_summary
     if overall:
-        parts += [
-            "### Overall Summary",
-            "",
-            overall.strip(),
-            "",
-            "---",
-            "",
-        ]
+        parts += ["### Overall Summary", "", overall.strip(), "", "---", ""]
+    return parts
 
+
+def _format_per_file_sections(result: ReviewResult) -> list[str]:
+    """Render the optional cross-file analysis sections, in order."""
+    parts: list[str] = []
     if result.diff_entropy is not None:
         parts += _format_diff_entropy_block(result.diff_entropy)
-
     if result.persona_conflicts:
         parts += _format_persona_conflicts_block(result.persona_conflicts)
-
     if result.dep_upgrades:
         parts += _format_dep_upgrade_block(result.dep_upgrades)
-
     if result.api_drift:
         parts += _format_api_drift_block(result.api_drift)
+    return parts
 
+
+def _format_per_file(result: ReviewResult, marker: str) -> str:
+    parts: list[str] = [
+        marker,
+        "## CoT Code Review (per-file)",
+        "",
+        _per_file_header(result),
+        "",
+    ]
+    parts += _format_per_file_intro(result)
+    parts += _format_per_file_sections(result)
     for fr in result.per_file:
         parts += _format_file_block(fr)
 
@@ -227,6 +233,60 @@ def _format_api_drift_block(drift: "list") -> list[str]:
     return block
 
 
+_FILE_RESERVED_STEPS: frozenset[str] = frozenset(
+    {"total_summary", "inline_findings", "counterfactual"}
+)
+
+
+def _format_step_detail(title: str, body: str) -> list[str]:
+    """Render one collapsible per-step ``<details>`` block."""
+    return [
+        f"<details><summary>{title}</summary>",
+        "",
+        body,
+        "",
+        "</details>",
+        "",
+    ]
+
+
+def _step_title(name: str) -> str:
+    """Return the display title for a step output name."""
+    return _SECTION_TITLES.get(name, name.replace("_", " ").title())
+
+
+def _format_finding_annotations(findings: list[InlineFinding]) -> list[str]:
+    """Render provenance, reproducibility, and verification sub-blocks."""
+    block: list[str] = []
+    cited = [f for f in findings if f.provenance is not None]
+    if cited:
+        block += _format_provenance_block(cited)
+
+    labelled = [f for f in findings if f.reproducibility is not None]
+    if labelled:
+        block += _format_reproducibility_block(labelled)
+
+    verified = [f for f in findings if f.verification is not None]
+    if verified:
+        block += _format_verification_block(verified)
+    return block
+
+
+def _file_findings_badge(findings_n: int) -> str:
+    """Return the per-file summary badge for an inline-finding count."""
+    return f" — {findings_n} finding(s)" if findings_n else " — no findings"
+
+
+def _format_file_step_details(fr: FileReviewResult) -> list[str]:
+    """Render the per-file step-output detail blocks, skipping reserved ones."""
+    block: list[str] = []
+    for name in fr.step_outputs:
+        if name in _FILE_RESERVED_STEPS:
+            continue
+        block += _format_step_detail(_step_title(name), fr.step_outputs[name].strip())
+    return block
+
+
 def _format_file_block(fr: FileReviewResult) -> list[str]:
     # Skipped files (binary / deleted) are still listed so every touched
     # file is accounted for — just with the skip reason instead of a review.
@@ -235,8 +295,7 @@ def _format_file_block(fr: FileReviewResult) -> list[str]:
         return [f"- <code>{fr.path}</code> — _skipped ({reason})_", ""]
 
     summary = fr.total_summary or "_no summary_"
-    findings_n = len(fr.inline_findings)
-    badge = f" — {findings_n} finding(s)" if findings_n else " — no findings"
+    badge = _file_findings_badge(len(fr.inline_findings))
 
     block: list[str] = [
         f"<details><summary><code>{fr.path}</code>{badge}</summary>",
@@ -246,40 +305,46 @@ def _format_file_block(fr: FileReviewResult) -> list[str]:
         summary.strip(),
         "",
     ]
-
-    cited = [f for f in fr.inline_findings if f.provenance is not None]
-    if cited:
-        block += _format_provenance_block(cited)
-
-    labelled = [f for f in fr.inline_findings if f.reproducibility is not None]
-    if labelled:
-        block += _format_reproducibility_block(labelled)
-
-    verified = [f for f in fr.inline_findings if f.verification is not None]
-    if verified:
-        block += _format_verification_block(verified)
-
-    detail_steps = [
-        name for name in fr.step_outputs
-        if name not in {"total_summary", "inline_findings", "counterfactual"}
-    ]
-    for name in detail_steps:
-        title = _SECTION_TITLES.get(name, name.replace("_", " ").title())
-        body = fr.step_outputs[name].strip()
-        block += [
-            f"<details><summary>{title}</summary>",
-            "",
-            body,
-            "",
-            "</details>",
-            "",
-        ]
-
+    block += _format_finding_annotations(fr.inline_findings)
+    block += _format_file_step_details(fr)
     if fr.counterfactuals:
         block += _format_counterfactuals_block(fr)
-
     block += ["</details>", ""]
     return block
+
+
+def _citation_label(cite) -> str:
+    """Map a provenance citation to its human-readable list label."""
+    if cite.kind == "rag_rule" and cite.index is not None:
+        return f"RAG rule #{cite.index}"
+    if cite.kind == "accepted_example" and cite.index is not None:
+        return f"Accepted example #{cite.index}"
+    if cite.kind == "diff_evidence":
+        lines = ", ".join(str(ln) for ln in cite.lines)
+        return f"Diff line(s) {lines}" if lines else "Diff"
+    return cite.kind
+
+
+def _format_provenance_entry(finding: InlineFinding) -> list[str]:
+    """Render one finding's provenance header and citation bullets."""
+    prov = finding.provenance
+    header = f"**line {finding.line}**"
+    if prov.confidence is not None:
+        header += f" — model confidence {prov.confidence:.2f}"
+    lines: list[str] = [header, ""]
+    for cite in prov.citations:
+        note = (" — " + cite.note.strip()) if cite.note.strip() else ""
+        lines.append(f"- {_citation_label(cite)}{note}")
+    lines.append("")
+    return lines
+
+
+def _has_provenance_payload(finding: InlineFinding) -> bool:
+    """Return True when a finding has citations or a confidence score."""
+    prov = finding.provenance
+    if prov is None:
+        return False
+    return bool(prov.citations) or prov.confidence is not None
 
 
 def _format_provenance_block(findings: list[InlineFinding]) -> list[str]:
@@ -295,32 +360,11 @@ def _format_provenance_block(findings: list[InlineFinding]) -> list[str]:
         "",
     ]
     rendered_any = False
-    for f in findings:
-        prov = f.provenance
-        if prov is None:
-            continue
-        has_payload = bool(prov.citations) or prov.confidence is not None
-        if not has_payload:
+    for finding in findings:
+        if not _has_provenance_payload(finding):
             continue
         rendered_any = True
-        header = f"**line {f.line}**"
-        if prov.confidence is not None:
-            header += f" — model confidence {prov.confidence:.2f}"
-        block.append(header)
-        block.append("")
-        for cite in prov.citations:
-            if cite.kind == "rag_rule" and cite.index is not None:
-                label = f"RAG rule #{cite.index}"
-            elif cite.kind == "accepted_example" and cite.index is not None:
-                label = f"Accepted example #{cite.index}"
-            elif cite.kind == "diff_evidence":
-                lines = ", ".join(str(ln) for ln in cite.lines)
-                label = f"Diff line(s) {lines}" if lines else "Diff"
-            else:
-                label = cite.kind
-            note = (" — " + cite.note.strip()) if cite.note.strip() else ""
-            block.append(f"- {label}{note}")
-        block.append("")
+        block += _format_provenance_entry(finding)
     block += ["</details>", ""]
     if not rendered_any:
         return []  # caller appended the opener; signal nothing to render

@@ -104,14 +104,8 @@ def merge_partial_reviews(json_paths: list[Path]) -> ReviewResult:
         per_file=acc.per_file,
     )
 
-def _cmd_aggregate(args: argparse.Namespace) -> int:
-    """Merge partial review JSONs and post a single review to the PR.
-
-    Counterpart to `review-pr --output-json`: a CI matrix that shards
-    per-file review across multiple runners can stash each runner's
-    partial result as an artifact, then call this command in a final
-    job to do the GitHub-side posting exactly once.
-    """
+def _validate_aggregate_args(args: argparse.Namespace) -> Path:
+    """Validate aggregate CLI args and return the resolved input directory."""
     if not args.repo:
         raise SystemExit("--repo or $GITHUB_REPOSITORY / $CI_PROJECT_PATH is required")
     if not args.pr_number:
@@ -126,6 +120,97 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
     input_dir = Path(input_dir_raw)
     if not input_dir.is_dir():
         raise SystemExit(f"{input_dir} is not a directory")
+    return input_dir
+
+
+def _open_aggregate_gate(args: argparse.Namespace, adapter: object) -> object | None:
+    """Fetch head SHA and open the check-run gate, or None when not gating."""
+    if args.gate_on == "none" or args.dry_run:
+        return None
+    head_sha: str | None = None
+    try:
+        head_sha = adapter.fetch_head_sha()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Could not fetch head SHA (%s); skipping gate", exc)
+    if head_sha is None:
+        return None
+    return adapter.open_gate(head_sha)
+
+
+def _resolve_review_event(args: argparse.Namespace, merged: ReviewResult) -> str:
+    """Aggregate per-file judge verdicts into a GitHub review event."""
+    if not (args.judge and merged.per_file):
+        return "COMMENT"
+    from prthinker.judge import aggregate as judge_aggregate
+    from prthinker.judge import to_github_event
+    verdicts = [fr.verdict for fr in merged.per_file if fr.verdict is not None]
+    if not verdicts:
+        return "COMMENT"
+    review_event = to_github_event(judge_aggregate(verdicts))
+    log.info("Judge verdict aggregated → %s", review_event)
+    return review_event
+
+
+def _submit_aggregate_inline_review(
+    args: argparse.Namespace,
+    adapter: object,
+    merged: ReviewResult,
+    review_event: str,
+) -> None:
+    """Submit inline findings, swallowing 422-class errors so the gate still runs."""
+    if not (args.inline_review and merged.inline_findings):
+        return
+    # Inline submission can still 422 on edge cases the diff-hunk
+    # pre-filter misses (e.g. renamed files where the new path's
+    # blob SHA differs from what `+++ b/<path>` records). Log and
+    # continue — the summary comment is already posted above, and
+    # the check-run gate below still needs to run to unblock merge.
+    try:
+        review_id = adapter.submit_inline_review(
+            merged.inline_findings,
+            summary_body="prthinker — inline findings",
+            event=review_event,
+        )
+        log.info(
+            "Posted inline review id=%s (event=%s)",
+            review_id, review_event,
+        )
+    except Exception as exc:  # noqa: BLE001 — must not skip the gate below
+        log.error(
+            "Inline review submission failed (%s); summary comment "
+            "and check run will still be posted",
+            exc,
+        )
+
+
+def _close_aggregate_gate(
+    args: argparse.Namespace,
+    adapter: object,
+    merged: ReviewResult,
+    gate_handle: object | None,
+) -> None:
+    """Evaluate and close the check-run gate when one was opened."""
+    if gate_handle is None:
+        return
+    gate_result = evaluate_gate(merged.inline_findings, gate_on=args.gate_on)
+    adapter.close_gate(gate_handle, gate_result)
+    log.info(
+        "Gate conclusion=%s (errors=%d warnings=%d info=%d, floor=%s)",
+        gate_result.conclusion,
+        gate_result.error_count, gate_result.warning_count,
+        gate_result.info_count, args.gate_on,
+    )
+
+
+def _cmd_aggregate(args: argparse.Namespace) -> int:
+    """Merge partial review JSONs and post a single review to the PR.
+
+    Counterpart to `review-pr --output-json`: a CI matrix that shards
+    per-file review across multiple runners can stash each runner's
+    partial result as an artifact, then call this command in a final
+    job to do the GitHub-side posting exactly once.
+    """
+    input_dir = _validate_aggregate_args(args)
 
     # Walk the dir recursively so artifact-download layouts (which often
     # nest one folder per matrix iteration) are handled without extra
@@ -159,17 +244,7 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
         base_url=args.platform_base_url,
     )
 
-    head_sha: str | None = None
-    needs_head_sha = args.gate_on != "none" and not args.dry_run
-    if needs_head_sha:
-        try:
-            head_sha = adapter.fetch_head_sha()
-        except Exception as exc:  # noqa: BLE001
-            log.warning("Could not fetch head SHA (%s); skipping gate", exc)
-
-    gate_handle = None
-    if args.gate_on != "none" and not args.dry_run and head_sha is not None:
-        gate_handle = adapter.open_gate(head_sha)
+    gate_handle = _open_aggregate_gate(args, adapter)
 
     body = format_pr_comment(merged, marker=args.marker)
     if args.dry_run:
@@ -183,47 +258,9 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
     comment_id = adapter.upsert_summary_comment(body)
     log.info("Posted summary comment id=%d", comment_id)
 
-    review_event = "COMMENT"
-    if args.judge and merged.per_file:
-        from prthinker.judge import aggregate as judge_aggregate
-        from prthinker.judge import to_github_event
-        verdicts = [fr.verdict for fr in merged.per_file if fr.verdict is not None]
-        if verdicts:
-            review_event = to_github_event(judge_aggregate(verdicts))
-            log.info("Judge verdict aggregated → %s", review_event)
-
-    if args.inline_review and merged.inline_findings:
-        # Inline submission can still 422 on edge cases the diff-hunk
-        # pre-filter misses (e.g. renamed files where the new path's
-        # blob SHA differs from what `+++ b/<path>` records). Log and
-        # continue — the summary comment is already posted above, and
-        # the check-run gate below still needs to run to unblock merge.
-        try:
-            review_id = adapter.submit_inline_review(
-                merged.inline_findings,
-                summary_body="prthinker — inline findings",
-                event=review_event,
-            )
-            log.info(
-                "Posted inline review id=%s (event=%s)",
-                review_id, review_event,
-            )
-        except Exception as exc:  # noqa: BLE001 — must not skip the gate below
-            log.error(
-                "Inline review submission failed (%s); summary comment "
-                "and check run will still be posted",
-                exc,
-            )
-
-    if gate_handle is not None:
-        gate_result = evaluate_gate(merged.inline_findings, gate_on=args.gate_on)
-        adapter.close_gate(gate_handle, gate_result)
-        log.info(
-            "Gate conclusion=%s (errors=%d warnings=%d info=%d, floor=%s)",
-            gate_result.conclusion,
-            gate_result.error_count, gate_result.warning_count,
-            gate_result.info_count, args.gate_on,
-        )
+    review_event = _resolve_review_event(args, merged)
+    _submit_aggregate_inline_review(args, adapter, merged, review_event)
+    _close_aggregate_gate(args, adapter, merged, gate_handle)
 
     return 0
 

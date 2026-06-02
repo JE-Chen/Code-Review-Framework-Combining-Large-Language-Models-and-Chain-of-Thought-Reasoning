@@ -48,6 +48,9 @@ CREATE INDEX IF NOT EXISTS idx_calls_backend ON calls (backend);
 """
 
 
+_WHERE_SINCE = "WHERE timestamp >= ?"
+
+
 @dataclass
 class CallRecord:
     backend: str
@@ -117,47 +120,71 @@ class TelemetrySink:
             )
 
     def aggregate(self, since_seconds: float | None = None) -> list[BackendStats]:
-        clause = ""
-        params: tuple = ()
-        if since_seconds is not None:
-            clause = "WHERE timestamp >= ?"
-            params = (time.time() - since_seconds,)
-
+        clause, params = self._time_filter(since_seconds)
         out: list[BackendStats] = []
         with self._connect() as conn:
-            # nosec B608 — `clause` is one of two literal strings above; the
-            # actual user-supplied value goes through a bound parameter.
-            keys = conn.execute(
-                f"SELECT backend, model FROM calls {clause} "  # nosec B608
-                f"GROUP BY backend, model ORDER BY backend, model",
-                params,
-            ).fetchall()
-            for backend, model in keys:
-                rows = conn.execute(
-                    f"SELECT prompt_tokens, completion_tokens, latency_ms, "  # nosec B608
-                    f"cost_usd, cache_hit FROM calls {clause}"
-                    + (" AND " if clause else " WHERE ")
-                    + "backend = ? AND model = ?",
-                    (*params, backend, model),
-                ).fetchall()
+            for backend, model in self._distinct_keys(conn, clause, params):
+                rows = self._rows_for_key(conn, clause, params, backend, model)
                 if not rows:
                     continue
-                latencies = [r[2] for r in rows]
-                latencies.sort()
-                out.append(
-                    BackendStats(
-                        backend=backend,
-                        model=model,
-                        calls=len(rows),
-                        cache_hits=sum(int(r[4]) for r in rows),
-                        prompt_tokens=sum(int(r[0] or 0) for r in rows),
-                        completion_tokens=sum(int(r[1] or 0) for r in rows),
-                        cost_usd=float(sum(float(r[3] or 0.0) for r in rows)),
-                        latency_p50_ms=median(latencies),
-                        latency_p95_ms=_percentile(latencies, 0.95),
-                    )
-                )
+                out.append(_stats_from_rows(backend, model, rows))
         return out
+
+    @staticmethod
+    def _time_filter(since_seconds: float | None) -> tuple[str, tuple]:
+        """Build the optional ``timestamp >=`` WHERE clause and bound params."""
+        if since_seconds is None:
+            return "", ()
+        return _WHERE_SINCE, (time.time() - since_seconds,)
+
+    @staticmethod
+    def _distinct_keys(
+        conn: sqlite3.Connection, clause: str, params: tuple
+    ) -> list[tuple[str, str]]:
+        """Return the distinct ``(backend, model)`` pairs matching the filter."""
+        # nosec B608 — `clause` is one of two literal strings; the actual
+        # user-supplied value goes through a bound parameter.
+        return conn.execute(
+            f"SELECT backend, model FROM calls {clause} "  # nosec B608
+            f"GROUP BY backend, model ORDER BY backend, model",
+            params,
+        ).fetchall()
+
+    @staticmethod
+    def _rows_for_key(
+        conn: sqlite3.Connection,
+        clause: str,
+        params: tuple,
+        backend: str,
+        model: str,
+    ) -> list[tuple]:
+        """Return the metric columns for one ``(backend, model)`` pair."""
+        connective = " AND " if clause else " WHERE "
+        return conn.execute(
+            f"SELECT prompt_tokens, completion_tokens, latency_ms, "  # nosec B608
+            f"cost_usd, cache_hit FROM calls {clause}"
+            + connective
+            + "backend = ? AND model = ?",
+            (*params, backend, model),
+        ).fetchall()
+
+
+def _stats_from_rows(
+    backend: str, model: str, rows: list[tuple]
+) -> BackendStats:
+    """Fold one backend/model's metric rows into a ``BackendStats``."""
+    latencies = sorted(r[2] for r in rows)
+    return BackendStats(
+        backend=backend,
+        model=model,
+        calls=len(rows),
+        cache_hits=sum(int(r[4]) for r in rows),
+        prompt_tokens=sum(int(r[0] or 0) for r in rows),
+        completion_tokens=sum(int(r[1] or 0) for r in rows),
+        cost_usd=float(sum(float(r[3] or 0.0) for r in rows)),
+        latency_p50_ms=median(latencies),
+        latency_p95_ms=_percentile(latencies, 0.95),
+    )
 
 
 def _percentile(sorted_values: list[float], q: float) -> float:
