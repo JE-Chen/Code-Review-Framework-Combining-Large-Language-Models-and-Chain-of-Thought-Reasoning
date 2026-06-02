@@ -591,6 +591,18 @@ no inference — so they run on the runner profile.
   — HTTP backends behind the same ``InferenceBackend`` factory as
   OpenAI/Anthropic, each with ``--<provider>-model`` / ``-api-key`` /
   ``-base-url`` flags.
+* **Backend composition** (library API) — ``RouterBackend(primary,
+  fallbacks)`` escalates on failure; ``EnsembleBackend(backends, policy)``
+  queries several and selects by ``longest`` / ``first`` / ``majority``.
+  Both are ``InferenceBackend`` decorators, composable with the caching /
+  telemetry wrappers.
+* **Self-consistency sampling** (library API) — ``self_consistent_generate
+  (backend, prompt, k=…)`` samples k times and returns the majority
+  (normalized) output.
+* **Third-party step plugins** — ``prthinker.plugins.load_plugin_steps``
+  discovers review steps published under the ``prthinker.steps``
+  entry-point group and is called at CLI startup, so external packages can
+  register steps without editing the core (Open/Closed).
 * **Focused review modes** (``--review-modes security,performance,…``) —
   opt-in whole-diff passes registered in ``prthinker.review_modes``
   (Registry pattern): security/SAST, performance, test-coverage, IaC,
@@ -600,6 +612,25 @@ no inference — so they run on the runner profile.
 
 The monitoring overlay also ships **Prometheus alerting rules**
 (``docker/monitoring/alerts.yml``); see the Docker concepts page.
+
+Design-only (not yet implemented)
+---------------------------------
+
+Two mechanisms are documented as designs but **deliberately not
+implemented**, because a naive version would be unsafe or a large
+rewrite — per ``paper_rule.md`` they carry a "本論文未予評估" disclaimer
+and ship no code:
+
+* **Parallel per-file review** — concurrently reviewing files would cut
+  wall-clock, but the in-process GPU backend (``LocalHFBackend``)
+  serializes generation and is not safe to call from multiple threads;
+  a correct design needs a per-backend concurrency capability flag plus a
+  bounded worker pool that the HTTP backends opt into and the local
+  backend does not. Future work.
+* **Configurable step DAG** — the pipeline runs a fixed linear step
+  sequence; a branching/conditional DAG (skip steps by PR type, fan out
+  independent steps) is a larger redesign of ``CoTPipeline`` and step
+  resolution. Future work.
 
 Status
 ------

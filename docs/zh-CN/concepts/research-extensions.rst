@@ -502,6 +502,15 @@ sweep、GPU OOM、runner 超时、人工 ``ask/cancel``\ ）\ ，现有之
 * **额外推理 backend**\ （\ ``--backend gemini|cohere|mistral``\ ）——
   与 OpenAI/Anthropic 共用同一 ``InferenceBackend`` factory 之 HTTP
   backend，各有 ``--<provider>-model`` / ``-api-key`` / ``-base-url`` flag。
+* **backend 组合**\ （library API）——``RouterBackend(primary, fallbacks)``
+  失败时升级；\ ``EnsembleBackend(backends, policy)`` 查询多个并依
+  ``longest`` / ``first`` / ``majority`` 择一。两者皆为 ``InferenceBackend``
+  decorator，可与 caching / telemetry wrapper 组合。
+* **self-consistency 采样**\ （library API）——``self_consistent_generate
+  (backend, prompt, k=…)`` 采样 k 次返回多数（归一化后）输出。
+* **第三方 step plugin**\ ——``prthinker.plugins.load_plugin_steps`` 探索
+  发布于 ``prthinker.steps`` entry-point group 之 step，于 CLI 启动时调用，
+  外部包无需改 core 即可注册 step（Open/Closed）\ 。
 * **聚焦审查模式**\ （\ ``--review-modes security,performance,…``\ ）——
   注册于 ``prthinker.review_modes``\ （Registry pattern）之 opt-in 全 diff
   pass：security/SAST、performance、test-coverage、IaC、DB-migration、
@@ -510,6 +519,20 @@ sweep、GPU OOM、runner 超时、人工 ``ask/cancel``\ ）\ ，现有之
 
 monitoring overlay 另附 **Prometheus alerting 规则**\ （\
 ``docker/monitoring/alerts.yml``\ ）；详见 Docker 概念页。
+
+仅设计（尚未实现）
+------------------
+
+两个机制仅以设计形式记载而\ **刻意不实现**\ ，因为粗糙版本会不安全或属大型
+重写——依 ``paper_rule.md`` 带「本论文未予评估」免责且不附代码：
+
+* **per-file 并行审查**\ ——并行审查可缩短 wall-clock，但 in-process GPU
+  backend（\ ``LocalHFBackend``\ ）序列化生成、不可多线程调用；正确设计需
+  per-backend 并行能力标志 + 有界 worker pool（HTTP backend opt-in、local
+  backend 不）。未来工作\ 。
+* **可配置 step DAG**\ ——pipeline 目前跑固定线性 step 序列；分支/条件 DAG
+  （依 PR 类型跳步、独立步骤 fan out）属 ``CoTPipeline`` 与 step 解析之较大
+  重写。未来工作\ 。
 
 状态
 ----

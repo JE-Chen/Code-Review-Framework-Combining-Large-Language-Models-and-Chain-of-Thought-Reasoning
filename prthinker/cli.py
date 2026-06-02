@@ -43,6 +43,7 @@ from prthinker.cli_commands import (
     merge_partial_reviews,
 )
 from prthinker.cli_parser import _apply_repo_defaults, _build_parser
+from prthinker.plugins import load_plugin_steps
 from prthinker.cli_review import _build_config, _cmd_review_file, _cmd_review_pr
 
 log = logging.getLogger("prthinker")
@@ -85,6 +86,10 @@ def main(argv: list[str] | None = None) -> int:
         level=getattr(logging, args.log_level),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+
+    # Discover third-party review steps (entry-point group "prthinker.steps")
+    # so they self-register before any pipeline resolves its step sequence.
+    load_plugin_steps()
 
     handler = _COMMAND_HANDLERS.get(args.command)
     if handler is None:
