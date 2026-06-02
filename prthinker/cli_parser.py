@@ -506,6 +506,13 @@ def _build_common_parser() -> argparse.ArgumentParser:
         help="Append a public-API semver-impact line "
              "(major/minor/patch) to the summary comment.",
     )
+    common.add_argument(
+        "--review-modes",
+        default=env_str("PRTHINKER_REVIEW_MODES", ""),
+        help="Comma-separated focused review passes to run over the whole "
+             "diff (e.g. security,performance,iac). Each appends its output "
+             "to the summary. Unknown names are skipped.",
+    )
     return common
 
 

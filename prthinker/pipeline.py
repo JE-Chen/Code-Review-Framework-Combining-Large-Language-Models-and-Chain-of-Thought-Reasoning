@@ -23,6 +23,7 @@ from prthinker import (
     risk_score,
 )
 from prthinker.accepted import AcceptedExamplesRetriever, format_examples_block
+from prthinker.review_modes import run_review_modes
 from prthinker.backends.base import InferenceBackend
 from prthinker.counterfactual import parse_counterfactuals
 from prthinker.diff import FileDiff, parse_unified_diff
@@ -312,6 +313,7 @@ class CoTPipeline:
         risk_weighted: bool = False,
         risk_workdir: Path | None = None,
         diff_entropy_check: bool = False,
+        review_modes: tuple[str, ...] = (),
         on_file_done: "object | None" = None,
     ) -> ReviewResult:
         """Run the full step sequence once per file in the diff.
@@ -387,6 +389,12 @@ class CoTPipeline:
             self._run_api_consistency(file_diffs, aggregated_steps)
             if api_consistency_check else []
         )
+        if review_modes:
+            aggregated_steps.update(
+                run_review_modes(
+                    self._backend, diff_text, review_modes, self._max_new_tokens,
+                )
+            )
 
         return ReviewResult(
             code_diff=diff_text,

@@ -499,6 +499,11 @@ sweep、GPU OOM、runner 超时、人工 ``ask/cancel``\ ）\ ，现有之
   ``PlatformAdapter`` strategy 之 ``GiteaAdapter``\ 。
 * **commit message 审查**\ （\ ``prthinker review-commits``\ ）——对自 stdin
   读入之消息评估质量（conventional-commits、祈使语气、清晰度）。
+* **聚焦审查模式**\ （\ ``--review-modes security,performance,…``\ ）——
+  注册于 ``prthinker.review_modes``\ （Registry pattern）之 opt-in 全 diff
+  pass：security/SAST、performance、test-coverage、IaC、DB-migration、
+  accessibility、secret-scan、PII。各启用模式之输出附于汇整摘要；未知名称
+  跳过。prompt 为各模式模块内之 source of truth。
 
 monitoring overlay 另附 **Prometheus alerting 规则**\ （\
 ``docker/monitoring/alerts.yml``\ ）；详见 Docker 概念页。

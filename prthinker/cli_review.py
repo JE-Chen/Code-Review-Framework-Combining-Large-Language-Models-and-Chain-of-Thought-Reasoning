@@ -531,6 +531,10 @@ def _per_file_kwargs(args: argparse.Namespace) -> dict:
         "risk_weighted": bool(getattr(args, "risk_weighted", False)),
         "risk_workdir": getattr(args, "risk_workdir", None),
         "diff_entropy_check": bool(getattr(args, "diff_entropy", False)),
+        "review_modes": tuple(
+            s.strip() for s in (getattr(args, "review_modes", "") or "").split(",")
+            if s.strip()
+        ),
     }
 
 def _run_per_file_review(

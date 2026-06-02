@@ -587,6 +587,12 @@ no inference — so they run on the runner profile.
 * **Commit-message review** (``prthinker review-commits``) — assess
   commit-message quality (conventional-commits, imperative mood,
   clarity) for messages read from stdin.
+* **Focused review modes** (``--review-modes security,performance,…``) —
+  opt-in whole-diff passes registered in ``prthinker.review_modes``
+  (Registry pattern): security/SAST, performance, test-coverage, IaC,
+  DB-migration, accessibility, secret-scan, PII. Each enabled mode's
+  output is appended to the consolidated summary; unknown names are
+  skipped. Prompts are the source of truth in each mode module.
 
 The monitoring overlay also ships **Prometheus alerting rules**
 (``docker/monitoring/alerts.yml``); see the Docker concepts page.
