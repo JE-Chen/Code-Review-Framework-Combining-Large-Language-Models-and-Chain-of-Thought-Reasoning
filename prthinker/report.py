@@ -99,6 +99,9 @@ def _accepted_by_file(store: AcceptedExamplesStore) -> Counter[str]:
 
 _SPARK_TICKS = "▁▂▃▄▅▆▇█"
 
+_TOTAL_ENTRIES = "Total entries: "
+_COUNT_HEADER = "count"
+
 
 def _spark(values: list[float]) -> str:
     if not values or max(values) == 0:
@@ -180,6 +183,89 @@ def render_json(inputs: ReportInputs) -> str:
     return json.dumps(_gather(inputs), indent=2, ensure_ascii=False) + "\n"
 
 
+def _md_usage_section(telemetry: object) -> list[str]:
+    """Render the usage-by-backend table block for the markdown report."""
+    out: list[str] = ["## Usage by backend & model", ""]
+    if not telemetry:
+        out.append("_No telemetry recorded in window._")
+        return out
+    out.append("| backend | model | calls | hits | in-tok | out-tok | USD | p50 ms | p95 ms |")
+    out.append("|---|---|---:|---:|---:|---:|---:|---:|---:|")
+    total_cost = 0.0
+    for row in telemetry:
+        total_cost += float(row["cost_usd"])
+        out.append(
+            f"| {row['backend']} | {row['model']} | "
+            f"{row['calls']} | {row['cache_hits']} | "
+            f"{row['prompt_tokens']} | {row['completion_tokens']} | "
+            f"${row['cost_usd']:.4f} | {row['p50_ms']:.0f} | {row['p95_ms']:.0f} |"
+        )
+    out.append("")
+    out.append(f"**Total cost in window:** ${total_cost:.4f}")
+    return out
+
+
+def _md_cache_section(cache: dict[str, object]) -> list[str]:
+    """Render the cache fill / lifetime-hits block for the markdown report."""
+    return [
+        "## Cache",
+        "",
+        f"- entries: **{cache['entries']}**\n"
+        f"- lifetime hits: **{cache['hits']}**",
+    ]
+
+
+def _md_daily_cost_section(series: object) -> list[str]:
+    """Render the daily-cost sparkline block, or nothing if empty."""
+    if not series:
+        return []
+    values = [v for _d, v in series]
+    peak = max(values) if values else 0.0
+    return [
+        "## Daily cost (last 14 days)",
+        "",
+        f"```\n{_spark(values)}\n```",
+        f"_peak: ${peak:.4f}_",
+    ]
+
+
+def _md_count_table(rows: dict[str, object], key_label: str, quote_key: bool) -> list[str]:
+    """Render a two-column `(key, count)` markdown table."""
+    out: list[str] = [f"| {key_label} | {_COUNT_HEADER} |", "|---|---:|"]
+    for key, count in rows.items():
+        rendered = f"`{key}`" if quote_key else f"{key}"
+        out.append(f"| {rendered} | {count} |")
+    return out
+
+
+def _md_dismissed_section(dismissed: dict[str, object]) -> list[str]:
+    """Render the dismissed-corpus total + by-reason block."""
+    out: list[str] = [
+        "## Dismissed corpus",
+        "",
+        f"{_TOTAL_ENTRIES}**{dismissed['total']}**",
+    ]
+    if dismissed["by_reason"]:
+        out.append("")
+        out.extend(_md_count_table(dismissed["by_reason"], "reason", quote_key=False))
+    return out
+
+
+def _md_accepted_section(accepted: dict[str, object]) -> list[str]:
+    """Render the accepted-corpus total + top-files block."""
+    out: list[str] = [
+        "## Accepted corpus",
+        "",
+        f"{_TOTAL_ENTRIES}**{accepted['total']}**",
+    ]
+    if accepted["top_files"]:
+        out.append("")
+        out.append("Top 5 files by accepted-suggestion count:")
+        out.append("")
+        out.extend(_md_count_table(accepted["top_files"], "path", quote_key=True))
+    return out
+
+
 def render_markdown(inputs: ReportInputs) -> str:
     data = _gather(inputs)
     out: list[str] = [
@@ -188,78 +274,16 @@ def render_markdown(inputs: ReportInputs) -> str:
         f"*Generated {data['generated_at']}*",
         "",
     ]
-
-    # ----- usage table ----------------------------------------------------
-    telemetry = data["telemetry"]
-    out.append("## Usage by backend & model")
-    out.append("")
-    if telemetry:
-        out.append("| backend | model | calls | hits | in-tok | out-tok | USD | p50 ms | p95 ms |")
-        out.append("|---|---|---:|---:|---:|---:|---:|---:|---:|")
-        total_cost = 0.0
-        for row in telemetry:
-            total_cost += float(row["cost_usd"])
-            out.append(
-                f"| {row['backend']} | {row['model']} | "
-                f"{row['calls']} | {row['cache_hits']} | "
-                f"{row['prompt_tokens']} | {row['completion_tokens']} | "
-                f"${row['cost_usd']:.4f} | {row['p50_ms']:.0f} | {row['p95_ms']:.0f} |"
-            )
-        out.append("")
-        out.append(f"**Total cost in window:** ${total_cost:.4f}")
-    else:
-        out.append("_No telemetry recorded in window._")
-    out.append("")
-
-    # ----- cache ----------------------------------------------------------
-    cache = data["cache"]
-    out.append("## Cache")
-    out.append("")
-    out.append(
-        f"- entries: **{cache['entries']}**\n"
-        f"- lifetime hits: **{cache['hits']}**"
-    )
-    out.append("")
-
-    # ----- daily cost sparkline -------------------------------------------
-    series = data["daily_cost"]
-    if series:
-        out.append("## Daily cost (last 14 days)")
-        out.append("")
-        values = [v for _d, v in series]
-        out.append(f"```\n{_spark(values)}\n```")
-        peak = max(values) if values else 0.0
-        out.append(f"_peak: ${peak:.4f}_")
-        out.append("")
-
-    # ----- dismissed -------------------------------------------------------
-    dismissed = data["dismissed"]
-    out.append("## Dismissed corpus")
-    out.append("")
-    out.append(f"Total entries: **{dismissed['total']}**")
-    out.append("")
-    if dismissed["by_reason"]:
-        out.append("| reason | count |")
-        out.append("|---|---:|")
-        for reason, n in dismissed["by_reason"].items():
-            out.append(f"| {reason} | {n} |")
-        out.append("")
-
-    # ----- accepted --------------------------------------------------------
-    accepted = data["accepted"]
-    out.append("## Accepted corpus")
-    out.append("")
-    out.append(f"Total entries: **{accepted['total']}**")
-    out.append("")
-    if accepted["top_files"]:
-        out.append("Top 5 files by accepted-suggestion count:")
-        out.append("")
-        out.append("| path | count |")
-        out.append("|---|---:|")
-        for path, n in accepted["top_files"].items():
-            out.append(f"| `{path}` | {n} |")
-        out.append("")
-
+    for section in (
+        _md_usage_section(data["telemetry"]),
+        _md_cache_section(data["cache"]),
+        _md_daily_cost_section(data["daily_cost"]),
+        _md_dismissed_section(data["dismissed"]),
+        _md_accepted_section(data["accepted"]),
+    ):
+        if section:
+            out.extend(section)
+            out.append("")
     return "\n".join(out).rstrip() + "\n"
 
 

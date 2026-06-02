@@ -647,6 +647,85 @@ class CoTPipeline:
             raw, allowed_paths={fd.path for fd in file_diffs},
         )
 
+    def _accepted_examples(self, fd: FileDiff) -> tuple[int, str]:
+        """Retrieve positive examples for a file; return (count, block)."""
+        if self._accepted_retriever is None:
+            return 0, ""
+        examples = list(self._accepted_retriever.top_k(fd.raw, path=fd.path))
+        return len(examples), format_examples_block(examples)
+
+    def _parse_findings(
+        self,
+        raw: str,
+        fd: FileDiff,
+        rag_docs: list[str],
+        n_accepted_examples: int,
+        provenance: bool,
+    ) -> list[InlineFinding]:
+        """Parse a raw inline-findings response with provenance bookkeeping."""
+        return parse_inline_findings(
+            raw,
+            path=fd.path,
+            allowed_lines=fd.commentable_lines(),
+            n_rag_rules=len(rag_docs) if provenance else 0,
+            n_accepted_examples=n_accepted_examples if provenance else 0,
+        )
+
+    def _reproducibility_label(
+        self,
+        findings: list[InlineFinding],
+        ctx: ReviewContext,
+        fd: FileDiff,
+        rag_docs: list[str],
+        n_accepted_examples: int,
+        provenance: bool,
+    ) -> list[InlineFinding]:
+        """Re-query the inline step once and label findings by agreement."""
+        from reviewmind import reproducibility
+
+        # Rebuild the same prompt and re-query the model. With
+        # non-deterministic backends we get a second sample; with
+        # temperature=0 backends the two passes agree and everything is
+        # labelled "stable" — also the right answer.
+        inline_prompt = InlineFindingsStep().build_prompt(ctx)
+        second_raw = self._backend.generate(
+            inline_prompt, max_new_tokens=self._max_new_tokens,
+        )
+        second = self._parse_findings(
+            second_raw, fd, rag_docs, n_accepted_examples, provenance,
+        )
+        return reproducibility.label_findings(findings, second)
+
+    def _collect_findings(
+        self,
+        fd: FileDiff,
+        ctx: ReviewContext,
+        rag_docs: list[str],
+        n_accepted_examples: int,
+        *,
+        provenance: bool,
+        reproducibility_check: bool,
+        self_correct: bool,
+    ) -> list[InlineFinding]:
+        """Parse, reproducibility-label, dismiss-filter and self-correct findings."""
+        if "inline_findings" not in ctx.results:
+            return []
+        findings = self._parse_findings(
+            ctx.results["inline_findings"], fd, rag_docs,
+            n_accepted_examples, provenance,
+        )
+        if reproducibility_check:
+            findings = self._reproducibility_label(
+                findings, ctx, fd, rag_docs, n_accepted_examples, provenance,
+            )
+        if self._dismissed_filter is not None and findings:
+            findings = self._dismissed_filter.filter(findings)
+        if self_correct and findings:
+            # Stash the self-review raw output for traceability; the
+            # ``self_review`` step output is already inside ``ctx.results``.
+            findings = self._self_correct(fd, findings, ctx)
+        return findings
+
     def _run_one_file(
         self,
         fd: FileDiff,
@@ -660,14 +739,7 @@ class CoTPipeline:
         reproducibility_check: bool = False,
     ) -> FileReviewResult:
         rag_docs = self._merge_rules(self._retriever.retrieve(fd.raw))
-        positive_examples_block = ""
-        n_accepted_examples = 0
-        if self._accepted_retriever is not None:
-            examples = list(
-                self._accepted_retriever.top_k(fd.raw, path=fd.path)
-            )
-            n_accepted_examples = len(examples)
-            positive_examples_block = format_examples_block(examples)
+        n_accepted_examples, positive_examples_block = self._accepted_examples(fd)
 
         provenance_block = ""
         if provenance:
@@ -687,38 +759,12 @@ class CoTPipeline:
         )
         self._run_steps(ctx, step_classes, output_dir)
 
-        findings: list[InlineFinding] = []
-        if "inline_findings" in ctx.results:
-            findings = parse_inline_findings(
-                ctx.results["inline_findings"],
-                path=fd.path,
-                allowed_lines=fd.commentable_lines(),
-                n_rag_rules=len(rag_docs) if provenance else 0,
-                n_accepted_examples=n_accepted_examples if provenance else 0,
-            )
-            if reproducibility_check:
-                from reviewmind import reproducibility
-                # Rebuild the same prompt and re-query the model. With
-                # non-deterministic backends we get a second sample;
-                # with temperature=0 backends the two passes agree and
-                # everything is labelled "stable" — also the right answer.
-                inline_prompt = InlineFindingsStep().build_prompt(ctx)
-                second_raw = self._backend.generate(
-                    inline_prompt, max_new_tokens=self._max_new_tokens,
-                )
-                second = parse_inline_findings(
-                    second_raw, path=fd.path,
-                    allowed_lines=fd.commentable_lines(),
-                    n_rag_rules=len(rag_docs) if provenance else 0,
-                    n_accepted_examples=n_accepted_examples if provenance else 0,
-                )
-                findings = reproducibility.label_findings(findings, second)
-            if self._dismissed_filter is not None and findings:
-                findings = self._dismissed_filter.filter(findings)
-            if self_correct and findings:
-                findings = self._self_correct(fd, findings, ctx)
-                # Stash the self-review raw output for traceability.
-                # ``self_review`` step output is already inside ``ctx.results``.
+        findings = self._collect_findings(
+            fd, ctx, rag_docs, n_accepted_examples,
+            provenance=provenance,
+            reproducibility_check=reproducibility_check,
+            self_correct=self_correct,
+        )
 
         verdict: JudgeVerdict | None = None
         if "judge" in ctx.results:

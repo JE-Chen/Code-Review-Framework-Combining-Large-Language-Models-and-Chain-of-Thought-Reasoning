@@ -196,6 +196,50 @@ def complete_check_run(
         )
 
 
+def _count_by_severity(findings: Iterable[InlineFinding]) -> dict[Severity, int]:
+    """Tally findings into per-severity counts seeded at zero."""
+    counts: dict[Severity, int] = {"error": 0, "warning": 0, "info": 0}
+    for f in findings:
+        counts[f.severity] = counts.get(f.severity, 0) + 1
+    return counts
+
+
+def _derive_conclusion(counts: dict[Severity, int], gate_on: GateFloor) -> Conclusion:
+    """Map severity counts and the gate floor to a pass/fail conclusion."""
+    if gate_on == "none":
+        return "success"
+    floor = _GATE_ORDER[gate_on]
+    triggered = any(
+        _SEVERITY_ORDER[sev] >= floor and counts[sev] > 0
+        for sev in counts
+    )
+    return "failure" if triggered else "success"
+
+
+def _build_title(counts: dict[Severity, int]) -> str:
+    """Render the non-zero severity counts as a compact one-line title."""
+    title_bits = []
+    if counts["error"]:
+        title_bits.append(f"{counts['error']} error")
+    if counts["warning"]:
+        title_bits.append(f"{counts['warning']} warning")
+    if counts["info"]:
+        title_bits.append(f"{counts['info']} info")
+    return ", ".join(title_bits) if title_bits else "No findings"
+
+
+def _build_summary(counts: dict[Severity, int], gate_on: GateFloor) -> str:
+    """Render the markdown gate summary block for the check output."""
+    summary_lines = [
+        f"Gate: `{gate_on}` (fails on this severity or higher)",
+        "",
+        f"- 🔴 errors: **{counts['error']}**",
+        f"- 🟡 warnings: **{counts['warning']}**",
+        f"- 🔵 info: **{counts['info']}**",
+    ]
+    return "\n".join(summary_lines)
+
+
 def evaluate_gate(
     findings: Iterable[InlineFinding],
     gate_on: GateFloor = "error",
@@ -207,40 +251,11 @@ def evaluate_gate(
       - "warning" → fail if any warning or error finding
       - "error"   → fail only on error-severity findings
     """
-    counts: dict[Severity, int] = {"error": 0, "warning": 0, "info": 0}
-    for f in findings:
-        counts[f.severity] = counts.get(f.severity, 0) + 1
-
-    if gate_on == "none":
-        conclusion: Conclusion = "success"
-    else:
-        floor = _GATE_ORDER[gate_on]
-        triggered = any(
-            _SEVERITY_ORDER[sev] >= floor and counts[sev] > 0
-            for sev in counts
-        )
-        conclusion = "failure" if triggered else "success"
-
-    title_bits = []
-    if counts["error"]:
-        title_bits.append(f"{counts['error']} error")
-    if counts["warning"]:
-        title_bits.append(f"{counts['warning']} warning")
-    if counts["info"]:
-        title_bits.append(f"{counts['info']} info")
-    title = ", ".join(title_bits) if title_bits else "No findings"
-
-    summary_lines = [
-        f"Gate: `{gate_on}` (fails on this severity or higher)",
-        "",
-        f"- 🔴 errors: **{counts['error']}**",
-        f"- 🟡 warnings: **{counts['warning']}**",
-        f"- 🔵 info: **{counts['info']}**",
-    ]
+    counts = _count_by_severity(findings)
     return CheckResult(
-        conclusion=conclusion,
-        title=title,
-        summary="\n".join(summary_lines),
+        conclusion=_derive_conclusion(counts, gate_on),
+        title=_build_title(counts),
+        summary=_build_summary(counts, gate_on),
         error_count=counts["error"],
         warning_count=counts["warning"],
         info_count=counts["info"],
