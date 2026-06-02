@@ -5,9 +5,30 @@
      Reformatting them to restart at 1 would lose the cross-section
      numbering that the paper itself uses. -->
 
-# 論文補充內容（drop-in 段落集 — v3.1 修正版）
+# 論文補充內容（drop-in 段落集 — v3.2 修正版）
 
 ## 修正聲明
+
+本版相對於 v3.1 之關鍵差異（v3.2）：
+
+- **§3.7 機制清單由 17 項擴充為 18 項**：v3.1 定稿後，隨附開源框架
+  另將自架 FastAPI 推論伺服器之 Prometheus 指標端點與 Docker 監控
+  疊加層納入框架設計貢獻──``/metrics`` 端點（經
+  ``prometheus_fastapi_instrumentator``）加上
+  ``docker-compose.monitoring.yml`` 之 Prometheus / Grafana /
+  dcgm-exporter / cAdvisor 編排（§3.7.19）。其端到端營運效益本論文
+  均\ **未予評估**\ ，於 §6.4.5 補上對應未來工作骨架 (r)。
+- **§3.7.17 由單一 ``/kg/`` 路由精修為每倉 ``/kg/<name>/`` 路由**：
+  v3.1 之知識圖譜視覺化僅服務單一 ``/kg/`` 靜態頁；隨附框架現以
+  ``visualize-kg --name <name>`` 輸出 ``repo-kg-<name>.html``，並於
+  nginx 以 ``^/kg/(?<repo>[A-Za-z0-9._-]+)/?$`` 正則路由，使單一主機
+  得同時託管多倉之圖譜。此為 §3.7.17 之就地精修，不另計為新機制。
+- **機制計數同步更新**：§1.5 第七項貢獻、§1.3 TCSE 短文、§3.7 引言、
+  §6.4.5 標題與審稿前 self-audit 清單之「十七項」一律改為「十八項」
+  並補列監控可觀測層之名稱。
+- 不變項目（沿用 v3.1）：仍\ **不謊造、不新增 RQ、不新增參考文獻**\ ；
+  既有 §5 之表 1 / 表 2 / 表 3 不更動；§3.7.1–§3.7.18 之既有內容沿用
+  （§3.7.17 除上述路由精修外不變）。
 
 本版相對於 v3 之關鍵差異（v3.1）：
 
@@ -84,7 +105,7 @@
 > 端點，並提供合併前 Check Run gate 與作者反饋語料學習等設計，皆屬本
 > 框架之設計貢獻；其量化驗證須累積實際 PR 流量後另行進行。
 
-> 本研究隨附之開源框架另實作十七項研究級擴充機制（涵蓋 prompt-injection
+> 本研究隨附之開源框架另實作十八項研究級擴充機制（涵蓋 prompt-injection
 > robustness、closed-loop 多輪對話、counterfactual / mutation-style
 > 審查、provenance 稽核、force-push 差分、suggestion sandbox 驗證、
 > cross-language API drift、PR 類型自適應、reproducibility 訊號、
@@ -93,7 +114,8 @@
 > 出之衍生規則（active-learning derived lessons）、跨 PR finding
 > 聚類（self-discovered rules）、Repo 知識圖譜接地（symbol-grounded
 > review）與每檔遞增存檔之崩潰安全部分結果（crash-safe partial
-> review）），均以 CLI flag 之 opt-in 形式提供；其端到端品質效益本
+> review）），其中前十七項以 CLI flag 之 opt-in 形式提供，第十八項為自架
+> 推論伺服器之 ``/metrics`` 指標端點與 Docker 監控疊加層；其端到端品質效益本
 > 研究均未予量化評估，詳細之設計說明與後續實驗骨架見學位論文 §3.7
 > 與 §6.4.5（對應本框架之 GitHub 倉庫之
 > `docs/en/concepts/research-extensions.rst`）。
@@ -184,7 +206,7 @@
 >    端點與 Anthropic Messages API 四種具體後端，並以 MCP server 將
 >    審查管線暴露為 IDE 可直接調用之 tool。本論文 §5 之實驗以本機後端
 >    為主，跨後端比較與 IDE 內審查觸發率之評估屬未來工作。
-> 7. **十七項研究級擴充機制之設計**（見 §3.7 詳述）：包含 prompt-injection
+> 7. **十八項研究級擴充機制之設計**（見 §3.7 詳述）：包含 prompt-injection
 >    robustness 之 corpus + bypass detection、closed-loop 多輪對話、
 >    counterfactual / mutation-style 審查、provenance 稽核、force-push
 >    差分 cache、suggestion sandbox 驗證、cross-language API drift
@@ -192,8 +214,10 @@
 >    impact 分析、reviewer personas + conflict surfacing、risk-weighted
 >    attention、diff entropy / 「diff bomb」偵測、作者反饋語料主動
 >    學習出之衍生規則、跨 PR finding 聚類自我發現規則、Repo 知識
->    圖譜對 inline finding 之符號接地，與每檔遞增存檔之崩潰安全部分
->    審查結果。每項對應一個 CLI flag、一份單元測試與
+>    圖譜對 inline finding 之符號接地、每檔遞增存檔之崩潰安全部分審查
+>    結果，與推論伺服器之指標端點與監控可觀測層。前十七項各對應一個
+>    CLI flag，第十八項為自架推論伺服器之 ``/metrics`` 與 Docker 監控
+>    疊加層；各項皆附一份單元測試與
 >    `docs/en/concepts/research-extensions.rst` 內之設計說明；其端到
 >    端品質效益本論文均未予評估，列為 §6.4.5 所述之未來工作。
 
@@ -301,7 +325,7 @@
 
 > 3.7  研究級擴充機制（設計層）
 >
-> 本節描述本研究隨附之開源框架另實作之十七項機制，均對應於 LLM 程式
+> 本節描述本研究隨附之開源框架另實作之十八項機制，均對應於 LLM 程式
 > 碼審查文獻中目前較少實作之研究面向。每項機制皆以 CLI flag 形式
 > opt-in，預設關閉以維持 §5 所驗證之 baseline pipeline 不受干擾。
 > 本論文\ **未對任何單項機制之端到端品質效益進行量化評估**\ ；
@@ -309,7 +333,7 @@
 > 測試與設計文件（`docs/en/concepts/research-extensions.rst`），可
 > 直接於工程上使用，僅缺學術評估。子節編號 §3.7.1–§3.7.13 為 v3 既有
 > 之十三項；§3.7.14 為部署層之工程設計；§3.7.15–§3.7.18 為 v3.1 新增
-> 之四項機制。
+> 之四項機制；§3.7.19 為 v3.2 新增之監控可觀測層。
 >
 > 3.7.1  Prompt-injection robustness 與 `adversarial-eval` 子指令
 >
@@ -703,11 +727,15 @@
 > hallucinate)」前置區塊，並明示「finding 內若引用符號，該符號必須
 > 出現於表中」。``rebuild()`` 採整批替換（先 delete 該 workdir 之
 > 舊 rows 再插入），確保 store 與 HEAD 對齊；增量更新列為未來工作。
-> 框架另提供 ``kg_visualize`` 子模組將該 SQLite 表輸出為單頁 D3
-> HTML 互動視圖，並於監控 overlay 之 nginx 加 ``/kg/`` 路由直接服務
-> 該頁，使團隊可線上瀏覽框架對 repo 之符號理解。本機制屬框架設計
-> 貢獻；其 grounded prompt 對符號虛構率之降幅與對 inline finding
-> 精確率之影響本論文未予評估。
+> 框架另提供 ``visualize-kg`` 子指令將該 SQLite 表輸出為單頁 D3
+> HTML 互動視圖；``visualize-kg --name <name>`` 將其寫為
+> ``repo-kg-<name>.html``，並於監控疊加層之 nginx 以
+> ``^/kg/(?<repo>[A-Za-z0-9._-]+)/?$`` 正則路由 ``/kg/<name>/``，預設
+> ``/kg/`` 則服務單倉之 ``repo-kg.html``；``<name>`` 之合法字元集與
+> nginx 路由一致，故不可路徑穿越。單一主機由此得同時託管多倉之圖譜，
+> 使團隊可線上瀏覽框架對各 repo 之符號理解。本機制屬框架設計貢獻；其
+> grounded prompt 對符號虛構率之降幅與對 inline finding 精確率之影響
+> 本論文未予評估。
 >
 > 3.7.18  每檔遞增存檔與崩潰安全部分結果（crash-safe partial review）
 >
@@ -737,6 +765,20 @@
 > per-file 增量在伺服端不適用，``--output-json`` 仍為其對應之單檔
 > 落盤路徑）。本機制屬框架設計貢獻；其於真實 CI 流量上之「中斷
 > -recovery 收益」量化評估本論文未予進行。
+>
+> 3.7.19  推論伺服器之指標端點與監控可觀測層（observability）
+>
+> 自架之 FastAPI 推論伺服器以 ``prometheus_fastapi_instrumentator``
+> （Prometheus 之 FastAPI 中介層）將每端點之請求數、延遲與狀態碼以
+> Prometheus 文字格式暴露於 ``/metrics``；該相依採延遲匯入（lazy
+> import），未安裝時僅記錄一行 log 並停用該端點，故 runner-profile
+> 安裝（``httpx + pydantic + PyYAML``）不受影響。隨附之
+> ``docker-compose.monitoring.yml`` 監控疊加層另編排 Prometheus（抓取
+> ``/metrics``）、Grafana（儀表板）、dcgm-exporter（GPU 指標）與
+> cAdvisor（容器指標）四個服務，並由 nginx 以 ``/grafana/`` /
+> ``/prometheus/`` / ``/cadvisor/`` / ``/kg/`` 之路徑反向代理。本機制
+> 屬框架之可觀測性與部署工程設計貢獻；其對營運者故障定位時間之助益
+> 與指標蒐集之執行期額外開銷本論文未予評估。
 
 ---
 
@@ -838,13 +880,13 @@
 > 並補上 drift watcher：以固定之 golden PR 集合定期重跑審查，比對輸出
 > 相似度，一旦偏離既有 baseline 即觸發告警。
 >
-> 6.4.5  §3.7 所述十七項研究級擴充機制之實證評估
+> 6.4.5  §3.7 所述十八項研究級擴充機制之實證評估
 >
-> §3.7 所述十七項機制目前僅完成框架實作；其端到端品質效益需後續以
+> §3.7 所述十八項機制目前僅完成框架實作；其端到端品質效益需後續以
 > 真實 PR 流量驗證。為避免日後補實驗時設計分歧，本節為各機制標示最
 > 小可驗證實驗骨架；所列指標皆為公開可重現之量度，避免引入新主觀
 > 量表。v3 既有之 (a)–(m) 對應 §3.7.1–§3.7.13；v3.1 新增之 (n)–(q)
-> 對應 §3.7.15–§3.7.18。
+> 對應 §3.7.15–§3.7.18；v3.2 新增之 (r) 對應 §3.7.19。
 >
 > (a) Prompt-injection robustness（§3.7.1）：擴充 `seed.jsonl` 至每
 > 攻擊類別 ≥ 30 例，於四類後端各跑一遍，以 SQLite 表格內之
@@ -932,7 +974,15 @@
 > 之 GPU-second 總開銷」之減幅。本項屬可靠性工程量化評估，與品質
 > 研究分流。
 >
-> 上列十七組實驗皆需累積實際語料；本論文之主要貢獻仍為 §5.1 / §5.2
+> (r) 推論伺服器指標端點與監控疊加層（§3.7.19）：以固定之合成負載
+> （固定 PR 集合連續送審）量測啟用 ``/metrics`` instrumentation 前後
+> 之每請求延遲差與伺服器吞吐差，作為觀測開銷之上界；並以 ≥ 50 次注入
+> 之故障情境（GPU OOM、後端重啟、502）量測「自告警觸發至營運者定位
+> 根因」之時間，比較有無 Grafana 儀表板兩組之 MTTR（平均修復時間，
+> mean time to repair）。本項屬可觀測性
+> 工程量化評估，與品質研究分流。
+>
+> 上列十八組實驗皆需累積實際語料；本論文之主要貢獻仍為 §5.1 / §5.2
 > 所述之多階段 CoT + LoRA 微調 + RAG 之整合設計與驗證，§3.7 與
 > §6.4.5 之內容明示為框架設計貢獻與後續工作之承接介面，不影響本論
 > 文之核心主張。
@@ -953,40 +1003,42 @@
       引入 `[23]+`。
 - [ ] 兩篇引文格式統一為 IEEE `[N]`，未殘留 `(Author, Year)`。
 - [ ] 每個新增之技術名詞於首次出現處附括弧解釋。
-- [ ] 新增之子章節（§3.5.1–4、§3.6.1–2、**§3.7.1–18**、§5.3.1–3、
+- [ ] 新增之子章節（§3.5.1–4、§3.6.1–2、**§3.7.1–19**、§5.3.1–3、
       §6.4.1–5）在 docx 內已以加粗 + 略大字級之段落呈現，不僅以段落
       換行示意。子節編號：§3.7.1–§3.7.13 為原 13 項機制、§3.7.14 為
-      部署層含 (a)–(p)、§3.7.15–§3.7.18 為 v3.1 新增之四項機制。
+      部署層含 (a)–(p)、§3.7.15–§3.7.18 為 v3.1 新增之四項機制、§3.7.19
+      為 v3.2 新增之監控可觀測層。
 - [ ] §1.5 條列之七項貢獻：前三項已對應 §5 表 1 / 表 2 / 表 3 之實驗
       結果；第 4–7 項已明示為「框架設計貢獻、量化驗證屬未來工作」。
-      第 7 項已更新為「十七項」並包含 lessons / clusters / KG /
-      incremental save 四項名稱。
+      第 7 項已更新為「十八項」並包含 lessons / clusters / KG /
+      incremental save 與監控可觀測層等名稱。
 - [ ] §3.5 / §3.6 / **§3.7** 全部段落內含「本論文未予評估」或等義之
-      免責標示；§3.7 內提及「框架設計貢獻」之頻次 ≥ 17 次（每子節
+      免責標示；§3.7 內提及「框架設計貢獻」之頻次 ≥ 18 次（每子節
       至少一次）。
-- [ ] **§3.7 之十七項機制每項皆對應 §6.4.5 之一個未來工作骨架
-      (a)–(m) ∪ (n)–(q)**，不漏項；§6.4.5 內每項皆給出具體之
+- [ ] **§3.7 之十八項機制每項皆對應 §6.4.5 之一個未來工作骨架
+      (a)–(m) ∪ (n)–(r)**，不漏項；§6.4.5 內每項皆給出具體之
       ground-truth 來源、語料規模下限、與不依賴人類主觀量表之量化
       指標。
 - [ ] §5.3 之三段分析所引之每個數字皆可於表 1 / 表 2 / 表 3 中找到。
 - [ ] §6.4 之五項未來工作皆對應到 §1.5 中已明示為「框架設計貢獻」之
       項目（6.4.1 ↔ 第 6 項後端 / 6.4.2 ↔ 第 5 項語料 / 6.4.3 ↔ 第 6
-      項平台與多模型 / 6.4.4 ↔ 第 6 項 MCP / 6.4.5 ↔ 第 7 項十七項
+      項平台與多模型 / 6.4.4 ↔ 第 6 項 MCP / 6.4.5 ↔ 第 7 項十八項
       機制）。
 - [ ] 文中所有「該方法」「上述」「此」之代名詞，往前 3 行內可找到具
       體指稱。
 - [ ] 全文未出現「賦能 / 打造 / 全方位 / 深入探討 / 值得注意的是 /
       綜上所述（於結論章內）」等 AI 口頭禪。
-- [ ] **十七項擴充機制之名稱於論文與隨附之 `docs/en/concepts/
+- [ ] **十八項擴充機制之名稱於論文與隨附之 `docs/en/concepts/
       research-extensions.rst` 完全一致**（避免 `--reply-to-author`
       於論文內被翻為「多輪對話」、於 docs 內被翻為「閉環對話」之
       不一致；新增之 `--lessons` / `discover-rules` / `--kg-ground` /
-      `--incremental-save-dir` 之中譯亦需與 docs 對齊）。
+      `--incremental-save-dir`，以及 `/metrics` 指標端點與監控疊加層
+      之中譯亦需與 docs 對齊）。
 - [ ] 已驗證每個 `<w:rPr>` 之 `<w:rFonts>` 元素四個 slot 皆設為標楷體 /
       Times New Roman。
 - [ ] TCSE v2.3 之插入後總字元數仍可控制於 6 頁 Word 上限內；§3.7
       與 §6.4.5 主要針對學位論文 v1.8，TCSE 短文版本可僅於 §1.3 之
-      末句後追加一句「本研究隨附之開源框架另實作十七項研究級擴充機
+      末句後追加一句「本研究隨附之開源框架另實作十八項研究級擴充機
       制，詳見學位論文 §3.7 與 §6.4.5；該等機制之量化評估均屬未來
       工作」以同步而不超頁。
 
