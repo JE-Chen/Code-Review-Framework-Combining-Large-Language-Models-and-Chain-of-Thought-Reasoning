@@ -75,6 +75,11 @@
    │                         │         │ AcceptedExamplesRetriever              │
    └─────────────────────────┘         └─────────────────────────────────────────┘
 
+CLI 本身是一个小包：\ ``cli.py`` 只放入口与「名称 → handler」registry，
+``cli_parser.py`` 建 argparse 树，\ ``cli_review.py`` / ``cli_commands.py``
+则放各命令 handler。新增一个子命令只需一笔 registry 条目加一个 handler——
+分派没有 ``if/elif`` 链。
+
 Runner 与 server 的分工
 -----------------------
 
