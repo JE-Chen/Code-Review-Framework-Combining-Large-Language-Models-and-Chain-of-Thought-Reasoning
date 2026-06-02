@@ -166,6 +166,16 @@ class _PerFileOptions:
     verify_timeout: float
 
 
+@dataclass
+class _AggregatedFiles:
+    """Per-file results accumulated across one run of the per-file loop."""
+
+    per_file_results: list["FileReviewResult"] = field(default_factory=list)
+    inline_findings: list[InlineFinding] = field(default_factory=list)
+    counterfactuals: list[CounterfactualBlock] = field(default_factory=list)
+    step_outputs: dict[str, str] = field(default_factory=dict)
+
+
 class CoTPipeline:
     def __init__(
         self,
@@ -359,21 +369,11 @@ class CoTPipeline:
             verify_timeout=verify_timeout,
         )
 
-        per_file_results: list[FileReviewResult] = []
-        aggregated_findings: list[InlineFinding] = []
-        aggregated_counterfactuals: list[CounterfactualBlock] = []
-        aggregated_steps: dict[str, str] = {}
-
-        for fd in file_diffs:
-            fr = self._review_single_file(fd, opts)
-            per_file_results.append(fr)
-            aggregated_findings.extend(fr.inline_findings)
-            aggregated_counterfactuals.extend(fr.counterfactuals)
-            for name, output in fr.step_outputs.items():
-                # Namespace each per-file output for the consolidated comment.
-                aggregated_steps[f"{fd.path}::{name}"] = output
-            _invoke_on_file_done(on_file_done, fr)
-
+        agg = self._review_each_file(file_diffs, opts, on_file_done)
+        per_file_results = agg.per_file_results
+        aggregated_findings = agg.inline_findings
+        aggregated_counterfactuals = agg.counterfactuals
+        aggregated_steps = agg.step_outputs
 
         dep_upgrades = (
             self._run_dep_upgrades(file_diffs, aggregated_steps)
@@ -404,6 +404,25 @@ class CoTPipeline:
         )
 
     # ---------- internals ---------------------------------------------------
+
+    def _review_each_file(
+        self,
+        file_diffs: list[FileDiff],
+        opts: _PerFileOptions,
+        on_file_done: "object | None",
+    ) -> _AggregatedFiles:
+        """Review every file in the diff and accumulate the aggregated state."""
+        agg = _AggregatedFiles()
+        for fd in file_diffs:
+            fr = self._review_single_file(fd, opts)
+            agg.per_file_results.append(fr)
+            agg.inline_findings.extend(fr.inline_findings)
+            agg.counterfactuals.extend(fr.counterfactuals)
+            for name, output in fr.step_outputs.items():
+                # Namespace each per-file output for the consolidated comment.
+                agg.step_outputs[f"{fd.path}::{name}"] = output
+            _invoke_on_file_done(on_file_done, fr)
+        return agg
 
     def _classify_pr(
         self,
@@ -523,37 +542,36 @@ class CoTPipeline:
         )
         return budget
 
-    def _review_single_file(
-        self, fd: FileDiff, opts: _PerFileOptions,
+    def _skipped_file_result(self, fd: FileDiff) -> FileReviewResult:
+        """Marked, finding-less result for a binary/deleted skipped file."""
+        reason = "binary" if fd.is_binary else "deleted"
+        log.info("Recording %s file %s as skipped", reason, fd.path)
+        return FileReviewResult(
+            path=fd.path, rag_docs=[], step_outputs={}, inline_findings=[],
+            is_binary=fd.is_binary, is_deleted=fd.is_deleted,
+        )
+
+    def _cached_file_result(
+        self, fd: FileDiff, cache_key: "CacheKey", opts: _PerFileOptions,
+    ) -> "FileReviewResult | None":
+        """Differential-review cache hit for a file, or None on a miss."""
+        cached = opts.review_cache.get(cache_key)
+        if cached is None:
+            return None
+        log.info(
+            "Differential review: reusing %d cached finding(s) for %s",
+            len(cached), fd.path,
+        )
+        return FileReviewResult(
+            path=fd.path, rag_docs=[], step_outputs={},
+            inline_findings=cached,
+            is_binary=fd.is_binary, is_deleted=fd.is_deleted,
+        )
+
+    def _run_and_cache_file(
+        self, fd: FileDiff, cache_key: "CacheKey | None", opts: _PerFileOptions,
     ) -> FileReviewResult:
-        """Review one file: skip binary/deleted, reuse cache, else run steps.
-
-        Binary / deleted files still yield a marked, finding-less result so
-        every touched file appears in the summary (an absent file reads as
-        "never looked at").
-        """
-        if (opts.skip_binary and fd.is_binary) or fd.is_deleted:
-            reason = "binary" if fd.is_binary else "deleted"
-            log.info("Recording %s file %s as skipped", reason, fd.path)
-            return FileReviewResult(
-                path=fd.path, rag_docs=[], step_outputs={}, inline_findings=[],
-                is_binary=fd.is_binary, is_deleted=fd.is_deleted,
-            )
-
-        cache_key = self._cache_key_for(fd, opts)
-        if cache_key is not None:
-            cached = opts.review_cache.get(cache_key)
-            if cached is not None:
-                log.info(
-                    "Differential review: reusing %d cached finding(s) for %s",
-                    len(cached), fd.path,
-                )
-                return FileReviewResult(
-                    path=fd.path, rag_docs=[], step_outputs={},
-                    inline_findings=cached,
-                    is_binary=fd.is_binary, is_deleted=fd.is_deleted,
-                )
-
+        """Run the steps for a file, persist to cache, then verify suggestions."""
         file_out_dir = opts.output_dir / _sanitize(fd.path) if opts.output_dir else None
         file_result = self._run_one_file(
             fd,
@@ -571,14 +589,45 @@ class CoTPipeline:
                 backend=self._backend.backend_kind(),
                 model=self._backend.model_name(),
             )
-        if opts.verify_suggestions and opts.verify_workdir is not None and opts.verify_cmd:
-            file_result = self._verify_suggestions(
-                file_result,
-                workdir=opts.verify_workdir,
-                verify_cmd=opts.verify_cmd,
-                timeout_seconds=opts.verify_timeout,
-            )
-        return file_result
+        return self._maybe_verify(file_result, opts)
+
+    def _maybe_verify(
+        self, file_result: FileReviewResult, opts: _PerFileOptions,
+    ) -> FileReviewResult:
+        """Verify suggestions in a sandbox when verification is configured."""
+        verify_enabled = (
+            opts.verify_suggestions
+            and opts.verify_workdir is not None
+            and bool(opts.verify_cmd)
+        )
+        if not verify_enabled:
+            return file_result
+        return self._verify_suggestions(
+            file_result,
+            workdir=opts.verify_workdir,
+            verify_cmd=opts.verify_cmd,
+            timeout_seconds=opts.verify_timeout,
+        )
+
+    def _review_single_file(
+        self, fd: FileDiff, opts: _PerFileOptions,
+    ) -> FileReviewResult:
+        """Review one file: skip binary/deleted, reuse cache, else run steps.
+
+        Binary / deleted files still yield a marked, finding-less result so
+        every touched file appears in the summary (an absent file reads as
+        "never looked at").
+        """
+        if (opts.skip_binary and fd.is_binary) or fd.is_deleted:
+            return self._skipped_file_result(fd)
+
+        cache_key = self._cache_key_for(fd, opts)
+        if cache_key is not None:
+            cached = self._cached_file_result(fd, cache_key, opts)
+            if cached is not None:
+                return cached
+
+        return self._run_and_cache_file(fd, cache_key, opts)
 
     def _run_dep_upgrades(
         self,

@@ -63,60 +63,72 @@ _OVERALL_SUMMARY_POLL_INTERVAL = 5.0
 _OVERALL_SUMMARY_DEADLINE_SECONDS = 1800.0
 _OVERALL_SUMMARY_MAX_NEW_TOKENS = 16784
 
-def _build_config(args: argparse.Namespace) -> Config:
-    if args.use_remote_pipeline and args.backend != BackendKind.REMOTE.value:
-        log.info("--use-remote-pipeline forces --backend remote")
-        args.backend = BackendKind.REMOTE.value
+def _local_backend_config(
+    args: argparse.Namespace,
+) -> tuple[str, LocalBackendConfig]:
+    """Build the LOCAL backend sub-config from CLI args."""
+    return "local", LocalBackendConfig(
+        model_name=args.model_name,
+        lora_path=args.lora_path,
+    )
 
-    backend = BackendKind(args.backend)
-    local_cfg: LocalBackendConfig | None = None
-    remote_cfg: RemoteBackendConfig | None = None
-    openai_cfg: OpenAICompatConfig | None = None
-    anthropic_cfg: AnthropicConfig | None = None
+def _remote_backend_config(
+    args: argparse.Namespace,
+) -> tuple[str, RemoteBackendConfig]:
+    """Build the REMOTE backend sub-config; raise on missing URL."""
+    if not args.remote_url:
+        raise SystemExit(
+            "remote backend requires --remote-url or PRTHINKER_REMOTE_URL"
+        )
+    return "remote", RemoteBackendConfig(
+        url=args.remote_url,
+        timeout_seconds=args.remote_timeout,
+        api_key=args.remote_api_key,
+    )
 
-    if backend is BackendKind.LOCAL:
-        local_cfg = LocalBackendConfig(
-            model_name=args.model_name,
-            lora_path=args.lora_path,
+def _openai_backend_config(
+    args: argparse.Namespace,
+) -> tuple[str, OpenAICompatConfig]:
+    """Build the OPENAI backend sub-config; raise on missing API key."""
+    if not args.openai_api_key:
+        raise SystemExit(
+            "openai backend requires --openai-api-key or "
+            "$PRTHINKER_OPENAI_API_KEY / $OPENAI_API_KEY"
         )
-    elif backend is BackendKind.REMOTE:
-        if not args.remote_url:
-            raise SystemExit(
-                "remote backend requires --remote-url or PRTHINKER_REMOTE_URL"
-            )
-        remote_cfg = RemoteBackendConfig(
-            url=args.remote_url,
-            timeout_seconds=args.remote_timeout,
-            api_key=args.remote_api_key,
-        )
-    elif backend is BackendKind.OPENAI:
-        if not args.openai_api_key:
-            raise SystemExit(
-                "openai backend requires --openai-api-key or "
-                "$PRTHINKER_OPENAI_API_KEY / $OPENAI_API_KEY"
-            )
-        openai_cfg = OpenAICompatConfig(
-            model=args.openai_model,
-            api_key=args.openai_api_key,
-            base_url=args.openai_base_url,
-            organization=args.openai_organization,
-            timeout_seconds=args.remote_timeout,
-        )
-    elif backend is BackendKind.ANTHROPIC:
-        if not args.anthropic_api_key:
-            raise SystemExit(
-                "anthropic backend requires --anthropic-api-key or "
-                "$PRTHINKER_ANTHROPIC_API_KEY / $ANTHROPIC_API_KEY"
-            )
-        anthropic_cfg = AnthropicConfig(
-            model=args.anthropic_model,
-            api_key=args.anthropic_api_key,
-            base_url=args.anthropic_base_url,
-            anthropic_version=args.anthropic_version,
-            timeout_seconds=args.remote_timeout,
-        )
+    return "openai", OpenAICompatConfig(
+        model=args.openai_model,
+        api_key=args.openai_api_key,
+        base_url=args.openai_base_url,
+        organization=args.openai_organization,
+        timeout_seconds=args.remote_timeout,
+    )
 
-    steps = tuple(s.strip() for s in args.steps.split(",") if s.strip())
+def _anthropic_backend_config(
+    args: argparse.Namespace,
+) -> tuple[str, AnthropicConfig]:
+    """Build the ANTHROPIC backend sub-config; raise on missing API key."""
+    if not args.anthropic_api_key:
+        raise SystemExit(
+            "anthropic backend requires --anthropic-api-key or "
+            "$PRTHINKER_ANTHROPIC_API_KEY / $ANTHROPIC_API_KEY"
+        )
+    return "anthropic", AnthropicConfig(
+        model=args.anthropic_model,
+        api_key=args.anthropic_api_key,
+        base_url=args.anthropic_base_url,
+        anthropic_version=args.anthropic_version,
+        timeout_seconds=args.remote_timeout,
+    )
+
+_BACKEND_CONFIG_BUILDERS = {
+    BackendKind.LOCAL: _local_backend_config,
+    BackendKind.REMOTE: _remote_backend_config,
+    BackendKind.OPENAI: _openai_backend_config,
+    BackendKind.ANTHROPIC: _anthropic_backend_config,
+}
+
+def _build_cache_telemetry(args: argparse.Namespace) -> tuple[object, object]:
+    """Build the CacheConfig / TelemetryConfig pair from CLI args."""
     from prthinker.config import CacheConfig, TelemetryConfig
 
     cache_cfg = CacheConfig(
@@ -132,13 +144,31 @@ def _build_config(args: argparse.Namespace) -> Config:
         enabled=bool(getattr(args, "telemetry_enabled", False)),
         path=str(getattr(args, "telemetry_path", ".prthinker/telemetry.sqlite")),
     )
+    return cache_cfg, telemetry_cfg
+
+def _build_config(args: argparse.Namespace) -> Config:
+    if args.use_remote_pipeline and args.backend != BackendKind.REMOTE.value:
+        log.info("--use-remote-pipeline forces --backend remote")
+        args.backend = BackendKind.REMOTE.value
+
+    backend = BackendKind(args.backend)
+    sub_configs: dict[str, object] = {
+        "local": None, "remote": None, "openai": None, "anthropic": None,
+    }
+    builder = _BACKEND_CONFIG_BUILDERS.get(backend)
+    if builder is not None:
+        field, cfg = builder(args)
+        sub_configs[field] = cfg
+
+    steps = tuple(s.strip() for s in args.steps.split(",") if s.strip())
+    cache_cfg, telemetry_cfg = _build_cache_telemetry(args)
 
     return Config(
         backend=backend,
-        local=local_cfg,
-        remote=remote_cfg,
-        openai=openai_cfg,
-        anthropic=anthropic_cfg,
+        local=sub_configs["local"],
+        remote=sub_configs["remote"],
+        openai=sub_configs["openai"],
+        anthropic=sub_configs["anthropic"],
         rag_enabled=not args.no_rag,
         rag_threshold=args.rag_threshold,
         max_new_tokens=args.max_new_tokens,
@@ -442,58 +472,82 @@ def _review_via_pipeline(
     )
     try:
         if args.per_file:
-            review_cache_obj = None
-            cache_repo = ""
-            cache_pr_number = 0
-            if getattr(args, "diff_since_last", False) and args.inline_review:
-                review_cache_obj = ReviewCache(Path(args.diff_cache_path))
-                cache_repo = getattr(args, "repo", "") or ""
-                cache_pr_number = int(getattr(args, "pr_number", 0) or 0)
-            incremental_writer = _build_incremental_writer(args)
-            on_file_done = (
-                incremental_writer.write_file_result
-                if incremental_writer is not None else None
+            return _run_per_file_review(
+                pipeline, args, diff_text, output_dir, dialogue_block
             )
-            result = pipeline.run_per_file(
-                diff_text,
-                inline_review=args.inline_review,
-                judge=bool(getattr(args, "judge", False)),
-                self_correct=bool(getattr(args, "self_correct", False)),
-                counterfactual=bool(getattr(args, "counterfactual", False)),
-                provenance=bool(getattr(args, "provenance", False)),
-                max_findings_per_file=args.max_findings_per_file,
-                output_dir=output_dir,
-                dialogue_block=dialogue_block,
-                review_cache=review_cache_obj,
-                cache_repo=cache_repo,
-                cache_pr_number=cache_pr_number,
-                verify_suggestions=bool(getattr(args, "verify_suggestions", False)),
-                verify_workdir=getattr(args, "verify_workdir", None),
-                verify_cmd=getattr(args, "verify_cmd", "") or "",
-                verify_timeout=float(getattr(args, "verify_timeout", 60.0) or 60.0),
-                api_consistency_check=bool(getattr(args, "api_consistency", False)),
-                pr_classify=bool(getattr(args, "pr_classify", False)),
-                pr_title=getattr(args, "pr_title", "") or "",
-                pr_body=getattr(args, "pr_body", "") or "",
-                reproducibility_check=bool(getattr(args, "reproducibility_check", False)),
-                dep_upgrade_check=bool(getattr(args, "dep_upgrade_check", False)),
-                persona_set=tuple(
-                    s.strip() for s in (getattr(args, "personas", "") or "").split(",")
-                    if s.strip()
-                ),
-                risk_weighted=bool(getattr(args, "risk_weighted", False)),
-                risk_workdir=getattr(args, "risk_workdir", None),
-                diff_entropy_check=bool(getattr(args, "diff_entropy", False)),
-                on_file_done=on_file_done,
-            )
-            if incremental_writer is not None:
-                incremental_writer.write_final(result)
-            return result
         return pipeline.run(diff_text, output_dir=output_dir)
     finally:
         backend.close()
         if isinstance(retriever, RemoteRAGRetriever):
             retriever.close()
+
+def _build_review_cache(
+    args: argparse.Namespace,
+) -> tuple[ReviewCache | None, str, int]:
+    """Resolve the diff-since-last review cache + repo / PR number from args."""
+    if not (getattr(args, "diff_since_last", False) and args.inline_review):
+        return None, "", 0
+    return (
+        ReviewCache(Path(args.diff_cache_path)),
+        getattr(args, "repo", "") or "",
+        int(getattr(args, "pr_number", 0) or 0),
+    )
+
+def _per_file_kwargs(args: argparse.Namespace) -> dict:
+    """Collect the optional per-file review toggles from CLI args."""
+    return {
+        "inline_review": args.inline_review,
+        "judge": bool(getattr(args, "judge", False)),
+        "self_correct": bool(getattr(args, "self_correct", False)),
+        "counterfactual": bool(getattr(args, "counterfactual", False)),
+        "provenance": bool(getattr(args, "provenance", False)),
+        "max_findings_per_file": args.max_findings_per_file,
+        "verify_suggestions": bool(getattr(args, "verify_suggestions", False)),
+        "verify_workdir": getattr(args, "verify_workdir", None),
+        "verify_cmd": getattr(args, "verify_cmd", "") or "",
+        "verify_timeout": float(getattr(args, "verify_timeout", 60.0) or 60.0),
+        "api_consistency_check": bool(getattr(args, "api_consistency", False)),
+        "pr_classify": bool(getattr(args, "pr_classify", False)),
+        "pr_title": getattr(args, "pr_title", "") or "",
+        "pr_body": getattr(args, "pr_body", "") or "",
+        "reproducibility_check": bool(getattr(args, "reproducibility_check", False)),
+        "dep_upgrade_check": bool(getattr(args, "dep_upgrade_check", False)),
+        "persona_set": tuple(
+            s.strip() for s in (getattr(args, "personas", "") or "").split(",")
+            if s.strip()
+        ),
+        "risk_weighted": bool(getattr(args, "risk_weighted", False)),
+        "risk_workdir": getattr(args, "risk_workdir", None),
+        "diff_entropy_check": bool(getattr(args, "diff_entropy", False)),
+    }
+
+def _run_per_file_review(
+    pipeline: CoTPipeline,
+    args: argparse.Namespace,
+    diff_text: str,
+    output_dir: Path | None,
+    dialogue_block: str,
+) -> ReviewResult:
+    """Drive ``pipeline.run_per_file`` with cache + incremental-save wiring."""
+    review_cache_obj, cache_repo, cache_pr_number = _build_review_cache(args)
+    incremental_writer = _build_incremental_writer(args)
+    on_file_done = (
+        incremental_writer.write_file_result
+        if incremental_writer is not None else None
+    )
+    result = pipeline.run_per_file(
+        diff_text,
+        output_dir=output_dir,
+        dialogue_block=dialogue_block,
+        review_cache=review_cache_obj,
+        cache_repo=cache_repo,
+        cache_pr_number=cache_pr_number,
+        on_file_done=on_file_done,
+        **_per_file_kwargs(args),
+    )
+    if incremental_writer is not None:
+        incremental_writer.write_final(result)
+    return result
 
 def _build_incremental_writer(
     args: argparse.Namespace,

@@ -84,25 +84,42 @@ def _minus_a_path(line: str) -> str | None:
     return target[2:] if target.startswith("a/") else None
 
 
+@dataclass
+class _HeaderState:
+    """Accumulator for path/flag extraction across per-file header lines."""
+
+    new_path: str | None = None
+    fallback: str | None = None
+    is_binary: bool = False
+    is_deleted: bool = False
+
+
+def _apply_path_line(line: str, state: _HeaderState) -> None:
+    """Fold a path-bearing header line (``diff``/``+++``/``---``) into `state`."""
+    if line.startswith("diff --git "):
+        state.fallback = _git_header_b_path(line) or state.fallback
+    elif line.startswith("+++ "):
+        state.new_path = _plus_path(line) or state.new_path
+    elif line.startswith("--- ") and state.new_path is None:
+        state.new_path = _minus_a_path(line)
+
+
+def _apply_header_line(line: str, state: _HeaderState) -> None:
+    """Fold one header line into `state` (prefix dispatch, in place)."""
+    if line.startswith("deleted file mode"):
+        state.is_deleted = True
+    elif line.startswith("Binary files "):
+        state.is_binary = True
+    else:
+        _apply_path_line(line, state)
+
+
 def _extract_paths(diff_header_lines: list[str]) -> tuple[str | None, bool, bool]:
     """Return (new_path, is_binary, is_deleted) from the per-file header."""
-    new_path: str | None = None
-    is_binary = False
-    is_deleted = False
-    fallback: str | None = None
+    state = _HeaderState()
     for line in diff_header_lines:
-        if line.startswith("diff --git "):
-            fallback = _git_header_b_path(line) or fallback
-        elif line.startswith("+++ "):
-            new_path = _plus_path(line) or new_path
-        elif line.startswith("--- ") and new_path is None:
-            new_path = _minus_a_path(line)
-        elif line.startswith("deleted file mode"):
-            is_deleted = True
-        elif line.startswith("Binary files "):
-            is_binary = True
-
-    return (new_path or fallback), is_binary, is_deleted
+        _apply_header_line(line, state)
+    return (state.new_path or state.fallback), state.is_binary, state.is_deleted
 
 
 def _advance_new_side(line: str, new_line_no: int, collected: set[int]) -> int:

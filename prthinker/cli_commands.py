@@ -499,21 +499,9 @@ def _cmd_report(args: argparse.Namespace) -> int:
         sys.stdout.write(body)
     return 0
 
-def _cmd_hook(args: argparse.Namespace) -> int:
-    """Pre-commit hook entry point.
-
-    Reads ``git diff --cached`` and runs the per-file pipeline. Exits 0 if
-    no finding at or above ``--block-on`` survives the dismissed filter;
-    otherwise exits 1 with a short stderr summary so the developer sees
-    exactly what blocked the commit.
-    """
+def _read_staged_diff(advisory: bool) -> tuple[str | None, int]:
+    """Return staged diff text, or ``(None, exit_code)`` when git fails."""
     import subprocess
-
-    if args.advisory:
-        # Force gate to none + override the block floor regardless.
-        args.gate_on = "none"
-    args.per_file = True
-    args.inline_review = True
 
     try:
         proc = subprocess.run(
@@ -522,30 +510,15 @@ def _cmd_hook(args: argparse.Namespace) -> int:
         )
     except FileNotFoundError:
         sys.stderr.write("prthinker hook: `git` not found in PATH\n")
-        return 0 if args.advisory else 1
+        return None, 0 if advisory else 1
     except subprocess.CalledProcessError as exc:
         sys.stderr.write(f"prthinker hook: `git diff --cached` failed: {exc}\n")
-        return 0 if args.advisory else 1
+        return None, 0 if advisory else 1
+    return proc.stdout, 0
 
-    diff = proc.stdout
-    if not diff.strip():
-        # Nothing staged → nothing to review. Don't fail the commit.
-        return 0
 
-    config = _build_config(args)
-    result = _run_review(args, config, diff)
-
-    from prthinker.checks import evaluate_gate
-
-    gate_result = evaluate_gate(
-        result.inline_findings,
-        gate_on=("none" if args.advisory else args.block_on),
-    )
-
-    if not result.inline_findings:
-        sys.stderr.write("prthinker hook: no findings.\n")
-        return 0
-
+def _emit_hook_findings(result: ReviewResult, gate_result: object) -> None:
+    """Write the per-finding hook summary to stderr."""
     sys.stderr.write(
         f"prthinker hook: {gate_result.error_count} error(s), "
         f"{gate_result.warning_count} warning(s), "
@@ -556,6 +529,42 @@ def _cmd_hook(args: argparse.Namespace) -> int:
             f"  {finding.severity:>7} {finding.path}:{finding.line} — "
             f"{finding.comment.splitlines()[0][:120]}\n"
         )
+
+
+def _cmd_hook(args: argparse.Namespace) -> int:
+    """Pre-commit hook entry point.
+
+    Reads ``git diff --cached`` and runs the per-file pipeline. Exits 0 if
+    no finding at or above ``--block-on`` survives the dismissed filter;
+    otherwise exits 1 with a short stderr summary so the developer sees
+    exactly what blocked the commit.
+    """
+    if args.advisory:
+        # Force gate to none + override the block floor regardless.
+        args.gate_on = "none"
+    args.per_file = True
+    args.inline_review = True
+
+    diff, exit_code = _read_staged_diff(args.advisory)
+    if diff is None:
+        return exit_code
+    if not diff.strip():
+        # Nothing staged → nothing to review. Don't fail the commit.
+        return 0
+
+    config = _build_config(args)
+    result = _run_review(args, config, diff)
+
+    gate_result = evaluate_gate(
+        result.inline_findings,
+        gate_on=("none" if args.advisory else args.block_on),
+    )
+
+    if not result.inline_findings:
+        sys.stderr.write("prthinker hook: no findings.\n")
+        return 0
+
+    _emit_hook_findings(result, gate_result)
 
     if args.advisory or gate_result.conclusion == "success":
         return 0
