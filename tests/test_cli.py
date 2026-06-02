@@ -107,3 +107,26 @@ def test_missing_openai_key_fails_with_clear_message() -> None:
     ns = p.parse_args(["review-file", "-", "--backend", "openai"])
     with pytest.raises(SystemExit, match=r"openai"):
         _build_config(ns)
+
+
+def test_kg_html_path_default_unchanged() -> None:
+    from prthinker.cli import _kg_html_path
+    out = Path(".prthinker/repo-kg.html")
+    assert _kg_html_path(out, "") == out
+    assert _kg_html_path(out, "   ") == out
+
+
+def test_kg_html_path_uses_repo_name() -> None:
+    from prthinker.cli import _kg_html_path
+    out = Path(".prthinker/repo-kg.html")
+    assert _kg_html_path(out, "my-svc") == Path(".prthinker/repo-kg-my-svc.html")
+
+
+def test_kg_html_path_sanitizes_traversal_and_unsafe_chars() -> None:
+    from prthinker.cli import _kg_html_path
+    out = Path(".prthinker/repo-kg.html")
+    # Slashes / dots / spaces are neutralised so the name can't escape the dir.
+    assert _kg_html_path(out, "../../etc/passwd") == Path(".prthinker/repo-kg-etc-passwd.html")
+    assert _kg_html_path(out, "Org/Repo X") == Path(".prthinker/repo-kg-Org-Repo-X.html")
+    # A name that sanitises to nothing falls back to a safe stub.
+    assert _kg_html_path(out, "...") == Path(".prthinker/repo-kg-repo.html")

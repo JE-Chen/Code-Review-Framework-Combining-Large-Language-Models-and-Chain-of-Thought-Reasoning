@@ -229,6 +229,31 @@ Confirm:
 curl http://my-host:9000/healthz   # → {"status": "ok", "model": "..."}
 ```
 
+**Or with Docker compose** (the `docker/` bundle — no manual venv):
+
+```bash
+cd docker
+cp .env.example .env            # PRTHINKER_HOST_PORT defaults to 9000
+docker compose up -d            # base: prthinker FastAPI on :9000
+curl http://my-host:9000/healthz
+
+# Optional TLS overlay — nginx TLS + bearer-token auth on :443:
+#   PRTHINKER_BACKEND_TOKEN=$(openssl rand -hex 32) in .env
+docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
+curl https://my-host/healthz -H "Authorization: Bearer $PRTHINKER_BACKEND_TOKEN"
+
+# Optional monitoring overlay — Prometheus + Grafana + DCGM + cAdvisor,
+# all routed under host :9000 by path:
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+#   http://my-host:9000/grafana/     Grafana   (admin / admin by default)
+#   http://my-host:9000/prometheus/  Prometheus UI
+#   http://my-host:9000/cadvisor/    cAdvisor
+#   http://my-host:9000/kg/          repo knowledge-graph page
+```
+
+Full deployment reference (files, volumes, routed URL table):
+`docs/en/concepts/docker-platforms-report.rst`.
+
 **In the repo:**
 
 Add `.prthinker.yaml`:

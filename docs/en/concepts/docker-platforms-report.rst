@@ -12,15 +12,18 @@ Self-hosted deployment with Docker compose
 ------------------------------------------
 
 The bundle in ``docker/`` deploys the FastAPI inference server directly
-on port ``9000`` in one command. An optional TLS overlay adds nginx with
-TLS termination + bearer-token auth for production. Two host requirements
-(plus a TLS certificate if you use the overlay):
+on port ``9000`` in one command. Two optional overlays stack on top of
+the base compose: a **TLS overlay** that fronts the server with nginx for
+TLS termination + bearer-token auth, and a **monitoring overlay** that
+adds Prometheus + Grafana + DCGM (GPU) + cAdvisor (containers) behind a
+single nginx reverse proxy. Two host requirements (plus a TLS certificate
+if you use the TLS overlay):
 
 * NVIDIA GPU with a driver that matches the configured CUDA version
-  (default ``12.2.0``).
+  (default ``13.0.1``).
 * Docker 24+ with the NVIDIA container runtime
   (``runtime: nvidia`` declared in ``docker-compose.yml``).
-* (Overlay only) A TLS certificate (Let's Encrypt or self-signed)
+* (TLS overlay only) A TLS certificate (Let's Encrypt or self-signed)
   mounted into the nginx container.
 
 Files:
@@ -39,19 +42,39 @@ Files:
        ``${PRTHINKER_HOST_PORT:-9000}``, two volumes (``hf_cache``,
        ``data``). HTTP only — no TLS.
    * - ``docker/docker-compose.tls.yml``
-     - Optional overlay: adds an ``nginx`` service for TLS + bearer-token
-       auth, hides ``prthinker`` behind it on the internal network.
+     - Optional TLS overlay: adds an ``nginx`` service for TLS +
+       bearer-token auth, hides ``prthinker`` behind it on the internal
+       network (nginx on host ``443`` by default).
    * - ``docker/nginx.conf``
-     - Used by the overlay. TLS termination, ``/healthz`` bypasses auth,
-       all other paths require ``Authorization: Bearer
+     - Used by the TLS overlay. TLS termination, ``/healthz`` bypasses
+       auth, all other paths require ``Authorization: Bearer
        <PRTHINKER_BACKEND_TOKEN>``.
    * - ``docker/entrypoint-nginx.sh``
-     - Used by the overlay. Substitutes the token into ``nginx.conf`` at
-       container start; refuses to boot if the env var is missing
+     - Used by the TLS overlay. Substitutes the token into ``nginx.conf``
+       at container start; refuses to boot if the env var is missing
        (fail-fast).
+   * - ``docker/docker-compose.monitoring.yml``
+     - Optional monitoring overlay: adds ``prometheus``, ``grafana``,
+       ``dcgm-exporter`` (GPU metrics), ``cadvisor`` (container metrics)
+       and an ``nginx`` reverse proxy that owns host ``9000`` and routes
+       every dashboard under one port by path.
+   * - ``docker/monitoring/nginx.conf``
+     - Used by the monitoring overlay. Path-routes ``/grafana/``,
+       ``/prometheus/``, ``/cadvisor/`` and the static ``/kg/`` repo
+       knowledge-graph page; everything else proxies to ``prthinker``.
+   * - ``docker/monitoring/prometheus.yml``
+     - Scrape config for the monitoring overlay (prthinker ``/metrics``,
+       DCGM, cAdvisor).
+   * - ``docker/monitoring/grafana/``
+     - Provisioned Grafana datasource + the ``prthinker-overview``
+       dashboard, auto-loaded on first boot.
+   * - ``docker/rebuild-server.sh``
+     - Helper that rebuilds the server image without flash-attn /
+       transformers pins (the bf16 + SDPA deploy this repo supports).
    * - ``docker/.env.example``
      - Template for host port, CUDA tag, plus optional bearer token +
-       TLS cert dir for the overlay.
+       TLS cert dir (TLS overlay) and Grafana admin credentials
+       (monitoring overlay).
 
 Bring-up (default — HTTP on :9000):
 
@@ -77,6 +100,90 @@ Bring-up (overlay — TLS + bearer token on :443):
    curl https://your-host/healthz \
        -H "Authorization: Bearer $PRTHINKER_BACKEND_TOKEN"
 
+Bring-up (monitoring overlay — dashboards on :9000):
+
+.. code-block:: bash
+
+   cd docker
+   # optional in .env:
+   #   GRAFANA_ADMIN_USER=admin
+   #   GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 16)
+   docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+
+   # everything is behind the single host port (default 9000):
+   curl http://your-host:9000/healthz          # prthinker
+   #   open http://your-host:9000/grafana/      # Grafana (admin / admin by default)
+
+The monitoring overlay's nginx owns host ``9000`` and routes by path, so a
+single published port (or one upstream proxy / Cloudflare tunnel) exposes
+the server and every dashboard:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 72
+
+   * - URL path (under host ``9000``)
+     - serves
+   * - ``/healthz``, ``/review/*``, ``/ask/*``, ``/metrics``, …
+     - prthinker FastAPI server (anything not matched below).
+   * - ``/grafana/``
+     - Grafana UI — auto-provisioned ``prthinker-overview`` dashboard.
+       Default login ``admin`` / ``admin`` (override via
+       ``GRAFANA_ADMIN_USER`` / ``GRAFANA_ADMIN_PASSWORD``).
+   * - ``/prometheus/``
+     - Prometheus UI / query API (30-day retention).
+   * - ``/cadvisor/``
+     - cAdvisor container-resource UI.
+   * - ``/kg/``
+     - Static repo knowledge-graph page rendered from ``.prthinker/``.
+       Multi-repo deploys also get per-repo pages at ``/kg/<name>/``
+       (the nginx route matches ``[A-Za-z0-9._-]+``), so one host can
+       serve a knowledge graph per reviewed repository.
+
+The DCGM GPU-metrics exporter has no public route — only Prometheus
+scrapes it on the internal docker network. The TLS and monitoring
+overlays both claim host ``9000``/nginx, so combine them through an
+upstream proxy rather than stacking all three compose files at once.
+
+What the monitoring overlay observes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Prometheus scrapes four jobs — ``prthinker-fastapi`` (the ``/metrics``
+endpoint), ``dcgm-gpu`` (per-GPU telemetry), ``cadvisor-containers``
+(per-container resource use), and ``prometheus-self`` — and keeps 30
+days of history. The provisioned ``prthinker-overview`` Grafana
+dashboard renders them as ten panels:
+
+* **Service** — request rate by endpoint, latency p50 / p95 / p99, and
+  HTTP 5xx rate (from the FastAPI ``/metrics`` histograms).
+* **GPU** — utilization, memory used, power draw, and temperature
+  (from DCGM).
+* **Container** — prthinker CPU cores, RAM, and network RX/TX
+  (from cAdvisor).
+
+Alerting is not provisioned — add rules under
+``monitoring/prometheus.yml`` (or wire Grafana alerting against the same
+datasource) for the thresholds your deploy cares about.
+
+Rebuilding the image safely (``rebuild-server.sh``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A bare ``docker compose build`` on the GPU host can let the image
+build's peak RAM collide with the running model container and trip the
+kernel OOM-killer — which tends to take ``cloudflared`` / ``sshd`` down
+first, presenting as "the GPU server disconnects mid-build".
+``docker/rebuild-server.sh`` encodes the safe sequence: stop the model
+container to free its host RAM, pull the latest ``Dockerfile.server``,
+build while snapshotting ``free -h``, scan ``dmesg`` afterwards for an
+OOM-killer fingerprint, then bring the server back up and block until
+``/healthz`` returns 200 and the boot guard confirms a non-eager
+attention impl. Cap build parallelism on smaller hosts:
+
+.. code-block:: bash
+
+   ./docker/rebuild-server.sh                       # default MAX_JOBS=16
+   FLASH_ATTN_MAX_JOBS=4 ./docker/rebuild-server.sh # hosts <= 128 GiB RAM
+
 Volumes:
 
 * ``hf_cache`` — HuggingFace weights. Survives ``docker compose down``;
@@ -85,6 +192,8 @@ Volumes:
   accepted.jsonl. Back this up.
 * TLS dir is a **host bind-mount** so you control cert rotation
   separately from the compose lifecycle.
+* ``prometheus_data`` / ``grafana_data`` (monitoring overlay only) —
+  metrics history and Grafana state; safe to drop to reset dashboards.
 
 The image deliberately does NOT bake in weights — an image rebuild
 should never invalidate a ~80 GB download. The trade-off is a slow

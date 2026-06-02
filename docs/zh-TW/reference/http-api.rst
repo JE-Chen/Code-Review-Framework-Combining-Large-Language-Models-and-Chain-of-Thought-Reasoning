@@ -33,6 +33,17 @@ GET /healthz
 
    {"status": "ok", "model": "Qwen/Qwen3-Coder-30B-A3B-Instruct"}
 
+GET /metrics
+------------
+
+Prometheus exposition endpoint。安裝 ``prometheus-fastapi-instrumentator``
+時啟用（未安裝則伺服器記錄一筆 log 並略過），匯出各 endpoint 的請求數、
+延遲 histogram（p50 / p95 / p99 panel 之來源）與 HTTP 狀態計數。與其他
+路徑一樣\ **不做驗證**\ ——monitoring overlay 之 nginx 在內網 docker
+network 上 scrape；未經 reverse-proxy ACL 請勿對外公開。
+
+**Response 200**\ ：Prometheus 文字 exposition 格式之 ``text/plain``\ 。
+
 POST /ask
 ---------
 

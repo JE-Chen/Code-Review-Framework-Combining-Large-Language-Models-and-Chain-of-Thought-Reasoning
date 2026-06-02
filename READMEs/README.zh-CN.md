@@ -2,6 +2,8 @@
 
 [English](../README.md) · [繁體中文](README.zh-TW.md) · **简体中文**
 
+📖 **在线文档：** <https://code-review-framework.readthedocs.io/en/latest/>
+
 > 为 GitHub Pull Request 设计的思维链（Chain-of-Thought）代码审查框架，
 > 底层由微调后的 Qwen3-Coder 模型加上检索增强（RAG）提示驱动。
 
@@ -123,6 +125,22 @@ pip install -e ".[server]"
 uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 9000
 ```
 
+或使用 `docker/` compose bundle。base 部署把 FastAPI 服务器 expose 在
+`:9000`；其上可再叠两个可选 overlay：
+
+```bash
+cd docker && cp .env.example .env
+docker compose up -d                                                  # :9000
+docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d        # +TLS+token :443
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d # +仪表板 :9000
+```
+
+monitoring overlay 把所有东西依路径收在 host `:9000` 之下——`/grafana/`
+（Grafana，默认 `admin`/`admin`）、`/prometheus/`、`/cadvisor/`、`/kg/`
+（repo knowledge-graph 页），其余路径一律由 prthinker 提供。完整参考
+（文件、volume、路由 URL）：
+[`docs/zh-CN/concepts/docker-platforms-report.rst`](../docs/zh-CN/concepts/docker-platforms-report.rst)。
+
 ## GitHub Actions
 
 复制 `.github/workflows/prthinker.yml`，然后在 repo 设置两个 secrets：
@@ -156,7 +174,9 @@ PATCH 成 *superseded* 灰色状态。完整架构见
 - **[`features.zh-CN.md`](features.zh-CN.md)** — 完整功能总览。
 - **[`docs/zh-CN/`](../docs/zh-CN/)** — Read-the-Docs 风格深度章节。
 
-完整文档在 [`docs/`](../docs/) 并通过 Read the Docs 发布，三种语言并行维护：
+完整文档发布于 Read the Docs：
+**<https://code-review-framework.readthedocs.io/en/latest/>**（源码在
+[`docs/`](../docs/)），三种语言并行维护：
 
 - `docs/`（英文，主版本）
 - `docs/zh-TW/`（繁体中文）

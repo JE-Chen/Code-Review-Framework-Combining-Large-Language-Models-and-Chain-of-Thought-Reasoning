@@ -11,15 +11,17 @@ Docker、多平台、纵向报告
 ------------------------
 
 ``docker/`` 目录下之 bundle 一指令即可部署 FastAPI 推理服务器，默认直接
-exposed 在 port ``9000`` 上。正式部署可叠用 TLS overlay，加上 nginx 做
-TLS termination + bearer-token 认证。两项主机需求（使用 overlay 才需要
-TLS 证书）：
+exposed 在 port ``9000`` 上。base compose 之上可再叠两个 overlay：\
+**TLS overlay** 以 nginx 做 TLS termination + bearer-token 认证；\
+**monitoring overlay** 再加上 Prometheus + Grafana + DCGM（GPU）+
+cAdvisor（容器），全部藏在单一 nginx reverse proxy 后面。两项主机需求
+（使用 TLS overlay 才需要 TLS 证书）：
 
-* NVIDIA GPU 加上与设置之 CUDA 版本兼容之驱动（默认 ``12.2.0``\ ）。
+* NVIDIA GPU 加上与设置之 CUDA 版本兼容之驱动（默认 ``13.0.1``\ ）。
 * Docker 24+ 并配置 NVIDIA container runtime（\ ``docker-compose.yml``
   内 ``runtime: nvidia``\ ）。
-* （Overlay 才需）TLS 证书（Let's Encrypt 或 self-signed），mount 进
-  nginx container。
+* （TLS overlay 才需）TLS 证书（Let's Encrypt 或 self-signed），mount
+  进 nginx container。
 
 文件清单：
 
@@ -37,17 +39,35 @@ TLS 证书）：
        ``${PRTHINKER_HOST_PORT:-9000}``\ ；两个 volume（\ ``hf_cache``\ 、
        ``data``\ ）。HTTP only，无 TLS\ 。
    * - ``docker/docker-compose.tls.yml``
-     - 可选 overlay：加上 ``nginx`` service 做 TLS + bearer-token 认证，
-       把 ``prthinker`` 藏在内网后面\ 。
+     - 可选 TLS overlay：加上 ``nginx`` service 做 TLS + bearer-token
+       认证，把 ``prthinker`` 藏在内网后面（nginx 默认在 host ``443``\ ）\ 。
    * - ``docker/nginx.conf``
-     - Overlay 使用\ 。TLS termination；\ ``/healthz`` 不检查 auth，
+     - TLS overlay 使用\ 。TLS termination；\ ``/healthz`` 不检查 auth，
        其他路径要求 ``Authorization: Bearer <PRTHINKER_BACKEND_TOKEN>``\ 。
    * - ``docker/entrypoint-nginx.sh``
-     - Overlay 使用\ 。container 启动时把 token 注入 ``nginx.conf``\ ；
+     - TLS overlay 使用\ 。container 启动时把 token 注入 ``nginx.conf``\ ；
        env 变量缺失时拒绝启动（fail-fast）\ 。
+   * - ``docker/docker-compose.monitoring.yml``
+     - 可选 monitoring overlay：加上 ``prometheus``\ 、\ ``grafana``\ 、
+       ``dcgm-exporter``\ （GPU 指标）、\ ``cadvisor``\ （容器指标），
+       以及一个占用 host ``9000`` 的 ``nginx`` reverse proxy，依路径把所有
+       仪表板收敛到同一个 port\ 。
+   * - ``docker/monitoring/nginx.conf``
+     - monitoring overlay 使用\ 。依路径分流 ``/grafana/``\ 、
+       ``/prometheus/``\ 、\ ``/cadvisor/`` 与静态 ``/kg/`` repo
+       knowledge-graph 页；其余一律 proxy 给 ``prthinker``\ 。
+   * - ``docker/monitoring/prometheus.yml``
+     - monitoring overlay 之 scrape 配置（prthinker ``/metrics``\ 、
+       DCGM、cAdvisor）\ 。
+   * - ``docker/monitoring/grafana/``
+     - 预先置备之 Grafana datasource 与 ``prthinker-overview`` 仪表板，
+       首次启动自动加载\ 。
+   * - ``docker/rebuild-server.sh``
+     - 不含 flash-attn / transformers pin 重建 server image 之 helper
+       （本 repo 支持之 bf16 + SDPA 部署）\ 。
    * - ``docker/.env.example``
-     - host port、CUDA tag 模板，以及可选之 overlay 用 bearer token /
-       TLS 证书目录\ 。
+     - host port、CUDA tag 模板，以及可选之 TLS overlay 用 bearer token /
+       TLS 证书目录、monitoring overlay 用 Grafana 管理账密\ 。
 
 启动（默认 — HTTP on :9000）：
 
@@ -73,6 +93,83 @@ TLS 证书）：
    curl https://your-host/healthz \
        -H "Authorization: Bearer $PRTHINKER_BACKEND_TOKEN"
 
+启动（monitoring overlay — 仪表板 on :9000）：
+
+.. code-block:: bash
+
+   cd docker
+   # .env 可选：
+   #   GRAFANA_ADMIN_USER=admin
+   #   GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 16)
+   docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+
+   # 全部收在单一 host port（默认 9000）后面：
+   curl http://your-host:9000/healthz          # prthinker
+   #   开 http://your-host:9000/grafana/        # Grafana（默认 admin / admin）
+
+monitoring overlay 之 nginx 占用 host ``9000`` 并依路径分流，因此单一对外
+port（或一个上游 proxy / Cloudflare tunnel）即可同时 expose 服务器与所有
+仪表板：
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 72
+
+   * - URL 路径（host ``9000`` 之下）
+     - 提供
+   * - ``/healthz``\ 、\ ``/review/*``\ 、\ ``/ask/*``\ 、\ ``/metrics``\ …
+     - prthinker FastAPI 服务器（未被下列规则命中之路径）\ 。
+   * - ``/grafana/``
+     - Grafana UI——自动置备之 ``prthinker-overview`` 仪表板。默认登录
+       ``admin`` / ``admin``\ （以 ``GRAFANA_ADMIN_USER`` /
+       ``GRAFANA_ADMIN_PASSWORD`` 覆盖）\ 。
+   * - ``/prometheus/``
+     - Prometheus UI / query API（保留 30 天）\ 。
+   * - ``/cadvisor/``
+     - cAdvisor 容器资源 UI\ 。
+   * - ``/kg/``
+     - 由 ``.prthinker/`` 渲染之静态 repo knowledge-graph 页\ 。多 repo
+       部署另有 per-repo 页 ``/kg/<name>/``\ （nginx route 匹配
+       ``[A-Za-z0-9._-]+``\ ），单一主机可为每个被审 repo 各供一份
+       knowledge graph\ 。
+
+DCGM GPU 指标 exporter 无对外路径——只由 Prometheus 在内网 docker network
+上 scrape。TLS 与 monitoring overlay 都会占用 host ``9000``/nginx，请通过
+上游 proxy 整合，不要三个 compose 文件同时叠用\ 。
+
+monitoring overlay 观测什么
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Prometheus scrape 四个 job——``prthinker-fastapi``\ （\ ``/metrics``
+endpoint）、\ ``dcgm-gpu``\ （各 GPU 遥测）、\ ``cadvisor-containers``\
+（各容器资源用量）与 ``prometheus-self``\ ——并保留 30 天历史。预先置备之
+``prthinker-overview`` Grafana 仪表板把它们渲染为十个 panel：
+
+* **服务**\ ──各 endpoint 请求率、延迟 p50 / p95 / p99、HTTP 5xx 率
+  （来自 FastAPI ``/metrics`` histogram）\ 。
+* **GPU**\ ──使用率、已用显存、功耗、温度（来自 DCGM）\ 。
+* **容器**\ ──prthinker CPU cores、RAM、网络 RX/TX（来自 cAdvisor）\ 。
+
+未置备 alerting——请在 ``monitoring/prometheus.yml`` 加 rule（或用同一
+datasource 配置 Grafana alerting），对应你部署在意之阈值\ 。
+
+安全重建 image（``rebuild-server.sh``）
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+在 GPU 主机上直接 ``docker compose build``\ ，build 之峰值 RAM 可能与
+运行中之模型容器相撞而触发 kernel OOM-killer——而它往往先杀
+``cloudflared`` / ``sshd``\ ，表现为「GPU 服务器 build 到一半断线」。
+``docker/rebuild-server.sh`` 把安全流程编进去：停掉模型容器释出其 host
+RAM、pull 最新 ``Dockerfile.server``\ 、build 时每 2 秒快照 ``free -h``\ 、
+build 后扫 ``dmesg`` 找 OOM-killer 指纹，再把服务器拉回并阻塞到
+``/healthz`` 回 200 且 boot guard 确认非 eager attention impl。小主机请
+降低 build 并行度：
+
+.. code-block:: bash
+
+   ./docker/rebuild-server.sh                       # 默认 MAX_JOBS=16
+   FLASH_ATTN_MAX_JOBS=4 ./docker/rebuild-server.sh # <= 128 GiB RAM 主机
+
 Volume 说明：
 
 * ``hf_cache``\ ──HuggingFace 权重。\ ``docker compose down`` 不会清除；
@@ -80,6 +177,8 @@ Volume 说明：
 * ``data``\ ──cache.sqlite、telemetry.sqlite、dismissed.jsonl、
   accepted.jsonl，请纳入备份。
 * TLS 目录为 **host bind-mount**\ ，证书更新与 compose 生命周期分开管。
+* ``prometheus_data`` / ``grafana_data``\ （仅 monitoring overlay）──
+  指标历史与 Grafana 状态；想重置仪表板可安全删除\ 。
 
 Image 刻意不烤入权重——image 重建不应作废 ~80 GB 下载。代价是
 ``docker compose up`` 首次请求要等权重下载；后续即热。
