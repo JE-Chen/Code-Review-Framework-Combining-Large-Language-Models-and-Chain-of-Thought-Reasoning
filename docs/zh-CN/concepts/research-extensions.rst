@@ -477,9 +477,36 @@ sweep、GPU OOM、runner 超时、人工 ``ask/cancel``\ ）\ ，现有之
 那条路径请继续用 ``--output-json``\ 。
 
 
+运营与输出集成
+--------------
+
+除上述审查机制外，以下 opt-in flag/命令把 prthinker 与外部工具集成。
+它们皆为纯转换或 adapter——不做推理——因此可在 runner profile 上运行。
+
+* **SARIF 导出**\ （\ ``--sarif-out PATH``\ ）——以 SARIF 2.1.0 输出
+  findings，接 GitHub code-scanning 或任何 SARIF viewer。
+* **HTML 报告**\ （\ ``--html-report PATH``\ ）——独立、XSS-safe 之 HTML
+  审查报告（严重度摘要 + 各文件 findings）。
+* **finding 抑制**\ （\ ``--ignore-file`` / ``.prthinkerignore``\ ）——依
+  路径 glob、\ ``severity:<level>``\ 、或 ``rule:<id>``\ （对 comment 子串
+  匹配）丢弃 findings。缺文件即 no-op。
+* **finding 去重**\ （\ ``--dedupe-findings``\ ）——收敛近似重复（同 path+
+  line、消息等价；保留最高严重度）。
+* **公开 API 影响**\ （\ ``--api-impact``\ ）——以启发式扫描 diff 中新增/
+  移除/变更之公开 ``def``/``class`` 签名，于摘要附上 semver 影响行
+  （major/minor/patch）。
+* **Gitea 平台**\ （\ ``--platform gitea``\ ）——与 GitHub/GitLab 共用同一
+  ``PlatformAdapter`` strategy 之 ``GiteaAdapter``\ 。
+* **commit message 审查**\ （\ ``prthinker review-commits``\ ）——对自 stdin
+  读入之消息评估质量（conventional-commits、祈使语气、清晰度）。
+
+monitoring overlay 另附 **Prometheus alerting 规则**\ （\
+``docker/monitoring/alerts.yml``\ ）；详见 Docker 概念页。
+
 状态
 ----
 
-十七个机制皆已交付为框架代码、单元测试与 prompt 样板\ 。依
-``paper_rule.md``\ ，本项目有意不在此页提供 benchmark 数字；语料与
-outcome 存储体均已位\ ，量测之时\ ，将以可审计之方式为之\ 。
+十七个研究机制皆已交付为框架代码、单元测试与 prompt 样板；上述运营集成
+则交付为代码 + 测试\ 。依 ``paper_rule.md``\ ，本项目有意不在此页提供
+benchmark 数字；语料与 outcome 存储体均已位\ ，量测之时\ ，将以可审计之
+方式为之\ 。

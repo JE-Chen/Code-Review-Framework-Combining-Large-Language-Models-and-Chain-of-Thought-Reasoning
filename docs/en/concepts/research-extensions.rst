@@ -562,10 +562,40 @@ response, so per-file streaming is N/A there. ``--output-json`` is the
 existing tool for that path.
 
 
+Operability and output integrations
+-----------------------------------
+
+Beyond the review mechanisms above, these opt-in flags/commands integrate
+prthinker with external tooling. They are pure transforms or adapters —
+no inference — so they run on the runner profile.
+
+* **SARIF export** (``--sarif-out PATH``) — write findings as SARIF
+  2.1.0 for GitHub code-scanning or any SARIF viewer.
+* **HTML report** (``--html-report PATH``) — a standalone, XSS-safe HTML
+  review report (severity summary + per-file findings).
+* **Finding suppression** (``--ignore-file`` / ``.prthinkerignore``) —
+  drop findings by path glob, ``severity:<level>``, or ``rule:<id>``
+  (substring match on the comment). Missing file is a no-op.
+* **Finding de-duplication** (``--dedupe-findings``) — collapse
+  near-duplicate findings (same path+line, equivalent message; keeps the
+  highest severity).
+* **Public-API impact** (``--api-impact``) — append a semver-impact line
+  (major/minor/patch) to the summary, from a heuristic scan of
+  added/removed/changed public ``def``/``class`` signatures in the diff.
+* **Gitea platform** (``--platform gitea``) — a ``GiteaAdapter`` behind
+  the same ``PlatformAdapter`` strategy as GitHub/GitLab.
+* **Commit-message review** (``prthinker review-commits``) — assess
+  commit-message quality (conventional-commits, imperative mood,
+  clarity) for messages read from stdin.
+
+The monitoring overlay also ships **Prometheus alerting rules**
+(``docker/monitoring/alerts.yml``); see the Docker concepts page.
+
 Status
 ------
 
-All seventeen mechanisms ship as framework code, unit tests, and prompt
-templates. Per ``paper_rule.md`` the project intentionally publishes
-no benchmark numbers here; the corpora and outcome stores exist so
-that measurements can be taken honestly when they are taken.
+All seventeen research mechanisms ship as framework code, unit tests, and
+prompt templates; the operability integrations above ship as code +
+tests. Per ``paper_rule.md`` the project intentionally publishes no
+benchmark numbers here; the corpora and outcome stores exist so that
+measurements can be taken honestly when they are taken.
