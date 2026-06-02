@@ -113,6 +113,29 @@ def test_emit_artifacts_noop_without_flags():
     _emit_review_artifacts(SimpleNamespace(sarif_out="", html_report=""), _result())
 
 
+def test_new_backends_build_via_factory():
+    from prthinker.backends import create_backend
+    from prthinker.cli_review import _build_config
+
+    for provider in ("gemini", "cohere", "mistral"):
+        ns = _build_parser().parse_args(
+            ["review-file", "-", "--backend", provider, f"--{provider}-api-key", "k"]
+        )
+        backend = create_backend(_build_config(ns))
+        assert backend.backend_kind() == provider
+
+
+def test_new_backend_missing_key_exits():
+    import pytest
+
+    from prthinker.cli_review import _build_config
+
+    ns = _build_parser().parse_args(["review-file", "-", "--backend", "cohere"])
+    ns.cohere_api_key = ""
+    with pytest.raises(SystemExit):
+        _build_config(ns)
+
+
 def test_append_api_impact_adds_line():
     diff = (
         "diff --git a/m.py b/m.py\n"

@@ -17,9 +17,12 @@ from prthinker.backends.remote import RemotePipelineClient
 from prthinker.config import (
     AnthropicConfig,
     BackendKind,
+    CohereConfig,
     Config,
+    GeminiConfig,
     GitHubConfig,
     LocalBackendConfig,
+    MistralConfig,
     OpenAICompatConfig,
     RemoteBackendConfig,
     env_str,
@@ -125,11 +128,65 @@ def _anthropic_backend_config(
         timeout_seconds=args.remote_timeout,
     )
 
+def _gemini_backend_config(
+    args: argparse.Namespace,
+) -> tuple[str, GeminiConfig]:
+    """Build the GEMINI backend sub-config; raise on missing API key."""
+    if not args.gemini_api_key:
+        raise SystemExit(
+            "gemini backend requires --gemini-api-key or "
+            "$PRTHINKER_GEMINI_API_KEY / $GEMINI_API_KEY / $GOOGLE_API_KEY"
+        )
+    return "gemini", GeminiConfig(
+        model=args.gemini_model,
+        api_key=args.gemini_api_key,
+        base_url=args.gemini_base_url,
+        timeout_seconds=args.remote_timeout,
+    )
+
+
+def _cohere_backend_config(
+    args: argparse.Namespace,
+) -> tuple[str, CohereConfig]:
+    """Build the COHERE backend sub-config; raise on missing API key."""
+    if not args.cohere_api_key:
+        raise SystemExit(
+            "cohere backend requires --cohere-api-key or "
+            "$PRTHINKER_COHERE_API_KEY / $COHERE_API_KEY"
+        )
+    return "cohere", CohereConfig(
+        model=args.cohere_model,
+        api_key=args.cohere_api_key,
+        base_url=args.cohere_base_url,
+        timeout_seconds=args.remote_timeout,
+    )
+
+
+def _mistral_backend_config(
+    args: argparse.Namespace,
+) -> tuple[str, MistralConfig]:
+    """Build the MISTRAL backend sub-config; raise on missing API key."""
+    if not args.mistral_api_key:
+        raise SystemExit(
+            "mistral backend requires --mistral-api-key or "
+            "$PRTHINKER_MISTRAL_API_KEY / $MISTRAL_API_KEY"
+        )
+    return "mistral", MistralConfig(
+        model=args.mistral_model,
+        api_key=args.mistral_api_key,
+        base_url=args.mistral_base_url,
+        timeout_seconds=args.remote_timeout,
+    )
+
+
 _BACKEND_CONFIG_BUILDERS = {
     BackendKind.LOCAL: _local_backend_config,
     BackendKind.REMOTE: _remote_backend_config,
     BackendKind.OPENAI: _openai_backend_config,
     BackendKind.ANTHROPIC: _anthropic_backend_config,
+    BackendKind.GEMINI: _gemini_backend_config,
+    BackendKind.COHERE: _cohere_backend_config,
+    BackendKind.MISTRAL: _mistral_backend_config,
 }
 
 def _build_cache_telemetry(args: argparse.Namespace) -> tuple[object, object]:
@@ -159,6 +216,7 @@ def _build_config(args: argparse.Namespace) -> Config:
     backend = BackendKind(args.backend)
     sub_configs: dict[str, object] = {
         "local": None, "remote": None, "openai": None, "anthropic": None,
+        "gemini": None, "cohere": None, "mistral": None,
     }
     builder = _BACKEND_CONFIG_BUILDERS.get(backend)
     if builder is not None:
@@ -174,6 +232,9 @@ def _build_config(args: argparse.Namespace) -> Config:
         remote=sub_configs["remote"],
         openai=sub_configs["openai"],
         anthropic=sub_configs["anthropic"],
+        gemini=sub_configs["gemini"],
+        cohere=sub_configs["cohere"],
+        mistral=sub_configs["mistral"],
         rag_enabled=not args.no_rag,
         rag_threshold=args.rag_threshold,
         max_new_tokens=args.max_new_tokens,

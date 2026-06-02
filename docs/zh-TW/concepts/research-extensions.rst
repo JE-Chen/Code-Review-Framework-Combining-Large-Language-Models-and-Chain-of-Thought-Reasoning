@@ -499,6 +499,9 @@ sweep、GPU OOM、runner 逾時、人工 ``ask/cancel``\ ）\ ，現有之
   ``PlatformAdapter`` strategy 之 ``GiteaAdapter``\ 。
 * **commit message 審查**\ （\ ``prthinker review-commits``\ ）——對自 stdin
   讀入之訊息評估品質（conventional-commits、祈使語氣、清晰度）。
+* **額外推論 backend**\ （\ ``--backend gemini|cohere|mistral``\ ）——
+  與 OpenAI/Anthropic 共用同一 ``InferenceBackend`` factory 之 HTTP
+  backend，各有 ``--<provider>-model`` / ``-api-key`` / ``-base-url`` flag。
 * **聚焦審查模式**\ （\ ``--review-modes security,performance,…``\ ）——
   註冊於 ``prthinker.review_modes``\ （Registry pattern）之 opt-in 全 diff
   pass：security/SAST、performance、test-coverage、IaC、DB-migration、

@@ -587,6 +587,10 @@ no inference — so they run on the runner profile.
 * **Commit-message review** (``prthinker review-commits``) — assess
   commit-message quality (conventional-commits, imperative mood,
   clarity) for messages read from stdin.
+* **Additional inference backends** (``--backend gemini|cohere|mistral``)
+  — HTTP backends behind the same ``InferenceBackend`` factory as
+  OpenAI/Anthropic, each with ``--<provider>-model`` / ``-api-key`` /
+  ``-base-url`` flags.
 * **Focused review modes** (``--review-modes security,performance,…``) —
   opt-in whole-diff passes registered in ``prthinker.review_modes``
   (Registry pattern): security/SAST, performance, test-coverage, IaC,

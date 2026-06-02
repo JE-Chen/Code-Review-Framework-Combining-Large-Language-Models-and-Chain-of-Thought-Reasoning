@@ -115,6 +115,52 @@ def _build_common_parser() -> argparse.ArgumentParser:
         "--anthropic-version",
         default=env_str("PRTHINKER_ANTHROPIC_VERSION", "2023-06-01"),
     )
+
+    # --- Google Gemini ---------------------------------------------------
+    common.add_argument(
+        "--gemini-model",
+        default=env_str("PRTHINKER_GEMINI_MODEL", "gemini-1.5-pro"),
+    )
+    common.add_argument(
+        "--gemini-api-key",
+        default=env_str("PRTHINKER_GEMINI_API_KEY")
+        or env_str("GEMINI_API_KEY") or env_str("GOOGLE_API_KEY"),
+    )
+    common.add_argument(
+        "--gemini-base-url",
+        default=env_str(
+            "PRTHINKER_GEMINI_BASE_URL",
+            "https://generativelanguage.googleapis.com/v1beta",
+        ),
+    )
+
+    # --- Cohere ----------------------------------------------------------
+    common.add_argument(
+        "--cohere-model",
+        default=env_str("PRTHINKER_COHERE_MODEL", "command-r-plus"),
+    )
+    common.add_argument(
+        "--cohere-api-key",
+        default=env_str("PRTHINKER_COHERE_API_KEY") or env_str("COHERE_API_KEY"),
+    )
+    common.add_argument(
+        "--cohere-base-url",
+        default=env_str("PRTHINKER_COHERE_BASE_URL", "https://api.cohere.com"),
+    )
+
+    # --- Mistral ---------------------------------------------------------
+    common.add_argument(
+        "--mistral-model",
+        default=env_str("PRTHINKER_MISTRAL_MODEL", "mistral-large-latest"),
+    )
+    common.add_argument(
+        "--mistral-api-key",
+        default=env_str("PRTHINKER_MISTRAL_API_KEY") or env_str("MISTRAL_API_KEY"),
+    )
+    common.add_argument(
+        "--mistral-base-url",
+        default=env_str("PRTHINKER_MISTRAL_BASE_URL", "https://api.mistral.ai/v1"),
+    )
     common.add_argument(
         "--no-rag",
         action="store_true",
