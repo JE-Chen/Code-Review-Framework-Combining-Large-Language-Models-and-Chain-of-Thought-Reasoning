@@ -29,7 +29,6 @@ from prthinker.diff import FileDiff, parse_unified_diff
 from prthinker.dismissed import DismissedFilter
 from prthinker.findings import build_provenance_block, parse_inline_findings
 from prthinker.judge import parse_verdict
-from prthinker.pr_classifier import ReviewBudget
 from prthinker.rag import RAGRetriever
 from prthinker.review_cache import CacheKey, ReviewCache
 from prthinker.schemas import (
@@ -132,6 +131,39 @@ def _invoke_on_file_done(
 # prompt + RAG docs + final generation. Tune via the
 # ``PRTHINKER_MAX_STEP_RESULT_CHARS`` env var (server side).
 _DEFAULT_MAX_STEP_RESULT_CHARS = 6000
+
+
+@dataclass(frozen=True)
+class _ClassifyOutcome:
+    """Optional PR-type classification plus the budget-adjusted knobs."""
+
+    classification: "PRClassification | None"
+    inline_review: bool
+    max_findings_per_file: int
+    dialogue_block: str
+
+
+@dataclass(frozen=True)
+class _PerFileOptions:
+    """Per-file review knobs threaded through the per-file loop."""
+
+    all_steps: tuple[type[ReviewStep], ...]
+    max_findings_per_file: int
+    output_dir: Path | None
+    self_correct: bool
+    dialogue_block: str
+    provenance: bool
+    reproducibility_check: bool
+    skip_binary: bool
+    inline_review: bool
+    review_cache: "ReviewCache | None"
+    cache_repo: str
+    cache_pr_number: int
+    risk_by_path: dict
+    verify_suggestions: bool
+    verify_workdir: Path | None
+    verify_cmd: str
+    verify_timeout: float
 
 
 class CoTPipeline:
@@ -282,84 +314,50 @@ class CoTPipeline:
             log.warning("Diff had no parseable files")
             return ReviewResult(code_diff=diff_text, rag_docs=[])
 
-        # ---------- optional PR-type classification ------------------------
-        classification: PRClassification | None = None
-        budget: ReviewBudget | None = None
-        if pr_classify:
-            log.info("Classifying PR type")
-            classify_prompt = pr_classifier.build_prompt(
-                diff_text=diff_text, title=pr_title, body=pr_body,
+        outcome = (
+            self._classify_pr(
+                diff_text, pr_title, pr_body,
+                inline_review, max_findings_per_file, dialogue_block,
             )
-            raw_classify = self._backend.generate(
-                classify_prompt, max_new_tokens=self._max_new_tokens,
+            if pr_classify
+            else _ClassifyOutcome(
+                None, inline_review, max_findings_per_file, dialogue_block,
             )
-            parsed = pr_classifier.parse_classification(raw_classify)
-            classification = PRClassification(
-                pr_type=parsed.pr_type.value, reason=parsed.reason,
-            )
-            budget = pr_classifier.budget_for(parsed.pr_type)
-            log.info(
-                "PR classified as %s -> inline=%s, max_findings=%d",
-                parsed.pr_type.value, budget.run_inline_findings,
-                budget.max_findings_per_file,
-            )
-            # Override caller-supplied flags with classifier's budget
-            # (caller can still pass --no-pr-classify to bypass).
-            inline_review = inline_review and budget.run_inline_findings
-            max_findings_per_file = (
-                budget.max_findings_per_file
-                if budget.max_findings_per_file > 0
-                else max_findings_per_file
-            )
-            if budget.focus_hint:
-                # Append to the dialogue block — it's already a free-form
-                # injection slot for inline-findings.
-                dialogue_block = (
-                    dialogue_block + "\n\n" + budget.focus_hint
-                ).strip()
+        )
+        classification = outcome.classification
+        inline_review = outcome.inline_review
+        max_findings_per_file = outcome.max_findings_per_file
+        dialogue_block = outcome.dialogue_block
 
-        extra: tuple[type[ReviewStep], ...] = ()
-        if inline_review:
-            extra += (InlineFindingsStep,)
-        if counterfactual:
-            if not inline_review:
-                raise ValueError(
-                    "counterfactual step requires inline_review (it operates "
-                    "on the findings list)"
-                )
-            extra += (CounterfactualStep,)
-        if judge:
-            extra += (JudgeStep,)
-        all_steps = self._step_classes + extra
+        all_steps = self._build_step_sequence(inline_review, counterfactual, judge)
+        entropy_summary = (
+            self._compute_entropy_summary(file_diffs) if diff_entropy_check else None
+        )
+        risk_by_path = (
+            self._compute_risk_by_path(file_diffs, risk_workdir)
+            if risk_weighted and risk_workdir is not None
+            else {}
+        )
 
-        entropy_summary: DiffEntropySummary | None = None
-        if diff_entropy_check:
-            e = diff_entropy.compute_entropy(file_diffs)
-            entropy_summary = DiffEntropySummary(
-                file_count=e.file_count,
-                added_lines=e.added_lines,
-                removed_lines=e.removed_lines,
-                dispersion_entropy=e.dispersion_entropy,
-                score=e.score,
-                verdict=e.verdict,
-            )
-            log.info(
-                "diff_entropy: %d file(s) +%d/-%d score=%.2f verdict=%s",
-                e.file_count, e.added_lines, e.removed_lines,
-                e.score, e.verdict,
-            )
-
-        risk_by_path: dict[str, risk_score.RiskScore] = {}
-        if risk_weighted and risk_workdir is not None:
-            paths = [fd.path for fd in file_diffs if not fd.is_binary and not fd.is_deleted]
-            scores = risk_score.compute_risk_scores(paths, workdir=risk_workdir)
-            risk_by_path = {s.path: s for s in scores}
-            log.info(
-                "risk_score: computed for %d file(s); top: %s",
-                len(scores),
-                [(s.path, round(s.score, 2))
-                 for s in sorted(scores, key=lambda x: -x.score)[:3]],
-            )
+        opts = _PerFileOptions(
+            all_steps=all_steps,
+            max_findings_per_file=max_findings_per_file,
+            output_dir=output_dir,
+            self_correct=self_correct,
+            dialogue_block=dialogue_block,
+            provenance=provenance,
+            reproducibility_check=reproducibility_check,
+            skip_binary=skip_binary,
+            inline_review=inline_review,
+            review_cache=review_cache,
+            cache_repo=cache_repo,
+            cache_pr_number=cache_pr_number,
+            risk_by_path=risk_by_path,
+            verify_suggestions=verify_suggestions,
+            verify_workdir=verify_workdir,
+            verify_cmd=verify_cmd,
+            verify_timeout=verify_timeout,
+        )
 
         per_file_results: list[FileReviewResult] = []
         aggregated_findings: list[InlineFinding] = []
@@ -367,98 +365,15 @@ class CoTPipeline:
         aggregated_steps: dict[str, str] = {}
 
         for fd in file_diffs:
-            # Binary / deleted files are not reviewed, but they MUST still
-            # appear in the result so every file the PR touched is
-            # accounted for in the summary comment (an absent file reads
-            # as "never looked at"). Emit a marked, finding-less entry
-            # instead of dropping it; the formatter renders it as skipped.
-            if (skip_binary and fd.is_binary) or fd.is_deleted:
-                reason = "binary" if fd.is_binary else "deleted"
-                log.info("Recording %s file %s as skipped", reason, fd.path)
-                skipped_fr = FileReviewResult(
-                    path=fd.path,
-                    rag_docs=[],
-                    step_outputs={},
-                    inline_findings=[],
-                    is_binary=fd.is_binary,
-                    is_deleted=fd.is_deleted,
-                )
-                per_file_results.append(skipped_fr)
-                _invoke_on_file_done(on_file_done, skipped_fr)
-                continue
+            fr = self._review_single_file(fd, opts)
+            per_file_results.append(fr)
+            aggregated_findings.extend(fr.inline_findings)
+            aggregated_counterfactuals.extend(fr.counterfactuals)
+            for name, output in fr.step_outputs.items():
+                # Namespace each per-file output for the consolidated comment.
+                aggregated_steps[f"{fd.path}::{name}"] = output
+            _invoke_on_file_done(on_file_done, fr)
 
-            cache_key: CacheKey | None = None
-            if review_cache is not None and cache_pr_number > 0 and inline_review:
-                cache_key = CacheKey(
-                    pr_number=cache_pr_number,
-                    repo=cache_repo,
-                    file_path=fd.path,
-                    hunk_sha256=fd.content_sha256(),
-                )
-                cached = review_cache.get(cache_key)
-                if cached is not None:
-                    log.info(
-                        "Differential review: reusing %d cached finding(s) for %s",
-                        len(cached), fd.path,
-                    )
-                    file_result = FileReviewResult(
-                        path=fd.path,
-                        rag_docs=[],
-                        step_outputs={},
-                        inline_findings=cached,
-                        is_binary=fd.is_binary,
-                        is_deleted=fd.is_deleted,
-                    )
-                    per_file_results.append(file_result)
-                    aggregated_findings.extend(cached)
-                    _invoke_on_file_done(on_file_done, file_result)
-                    continue
-
-            file_out_dir = (
-                output_dir / _sanitize(fd.path) if output_dir else None
-            )
-            effective_max = max_findings_per_file
-            if fd.path in risk_by_path:
-                effective_max = risk_score.budget_for_file(
-                    risk_by_path[fd.path].score,
-                    base_budget=max_findings_per_file,
-                )
-                log.debug(
-                    "risk_score: %s score=%.2f budget=%d",
-                    fd.path, risk_by_path[fd.path].score, effective_max,
-                )
-            file_result = self._run_one_file(
-                fd,
-                all_steps,
-                max_findings_per_file=effective_max,
-                output_dir=file_out_dir,
-                self_correct=self_correct,
-                dialogue_block=dialogue_block,
-                provenance=provenance,
-                reproducibility_check=reproducibility_check,
-            )
-            if cache_key is not None:
-                review_cache.put(
-                    cache_key,
-                    file_result.inline_findings,
-                    backend=self._backend.backend_kind(),
-                    model=self._backend.model_name(),
-                )
-            if verify_suggestions and verify_workdir is not None and verify_cmd:
-                file_result = self._verify_suggestions(
-                    file_result,
-                    workdir=verify_workdir,
-                    verify_cmd=verify_cmd,
-                    timeout_seconds=verify_timeout,
-                )
-            per_file_results.append(file_result)
-            aggregated_findings.extend(file_result.inline_findings)
-            aggregated_counterfactuals.extend(file_result.counterfactuals)
-            for name, output in file_result.step_outputs.items():
-                # Concatenate per-file outputs for the consolidated comment.
-                key = f"{fd.path}::{name}"
-                aggregated_steps[key] = output
-            _invoke_on_file_done(on_file_done, file_result)
 
         dep_upgrades = (
             self._run_dep_upgrades(file_diffs, aggregated_steps)
@@ -489,6 +404,181 @@ class CoTPipeline:
         )
 
     # ---------- internals ---------------------------------------------------
+
+    def _classify_pr(
+        self,
+        diff_text: str,
+        pr_title: str,
+        pr_body: str,
+        inline_review: bool,
+        max_findings_per_file: int,
+        dialogue_block: str,
+    ) -> _ClassifyOutcome:
+        """Classify the PR type and fold the classifier's budget into the knobs."""
+        log.info("Classifying PR type")
+        classify_prompt = pr_classifier.build_prompt(
+            diff_text=diff_text, title=pr_title, body=pr_body,
+        )
+        raw_classify = self._backend.generate(
+            classify_prompt, max_new_tokens=self._max_new_tokens,
+        )
+        parsed = pr_classifier.parse_classification(raw_classify)
+        budget = pr_classifier.budget_for(parsed.pr_type)
+        log.info(
+            "PR classified as %s -> inline=%s, max_findings=%d",
+            parsed.pr_type.value, budget.run_inline_findings,
+            budget.max_findings_per_file,
+        )
+        # Override caller knobs with the classifier's budget; caller can
+        # still pass --no-pr-classify to bypass entirely.
+        if budget.max_findings_per_file > 0:
+            max_findings_per_file = budget.max_findings_per_file
+        if budget.focus_hint:
+            dialogue_block = (dialogue_block + "\n\n" + budget.focus_hint).strip()
+        return _ClassifyOutcome(
+            classification=PRClassification(
+                pr_type=parsed.pr_type.value, reason=parsed.reason,
+            ),
+            inline_review=inline_review and budget.run_inline_findings,
+            max_findings_per_file=max_findings_per_file,
+            dialogue_block=dialogue_block,
+        )
+
+    def _build_step_sequence(
+        self, inline_review: bool, counterfactual: bool, judge: bool,
+    ) -> tuple[type[ReviewStep], ...]:
+        """Append the optional inline / counterfactual / judge steps."""
+        extra: tuple[type[ReviewStep], ...] = ()
+        if inline_review:
+            extra += (InlineFindingsStep,)
+        if counterfactual:
+            if not inline_review:
+                raise ValueError(
+                    "counterfactual step requires inline_review (it operates "
+                    "on the findings list)"
+                )
+            extra += (CounterfactualStep,)
+        if judge:
+            extra += (JudgeStep,)
+        return self._step_classes + extra
+
+    def _compute_entropy_summary(
+        self, file_diffs: list[FileDiff],
+    ) -> DiffEntropySummary:
+        """Compute the diff-entropy ("diff bomb") summary for the PR."""
+        e = diff_entropy.compute_entropy(file_diffs)
+        log.info(
+            "diff_entropy: %d file(s) +%d/-%d score=%.2f verdict=%s",
+            e.file_count, e.added_lines, e.removed_lines, e.score, e.verdict,
+        )
+        return DiffEntropySummary(
+            file_count=e.file_count,
+            added_lines=e.added_lines,
+            removed_lines=e.removed_lines,
+            dispersion_entropy=e.dispersion_entropy,
+            score=e.score,
+            verdict=e.verdict,
+        )
+
+    def _compute_risk_by_path(
+        self, file_diffs: list[FileDiff], risk_workdir: Path,
+    ) -> dict[str, risk_score.RiskScore]:
+        """Score reviewable files by change risk, keyed by path."""
+        paths = [
+            fd.path for fd in file_diffs if not fd.is_binary and not fd.is_deleted
+        ]
+        scores = risk_score.compute_risk_scores(paths, workdir=risk_workdir)
+        log.info(
+            "risk_score: computed for %d file(s); top: %s",
+            len(scores),
+            [(s.path, round(s.score, 2))
+             for s in sorted(scores, key=lambda x: -x.score)[:3]],
+        )
+        return {s.path: s for s in scores}
+
+    def _cache_key_for(
+        self, fd: FileDiff, opts: _PerFileOptions,
+    ) -> "CacheKey | None":
+        """Differential-review cache key for a file, or None if not cacheable."""
+        if opts.review_cache is None or opts.cache_pr_number <= 0 or not opts.inline_review:
+            return None
+        return CacheKey(
+            pr_number=opts.cache_pr_number,
+            repo=opts.cache_repo,
+            file_path=fd.path,
+            hunk_sha256=fd.content_sha256(),
+        )
+
+    def _effective_max(self, fd: FileDiff, opts: _PerFileOptions) -> int:
+        """Risk-weighted per-file findings budget."""
+        if fd.path not in opts.risk_by_path:
+            return opts.max_findings_per_file
+        budget = risk_score.budget_for_file(
+            opts.risk_by_path[fd.path].score,
+            base_budget=opts.max_findings_per_file,
+        )
+        log.debug(
+            "risk_score: %s score=%.2f budget=%d",
+            fd.path, opts.risk_by_path[fd.path].score, budget,
+        )
+        return budget
+
+    def _review_single_file(
+        self, fd: FileDiff, opts: _PerFileOptions,
+    ) -> FileReviewResult:
+        """Review one file: skip binary/deleted, reuse cache, else run steps.
+
+        Binary / deleted files still yield a marked, finding-less result so
+        every touched file appears in the summary (an absent file reads as
+        "never looked at").
+        """
+        if (opts.skip_binary and fd.is_binary) or fd.is_deleted:
+            reason = "binary" if fd.is_binary else "deleted"
+            log.info("Recording %s file %s as skipped", reason, fd.path)
+            return FileReviewResult(
+                path=fd.path, rag_docs=[], step_outputs={}, inline_findings=[],
+                is_binary=fd.is_binary, is_deleted=fd.is_deleted,
+            )
+
+        cache_key = self._cache_key_for(fd, opts)
+        if cache_key is not None:
+            cached = opts.review_cache.get(cache_key)
+            if cached is not None:
+                log.info(
+                    "Differential review: reusing %d cached finding(s) for %s",
+                    len(cached), fd.path,
+                )
+                return FileReviewResult(
+                    path=fd.path, rag_docs=[], step_outputs={},
+                    inline_findings=cached,
+                    is_binary=fd.is_binary, is_deleted=fd.is_deleted,
+                )
+
+        file_out_dir = opts.output_dir / _sanitize(fd.path) if opts.output_dir else None
+        file_result = self._run_one_file(
+            fd,
+            opts.all_steps,
+            max_findings_per_file=self._effective_max(fd, opts),
+            output_dir=file_out_dir,
+            self_correct=opts.self_correct,
+            dialogue_block=opts.dialogue_block,
+            provenance=opts.provenance,
+            reproducibility_check=opts.reproducibility_check,
+        )
+        if cache_key is not None:
+            opts.review_cache.put(
+                cache_key, file_result.inline_findings,
+                backend=self._backend.backend_kind(),
+                model=self._backend.model_name(),
+            )
+        if opts.verify_suggestions and opts.verify_workdir is not None and opts.verify_cmd:
+            file_result = self._verify_suggestions(
+                file_result,
+                workdir=opts.verify_workdir,
+                verify_cmd=opts.verify_cmd,
+                timeout_seconds=opts.verify_timeout,
+            )
+        return file_result
 
     def _run_dep_upgrades(
         self,
