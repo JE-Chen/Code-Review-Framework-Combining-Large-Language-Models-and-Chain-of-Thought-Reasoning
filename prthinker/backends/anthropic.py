@@ -97,44 +97,71 @@ class AnthropicBackend(InferenceBackend):
         """
         self._last_usage = None
         prompt_tokens: int | None = None
-        payload = {
+        payload = self._build_stream_payload(prompt, max_new_tokens)
+        with self._client.stream("POST", "/v1/messages", json=payload) as response:
+            response.raise_for_status()
+            for line in response.iter_lines():
+                event = self._parse_sse_event(line)
+                if event is None:
+                    continue
+                event_type = event.get("type")
+
+                if event_type == "message_start":
+                    prompt_tokens = self._prompt_tokens_from_start(event)
+                elif event_type == "content_block_delta":
+                    text = self._text_from_delta(event)
+                    if text:
+                        yield text
+                elif event_type == "message_delta":
+                    self._capture_stream_usage(event, prompt_tokens)
+                elif event_type == "message_stop":
+                    break
+
+    def _build_stream_payload(
+        self, prompt: str, max_new_tokens: int
+    ) -> dict:
+        """Assemble the streaming ``/v1/messages`` request body."""
+        return {
             "model": self._config.model,
             "max_tokens": max_new_tokens,
             "temperature": self._config.temperature,
             "messages": [{"role": "user", "content": prompt}],
             "stream": True,
         }
-        with self._client.stream("POST", "/v1/messages", json=payload) as response:
-            response.raise_for_status()
-            for line in response.iter_lines():
-                if not line or not line.startswith("data:"):
-                    continue
-                try:
-                    event = json.loads(line[5:].strip())
-                except json.JSONDecodeError:
-                    continue
-                event_type = event.get("type")
 
-                if event_type == "message_start":
-                    msg = event.get("message", {}) or {}
-                    p = (msg.get("usage") or {}).get("input_tokens")
-                    if p is not None:
-                        prompt_tokens = int(p)
+    @staticmethod
+    def _parse_sse_event(line: str) -> dict | None:
+        """Decode one SSE ``data:`` line, or ``None`` to skip it."""
+        if not line or not line.startswith("data:"):
+            return None
+        try:
+            return json.loads(line[5:].strip())
+        except json.JSONDecodeError:
+            return None
 
-                elif event_type == "content_block_delta":
-                    delta = event.get("delta") or {}
-                    if delta.get("type") == "text_delta":
-                        text = delta.get("text")
-                        if text:
-                            yield str(text)
+    @staticmethod
+    def _prompt_tokens_from_start(event: dict) -> int | None:
+        """Read ``input_tokens`` from a ``message_start`` event."""
+        msg = event.get("message", {}) or {}
+        tokens = (msg.get("usage") or {}).get("input_tokens")
+        return int(tokens) if tokens is not None else None
 
-                elif event_type == "message_delta":
-                    output = (event.get("usage") or {}).get("output_tokens")
-                    if output is not None and prompt_tokens is not None:
-                        self._last_usage = Usage(prompt_tokens, int(output))
+    @staticmethod
+    def _text_from_delta(event: dict) -> str | None:
+        """Return text from a ``content_block_delta`` text delta, else None."""
+        delta = event.get("delta") or {}
+        if delta.get("type") != "text_delta":
+            return None
+        text = delta.get("text")
+        return str(text) if text else None
 
-                elif event_type == "message_stop":
-                    break
+    def _capture_stream_usage(
+        self, event: dict, prompt_tokens: int | None
+    ) -> None:
+        """Record ``last_usage`` from a ``message_delta`` usage block."""
+        output = (event.get("usage") or {}).get("output_tokens")
+        if output is not None and prompt_tokens is not None:
+            self._last_usage = Usage(prompt_tokens, int(output))
 
     def close(self) -> None:
         self._client.close()

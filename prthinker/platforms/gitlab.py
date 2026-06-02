@@ -235,42 +235,61 @@ class GitLabAdapter(PlatformAdapter):
         until the next marker note overwrites it.
         """
         with self._client() as client:
-            notes: list[dict] = []
-            page = 1
-            while True:
-                response = client.get(
-                    f"/projects/{self._project_quoted}"
-                    f"/merge_requests/{self.mr_iid}/notes",
-                    params={"per_page": 100, "page": page, "sort": "asc"},
-                )
-                response.raise_for_status()
-                batch = response.json()
-                if not batch:
-                    break
-                notes.extend(batch)
-                if len(batch) < 100:
-                    break
-                page += 1
+            notes = self._collect_all_notes(client)
 
-        marker_idx = None
-        for i, note in enumerate(notes):
-            if self.comment_marker in (note.get("body") or ""):
-                marker_idx = i  # last wins
+        marker_idx = self._find_last_marker_idx(notes, self.comment_marker)
         if marker_idx is None:
             return []
+        return self._build_replies(notes, marker_idx)
 
-        marker_user = ((notes[marker_idx].get("author") or {}).get("username") or "")
+    def _collect_all_notes(self, client: httpx.Client) -> list[dict]:
+        """Page through every MR note in ascending creation order."""
+        notes: list[dict] = []
+        page = 1
+        while True:
+            response = client.get(
+                f"/projects/{self._project_quoted}"
+                f"/merge_requests/{self.mr_iid}/notes",
+                params={"per_page": 100, "page": page, "sort": "asc"},
+            )
+            response.raise_for_status()
+            batch = response.json()
+            if not batch:
+                break
+            notes.extend(batch)
+            if len(batch) < 100:
+                break
+            page += 1
+        return notes
+
+    @staticmethod
+    def _find_last_marker_idx(notes: list[dict], marker: str) -> int | None:
+        """Index of the last note containing the prthinker marker, else None."""
+        marker_idx: int | None = None
+        for i, note in enumerate(notes):
+            if marker in (note.get("body") or ""):
+                marker_idx = i  # last wins
+        return marker_idx
+
+    @staticmethod
+    def _note_username(note: dict) -> str:
+        """Author username for a note, or empty string when absent."""
+        return (note.get("author") or {}).get("username") or ""
+
+    @staticmethod
+    def _build_replies(notes: list[dict], marker_idx: int) -> list[AuthorReply]:
+        """Author replies trailing the marker note, dropping bot/system notes."""
+        marker_user = GitLabAdapter._note_username(notes[marker_idx])
+        marker_id = int(notes[marker_idx]["id"])
         replies: list[AuthorReply] = []
         for note in notes[marker_idx + 1:]:
-            author = (note.get("author") or {}).get("username") or ""
-            if author == marker_user:
-                continue
-            if note.get("system"):
+            author = GitLabAdapter._note_username(note)
+            if author == marker_user or note.get("system"):
                 continue
             replies.append(AuthorReply(
                 author=author,
                 body=str(note.get("body") or "").strip(),
-                in_reply_to_id=int(notes[marker_idx]["id"]),
+                in_reply_to_id=marker_id,
                 created_at=str(note.get("created_at") or ""),
             ))
         return replies

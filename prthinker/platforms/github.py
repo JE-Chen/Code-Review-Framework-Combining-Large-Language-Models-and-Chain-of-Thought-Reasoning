@@ -26,6 +26,8 @@ from prthinker.github_api import (
 from prthinker.platforms.base import PlatformAdapter
 from prthinker.schemas import InlineFinding
 
+_COMMENTS_PER_PAGE = 100
+
 
 @dataclass
 class GitHubAdapter(PlatformAdapter):
@@ -116,7 +118,6 @@ class GitHubAdapter(PlatformAdapter):
         """
         import httpx
 
-        marker = self.comment_marker
         with httpx.Client(
             base_url=self.base_url.rstrip("/"),
             timeout=30.0,
@@ -127,42 +128,63 @@ class GitHubAdapter(PlatformAdapter):
                 "User-Agent": "prthinker/0.1",
             },
         ) as client:
-            comments: list[dict] = []
-            page = 1
-            while True:
-                response = client.get(
-                    f"/repos/{self.repo}/issues/{self.pr_number}/comments",
-                    params={"per_page": 100, "page": page},
-                )
-                response.raise_for_status()
-                batch = response.json()
-                if not batch:
-                    break
-                comments.extend(batch)
-                if len(batch) < 100:
-                    break
-                page += 1
+            comments = self._paginate_issue_comments(client)
 
         # Find the latest prthinker comment by marker; everything posted
         # after it is potential author reply.
-        marker_idx = None
-        for i, c in enumerate(comments):
-            if marker in (c.get("body") or ""):
-                marker_idx = i  # last one wins (re-scan continues)
+        marker_idx = self._find_last_marker_index(comments)
         if marker_idx is None:
             return []
+        return self._collect_replies_after_marker(comments, marker_idx)
 
+    def _paginate_issue_comments(self, client: object) -> list[dict]:
+        """Fetch every issue-comment page for this PR, oldest first."""
+        comments: list[dict] = []
+        page = 1
+        while True:
+            response = client.get(
+                f"/repos/{self.repo}/issues/{self.pr_number}/comments",
+                params={"per_page": _COMMENTS_PER_PAGE, "page": page},
+            )
+            response.raise_for_status()
+            batch = response.json()
+            if not batch:
+                break
+            comments.extend(batch)
+            if len(batch) < _COMMENTS_PER_PAGE:
+                break
+            page += 1
+        return comments
+
+    def _find_last_marker_index(self, comments: list[dict]) -> int | None:
+        """Index of the most recent prthinker summary comment, if any."""
+        marker_idx = None
+        for i, comment in enumerate(comments):
+            if self.comment_marker in (comment.get("body") or ""):
+                marker_idx = i  # last one wins (re-scan continues)
+        return marker_idx
+
+    @staticmethod
+    def _comment_login(comment: dict) -> str:
+        """Login of the comment author, or empty string when absent."""
+        return (comment.get("user") or {}).get("login") or ""
+
+    def _collect_replies_after_marker(
+        self, comments: list[dict], marker_idx: int,
+    ) -> list[AuthorReply]:
+        """Build :class:`AuthorReply` objects for non-bot comments after the marker."""
+        marker_user = self._comment_login(comments[marker_idx])
+        in_reply_to_id = int(comments[marker_idx]["id"])
         replies: list[AuthorReply] = []
-        marker_user = (comments[marker_idx].get("user") or {}).get("login") or ""
-        for c in comments[marker_idx + 1:]:
-            user = (c.get("user") or {}).get("login") or ""
+        for comment in comments[marker_idx + 1:]:
+            user = self._comment_login(comment)
             if user == marker_user:
                 continue  # skip our own follow-up comments
             replies.append(AuthorReply(
                 author=user,
-                body=str(c.get("body") or "").strip(),
-                in_reply_to_id=int(comments[marker_idx]["id"]),
-                created_at=str(c.get("created_at") or ""),
+                body=str(comment.get("body") or "").strip(),
+                in_reply_to_id=in_reply_to_id,
+                created_at=str(comment.get("created_at") or ""),
             ))
         return replies
 
