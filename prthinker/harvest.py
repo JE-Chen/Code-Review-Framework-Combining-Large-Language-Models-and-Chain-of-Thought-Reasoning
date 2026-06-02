@@ -159,34 +159,50 @@ def _harvest_one_pr(
     stats: HarvestStats,
 ) -> None:
     comments = _fetch_review_comments(client, repo, pr_number)
-    by_parent: dict[int, list[dict]] = {}
-    for c in comments:
-        parent = c.get("in_reply_to_id")
-        if parent:
-            by_parent.setdefault(int(parent), []).append(c)
-
+    by_parent = _index_replies_by_parent(comments)
     for c in comments:
         stats.comments_scanned += 1
         if c.get("in_reply_to_id"):
             # Replies themselves aren't candidate parents.
             continue
-        reason = _dismissal_reason(client, repo, c, by_parent.get(int(c["id"]), []))
-        if reason is None:
-            continue
+        replies = by_parent.get(int(c["id"]), [])
+        _harvest_dismissed_comment(client, repo, c, replies, store, stats)
 
-        path = c.get("path") or ""
-        body = (c.get("body") or "").strip()
-        if not body:
-            continue
-        store.append(
-            DismissedExample(
-                path=path,
-                comment=body,
-                reason=reason,
-                diff_snippet=(c.get("diff_hunk") or "").strip(),
-            )
+
+def _index_replies_by_parent(comments: list[dict]) -> dict[int, list[dict]]:
+    """Group reply comments by their parent comment id."""
+    by_parent: dict[int, list[dict]] = {}
+    for c in comments:
+        parent = c.get("in_reply_to_id")
+        if parent:
+            by_parent.setdefault(int(parent), []).append(c)
+    return by_parent
+
+
+def _harvest_dismissed_comment(
+    client: httpx.Client,
+    repo: str,
+    comment: dict,
+    replies: Iterable[dict],
+    store: DismissedExamplesStore,
+    stats: HarvestStats,
+) -> None:
+    """Append the comment as a dismissed example when it is dismissed and non-empty."""
+    reason = _dismissal_reason(client, repo, comment, replies)
+    if reason is None:
+        return
+    body = (comment.get("body") or "").strip()
+    if not body:
+        return
+    store.append(
+        DismissedExample(
+            path=comment.get("path") or "",
+            comment=body,
+            reason=reason,
+            diff_snippet=(comment.get("diff_hunk") or "").strip(),
         )
-        stats.dismissed_found += 1
+    )
+    stats.dismissed_found += 1
 
 
 def _fetch_review_comments(

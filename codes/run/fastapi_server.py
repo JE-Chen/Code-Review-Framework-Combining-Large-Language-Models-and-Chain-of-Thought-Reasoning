@@ -266,6 +266,35 @@ def _evict_stale_jobs_locked() -> None:
         del _JOBS[jid]
 
 
+def _cancel_if_idle(jid: str, job: "_Job | _AskJob", now: float, label: str) -> None:
+    """Set a running job's cancel_event if it has been idle past the timeout."""
+    if job.status != "running":
+        return
+    if job.cancel_event.is_set():
+        return
+    idle_for = now - job.last_polled_at
+    if idle_for > _IDLE_TIMEOUT_SECONDS:
+        log.warning(
+            "%s job %s idle for %.0fs; setting cancel_event",
+            label,
+            jid,
+            idle_for,
+        )
+        job.cancel_event.set()
+
+
+def _sweep_table_once(
+    lock: threading.Lock,
+    jobs: "dict[str, _Job] | dict[str, _AskJob]",
+    label: str,
+    now: float,
+) -> None:
+    """Cancel every idle running job in one job table under its lock."""
+    with lock:
+        for jid, job in jobs.items():
+            _cancel_if_idle(jid, job, now, label)
+
+
 def _sweep_idle_jobs() -> None:
     """Background sweeper: cancel running jobs that nobody is polling.
 
@@ -278,32 +307,8 @@ def _sweep_idle_jobs() -> None:
     while True:
         time.sleep(_SWEEPER_INTERVAL_SECONDS)
         now = time.time()
-        with _JOBS_LOCK:
-            for jid, job in _JOBS.items():
-                if job.status != "running":
-                    continue
-                if job.cancel_event.is_set():
-                    continue
-                if now - job.last_polled_at > _IDLE_TIMEOUT_SECONDS:
-                    log.warning(
-                        "Review job %s idle for %.0fs; setting cancel_event",
-                        jid,
-                        now - job.last_polled_at,
-                    )
-                    job.cancel_event.set()
-        with _ASK_JOBS_LOCK:
-            for jid, job in _ASK_JOBS.items():
-                if job.status != "running":
-                    continue
-                if job.cancel_event.is_set():
-                    continue
-                if now - job.last_polled_at > _IDLE_TIMEOUT_SECONDS:
-                    log.warning(
-                        "Ask job %s idle for %.0fs; setting cancel_event",
-                        jid,
-                        now - job.last_polled_at,
-                    )
-                    job.cancel_event.set()
+        _sweep_table_once(_JOBS_LOCK, _JOBS, "Review", now)
+        _sweep_table_once(_ASK_JOBS_LOCK, _ASK_JOBS, "Ask", now)
 
 
 threading.Thread(target=_sweep_idle_jobs, daemon=True).start()

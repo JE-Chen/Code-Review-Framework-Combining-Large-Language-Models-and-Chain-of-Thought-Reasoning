@@ -105,6 +105,17 @@ def detect_conflicts(edits: Iterable[_Edit]) -> ConflictReport:
     return ConflictReport(applied=applied, skipped=skipped)
 
 
+def _normalize_replacement(repl: str, lines: list[str], i0: int, i1: int) -> str:
+    """Append a trailing newline when the last replaced line had one."""
+    if repl.endswith("\n") or not i0 < i1 <= len(lines):
+        return repl
+    # If the original last line had a newline, the replacement should too —
+    # diffs rarely include trailing-newline-less final lines, but be defensive.
+    if lines[i1 - 1].endswith("\n"):
+        return repl + "\n"
+    return repl
+
+
 def apply_suggestions_to_text(
     text: str,
     findings: list[InlineFinding],
@@ -122,16 +133,7 @@ def apply_suggestions_to_text(
         # Convert 1-based inclusive range to 0-based slice [start-1, end).
         i0 = max(0, edit.start - 1)
         i1 = min(len(lines), edit.end)
-        # Ensure replacement ends with a newline; preserve trailing newline
-        # of the last replaced line if present.
-        repl = edit.replacement
-        if i1 > i0 and i1 <= len(lines) and not repl.endswith("\n"):
-            # If the original last line had a newline, the replacement
-            # should too — diffs rarely include trailing-newline-less
-            # final lines, but be defensive.
-            if lines[i1 - 1].endswith("\n"):
-                repl = repl + "\n"
-        lines[i0:i1] = [repl]
+        lines[i0:i1] = [_normalize_replacement(edit.replacement, lines, i0, i1)]
     return "".join(lines), report
 
 

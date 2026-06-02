@@ -169,6 +169,16 @@ class TelemetrySink:
         ).fetchall()
 
 
+def _sum_int(rows: list[tuple], idx: int) -> int:
+    """Sum one integer column, treating ``None`` cells as zero."""
+    return sum(int(r[idx] or 0) for r in rows)
+
+
+def _sum_float(rows: list[tuple], idx: int) -> float:
+    """Sum one float column, treating ``None`` cells as zero."""
+    return float(sum(float(r[idx] or 0.0) for r in rows))
+
+
 def _stats_from_rows(
     backend: str, model: str, rows: list[tuple]
 ) -> BackendStats:
@@ -178,10 +188,10 @@ def _stats_from_rows(
         backend=backend,
         model=model,
         calls=len(rows),
-        cache_hits=sum(int(r[4]) for r in rows),
-        prompt_tokens=sum(int(r[0] or 0) for r in rows),
-        completion_tokens=sum(int(r[1] or 0) for r in rows),
-        cost_usd=float(sum(float(r[3] or 0.0) for r in rows)),
+        cache_hits=_sum_int(rows, 4),
+        prompt_tokens=_sum_int(rows, 0),
+        completion_tokens=_sum_int(rows, 1),
+        cost_usd=_sum_float(rows, 3),
         latency_p50_ms=median(latencies),
         latency_p95_ms=_percentile(latencies, 0.95),
     )

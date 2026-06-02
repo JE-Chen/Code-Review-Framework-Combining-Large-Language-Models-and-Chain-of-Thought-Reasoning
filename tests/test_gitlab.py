@@ -12,6 +12,7 @@ import httpx
 
 from prthinker.dialogue import AuthorReply
 from prthinker.platforms.gitlab import GitLabAdapter
+from prthinker.schemas import InlineFinding
 
 _MARKER = "<!-- prthinker:summary -->"
 
@@ -157,3 +158,131 @@ def test_fetch_author_replies_paginates() -> None:
 def test_fetch_author_replies_empty_notes() -> None:
     adapter = _adapter_with_pages([[]])
     assert adapter.fetch_author_replies() == []
+
+
+# ----- submit_inline_review -------------------------------------------------
+
+_DIFF_REFS = {
+    "base_sha": "b" * 40,
+    "start_sha": "s" * 40,
+    "head_sha": "h" * 40,
+}
+
+
+class _ScriptedReviewClient:
+    """Replays the MR GET then records every discussion / note POST."""
+
+    def __init__(
+        self,
+        *,
+        diff_refs: dict | None,
+        post_statuses: list[int] | None = None,
+    ) -> None:
+        self._diff_refs = diff_refs
+        self._post_statuses = list(post_statuses or [])
+        self.posts: list[tuple[str, dict]] = []
+        self._next_id = 100
+
+    def __enter__(self) -> _ScriptedReviewClient:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+    def get(self, path: str, params: dict | None = None) -> httpx.Response:
+        del path, params
+        body: dict[str, Any] = {}
+        if self._diff_refs is not None:
+            body["diff_refs"] = self._diff_refs
+        return httpx.Response(
+            200,
+            request=httpx.Request("GET", "http://test/mr"),
+            json=body,
+        )
+
+    def post(self, path: str, json: dict | None = None) -> httpx.Response:
+        self.posts.append((path, json or {}))
+        status = self._post_statuses.pop(0) if self._post_statuses else 201
+        self._next_id += 1
+        return httpx.Response(
+            status,
+            request=httpx.Request("POST", "http://test" + path),
+            json={"id": self._next_id},
+        )
+
+
+def _review_adapter(client: _ScriptedReviewClient) -> GitLabAdapter:
+    adapter = GitLabAdapter(project="g/p", token="t", mr_iid=7)
+    adapter._client = lambda: client  # type: ignore[method-assign]  # noqa: SLF001
+    return adapter
+
+
+def _finding(path: str = "a.py", line: int = 3) -> InlineFinding:
+    return InlineFinding(
+        path=path, line=line, severity="error", comment="fix this"
+    )
+
+
+def test_submit_inline_review_no_findings_returns_none() -> None:
+    adapter = GitLabAdapter(project="g/p", token="t", mr_iid=7)
+    assert adapter.submit_inline_review(
+        [], summary_body=None, event="COMMENT"
+    ) is None
+
+
+def test_submit_inline_review_missing_shas_raises() -> None:
+    client = _ScriptedReviewClient(diff_refs={"base_sha": "b" * 40})
+    adapter = _review_adapter(client)
+    try:
+        adapter.submit_inline_review(
+            [_finding()], summary_body=None, event="COMMENT"
+        )
+    except RuntimeError as err:
+        assert "diff_refs missing required SHAs" in str(err)
+    else:
+        raise AssertionError("expected RuntimeError")
+
+
+def test_submit_inline_review_happy_path_returns_first_id() -> None:
+    client = _ScriptedReviewClient(diff_refs=dict(_DIFF_REFS))
+    adapter = _review_adapter(client)
+    result = adapter.submit_inline_review(
+        [_finding("a.py", 3), _finding("b.py", 4)],
+        summary_body=None,
+        event="APPROVE",
+    )
+    assert result == 101
+    discussions = [p for p in client.posts if p[0].endswith("/discussions")]
+    assert len(discussions) == 2
+    first_payload = discussions[0][1]
+    assert first_payload["position"]["new_path"] == "a.py"
+    assert first_payload["position"]["new_line"] == 3
+    assert first_payload["position"]["base_sha"] == "b" * 40
+    assert first_payload["body"].startswith("**Verdict: APPROVE** — ")
+
+
+def test_submit_inline_review_skips_failed_posts() -> None:
+    client = _ScriptedReviewClient(
+        diff_refs=dict(_DIFF_REFS), post_statuses=[422, 201]
+    )
+    adapter = _review_adapter(client)
+    result = adapter.submit_inline_review(
+        [_finding("a.py", 3), _finding("b.py", 4)],
+        summary_body=None,
+        event="COMMENT",
+    )
+    # First POST failed (422) so first_id comes from the second POST.
+    assert result == 102
+
+
+def test_submit_inline_review_posts_summary_note() -> None:
+    client = _ScriptedReviewClient(diff_refs=dict(_DIFF_REFS))
+    adapter = _review_adapter(client)
+    adapter.submit_inline_review(
+        [_finding()], summary_body="overall summary", event="COMMENT"
+    )
+    notes = [
+        p for p in client.posts
+        if p[0].endswith("/notes") and p[1].get("body") == "overall summary"
+    ]
+    assert len(notes) == 1

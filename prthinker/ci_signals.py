@@ -44,8 +44,7 @@ def fetch_ci_failure_signals(
     """
     signals: list[FailureSignal] = []
     with _client(token) as client:
-        runs = _list_failed_runs(client, repo, head_sha)
-        for run in runs:
+        for run in _list_failed_runs(client, repo, head_sha):
             if len(signals) >= max_jobs:
                 break
             for job in _list_failed_jobs(client, repo, int(run["id"])):
@@ -54,16 +53,19 @@ def fetch_ci_failure_signals(
                 tail = _fetch_job_log_tail(
                     client, repo, int(job["id"]), log_tail_chars
                 )
-                signals.append(
-                    FailureSignal(
-                        workflow_name=str(run.get("name") or run.get("path") or ""),
-                        job_name=str(job.get("name") or ""),
-                        conclusion=str(job.get("conclusion") or "failure"),
-                        log_tail=tail,
-                    )
-                )
+                signals.append(_build_signal(run, job, tail))
     log.info("Collected %d failure signal(s) for %s", len(signals), head_sha[:8])
     return signals
+
+
+def _build_signal(run: dict, job: dict, log_tail: str) -> FailureSignal:
+    """Assemble a FailureSignal, falling back through the run/job name fields."""
+    return FailureSignal(
+        workflow_name=str(run.get("name") or run.get("path") or ""),
+        job_name=str(job.get("name") or ""),
+        conclusion=str(job.get("conclusion") or "failure"),
+        log_tail=log_tail,
+    )
 
 
 def format_signals_block(signals: list[FailureSignal]) -> str:

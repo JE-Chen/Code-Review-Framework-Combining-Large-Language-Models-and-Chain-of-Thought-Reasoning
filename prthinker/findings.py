@@ -168,25 +168,44 @@ def parse_inline_findings(
 
     findings: list[InlineFinding] = []
     for item in parsed:
-        finding = _validate_finding(item, path)
-        if finding is None:
-            continue
-        if allowed is not None and finding.line not in allowed:
-            log.debug(
-                "Dropping finding on %s:%d — line not in diff",
-                finding.path, finding.line,
-            )
-            continue
-        finding = _sanitize_suggestion(finding, allowed)
-        finding = _sanitize_provenance(
-            finding,
+        finding = _process_finding_item(
+            item,
+            path=path,
             allowed=allowed,
             n_rag_rules=n_rag_rules,
             n_accepted_examples=n_accepted_examples,
         )
-        findings.append(finding)
+        if finding is not None:
+            findings.append(finding)
 
     return findings
+
+
+def _process_finding_item(
+    item: dict,
+    *,
+    path: str,
+    allowed: set[int] | None,
+    n_rag_rules: int,
+    n_accepted_examples: int,
+) -> "InlineFinding | None":
+    """Validate, line-filter, and sanitize one finding dict; ``None`` drops it."""
+    finding = _validate_finding(item, path)
+    if finding is None:
+        return None
+    if allowed is not None and finding.line not in allowed:
+        log.debug(
+            "Dropping finding on %s:%d — line not in diff",
+            finding.path, finding.line,
+        )
+        return None
+    finding = _sanitize_suggestion(finding, allowed)
+    return _sanitize_provenance(
+        finding,
+        allowed=allowed,
+        n_rag_rules=n_rag_rules,
+        n_accepted_examples=n_accepted_examples,
+    )
 
 
 def _index_in_range(index: int | None, available: int) -> bool:
@@ -272,11 +291,17 @@ def _suggestion_range_reason(
         and finding.start_line not in allowed
     ):
         return f"start_line {finding.start_line} not in diff"
-    if finding.is_multiline:
-        expected = finding.line - (finding.start_line or finding.line) + 1
-        actual = len(finding.suggestion.splitlines())
-        if actual != expected:
-            return f"suggestion has {actual} lines, expected {expected}"
+    return _multiline_length_reason(finding)
+
+
+def _multiline_length_reason(finding: InlineFinding) -> str | None:
+    """Return why a multiline suggestion's line count is wrong, or ``None``."""
+    if not finding.is_multiline:
+        return None
+    expected = finding.line - (finding.start_line or finding.line) + 1
+    actual = len(finding.suggestion.splitlines())
+    if actual != expected:
+        return f"suggestion has {actual} lines, expected {expected}"
     return None
 
 

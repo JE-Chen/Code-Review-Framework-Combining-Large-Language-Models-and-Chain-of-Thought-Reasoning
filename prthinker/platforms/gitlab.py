@@ -172,46 +172,15 @@ class GitLabAdapter(PlatformAdapter):
 
         with self._client() as client:
             mr = self._mr(client)
-            diff_refs = mr.get("diff_refs") or {}
-            position_base = {
-                "base_sha":  diff_refs.get("base_sha"),
-                "start_sha": diff_refs.get("start_sha"),
-                "head_sha":  diff_refs.get("head_sha"),
-                "position_type": "text",
-            }
-            if not all([
-                position_base["base_sha"], position_base["start_sha"],
-                position_base["head_sha"],
-            ]):
-                raise RuntimeError(
-                    f"GitLab MR {self.mr_iid}: diff_refs missing required SHAs"
-                )
-
+            position_base = self._build_position_base(mr.get("diff_refs") or {})
             event_prefix = _EVENT_BODY_PREFIX.get(event, "")
             first_id: int | None = None
-            for f in findings:
-                body = event_prefix + _format_body(f)
-                payload = {
-                    "body": body,
-                    "position": {
-                        **position_base,
-                        "new_path": f.path,
-                        "new_line": f.line,
-                    },
-                }
-                response = client.post(
-                    f"/projects/{self._project_quoted}"
-                    f"/merge_requests/{self.mr_iid}/discussions",
-                    json=payload,
+            for finding in findings:
+                new_id = self._post_finding_discussion(
+                    client, position_base, event_prefix, finding,
                 )
-                if response.status_code >= 400:
-                    log.warning(
-                        "GitLab discussion POST failed (%d) for %s:%d: %s",
-                        response.status_code, f.path, f.line, response.text,
-                    )
-                    continue
                 if first_id is None:
-                    first_id = int(response.json().get("id", 0)) or None
+                    first_id = new_id
 
             if summary_body:
                 # Drop a top-level note tying the discussions together.
@@ -222,6 +191,52 @@ class GitLabAdapter(PlatformAdapter):
                 )
 
             return first_id
+
+    def _build_position_base(self, diff_refs: dict[str, Any]) -> dict[str, Any]:
+        """Validate diff_refs and assemble the shared discussion position."""
+        position_base = {
+            "base_sha":  diff_refs.get("base_sha"),
+            "start_sha": diff_refs.get("start_sha"),
+            "head_sha":  diff_refs.get("head_sha"),
+            "position_type": "text",
+        }
+        if not all([
+            position_base["base_sha"], position_base["start_sha"],
+            position_base["head_sha"],
+        ]):
+            raise RuntimeError(
+                f"GitLab MR {self.mr_iid}: diff_refs missing required SHAs"
+            )
+        return position_base
+
+    def _post_finding_discussion(
+        self,
+        client: httpx.Client,
+        position_base: dict[str, Any],
+        event_prefix: str,
+        finding: InlineFinding,
+    ) -> int | None:
+        """POST one finding as a discussion; return its id or None on failure."""
+        payload = {
+            "body": event_prefix + _format_body(finding),
+            "position": {
+                **position_base,
+                "new_path": finding.path,
+                "new_line": finding.line,
+            },
+        }
+        response = client.post(
+            f"/projects/{self._project_quoted}"
+            f"/merge_requests/{self.mr_iid}/discussions",
+            json=payload,
+        )
+        if response.status_code >= 400:
+            log.warning(
+                "GitLab discussion POST failed (%d) for %s:%d: %s",
+                response.status_code, finding.path, finding.line, response.text,
+            )
+            return None
+        return int(response.json().get("id", 0)) or None
 
     # ----- dialogue ------------------------------------------------------
 

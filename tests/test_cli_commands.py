@@ -274,3 +274,100 @@ def test_cmd_aggregate_posts_summary(tmp_path: Path, monkeypatch) -> None:
     rc = cli_commands._cmd_aggregate(args)
     assert rc == 0
     assert any(c[0] == "upsert_summary_comment" for c in adapter.calls)
+
+
+def _stats_args(tmp_path: Path, **overrides: object) -> argparse.Namespace:
+    defaults = {
+        "telemetry_path": str(tmp_path / "telemetry.sqlite"),
+        "cache_path": str(tmp_path / "prompt-cache.sqlite"),
+        "since_days": None,
+    }
+    defaults.update(overrides)
+    return argparse.Namespace(**defaults)
+
+
+def _record_call(path: Path, **overrides: object) -> None:
+    from prthinker.telemetry import CallRecord, TelemetrySink
+
+    fields = {
+        "backend": "openai",
+        "model": "gpt-4o-mini",
+        "prompt_tokens": 100,
+        "completion_tokens": 50,
+        "tokens_estimated": False,
+        "latency_ms": 123.0,
+        "cache_hit": False,
+        "error": None,
+    }
+    fields.update(overrides)
+    TelemetrySink(path).record(CallRecord(**fields))
+
+
+def test_cmd_stats_missing_telemetry(tmp_path: Path, capsys) -> None:
+    args = _stats_args(tmp_path)
+    rc = cli_commands._cmd_stats(args)
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "No telemetry file" in captured.err
+
+
+def test_cmd_stats_empty_window(tmp_path: Path, capsys) -> None:
+    from prthinker.telemetry import TelemetrySink
+
+    tpath = tmp_path / "telemetry.sqlite"
+    TelemetrySink(tpath)  # create empty db file
+    args = _stats_args(tmp_path)
+    rc = cli_commands._cmd_stats(args)
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert "No calls recorded" in captured.out
+
+
+def test_cmd_stats_reports_calls(tmp_path: Path, capsys) -> None:
+    tpath = tmp_path / "telemetry.sqlite"
+    _record_call(tpath)
+    _record_call(tpath, cache_hit=True)
+    args = _stats_args(tmp_path)
+    rc = cli_commands._cmd_stats(args)
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "# prthinker stats — all-time" in out
+    assert "openai" in out
+    assert "gpt-4o-mini" in out
+    assert "Total: 2 call(s), 1 cache hits (50.0%)" in out
+
+
+def test_cmd_stats_since_days_label(tmp_path: Path, capsys) -> None:
+    tpath = tmp_path / "telemetry.sqlite"
+    _record_call(tpath)
+    args = _stats_args(tmp_path, since_days=7)
+    rc = cli_commands._cmd_stats(args)
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "last 7 day(s)" in out
+
+
+def test_cmd_stats_truncates_long_model(tmp_path: Path, capsys) -> None:
+    tpath = tmp_path / "telemetry.sqlite"
+    long_model = "x" * 40
+    _record_call(tpath, model=long_model)
+    args = _stats_args(tmp_path)
+    rc = cli_commands._cmd_stats(args)
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert ("x" * 33 + "..") in out
+
+
+def test_cmd_stats_includes_cache_summary(tmp_path: Path, capsys) -> None:
+    tpath = tmp_path / "telemetry.sqlite"
+    _record_call(tpath)
+    from prthinker.cache import PromptCache
+
+    cpath = tmp_path / "prompt-cache.sqlite"
+    PromptCache(cpath)  # create cache db so cache_path.exists()
+    args = _stats_args(tmp_path)
+    rc = cli_commands._cmd_stats(args)
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Cache:" in out
+    assert "entries stored" in out

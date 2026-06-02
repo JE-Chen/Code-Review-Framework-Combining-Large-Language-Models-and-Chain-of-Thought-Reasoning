@@ -135,6 +135,33 @@ class RemotePipelineClient:
                 # must not mask the original exception.
                 self._send_cancel(job_id)
 
+    @staticmethod
+    def _poll_sleep_seconds(consecutive_failures: int) -> float:
+        """Compute the back-off sleep before the next poll attempt."""
+        if consecutive_failures <= _POLL_BACKOFF_AFTER_FAILURES:
+            return _POLL_INTERVAL_SECONDS
+        return min(
+            _POLL_INTERVAL_SECONDS
+            * 2 ** (consecutive_failures - _POLL_BACKOFF_AFTER_FAILURES),
+            _POLL_MAX_INTERVAL_SECONDS,
+        )
+
+    @staticmethod
+    def _terminal_result_or_none(job_id: str, payload: dict) -> "ReviewResponse | None":
+        """Map a poll payload to a result, raise on terminal errors, else None."""
+        status = payload.get("status")
+        if status == "done":
+            return ReviewResponse.model_validate(payload["result"])
+        if status == "error":
+            raise RuntimeError(
+                f"Remote review job {job_id} failed: {payload.get('error')}"
+            )
+        if status == "cancelled":
+            raise RuntimeError(
+                f"Remote review job {job_id} was cancelled server-side"
+            )
+        return None
+
     def _poll_until_done(self, job_id: str) -> ReviewResponse:
         deadline = time.monotonic() + self._config.timeout_seconds
         consecutive_failures = 0
@@ -144,15 +171,7 @@ class RemotePipelineClient:
                     f"Remote review job {job_id} did not finish within "
                     f"{self._config.timeout_seconds}s"
                 )
-            if consecutive_failures <= _POLL_BACKOFF_AFTER_FAILURES:
-                sleep_seconds = _POLL_INTERVAL_SECONDS
-            else:
-                sleep_seconds = min(
-                    _POLL_INTERVAL_SECONDS
-                    * 2 ** (consecutive_failures - _POLL_BACKOFF_AFTER_FAILURES),
-                    _POLL_MAX_INTERVAL_SECONDS,
-                )
-            time.sleep(sleep_seconds)
+            time.sleep(self._poll_sleep_seconds(consecutive_failures))
             try:
                 poll_resp = self._client.get(f"/review/result/{job_id}")
                 poll_resp.raise_for_status()
@@ -164,29 +183,27 @@ class RemotePipelineClient:
                 httpx.HTTPStatusError,
             ) as exc:
                 consecutive_failures += 1
-                if consecutive_failures > _MAX_CONSECUTIVE_POLL_FAILURES:
-                    raise
-                log.warning(
-                    "Poll %d/%d for job %s failed transiently: %s",
-                    consecutive_failures,
-                    _MAX_CONSECUTIVE_POLL_FAILURES,
-                    job_id,
-                    exc,
-                )
+                self._note_poll_failure(job_id, consecutive_failures, exc)
                 continue
             consecutive_failures = 0
-            payload = poll_resp.json()
-            status = payload.get("status")
-            if status == "done":
-                return ReviewResponse.model_validate(payload["result"])
-            if status == "error":
-                raise RuntimeError(
-                    f"Remote review job {job_id} failed: {payload.get('error')}"
-                )
-            if status == "cancelled":
-                raise RuntimeError(
-                    f"Remote review job {job_id} was cancelled server-side"
-                )
+            result = self._terminal_result_or_none(job_id, poll_resp.json())
+            if result is not None:
+                return result
+
+    @staticmethod
+    def _note_poll_failure(
+        job_id: str, consecutive_failures: int, exc: Exception
+    ) -> None:
+        """Log a transient poll failure; re-raise once the budget is exhausted."""
+        if consecutive_failures > _MAX_CONSECUTIVE_POLL_FAILURES:
+            raise exc
+        log.warning(
+            "Poll %d/%d for job %s failed transiently: %s",
+            consecutive_failures,
+            _MAX_CONSECUTIVE_POLL_FAILURES,
+            job_id,
+            exc,
+        )
 
     def _send_cancel(self, job_id: str) -> None:
         try:

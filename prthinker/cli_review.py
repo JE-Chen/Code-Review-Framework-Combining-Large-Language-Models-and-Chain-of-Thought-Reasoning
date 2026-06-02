@@ -356,6 +356,26 @@ def _synthesize_overall_summary(per_file: list) -> str:
         log.warning("Overall summary synthesis failed (%s); skipping", exc)
         return ""
 
+def _apply_target_file_filter(files: list, args: argparse.Namespace) -> list:
+    """Keep only the path named by --target-file, or all files when unset."""
+    target = (getattr(args, "target_file", "") or "").strip()
+    if not target:
+        return files
+    return [fd for fd in files if fd.path == target]
+
+def _apply_exclude_globs_filter(files: list, args: argparse.Namespace) -> list:
+    """Drop files matching any comma-separated --exclude-globs pattern."""
+    import fnmatch
+
+    excludes_raw = (getattr(args, "exclude_globs", "") or "").strip()
+    patterns = [p.strip() for p in excludes_raw.split(",") if p.strip()]
+    if not patterns:
+        return files
+    return [
+        fd for fd in files
+        if not any(fnmatch.fnmatch(fd.path, p) for p in patterns)
+    ]
+
 def _filter_per_file_targets(
     files: list, args: argparse.Namespace
 ) -> list:
@@ -366,21 +386,8 @@ def _filter_per_file_targets(
     (--exclude-globs) so generated data / IDE config doesn't waste model
     capacity. Both filters are no-ops when their args are empty.
     """
-    import fnmatch
-
-    target = (getattr(args, "target_file", "") or "").strip()
-    if target:
-        files = [fd for fd in files if fd.path == target]
-
-    excludes_raw = (getattr(args, "exclude_globs", "") or "").strip()
-    if excludes_raw:
-        patterns = [p.strip() for p in excludes_raw.split(",") if p.strip()]
-        if patterns:
-            def _matches_any(path: str) -> bool:
-                return any(fnmatch.fnmatch(path, p) for p in patterns)
-            files = [fd for fd in files if not _matches_any(fd.path)]
-
-    return files
+    files = _apply_target_file_filter(files, args)
+    return _apply_exclude_globs_filter(files, args)
 
 def _review_via_server(
     args: argparse.Namespace, config: Config, diff_text: str
@@ -855,46 +862,36 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
 
     return _publish_review_result(args, adapter, result, gate_handle, platform_kind)
 
-def _maybe_open_auto_fix_pr(
-    gh: GitHubConfig,
-    args: argparse.Namespace,
-    result: ReviewResult,
-) -> None:
-    """Apply ``--auto-fix-threshold`` to surviving warning suggestions."""
-    eligible = [
-        f for f in result.inline_findings
-        if f.severity == "warning" and f.suggestion is not None
-    ]
-    if len(eligible) < args.auto_fix_threshold:
-        log.info(
-            "Auto-fix: %d eligible suggestion(s) below threshold %d — skipped",
-            len(eligible), args.auto_fix_threshold,
-        )
-        return
+def _resolve_auto_fix_base_branch(
+    gh: GitHubConfig, args: argparse.Namespace
+) -> str | None:
+    """Return the auto-fix base branch, fetching it from the PR if unset."""
+    base_branch = args.auto_fix_base_branch
+    if base_branch:
+        return base_branch
 
+    from prthinker.github_api import fetch_pr_base_branch
+    try:
+        return fetch_pr_base_branch(gh)
+    except Exception as exc:
+        log.warning("Auto-fix: could not fetch base branch: %s", exc)
+        return None
+
+def _open_auto_fix_pr_and_report(
+    gh: GitHubConfig,
+    findings_by_file: dict[str, list[InlineFinding]],
+    base_branch: str,
+) -> None:
+    """Open the auto-fix PR for the collected findings and log the outcome."""
     from prthinker.auto_fix import open_auto_fix_pr
 
-    findings_by_file: dict[str, list[InlineFinding]] = {}
-    for f in eligible:
-        findings_by_file.setdefault(f.path, []).append(f)
-
-    base_branch = args.auto_fix_base_branch
-    if not base_branch:
-        from prthinker.github_api import fetch_pr_base_branch
-        try:
-            base_branch = fetch_pr_base_branch(gh)
-        except Exception as exc:
-            log.warning("Auto-fix: could not fetch base branch: %s", exc)
-            return
-
-    repo_root = Path.cwd()
     try:
         auto_result = open_auto_fix_pr(
             config=gh,
             findings_by_file=findings_by_file,
             base_pr_number=gh.pr_number,
             base_branch=base_branch,
-            repo_root=repo_root,
+            repo_root=Path.cwd(),
         )
     except Exception as exc:
         log.error("Auto-fix failed: %s", exc)
@@ -912,3 +909,30 @@ def _maybe_open_auto_fix_pr(
         auto_result.total_findings_skipped,
         len(auto_result.files_changed),
     )
+
+def _maybe_open_auto_fix_pr(
+    gh: GitHubConfig,
+    args: argparse.Namespace,
+    result: ReviewResult,
+) -> None:
+    """Apply ``--auto-fix-threshold`` to surviving warning suggestions."""
+    eligible = [
+        f for f in result.inline_findings
+        if f.severity == "warning" and f.suggestion is not None
+    ]
+    if len(eligible) < args.auto_fix_threshold:
+        log.info(
+            "Auto-fix: %d eligible suggestion(s) below threshold %d — skipped",
+            len(eligible), args.auto_fix_threshold,
+        )
+        return
+
+    findings_by_file: dict[str, list[InlineFinding]] = {}
+    for f in eligible:
+        findings_by_file.setdefault(f.path, []).append(f)
+
+    base_branch = _resolve_auto_fix_base_branch(gh, args)
+    if base_branch is None:
+        return
+
+    _open_auto_fix_pr_and_report(gh, findings_by_file, base_branch)

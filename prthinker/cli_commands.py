@@ -9,6 +9,10 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from prthinker.telemetry import BackendStats
 
 
 from prthinker.backends import create_backend
@@ -37,6 +41,13 @@ from prthinker.pipeline import (
 from prthinker.schemas import InlineFinding
 
 log = logging.getLogger("prthinker")
+
+_STATS_ROW_FMT = (
+    "{backend:<10} {model:<35} {calls:>6} {hits:>5} {ptok:>9} "
+    "{ctok:>9} {cost:>9} {p50:>8} {p95:>8}\n"
+)
+_STATS_RULE = "-" * 110 + "\n"
+_STATS_MODEL_CAP = 35
 
 
 @dataclass
@@ -576,7 +587,6 @@ def _cmd_hook(args: argparse.Namespace) -> int:
     return 1
 
 def _cmd_stats(args: argparse.Namespace) -> int:
-    from prthinker.cache import PromptCache
     from prthinker.telemetry import TelemetrySink
 
     telemetry_path = Path(args.telemetry_path)
@@ -599,13 +609,19 @@ def _cmd_stats(args: argparse.Namespace) -> int:
     )
     sys.stdout.write(f"# prthinker stats — {range_label}\n\n")
 
-    fmt = "{backend:<10} {model:<35} {calls:>6} {hits:>5} {ptok:>9} {ctok:>9} {cost:>9} {p50:>8} {p95:>8}\n"
-    sys.stdout.write(fmt.format(
+    _write_stats_table(stats)
+    _write_cache_summary(Path(args.cache_path))
+    return 0
+
+
+def _write_stats_table(stats: list[BackendStats]) -> None:
+    """Write the per-backend table plus the aggregate totals footer."""
+    sys.stdout.write(_STATS_ROW_FMT.format(
         backend="backend", model="model", calls="calls", hits="hits",
         ptok="in-tok", ctok="out-tok", cost="USD",
         p50="p50 ms", p95="p95 ms",
     ))
-    sys.stdout.write("-" * 110 + "\n")
+    sys.stdout.write(_STATS_RULE)
     total_cost = 0.0
     total_calls = 0
     total_hits = 0
@@ -613,33 +629,43 @@ def _cmd_stats(args: argparse.Namespace) -> int:
         total_cost += s.cost_usd
         total_calls += s.calls
         total_hits += s.cache_hits
-        sys.stdout.write(fmt.format(
-            backend=s.backend,
-            model=(s.model[:33] + "..") if len(s.model) > 35 else s.model,
-            calls=s.calls,
-            hits=s.cache_hits,
-            ptok=s.prompt_tokens,
-            ctok=s.completion_tokens,
-            cost=f"${s.cost_usd:.4f}",
-            p50=f"{s.latency_p50_ms:.0f}",
-            p95=f"{s.latency_p95_ms:.0f}",
-        ))
-    sys.stdout.write("-" * 110 + "\n")
+        _write_stats_row(s)
+    sys.stdout.write(_STATS_RULE)
     hit_rate = (total_hits / total_calls * 100) if total_calls else 0.0
     sys.stdout.write(
         f"Total: {total_calls} call(s), {total_hits} cache hits "
         f"({hit_rate:.1f}%), ${total_cost:.4f}\n"
     )
 
-    cache_path = Path(args.cache_path)
-    if cache_path.exists():
-        cache = PromptCache(cache_path)
-        cstats = cache.stats()
-        sys.stdout.write(
-            f"\nCache: {cstats.total_entries} entries stored, "
-            f"{cstats.total_hits} lifetime hits at {cache_path}\n"
-        )
-    return 0
+
+def _write_stats_row(s: BackendStats) -> None:
+    """Write a single backend statistics row, truncating long model names."""
+    model = (s.model[:33] + "..") if len(s.model) > _STATS_MODEL_CAP else s.model
+    sys.stdout.write(_STATS_ROW_FMT.format(
+        backend=s.backend,
+        model=model,
+        calls=s.calls,
+        hits=s.cache_hits,
+        ptok=s.prompt_tokens,
+        ctok=s.completion_tokens,
+        cost=f"${s.cost_usd:.4f}",
+        p50=f"{s.latency_p50_ms:.0f}",
+        p95=f"{s.latency_p95_ms:.0f}",
+    ))
+
+
+def _write_cache_summary(cache_path: Path) -> None:
+    """Append the prompt-cache summary line when a cache db exists."""
+    if not cache_path.exists():
+        return
+    from prthinker.cache import PromptCache
+
+    cache = PromptCache(cache_path)
+    cstats = cache.stats()
+    sys.stdout.write(
+        f"\nCache: {cstats.total_entries} entries stored, "
+        f"{cstats.total_hits} lifetime hits at {cache_path}\n"
+    )
 
 def _cmd_mcp(_args: argparse.Namespace) -> int:
     # Lazy import: the MCP server is an optional integration; keep it off the
