@@ -167,9 +167,12 @@ dashboard renders them as fourteen panels:
 * **Container** — prthinker CPU cores, RAM, and network RX/TX
   (from cAdvisor).
 
-Alerting is not provisioned — add rules under
-``monitoring/prometheus.yml`` (or wire Grafana alerting against the same
-datasource) for the thresholds your deploy cares about.
+Alerting rules ship in ``monitoring/alerts.yml`` (loaded via
+``rule_files`` in ``prometheus.yml``) — backend-down, >5% 5xx, review
+p95 over 10 min, review errors, and GPU over 85 °C. They surface as
+``ALERTS`` series in the Prometheus UI and Grafana; add an Alertmanager
+(point Prometheus at it with an ``alerting:`` block) if you need routing
+or paging. Tune the thresholds to your traffic and SLOs.
 
 Rebuilding the image safely (``rebuild-server.sh``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

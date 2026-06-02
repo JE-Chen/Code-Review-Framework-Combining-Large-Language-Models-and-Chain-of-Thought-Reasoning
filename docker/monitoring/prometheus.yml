@@ -13,6 +13,12 @@ global:
   external_labels:
     cluster: prthinker
 
+# Alerting rules (mounted by docker-compose.monitoring.yml). Produces
+# ALERTS series visible in the Prometheus UI and Grafana; bring your own
+# Alertmanager for routing/paging.
+rule_files:
+  - /etc/prometheus/alerts.yml
+
 scrape_configs:
   - job_name: prthinker-fastapi
     metrics_path: /metrics

@@ -156,8 +156,11 @@ endpoint）、\ ``dcgm-gpu``\ （各 GPU 遙測）、\ ``cadvisor-containers``\
 * **GPU**\ ──使用率、已用記憶體、功耗、溫度（來自 DCGM）\ 。
 * **容器**\ ──prthinker CPU cores、RAM、網路 RX/TX（來自 cAdvisor）\ 。
 
-未佈建 alerting——請在 ``monitoring/prometheus.yml`` 加 rule（或用同一
-datasource 設定 Grafana alerting），對應你部署在意之門檻\ 。
+alerting 規則隨附於 ``monitoring/alerts.yml``\ （經 ``prometheus.yml`` 之
+``rule_files`` 載入)——backend 掛掉、5xx 超過 5%、審查 p95 超過 10 分鐘、
+審查錯誤、GPU 超過 85 °C。它們會以 ``ALERTS`` series 顯示在 Prometheus UI
+與 Grafana；需要路由/呼叫請加一個 Alertmanager(於 ``prometheus.yml`` 加
+``alerting:`` 區塊指向它)。門檻請依流量與 SLO 自行調整\ 。
 
 安全重建 image（``rebuild-server.sh``）
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

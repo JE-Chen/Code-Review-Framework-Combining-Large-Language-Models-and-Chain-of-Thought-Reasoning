@@ -1,0 +1,61 @@
+# Prometheus alerting rules for the prthinker monitoring overlay.
+#
+# These produce ALERTS series visible in the Prometheus UI
+# (/prometheus/alerts) and in Grafana against the same datasource. No
+# Alertmanager is bundled; add one and point Prometheus at it via an
+# `alerting:` block in prometheus.yml if you need routing/paging.
+#
+# Thresholds are conservative defaults — tune to your traffic and SLOs.
+groups:
+  - name: prthinker-availability
+    rules:
+      - alert: PrthinkerBackendDown
+        expr: up{job="prthinker-fastapi"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "prthinker backend is down"
+          description: "The /metrics target for prthinker-fastapi has been unreachable for 2m."
+
+      - alert: PrthinkerHigh5xxRate
+        expr: |
+          sum(rate(http_requests_total{job="prthinker-fastapi", status=~"5.."}[5m]))
+            / clamp_min(sum(rate(http_requests_total{job="prthinker-fastapi"}[5m])), 1)
+            > 0.05
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "prthinker 5xx rate above 5%"
+          description: "More than 5% of requests have returned 5xx for 5m."
+
+  - name: prthinker-reviews
+    rules:
+      - alert: PrthinkerReviewLatencyP95High
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(prthinker_review_duration_seconds_bucket[15m]))
+          ) > 600
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Review p95 latency above 10 minutes"
+          description: "95th-percentile CoT review duration has exceeded 600s for 10m."
+
+      - alert: PrthinkerReviewErrors
+        expr: sum(rate(prthinker_reviews_total{outcome="error"}[15m])) > 0
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "prthinker reviews are erroring"
+          description: "At least one review has failed (outcome=error) per scrape over 15m."
+
+  - name: prthinker-gpu
+    rules:
+      - alert: PrthinkerGpuTooHot
+        expr: DCGM_FI_DEV_GPU_TEMP > 85
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "GPU temperature above 85C"
+          description: "GPU {{ $labels.gpu }} has been above 85C for 5m."
