@@ -475,6 +475,37 @@ def _build_common_parser() -> argparse.ArgumentParser:
              "Anthropic / Stripe / Slack / JWT / PEM keys) from the diff "
              "before any backend call. Strongly recommended for paid backends.",
     )
+    common.add_argument(
+        "--sarif-out",
+        default=env_str("PRTHINKER_SARIF_OUT"),
+        help="Write findings as a SARIF 2.1.0 file to this path "
+             "(for GitHub code-scanning or any SARIF viewer).",
+    )
+    common.add_argument(
+        "--html-report",
+        default=env_str("PRTHINKER_HTML_REPORT"),
+        help="Write a standalone HTML review report to this path.",
+    )
+    common.add_argument(
+        "--ignore-file",
+        default=env_str("PRTHINKER_IGNORE_FILE", ".prthinkerignore"),
+        help="Path to a .prthinkerignore file (glob / rule: / severity: "
+             "suppression rules). Missing file is a no-op.",
+    )
+    common.add_argument(
+        "--dedupe-findings",
+        action="store_true",
+        default=env_bool("PRTHINKER_DEDUPE_FINDINGS", False),
+        help="Collapse near-duplicate findings (same path+line, "
+             "equivalent message) before submission.",
+    )
+    common.add_argument(
+        "--api-impact",
+        action="store_true",
+        default=env_bool("PRTHINKER_API_IMPACT", False),
+        help="Append a public-API semver-impact line "
+             "(major/minor/patch) to the summary comment.",
+    )
     return common
 
 
@@ -499,7 +530,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_pr = sub.add_parser("review-pr", parents=[common])
     p_pr.add_argument(
         "--platform",
-        choices=["github", "gitlab"],
+        choices=["github", "gitlab", "gitea"],
         default=env_str("PRTHINKER_PLATFORM", "github"),
         help="Which forge to talk to. GitHub uses /pulls + Check Runs; "
              "GitLab uses /merge_requests + commit statuses.",
@@ -592,7 +623,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_agg.add_argument(
         "--platform",
-        choices=["github", "gitlab"],
+        choices=["github", "gitlab", "gitea"],
         default=env_str("PRTHINKER_PLATFORM", "github"),
     )
     p_agg.add_argument(
@@ -695,6 +726,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--cache-path",
         default=env_str("PRTHINKER_CACHE_PATH", ".prthinker/cache.sqlite"),
         help="Also report cache fill / hit counters if the file exists",
+    )
+
+    sub.add_parser(
+        "review-commits",
+        parents=[common],
+        help="Review commit-message quality (messages read from stdin, one per line)",
     )
 
     p_report = sub.add_parser(

@@ -28,6 +28,7 @@ from prthinker.schemas import InlineFinding
 class PlatformKind(str, Enum):
     GITHUB = "github"
     GITLAB = "gitlab"
+    GITEA = "gitea"
 
 
 class PlatformAdapter(ABC):

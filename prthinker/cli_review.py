@@ -31,8 +31,13 @@ from prthinker.ci_signals import (
     fetch_ci_failure_signals,
     format_signals_block,
 )
+from prthinker.api_surface import compute_api_surface
 from prthinker.diff import parse_unified_diff
+from prthinker.finding_dedup import dedupe_findings
 from prthinker.formatters import format_pr_comment
+from prthinker.html_report import write_report
+from prthinker.ignore import filter_findings, load_ignore
+from prthinker.sarif import write_sarif
 from prthinker.incremental_save import (
     IncrementalReviewWriter,
     ReviewMeta,
@@ -787,6 +792,39 @@ def _maybe_autofix(
     )
     _maybe_open_auto_fix_pr(gh, args, result)
 
+def _postprocess_findings(args: argparse.Namespace, result: ReviewResult) -> None:
+    """Apply .prthinkerignore suppression and de-duplication in place."""
+    spec = load_ignore(getattr(args, "ignore_file", "") or ".prthinkerignore")
+    if not spec.is_empty:
+        result.inline_findings = filter_findings(result.inline_findings, spec)
+        for file_result in result.per_file:
+            file_result.inline_findings = filter_findings(
+                file_result.inline_findings, spec
+            )
+    if getattr(args, "dedupe_findings", False):
+        result.inline_findings = dedupe_findings(result.inline_findings)
+
+
+def _emit_review_artifacts(args: argparse.Namespace, result: ReviewResult) -> None:
+    """Write optional SARIF / HTML report artifacts when requested."""
+    sarif_out = getattr(args, "sarif_out", "") or ""
+    if sarif_out:
+        write_sarif(result, sarif_out)
+        log.info("Wrote SARIF to %s", sarif_out)
+    html_out = getattr(args, "html_report", "") or ""
+    if html_out:
+        write_report(result, Path(html_out))
+        log.info("Wrote HTML report to %s", html_out)
+
+
+def _append_api_impact(body: str, result: ReviewResult) -> str:
+    """Append a public-API semver-impact line to the summary comment."""
+    report = compute_api_surface(parse_unified_diff(result.code_diff))
+    log.info("api-surface impact=%s (+%d/-%d/~%d)", report.impact,
+             len(report.added), len(report.removed), len(report.changed))
+    return f"{body}\n\nPublic API impact: **{report.impact}**"
+
+
 def _publish_review_result(
     args: argparse.Namespace,
     adapter: object,
@@ -795,7 +833,11 @@ def _publish_review_result(
     platform_kind: object,
 ) -> int:
     """Post comment + inline review, close the gate, and trigger auto-fix."""
+    _postprocess_findings(args, result)
+    _emit_review_artifacts(args, result)
     body = format_pr_comment(result, marker=args.marker)
+    if getattr(args, "api_impact", False):
+        body = _append_api_impact(body, result)
     if args.dry_run:
         return _emit_dry_run(result, body)
     output_json = getattr(args, "output_json", "")

@@ -36,6 +36,7 @@ from prthinker.cli_commands import (
     _cmd_hook,
     _cmd_mcp,
     _cmd_report,
+    _cmd_review_commits,
     _cmd_stats,
     _cmd_visualize_kg,
     _kg_html_path,
@@ -60,6 +61,7 @@ _COMMAND_HANDLERS: dict[str, Callable[[argparse.Namespace], int]] = {
     "visualize-kg": _cmd_visualize_kg,
     "mcp": _cmd_mcp,
     "hook": _cmd_hook,
+    "review-commits": _cmd_review_commits,
     "harvest-dismissed": _cmd_harvest,
     "harvest-accepted": _cmd_harvest_accepted,
 }

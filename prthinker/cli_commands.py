@@ -34,6 +34,7 @@ from prthinker.cli_review import (
     _run_review,
     _synthesize_overall_summary,
 )
+from prthinker.commit_review import build_prompt, parse_review
 from prthinker.pipeline import (
     FileReviewResult,
     ReviewResult,
@@ -585,6 +586,28 @@ def _cmd_hook(args: argparse.Namespace) -> int:
         f"`git commit --no-verify` to bypass.\n"
     )
     return 1
+
+def _cmd_review_commits(args: argparse.Namespace) -> int:
+    """Review commit-message quality for messages read from stdin (one per line)."""
+    messages = [line.strip() for line in sys.stdin if line.strip()]
+    if not messages:
+        sys.stderr.write("No commit messages on stdin\n")
+        return 1
+    config = _build_config(args)
+    backend = create_backend(config)
+    raw = backend.generate(
+        build_prompt(messages), max_new_tokens=config.max_new_tokens,
+    )
+    notes = parse_review(raw)
+    if not notes:
+        sys.stdout.write("No commit-message issues found.\n")
+        return 0
+    for note in notes:
+        sys.stdout.write(
+            f"[{note.message_index}] {note.issue}\n    -> {note.suggestion}\n"
+        )
+    return 0
+
 
 def _cmd_stats(args: argparse.Namespace) -> int:
     from prthinker.telemetry import TelemetrySink
