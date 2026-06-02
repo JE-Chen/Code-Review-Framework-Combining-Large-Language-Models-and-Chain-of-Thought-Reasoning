@@ -101,6 +101,45 @@ def _coerce_objects(text: str) -> list[dict]:
     return items
 
 
+def _extract_findings_objects(body: str) -> list[dict]:
+    """Parse the model body into a list of finding dicts (best effort)."""
+    array_text = _extract_array(body)
+    if array_text is not None:
+        try:
+            data = json.loads(array_text)
+        except json.JSONDecodeError:
+            data = None
+        if isinstance(data, list):
+            return [item for item in data if isinstance(item, dict)]
+    return _coerce_objects(body)
+
+
+def _validate_finding(item: dict, path: str) -> "InlineFinding | None":
+    """Validate one finding dict, retrying once without a bad provenance block.
+
+    A malformed ``provenance`` citation must never lose a real finding, so
+    on validation failure we strip it and retry before giving up.
+    """
+    item["path"] = path  # Always pin to the file we're reviewing.
+    if "provenance" in item and not isinstance(item["provenance"], dict):
+        item.pop("provenance")
+    try:
+        return InlineFinding.model_validate(item)
+    except ValidationError as exc:
+        if "provenance" not in item:
+            log.debug("Dropped malformed finding %r: %s", item, exc)
+            return None
+    stripped = {k: v for k, v in item.items() if k != "provenance"}
+    try:
+        finding = InlineFinding.model_validate(stripped)
+    except ValidationError as exc2:
+        log.debug("Dropped malformed finding %r: %s", item, exc2)
+        return None
+    log.debug("Stripped bad provenance from finding on %s:%s",
+              path, item.get("line"))
+    return finding
+
+
 def parse_inline_findings(
     raw_output: str,
     *,
@@ -120,20 +159,7 @@ def parse_inline_findings(
     if not body or body == "[]":
         return []
 
-    parsed: list[dict] | None = None
-
-    array_text = _extract_array(body)
-    if array_text is not None:
-        try:
-            data = json.loads(array_text)
-            if isinstance(data, list):
-                parsed = [item for item in data if isinstance(item, dict)]
-        except json.JSONDecodeError:
-            parsed = None
-
-    if parsed is None:
-        parsed = _coerce_objects(body)
-
+    parsed = _extract_findings_objects(body)
     if not parsed:
         log.warning("No JSON findings could be extracted for %s", path)
         return []
@@ -142,38 +168,15 @@ def parse_inline_findings(
 
     findings: list[InlineFinding] = []
     for item in parsed:
-        item.setdefault("path", path)
-        item["path"] = path  # Always pin to the file we're reviewing.
-        # Pre-clean a malformed provenance block so it does not blow up
-        # the whole finding. ``provenance`` is optional; on any parse
-        # failure we strip it and keep the finding.
-        if "provenance" in item and not isinstance(item["provenance"], dict):
-            item.pop("provenance")
-        try:
-            finding = InlineFinding.model_validate(item)
-        except ValidationError as exc:
-            # One more try without provenance, on the principle that a
-            # bad citation should never lose a real finding.
-            if "provenance" in item:
-                stripped = {k: v for k, v in item.items() if k != "provenance"}
-                try:
-                    finding = InlineFinding.model_validate(stripped)
-                except ValidationError as exc2:
-                    log.debug("Dropped malformed finding %r: %s", item, exc2)
-                    continue
-                log.debug("Stripped bad provenance from finding on %s:%s (%s)",
-                          path, item.get("line"), exc)
-            else:
-                log.debug("Dropped malformed finding %r: %s", item, exc)
-                continue
-
+        finding = _validate_finding(item, path)
+        if finding is None:
+            continue
         if allowed is not None and finding.line not in allowed:
             log.debug(
                 "Dropping finding on %s:%d — line not in diff",
                 finding.path, finding.line,
             )
             continue
-
         finding = _sanitize_suggestion(finding, allowed)
         finding = _sanitize_provenance(
             finding,
