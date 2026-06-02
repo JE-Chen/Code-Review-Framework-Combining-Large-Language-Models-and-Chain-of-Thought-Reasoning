@@ -1518,8 +1518,8 @@ def _cmd_review_file(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_review_pr(args: argparse.Namespace) -> int:
-    config = _build_config(args)
+def _validate_pr_args(args: argparse.Namespace) -> None:
+    """Fail fast on the inputs ``review-pr`` cannot run without."""
     if not args.repo:
         raise SystemExit("--repo or $GITHUB_REPOSITORY / $CI_PROJECT_PATH is required")
     if not args.pr_number:
@@ -1527,8 +1527,232 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
     if not args.github_token:
         raise SystemExit("--github-token / $GITHUB_TOKEN / $GITLAB_TOKEN is required")
 
-    from prthinker.platforms import PlatformKind, create_platform_adapter
 
+def _maybe_fetch_pr_meta(args: argparse.Namespace, adapter: object) -> None:
+    """Populate ``args.pr_title`` / ``args.pr_body`` for the classifier."""
+    if not getattr(args, "pr_classify", False):
+        return
+    try:
+        pr_title, pr_body = adapter.fetch_pr_meta()
+    except Exception as exc:
+        log.warning("Could not fetch PR meta for classifier (%s); "
+                    "classifier will run on diff only", exc)
+        return
+    args.pr_title = pr_title
+    args.pr_body = pr_body
+    log.info("Fetched PR meta: title=%r body_len=%d", pr_title[:60], len(pr_body))
+
+
+def _resolve_head_sha(args: argparse.Namespace, adapter: object) -> str | None:
+    """Fetch the head SHA only when the gate or CI signals need it."""
+    needs = (args.gate_on != "none" and not args.dry_run) or args.include_ci_signals
+    return adapter.fetch_head_sha() if needs else None
+
+
+def _maybe_prepend_ci_signals(
+    args: argparse.Namespace, diff: str, head_sha: str | None, platform_kind: object,
+) -> str:
+    """Prepend CI failure signals to the diff (GitHub only) when enabled."""
+    from prthinker.platforms import PlatformKind
+    if not (args.include_ci_signals and head_sha is not None):
+        return diff
+    if platform_kind is not PlatformKind.GITHUB:
+        log.info("CI signals not yet supported on %s — skipping", platform_kind.value)
+        return diff
+    signals = fetch_ci_failure_signals(
+        args.repo, head_sha, args.github_token,
+        max_jobs=args.ci_signal_max_jobs,
+        log_tail_chars=args.ci_signal_tail_chars,
+    )
+    block = format_signals_block(signals)
+    if block:
+        diff = block + diff
+        log.info("Prepended %d CI failure signal(s) to diff", len(signals))
+    return diff
+
+
+def _open_gate_if_needed(
+    args: argparse.Namespace, adapter: object, head_sha: str | None,
+) -> object | None:
+    """Open the status gate unless this is a dry-run / partial-output run."""
+    skip = (
+        args.gate_on == "none"
+        or args.dry_run
+        or getattr(args, "output_json", "")
+        or head_sha is None
+    )
+    return None if skip else adapter.open_gate(head_sha)
+
+
+def _dialogue_from_replies(adapter: object) -> str:
+    """Render the author-reply dialogue block; tolerate fetch failure."""
+    try:
+        replies = adapter.fetch_author_replies()
+    except Exception as exc:
+        log.warning("Failed to fetch author replies (%s); skipping dialogue", exc)
+        return ""
+    if not replies:
+        return ""
+    from prthinker.dialogue import render_dialogue_block
+    log.info("Injecting %d author reply(ies) into inline-findings prompt", len(replies))
+    return render_dialogue_block(replies)
+
+
+def _dialogue_from_lessons(args: argparse.Namespace) -> str:
+    """Render the derived-lessons block from the lessons store."""
+    lessons_path = Path(getattr(args, "lessons_path", "") or ".prthinker/lessons.jsonl")
+    if not lessons_path.exists():
+        return ""
+    from prthinker.lessons import LessonsStore, format_lessons_block
+    top_k = int(getattr(args, "lessons_top_k", 5) or 5)
+    recent = list(LessonsStore(lessons_path))[-top_k:]
+    block = format_lessons_block(recent)
+    if block:
+        log.info("Injecting %d derived lesson(s) into inline-findings prompt", len(recent))
+    return block
+
+
+def _dialogue_from_kg(args: argparse.Namespace) -> str:
+    """Render the repo knowledge-graph symbol block."""
+    kg_store_path = Path(getattr(args, "kg_store", "") or ".prthinker/repo-kg.sqlite")
+    if not kg_store_path.exists():
+        return ""
+    kg_workdir = Path(getattr(args, "kg_workdir", "") or ".")
+    symbols = KnowledgeGraphStore(kg_store_path).all_symbols(kg_workdir)
+    block = format_kg_block(symbols)
+    if block:
+        log.info("Injecting %d known symbol(s) into inline-findings prompt", len(symbols))
+    return block
+
+
+def _build_dialogue_block(args: argparse.Namespace, adapter: object) -> str:
+    """Assemble the inline-findings context from replies, lessons, and KG."""
+    if not args.inline_review:
+        return ""
+    block = _dialogue_from_replies(adapter) if getattr(args, "reply_to_author", False) else ""
+    if getattr(args, "lessons", False):
+        lessons = _dialogue_from_lessons(args)
+        if lessons:
+            block = (lessons + "\n\n" + block).strip()
+    if getattr(args, "kg_ground", False):
+        kg = _dialogue_from_kg(args)
+        if kg:
+            block = (kg + "\n\n" + block).strip()
+    return block
+
+
+def _close_gate_on_crash(adapter: object, gate_handle: object | None) -> None:
+    """Mark the gate failed when the reviewer raises before publishing."""
+    if gate_handle is None:
+        return
+    from prthinker.checks import CheckResult
+    adapter.close_gate(gate_handle, CheckResult(
+        conclusion="failure",
+        title="Reviewer crashed",
+        summary="The CoT reviewer raised an exception. Check workflow logs.",
+        error_count=0, warning_count=0, info_count=0,
+    ))
+
+
+def _resolve_review_event(args: argparse.Namespace, result: ReviewResult) -> str:
+    """Map aggregated judge verdicts to a platform review event."""
+    if not (args.judge and result.per_file):
+        return "COMMENT"
+    from prthinker.judge import aggregate, to_github_event
+    verdicts = [fr.verdict for fr in result.per_file if fr.verdict is not None]
+    if not verdicts:
+        return "COMMENT"
+    event = to_github_event(aggregate(verdicts))
+    log.info("Judge verdict aggregated → %s", event)
+    return event
+
+
+def _emit_dry_run(result: ReviewResult, body: str) -> int:
+    """Write the would-be comment to stdout for ``--dry-run``."""
+    sys.stdout.write(body)
+    if result.inline_findings:
+        sys.stdout.write(
+            f"\n[would post {len(result.inline_findings)} inline findings]\n"
+        )
+    return 0
+
+
+def _emit_partial_json(result: ReviewResult, output_json: str) -> int:
+    """Persist a partial ReviewResult for the aggregate job."""
+    Path(output_json).parent.mkdir(parents=True, exist_ok=True)
+    Path(output_json).write_text(
+        json.dumps(_serialize_partial_review(result), indent=2),
+        encoding="utf-8",
+    )
+    log.info(
+        "Wrote partial review (files=%d, findings=%d) to %s",
+        len(result.per_file), len(result.inline_findings), output_json,
+    )
+    return 0
+
+
+def _maybe_autofix(
+    args: argparse.Namespace, result: ReviewResult, platform_kind: object,
+) -> None:
+    """Open a draft auto-fix PR (GitHub only) when the threshold is set."""
+    from prthinker.platforms import PlatformKind
+    if not (args.auto_fix_threshold and not args.dry_run):
+        return
+    if platform_kind is not PlatformKind.GITHUB:
+        log.info("Auto-fix not yet supported on %s — skipping", platform_kind.value)
+        return
+    gh = GitHubConfig(
+        repo=args.repo, pr_number=args.pr_number,
+        token=args.github_token, comment_marker=args.marker,
+    )
+    _maybe_open_auto_fix_pr(gh, args, result)
+
+
+def _publish_review_result(
+    args: argparse.Namespace,
+    adapter: object,
+    result: ReviewResult,
+    gate_handle: object | None,
+    platform_kind: object,
+) -> int:
+    """Post comment + inline review, close the gate, and trigger auto-fix."""
+    body = format_pr_comment(result, marker=args.marker)
+    if args.dry_run:
+        return _emit_dry_run(result, body)
+    output_json = getattr(args, "output_json", "")
+    if output_json:
+        return _emit_partial_json(result, output_json)
+
+    comment_id = adapter.upsert_summary_comment(body)
+    log.info("Posted summary comment id=%d", comment_id)
+
+    review_event = _resolve_review_event(args, result)
+    if args.inline_review and result.inline_findings:
+        review_id = adapter.submit_inline_review(
+            result.inline_findings,
+            summary_body="prthinker — inline findings",
+            event=review_event,
+        )
+        log.info("Posted inline review id=%s (event=%s)", review_id, review_event)
+
+    if gate_handle is not None:
+        gate_result = evaluate_gate(result.inline_findings, gate_on=args.gate_on)
+        adapter.close_gate(gate_handle, gate_result)
+        log.info(
+            "Gate conclusion=%s (errors=%d warnings=%d info=%d, floor=%s)",
+            gate_result.conclusion, gate_result.error_count,
+            gate_result.warning_count, gate_result.info_count, args.gate_on,
+        )
+
+    _maybe_autofix(args, result, platform_kind)
+    return 0
+
+
+def _cmd_review_pr(args: argparse.Namespace) -> int:
+    config = _build_config(args)
+    _validate_pr_args(args)
+
+    from prthinker.platforms import PlatformKind, create_platform_adapter
     platform_kind = PlatformKind(args.platform)
     adapter = create_platform_adapter(
         platform_kind,
@@ -1546,174 +1770,19 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
         log.warning("Empty diff — skipping review")
         return 0
 
-    if getattr(args, "pr_classify", False):
-        try:
-            pr_title, pr_body = adapter.fetch_pr_meta()
-            args.pr_title = pr_title
-            args.pr_body = pr_body
-            log.info("Fetched PR meta: title=%r body_len=%d",
-                     pr_title[:60], len(pr_body))
-        except Exception as exc:
-            log.warning("Could not fetch PR meta for classifier (%s); "
-                        "classifier will run on diff only", exc)
-
-    head_sha: str | None = None
-    needs_head_sha = (
-        (args.gate_on != "none" and not args.dry_run)
-        or args.include_ci_signals
-    )
-    if needs_head_sha:
-        head_sha = adapter.fetch_head_sha()
-
-    if args.include_ci_signals and head_sha is not None:
-        # CI signals are currently GitHub-specific; on GitLab we'd want
-        # /projects/:id/jobs which has a different shape. Skip silently
-        # on non-GitHub platforms for now.
-        if platform_kind is PlatformKind.GITHUB:
-            signals = fetch_ci_failure_signals(
-                args.repo, head_sha, args.github_token,
-                max_jobs=args.ci_signal_max_jobs,
-                log_tail_chars=args.ci_signal_tail_chars,
-            )
-            block = format_signals_block(signals)
-            if block:
-                diff = block + diff
-                log.info("Prepended %d CI failure signal(s) to diff", len(signals))
-        else:
-            log.info("CI signals not yet supported on %s — skipping",
-                     platform_kind.value)
-
-    gate_handle = None
-    # Output-json mode skips gate too: the matrix runner that produces
-    # the partial review does not own the gate; the aggregate job does.
-    if (
-        args.gate_on != "none"
-        and not args.dry_run
-        and not getattr(args, "output_json", "")
-        and head_sha is not None
-    ):
-        gate_handle = adapter.open_gate(head_sha)
-
-    dialogue_block = ""
-    if getattr(args, "reply_to_author", False) and args.inline_review:
-        try:
-            replies = adapter.fetch_author_replies()
-        except Exception as exc:
-            log.warning("Failed to fetch author replies (%s); skipping dialogue", exc)
-            replies = []
-        if replies:
-            from prthinker.dialogue import render_dialogue_block
-            dialogue_block = render_dialogue_block(replies)
-            log.info("Injecting %d author reply(ies) into inline-findings prompt",
-                     len(replies))
-
-    if getattr(args, "lessons", False) and args.inline_review:
-        from prthinker.lessons import LessonsStore, format_lessons_block
-        lessons_path = Path(getattr(args, "lessons_path", "") or
-                            ".prthinker/lessons.jsonl")
-        if lessons_path.exists():
-            store = LessonsStore(lessons_path)
-            top_k = int(getattr(args, "lessons_top_k", 5) or 5)
-            recent = list(store)[-top_k:]
-            block = format_lessons_block(recent)
-            if block:
-                dialogue_block = (block + "\n\n" + dialogue_block).strip()
-                log.info("Injecting %d derived lesson(s) into inline-findings prompt",
-                         len(recent))
-
-    if getattr(args, "kg_ground", False) and args.inline_review:
-        kg_store_path = Path(getattr(args, "kg_store", "") or
-                             ".prthinker/repo-kg.sqlite")
-        kg_workdir = Path(getattr(args, "kg_workdir", "") or ".")
-        if kg_store_path.exists():
-            kg_store = KnowledgeGraphStore(kg_store_path)
-            symbols = kg_store.all_symbols(kg_workdir)
-            block = format_kg_block(symbols)
-            if block:
-                dialogue_block = (block + "\n\n" + dialogue_block).strip()
-                log.info("Injecting %d known symbol(s) into inline-findings prompt",
-                         len(symbols))
+    _maybe_fetch_pr_meta(args, adapter)
+    head_sha = _resolve_head_sha(args, adapter)
+    diff = _maybe_prepend_ci_signals(args, diff, head_sha, platform_kind)
+    gate_handle = _open_gate_if_needed(args, adapter, head_sha)
+    dialogue_block = _build_dialogue_block(args, adapter)
 
     try:
         result = _run_review(args, config, diff, dialogue_block=dialogue_block)
     except Exception:
-        if gate_handle is not None:
-            from prthinker.checks import CheckResult
-            adapter.close_gate(gate_handle, CheckResult(
-                conclusion="failure",
-                title="Reviewer crashed",
-                summary="The CoT reviewer raised an exception. Check workflow logs.",
-                error_count=0, warning_count=0, info_count=0,
-            ))
+        _close_gate_on_crash(adapter, gate_handle)
         raise
 
-    body = format_pr_comment(result, marker=args.marker)
-    if args.dry_run:
-        sys.stdout.write(body)
-        if result.inline_findings:
-            sys.stdout.write(
-                f"\n[would post {len(result.inline_findings)} inline findings]\n"
-            )
-        return 0
-
-    output_json = getattr(args, "output_json", "")
-    if output_json:
-        Path(output_json).parent.mkdir(parents=True, exist_ok=True)
-        Path(output_json).write_text(
-            json.dumps(_serialize_partial_review(result), indent=2),
-            encoding="utf-8",
-        )
-        log.info(
-            "Wrote partial review (files=%d, findings=%d) to %s",
-            len(result.per_file),
-            len(result.inline_findings),
-            output_json,
-        )
-        return 0
-
-    comment_id = adapter.upsert_summary_comment(body)
-    log.info("Posted summary comment id=%d", comment_id)
-
-    review_event = "COMMENT"
-    if args.judge and result.per_file:
-        from prthinker.judge import aggregate, to_github_event
-        verdicts = [fr.verdict for fr in result.per_file if fr.verdict is not None]
-        if verdicts:
-            review_event = to_github_event(aggregate(verdicts))
-            log.info("Judge verdict aggregated → %s", review_event)
-
-    if args.inline_review and result.inline_findings:
-        review_id = adapter.submit_inline_review(
-            result.inline_findings,
-            summary_body="prthinker — inline findings",
-            event=review_event,
-        )
-        log.info("Posted inline review id=%s (event=%s)", review_id, review_event)
-
-    if gate_handle is not None:
-        gate_result = evaluate_gate(result.inline_findings, gate_on=args.gate_on)
-        adapter.close_gate(gate_handle, gate_result)
-        log.info(
-            "Gate conclusion=%s (errors=%d warnings=%d info=%d, floor=%s)",
-            gate_result.conclusion,
-            gate_result.error_count, gate_result.warning_count,
-            gate_result.info_count, args.gate_on,
-        )
-
-    if args.auto_fix_threshold and not args.dry_run:
-        # auto-fix opens a draft PR — currently GitHub-only.
-        if platform_kind is PlatformKind.GITHUB:
-            gh = GitHubConfig(
-                repo=args.repo, pr_number=args.pr_number,
-                token=args.github_token, comment_marker=args.marker,
-            )
-            _maybe_open_auto_fix_pr(gh, args, result)
-        else:
-            log.info("Auto-fix not yet supported on %s — skipping",
-                     platform_kind.value)
-
-    return 0
-
+    return _publish_review_result(args, adapter, result, gate_handle, platform_kind)
 
 def _maybe_open_auto_fix_pr(
     gh: GitHubConfig,
