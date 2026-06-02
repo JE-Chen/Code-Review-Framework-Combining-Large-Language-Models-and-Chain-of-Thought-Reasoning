@@ -1,8 +1,10 @@
 Research extensions: adversarial robustness, multi-turn dialogue, counterfactual review
 ========================================================================================
 
-Three mechanisms that go beyond the one-shot reviewer most of the
-LLM-code-review literature has shipped to date. Each is a **framework
+Seventeen research mechanisms that go beyond the one-shot reviewer most
+of the LLM-code-review literature has shipped to date, plus a set of
+operability / output integrations and a few design-only future-work
+items (see the sections below). Each shipped mechanism is a **framework
 contribution** — the code is in this package and unit-tested — but per
 the project's no-fabrication rule, this page reports no measured
 detection rates, no precision deltas, and no benchmark tables. Numbers
