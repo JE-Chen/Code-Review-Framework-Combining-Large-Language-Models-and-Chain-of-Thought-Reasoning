@@ -25,6 +25,7 @@ import logging
 import re
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -109,22 +110,8 @@ def _apply_repo_defaults(parser: argparse.ArgumentParser, config_path: Path | No
                 sub.set_defaults(**defaults)
 
 
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="prthinker")
-    parser.add_argument(
-        "--config",
-        type=Path,
-        default=Path(env_str("PRTHINKER_CONFIG") or "") if env_str("PRTHINKER_CONFIG") else None,
-        help="Path to a .prthinker.yaml (default: ./.prthinker.yaml if present)",
-    )
-    parser.add_argument(
-        "--log-level",
-        default=env_str("PRTHINKER_LOG_LEVEL", "INFO"),
-        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-    )
-
-    sub = parser.add_subparsers(dest="command", required=True)
-
+def _build_common_parser() -> argparse.ArgumentParser:
+    """Build the parser of arguments shared by every subcommand."""
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument(
         "--backend",
@@ -558,6 +545,26 @@ def _build_parser() -> argparse.ArgumentParser:
              "Anthropic / Stripe / Slack / JWT / PEM keys) from the diff "
              "before any backend call. Strongly recommended for paid backends.",
     )
+    return common
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="prthinker")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=Path(env_str("PRTHINKER_CONFIG") or "") if env_str("PRTHINKER_CONFIG") else None,
+        help="Path to a .prthinker.yaml (default: ./.prthinker.yaml if present)",
+    )
+    parser.add_argument(
+        "--log-level",
+        default=env_str("PRTHINKER_LOG_LEVEL", "INFO"),
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+    )
+
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    common = _build_common_parser()
 
     p_pr = sub.add_parser("review-pr", parents=[common])
     p_pr.add_argument(
@@ -2339,6 +2346,33 @@ def _cmd_stats(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_mcp(_args: argparse.Namespace) -> int:
+    # Lazy import: the MCP server is an optional integration; keep it off the
+    # import path of every other command.
+    from prthinker.mcp_server import run as run_mcp  # noqa: PLC0415
+    return run_mcp()
+
+
+# Registry mapping subcommand name -> handler. Replaces a long if/elif
+# dispatch chain so adding a command means adding one entry (Open/Closed).
+_COMMAND_HANDLERS: dict[str, Callable[[argparse.Namespace], int]] = {
+    "review-file": _cmd_review_file,
+    "review-pr": _cmd_review_pr,
+    "aggregate": _cmd_aggregate,
+    "stats": _cmd_stats,
+    "report": _cmd_report,
+    "adversarial-eval": _cmd_adversarial_eval,
+    "derive-lessons": _cmd_derive_lessons,
+    "discover-rules": _cmd_discover_rules,
+    "build-kg": _cmd_build_kg,
+    "visualize-kg": _cmd_visualize_kg,
+    "mcp": _cmd_mcp,
+    "hook": _cmd_hook,
+    "harvest-dismissed": _cmd_harvest,
+    "harvest-accepted": _cmd_harvest_accepted,
+}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     # Peek at --config without forcing a parse, so YAML defaults apply
@@ -2358,37 +2392,11 @@ def main(argv: list[str] | None = None) -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    if args.command == "review-file":
-        return _cmd_review_file(args)
-    if args.command == "review-pr":
-        return _cmd_review_pr(args)
-    if args.command == "aggregate":
-        return _cmd_aggregate(args)
-    if args.command == "stats":
-        return _cmd_stats(args)
-    if args.command == "report":
-        return _cmd_report(args)
-    if args.command == "adversarial-eval":
-        return _cmd_adversarial_eval(args)
-    if args.command == "derive-lessons":
-        return _cmd_derive_lessons(args)
-    if args.command == "discover-rules":
-        return _cmd_discover_rules(args)
-    if args.command == "build-kg":
-        return _cmd_build_kg(args)
-    if args.command == "visualize-kg":
-        return _cmd_visualize_kg(args)
-    if args.command == "mcp":
-        from prthinker.mcp_server import run as run_mcp
-        return run_mcp()
-    if args.command == "hook":
-        return _cmd_hook(args)
-    if args.command == "harvest-dismissed":
-        return _cmd_harvest(args)
-    if args.command == "harvest-accepted":
-        return _cmd_harvest_accepted(args)
-    parser.error(f"unknown command: {args.command}")
-    return 2
+    handler = _COMMAND_HANDLERS.get(args.command)
+    if handler is None:
+        parser.error(f"unknown command: {args.command}")
+        return 2
+    return handler(args)
 
 
 __all__ = ["main"]
