@@ -603,6 +603,25 @@ no inference — so they run on the runner profile.
   discovers review steps published under the ``prthinker.steps``
   entry-point group and is called at CLI startup, so external packages can
   register steps without editing the core (Open/Closed).
+* **Confidence abstention** (``--min-confidence``) — drop findings whose
+  ``provenance`` confidence is below a threshold (use with
+  ``--provenance``); findings without a confidence are always kept.
+* **Citation verification** (library: ``citation_verify``) — flag
+  provenance citations whose rule/example index is out of range or whose
+  diff-evidence line is outside the diff.
+* **Prompt-injection guard** (library: ``injection_guard``) — heuristic
+  ``scan_diff`` / ``redact_injection`` over added lines (direct injection,
+  role-hijack, encoded blobs); best-effort, complements the adversarial
+  corpus.
+* **Localized findings** (library: ``localize``) — prompt+parse to
+  translate finding comments into a target language.
+* **Golden-set snapshots** (library: ``golden``) — write/diff a stable
+  snapshot of findings to catch prompt/behaviour drift (no scores).
+* **Evaluation harness skeleton** (library: ``benchmark``) — run a case
+  corpus through a backend and record raw outputs only; per
+  ``paper_rule.md`` it emits no scores or aggregate numbers.
+* **Cost estimation + budget** (library: ``cost``) — per-call USD
+  estimate from ``pricing`` and a ``CostBudget`` to cap a PR.
 * **Focused review modes** (``--review-modes security,performance,…``) —
   opt-in whole-diff passes registered in ``prthinker.review_modes``
   (Registry pattern): security/SAST, performance, test-coverage, IaC,
@@ -631,6 +650,13 @@ and ship no code:
   sequence; a branching/conditional DAG (skip steps by PR type, fan out
   independent steps) is a larger redesign of ``CoTPipeline`` and step
   resolution. Future work.
+* **Per-author calibration** / **auto-tuned RAG threshold** /
+  **embedding-drift monitor** — these need accumulated accept/dismiss
+  history and an online feedback loop; the corpora stores exist, but the
+  learning loop is design-only. Future work.
+* **Server queue + rate-limiting** and **per-model metric labels** —
+  server-side concurrency control and finer telemetry labels; design-only
+  to keep the boot path and the metrics cardinality stable. Future work.
 
 Status
 ------

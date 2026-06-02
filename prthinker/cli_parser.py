@@ -553,6 +553,14 @@ def _build_common_parser() -> argparse.ArgumentParser:
              "(major/minor/patch) to the summary comment.",
     )
     common.add_argument(
+        "--min-confidence",
+        type=float,
+        default=float(env_str("PRTHINKER_MIN_CONFIDENCE", "0") or 0),
+        help="Drop findings whose provenance confidence is below this "
+             "threshold (0 keeps all; findings without a confidence are "
+             "always kept). Use with --provenance.",
+    )
+    common.add_argument(
         "--review-modes",
         default=env_str("PRTHINKER_REVIEW_MODES", ""),
         help="Comma-separated focused review passes to run over the whole "

@@ -35,6 +35,7 @@ from prthinker.ci_signals import (
     format_signals_block,
 )
 from prthinker.api_surface import compute_api_surface
+from prthinker.confidence import filter_by_confidence
 from prthinker.diff import parse_unified_diff
 from prthinker.finding_dedup import dedupe_findings
 from prthinker.formatters import format_pr_comment
@@ -868,6 +869,9 @@ def _postprocess_findings(args: argparse.Namespace, result: ReviewResult) -> Non
             )
     if getattr(args, "dedupe_findings", False):
         result.inline_findings = dedupe_findings(result.inline_findings)
+    min_conf = float(getattr(args, "min_confidence", 0.0) or 0.0)
+    if min_conf > 0:
+        result.inline_findings = filter_by_confidence(result.inline_findings, min_conf)
 
 
 def _emit_review_artifacts(args: argparse.Namespace, result: ReviewResult) -> None:

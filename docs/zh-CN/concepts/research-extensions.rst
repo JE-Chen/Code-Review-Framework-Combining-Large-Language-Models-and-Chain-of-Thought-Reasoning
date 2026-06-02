@@ -511,6 +511,21 @@ sweep、GPU OOM、runner 超时、人工 ``ask/cancel``\ ）\ ，现有之
 * **第三方 step plugin**\ ——``prthinker.plugins.load_plugin_steps`` 探索
   发布于 ``prthinker.steps`` entry-point group 之 step，于 CLI 启动时调用，
   外部包无需改 core 即可注册 step（Open/Closed）\ 。
+* **信心弃权**\ （\ ``--min-confidence``\ ）——丢弃 ``provenance`` 信心低于
+  阈值之 finding（搭配 ``--provenance``\ ）；无信心值者一律保留\ 。
+* **citation 验证**\ （library：\ ``citation_verify``\ ）——标记 rule/example
+  索引越界或 diff-evidence 行不在 diff 内之引用\ 。
+* **prompt-injection guard**\ （library：\ ``injection_guard``\ ）——对新增行
+  之启发式 ``scan_diff`` / ``redact_injection``\ （direct injection、role
+  hijack、encoded blob）；best-effort，补充 adversarial 语料\ 。
+* **本地化 finding**\ （library：\ ``localize``\ ）——prompt+parse 将 finding
+  comment 翻成目标语言\ 。
+* **golden-set 快照**\ （library：\ ``golden``\ ）——写入/比对 finding 稳定
+  快照以检测 prompt/行为漂移（无分数）\ 。
+* **评估 harness 骨架**\ （library：\ ``benchmark``\ ）——把 case 语料跑过
+  backend 只记录原始输出；依 ``paper_rule.md`` 不输出分数或汇总数字\ 。
+* **成本估算 + 预算**\ （library：\ ``cost``\ ）——由 ``pricing`` 估每次
+  USD 成本，并以 ``CostBudget`` 为 PR 设上限\ 。
 * **聚焦审查模式**\ （\ ``--review-modes security,performance,…``\ ）——
   注册于 ``prthinker.review_modes``\ （Registry pattern）之 opt-in 全 diff
   pass：security/SAST、performance、test-coverage、IaC、DB-migration、
@@ -533,6 +548,11 @@ monitoring overlay 另附 **Prometheus alerting 规则**\ （\
 * **可配置 step DAG**\ ——pipeline 目前跑固定线性 step 序列；分支/条件 DAG
   （依 PR 类型跳步、独立步骤 fan out）属 ``CoTPipeline`` 与 step 解析之较大
   重写。未来工作\ 。
+* **按作者校准** / **自动调整 RAG 阈值** / **embedding 漂移监测**\ ——需累积
+  accept/dismiss 历史与在线反馈回路；语料 store 已存在，但学习回路仅设计\ 。
+  未来工作\ 。
+* **server queue + rate-limiting** 与 **per-model 指标标签**\ ——server 端
+  并发控制与更细遥测标签；为保 boot path 与指标基数稳定，仅设计\ 。未来工作\ 。
 
 状态
 ----
