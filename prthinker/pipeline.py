@@ -460,58 +460,18 @@ class CoTPipeline:
                 aggregated_steps[key] = output
             _invoke_on_file_done(on_file_done, file_result)
 
-        dep_upgrades: list[DependencyUpgradeFinding] = []
-        if dep_upgrade_check:
-            upgrades = dep_upgrade.detect_upgrades(file_diffs)
-            for up in upgrades:
-                log.info(
-                    "dep-upgrade: %s %s %s -> %s",
-                    up.ecosystem, up.package, up.old_version, up.new_version,
-                )
-                prompt = dep_upgrade.build_prompt(up, file_diffs)
-                raw = self._backend.generate(
-                    prompt, max_new_tokens=self._max_new_tokens,
-                )
-                key = f"dep_upgrade::{up.package}::{up.new_version}"
-                aggregated_steps[key] = raw
-                dep_upgrades.extend(dep_upgrade.parse_impact(raw, upgrade=up))
-
-        persona_reviews: list[PersonaReview] = []
-        persona_conflicts: list[PersonaConflict] = []
-        if persona_set:
-            selected = self._resolve_personas(persona_set)
-            log.info("personas: running %s", [p.value for p in selected])
-            persona_outputs: dict[personas.Persona, str] = {}
-            for p in selected:
-                parts = personas.build_persona_prompt(p, diff_text=diff_text)
-                raw = self._backend.generate(
-                    parts.prompt, max_new_tokens=self._max_new_tokens,
-                )
-                persona_outputs[p] = raw
-                aggregated_steps[f"persona::{p.value}"] = raw
-                persona_reviews.append(
-                    PersonaReview(persona=p.value, output=raw)
-                )
-            if len(selected) >= 2:
-                conflict_prompt = personas.build_conflict_prompt(persona_outputs)
-                conflict_raw = self._backend.generate(
-                    conflict_prompt, max_new_tokens=self._max_new_tokens,
-                )
-                aggregated_steps["persona::conflicts"] = conflict_raw
-                persona_conflicts = personas.parse_conflicts(
-                    conflict_raw, valid_personas=set(selected),
-                )
-
-        api_drift: list[ApiDriftFinding] = []
-        if api_consistency_check and api_consistency.is_mixed_language(file_diffs):
-            log.info("Mixed-language PR detected → running api-consistency step")
-            prompt = api_consistency.build_prompt(file_diffs)
-            raw = self._backend.generate(prompt, max_new_tokens=self._max_new_tokens)
-            aggregated_steps["api_consistency"] = raw
-            allowed = {fd.path for fd in file_diffs}
-            api_drift = api_consistency.parse_drift_findings(
-                raw, allowed_paths=allowed,
-            )
+        dep_upgrades = (
+            self._run_dep_upgrades(file_diffs, aggregated_steps)
+            if dep_upgrade_check else []
+        )
+        persona_reviews, persona_conflicts = (
+            self._run_personas(persona_set, diff_text, aggregated_steps)
+            if persona_set else ([], [])
+        )
+        api_drift = (
+            self._run_api_consistency(file_diffs, aggregated_steps)
+            if api_consistency_check else []
+        )
 
         return ReviewResult(
             code_diff=diff_text,
@@ -529,6 +489,73 @@ class CoTPipeline:
         )
 
     # ---------- internals ---------------------------------------------------
+
+    def _run_dep_upgrades(
+        self,
+        file_diffs: list[FileDiff],
+        aggregated_steps: dict[str, str],
+    ) -> list[DependencyUpgradeFinding]:
+        """Run the dependency-upgrade impact step, recording raw outputs."""
+        dep_upgrades: list[DependencyUpgradeFinding] = []
+        for up in dep_upgrade.detect_upgrades(file_diffs):
+            log.info(
+                "dep-upgrade: %s %s %s -> %s",
+                up.ecosystem, up.package, up.old_version, up.new_version,
+            )
+            prompt = dep_upgrade.build_prompt(up, file_diffs)
+            raw = self._backend.generate(
+                prompt, max_new_tokens=self._max_new_tokens,
+            )
+            aggregated_steps[f"dep_upgrade::{up.package}::{up.new_version}"] = raw
+            dep_upgrades.extend(dep_upgrade.parse_impact(raw, upgrade=up))
+        return dep_upgrades
+
+    def _run_personas(
+        self,
+        persona_set: tuple[str, ...],
+        diff_text: str,
+        aggregated_steps: dict[str, str],
+    ) -> tuple[list[PersonaReview], list[PersonaConflict]]:
+        """Run the selected reviewer personas and surface their conflicts."""
+        selected = self._resolve_personas(persona_set)
+        log.info("personas: running %s", [p.value for p in selected])
+        persona_outputs: dict[personas.Persona, str] = {}
+        reviews: list[PersonaReview] = []
+        for p in selected:
+            parts = personas.build_persona_prompt(p, diff_text=diff_text)
+            raw = self._backend.generate(
+                parts.prompt, max_new_tokens=self._max_new_tokens,
+            )
+            persona_outputs[p] = raw
+            aggregated_steps[f"persona::{p.value}"] = raw
+            reviews.append(PersonaReview(persona=p.value, output=raw))
+        conflicts: list[PersonaConflict] = []
+        if len(selected) >= 2:
+            conflict_prompt = personas.build_conflict_prompt(persona_outputs)
+            conflict_raw = self._backend.generate(
+                conflict_prompt, max_new_tokens=self._max_new_tokens,
+            )
+            aggregated_steps["persona::conflicts"] = conflict_raw
+            conflicts = personas.parse_conflicts(
+                conflict_raw, valid_personas=set(selected),
+            )
+        return reviews, conflicts
+
+    def _run_api_consistency(
+        self,
+        file_diffs: list[FileDiff],
+        aggregated_steps: dict[str, str],
+    ) -> list[ApiDriftFinding]:
+        """Run the cross-language API-drift step on mixed-language diffs."""
+        if not api_consistency.is_mixed_language(file_diffs):
+            return []
+        log.info("Mixed-language PR detected → running api-consistency step")
+        prompt = api_consistency.build_prompt(file_diffs)
+        raw = self._backend.generate(prompt, max_new_tokens=self._max_new_tokens)
+        aggregated_steps["api_consistency"] = raw
+        return api_consistency.parse_drift_findings(
+            raw, allowed_paths={fd.path for fd in file_diffs},
+        )
 
     def _run_one_file(
         self,
