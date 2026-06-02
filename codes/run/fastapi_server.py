@@ -26,6 +26,7 @@ import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
 
+from codes.util.server_metrics import observe_review
 from prthinker.accepted import (
     AcceptedExamplesRetriever,
     AcceptedExamplesStore,
@@ -165,6 +166,7 @@ def _truncate_diff(diff: str) -> str:
     return kept + _TRUNCATION_NOTICE
 
 
+@observe_review
 def _execute_review(
     req: ReviewRequest,
     cancel_event: "threading.Event | None" = None,

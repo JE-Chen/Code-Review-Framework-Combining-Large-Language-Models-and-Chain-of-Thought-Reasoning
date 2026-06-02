@@ -135,6 +135,57 @@
         {"expr": "rate(container_network_transmit_bytes_total{name=~\".*prthinker.*\"}[5m])", "legendFormat": "tx {{interface}}", "refId": "B"}
       ],
       "fieldConfig": {"defaults": {"unit": "Bps"}}
+    },
+    {
+      "title": "Reviews completed (rate by outcome)",
+      "type": "timeseries",
+      "id": 11,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 40},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{
+        "expr": "sum by (outcome) (rate(prthinker_reviews_total[5m]))",
+        "legendFormat": "{{outcome}}",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    },
+    {
+      "title": "Review duration p50 / p95 (s)",
+      "type": "timeseries",
+      "id": 12,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 40},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum by (le, mode) (rate(prthinker_review_duration_seconds_bucket[5m])))", "legendFormat": "p50 {{mode}}", "refId": "A"},
+        {"expr": "histogram_quantile(0.95, sum by (le, mode) (rate(prthinker_review_duration_seconds_bucket[5m])))", "legendFormat": "p95 {{mode}}", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "title": "Reviews in progress",
+      "type": "stat",
+      "id": 13,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 48},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{
+        "expr": "prthinker_reviews_in_progress",
+        "legendFormat": "in progress",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "none"}}
+    },
+    {
+      "title": "Findings per review (avg)",
+      "type": "timeseries",
+      "id": 14,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 48},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{
+        "expr": "rate(prthinker_review_findings_sum[15m]) / clamp_min(rate(prthinker_review_findings_count[15m]), 1)",
+        "legendFormat": "avg findings",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "none"}}
     }
   ],
   "refresh": "30s",

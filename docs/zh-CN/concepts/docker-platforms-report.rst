@@ -143,10 +143,15 @@ monitoring overlay 观测什么
 Prometheus scrape 四个 job——``prthinker-fastapi``\ （\ ``/metrics``
 endpoint）、\ ``dcgm-gpu``\ （各 GPU 遥测）、\ ``cadvisor-containers``\
 （各容器资源用量）与 ``prometheus-self``\ ——并保留 30 天历史。预先置备之
-``prthinker-overview`` Grafana 仪表板把它们渲染为十个 panel：
+``prthinker-overview`` Grafana 仪表板把它们渲染为十四个 panel：
 
 * **服务**\ ──各 endpoint 请求率、延迟 p50 / p95 / p99、HTTP 5xx 率
   （来自 FastAPI ``/metrics`` histogram）\ 。
+* **审查**\ ──完成审查率（依 outcome）、审查耗时 p50 / p95、进行中审查数、
+  每次审查平均 findings（来自服务器每跑完一次审查就输出之
+  ``prthinker_reviews_total`` / ``prthinker_review_duration_seconds`` /
+  ``prthinker_review_findings`` / ``prthinker_reviews_in_progress``
+  series——所以 HTTP 流量空闲时仪表板仍有审查数据）\ 。
 * **GPU**\ ──使用率、已用显存、功耗、温度（来自 DCGM）\ 。
 * **容器**\ ──prthinker CPU cores、RAM、网络 RX/TX（来自 cAdvisor）\ 。
 

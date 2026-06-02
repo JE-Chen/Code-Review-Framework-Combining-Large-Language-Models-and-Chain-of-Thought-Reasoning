@@ -44,7 +44,12 @@ Prometheus exposition endpoint. Enabled when
 ``prometheus-fastapi-instrumentator`` is installed (the server logs and
 silently skips it otherwise), it exports per-endpoint request counts,
 latency histograms (used for the p50 / p95 / p99 panels), and HTTP
-status counters. Unauthenticated like every other route — the monitoring
+status counters. Alongside those transport metrics the server emits
+review-domain metrics on the same endpoint — ``prthinker_reviews_total``
+(by ``mode`` and ``outcome``), ``prthinker_review_duration_seconds``,
+``prthinker_review_findings``, and ``prthinker_reviews_in_progress`` — so
+every completed review leaves a data point regardless of HTTP traffic.
+Unauthenticated like every other route — the monitoring
 overlay's nginx scrapes it on the internal docker network; do not expose
 it publicly without a reverse-proxy ACL.
 

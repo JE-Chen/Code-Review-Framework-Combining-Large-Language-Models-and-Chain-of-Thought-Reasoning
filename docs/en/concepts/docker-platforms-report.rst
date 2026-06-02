@@ -152,10 +152,16 @@ Prometheus scrapes four jobs — ``prthinker-fastapi`` (the ``/metrics``
 endpoint), ``dcgm-gpu`` (per-GPU telemetry), ``cadvisor-containers``
 (per-container resource use), and ``prometheus-self`` — and keeps 30
 days of history. The provisioned ``prthinker-overview`` Grafana
-dashboard renders them as ten panels:
+dashboard renders them as fourteen panels:
 
 * **Service** — request rate by endpoint, latency p50 / p95 / p99, and
   HTTP 5xx rate (from the FastAPI ``/metrics`` histograms).
+* **Reviews** — completed-review rate by outcome, review duration
+  p50 / p95, reviews in progress, and average findings per review (from
+  the ``prthinker_reviews_total`` / ``prthinker_review_duration_seconds``
+  / ``prthinker_review_findings`` / ``prthinker_reviews_in_progress``
+  series the server emits on every completed review — so the dashboard
+  has review data even when HTTP traffic is idle).
 * **GPU** — utilization, memory used, power draw, and temperature
   (from DCGM).
 * **Container** — prthinker CPU cores, RAM, and network RX/TX
