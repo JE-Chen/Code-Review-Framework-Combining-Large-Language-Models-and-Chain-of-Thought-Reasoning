@@ -361,6 +361,23 @@ def test_file_patch_to_diff_binary_no_patch():
     assert "@@" not in out
 
 
+def test_fetch_pr_commit_messages_paginates(monkeypatch):
+    page1 = [{"commit": {"message": f"feat: c{i}"}} for i in range(100)]
+    page2 = [{"commit": {"message": "fix: last"}}]
+    client = _ScriptedClient({"GET": [_Resp(json_data=page1), _Resp(json_data=page2)]})
+    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    msgs = github_api.fetch_pr_commit_messages(_CFG)
+    assert len(msgs) == 101
+    assert msgs[0] == "feat: c0"
+    assert msgs[-1] == "fix: last"
+
+
+def test_fetch_pr_commit_messages_empty(monkeypatch):
+    client = _ScriptedClient({"GET": [_Resp(json_data=[])]})
+    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    assert github_api.fetch_pr_commit_messages(_CFG) == []
+
+
 def test_reconstruct_diff_paginates(monkeypatch):
     page1 = [{"filename": f"f{i}.py", "status": "added",
               "patch": "@@ -0,0 +1,1 @@\n+x"} for i in range(100)]

@@ -223,6 +223,15 @@ def _add_per_file_mode_args(common: argparse.ArgumentParser) -> None:
         ),
     )
     common.add_argument(
+        "--pr-overview",
+        action="store_true",
+        default=env_bool("PRTHINKER_PR_OVERVIEW", False),
+        help=(
+            "Pin a model-free 'what this PR does' overview (built from the "
+            "commit messages and changed files) to the top of the summary."
+        ),
+    )
+    common.add_argument(
         "--max-findings-per-file",
         type=int,
         default=int(env_str("PRTHINKER_MAX_FINDINGS_PER_FILE", "10") or 10),

@@ -40,11 +40,15 @@ def _reviewed_file_count(result: ReviewResult) -> int:
     )
 
 
-def _format_clean_comment(result: ReviewResult, marker: str) -> str:
+def _format_clean_comment(
+    result: ReviewResult, marker: str, preliminary: str | None = None
+) -> str:
     """One-line confirmation for a PR that produced zero findings."""
     reviewed = _reviewed_file_count(result)
     scope = f" across {reviewed} reviewed file(s)" if reviewed else ""
-    return f"{marker}\n## CoT Code Review\n\n✅ No findings{scope}.\n"
+    head = f"{marker}\n## CoT Code Review\n\n"
+    overview = f"{preliminary}\n\n" if preliminary else ""
+    return f"{head}{overview}✅ No findings{scope}.\n"
 
 
 _STATUS_BY_SEVERITY: tuple[tuple[str, str], ...] = (
@@ -133,6 +137,7 @@ def format_pr_comment(
     posted_count: int | None = None,
     findings_only: bool = False,
     hide_info: bool = False,
+    preliminary: str | None = None,
 ) -> str:
     """Render the consolidated PR comment.
 
@@ -149,14 +154,18 @@ def format_pr_comment(
 
     ``hide_info`` omits ``info``-severity findings from the rendered
     summary (display only — the inline review and gate still see them).
+
+    ``preliminary`` is a pre-rendered, model-free "what this PR does"
+    overview (from commit messages + changed files) pinned to the top.
     """
     if hide_info:
         result = _without_info_findings(result)
     if findings_only and _total_inline_findings(result) == 0:
-        return _format_clean_comment(result, marker)
+        return _format_clean_comment(result, marker, preliminary)
     if result.per_file:
         return _format_per_file(
-            result, marker, posted_count=posted_count, findings_only=findings_only
+            result, marker, posted_count=posted_count,
+            findings_only=findings_only, preliminary=preliminary,
         )
     return _format_single(result, marker)
 
@@ -296,6 +305,7 @@ def _per_file_head_parts(
     marker: str,
     posted_count: int | None,
     findings_only: bool = False,
+    preliminary: str | None = None,
 ) -> list[str]:
     """Everything in the per-file comment that precedes the file blocks."""
     parts: list[str] = [
@@ -303,6 +313,8 @@ def _per_file_head_parts(
         "## CoT Code Review (per-file)",
         "",
     ]
+    if preliminary:
+        parts.append(preliminary)
     parts += _format_overview_block(result)
     parts.append(_per_file_header(result))
     parts.append("")
@@ -317,8 +329,11 @@ def _format_per_file(
     marker: str,
     posted_count: int | None = None,
     findings_only: bool = False,
+    preliminary: str | None = None,
 ) -> str:
-    parts = _per_file_head_parts(result, marker, posted_count, findings_only)
+    parts = _per_file_head_parts(
+        result, marker, posted_count, findings_only, preliminary
+    )
     for fr in _files_to_render(result.per_file, findings_only):
         parts += _format_file_block(fr)
 
@@ -383,6 +398,7 @@ def format_pr_comment_pages(
     max_chars: int = _PAGE_MAX_CHARS,
     findings_only: bool = False,
     hide_info: bool = False,
+    preliminary: str | None = None,
 ) -> list[str]:
     """Render the PR comment, paginated so no page exceeds ``max_chars``.
 
@@ -396,17 +412,21 @@ def format_pr_comment_pages(
     ``findings_only`` renders only files with findings (clean ones become a
     count), which on a large but mostly-clean PR can collapse a multi-page
     summary back to one comment. ``hide_info`` drops ``info``-severity
-    findings from the rendered summary.
+    findings from the rendered summary. ``preliminary`` is the model-free
+    PR overview pinned to the top of page 1.
     """
     if hide_info:
         result = _without_info_findings(result)
     single = format_pr_comment(
-        result, marker, posted_count=posted_count, findings_only=findings_only
+        result, marker, posted_count=posted_count,
+        findings_only=findings_only, preliminary=preliminary,
     )
     if len(single) <= max_chars or not result.per_file:
         return [single]
     head = "\n".join(
-        _per_file_head_parts(result, marker, posted_count, findings_only)
+        _per_file_head_parts(
+            result, marker, posted_count, findings_only, preliminary
+        )
     )
     blocks = [
         "\n".join(_format_file_block(fr))

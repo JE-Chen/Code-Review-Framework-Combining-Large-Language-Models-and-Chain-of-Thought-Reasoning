@@ -78,6 +78,11 @@ def test_base_upsert_comments_empty() -> None:
     assert _MiniAdapter().upsert_summary_comments([]) == []
 
 
+def test_base_fetch_commit_messages_default_empty() -> None:
+    # Adapters without commit access degrade to a files-only overview.
+    assert _MiniAdapter().fetch_commit_messages() == []
+
+
 def test_base_upsert_comments_drops_overflow_pages(caplog) -> None:
     adapter = _MiniAdapter()
     with caplog.at_level("WARNING"):

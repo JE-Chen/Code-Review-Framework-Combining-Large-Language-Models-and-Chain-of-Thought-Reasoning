@@ -63,6 +63,15 @@ def test_hide_info_flag_parses() -> None:
     assert ns.hide_info is True
 
 
+def test_pr_overview_flag_parses() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote",
+        "--remote-url", "http://x", "--pr-overview",
+    ])
+    assert ns.pr_overview is True
+
+
 def test_each_backend_choice_is_accepted() -> None:
     p = _build_parser()
     for kind in BackendKind:

@@ -58,6 +58,14 @@ class PlatformAdapter(ABC):
         """
         return ("", "")
 
+    def fetch_commit_messages(self) -> list[str]:
+        """Return the PR's commit messages, oldest first.
+
+        Default returns ``[]`` so adapters without commit access degrade
+        to a files-only preliminary overview. Concrete adapters override.
+        """
+        return []
+
     # ----- summary comment (one per PR) ---------------------------------
 
     @abstractmethod

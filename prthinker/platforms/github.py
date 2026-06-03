@@ -18,6 +18,7 @@ from prthinker.config import GitHubConfig
 from prthinker.dialogue import AuthorReply
 from prthinker.github_api import (
     fetch_pr_base_branch,
+    fetch_pr_commit_messages,
     fetch_pr_diff,
     fetch_pr_head_sha,
     submit_inline_review,
@@ -56,6 +57,9 @@ class GitHubAdapter(PlatformAdapter):
 
     def fetch_base_branch(self) -> str:
         return fetch_pr_base_branch(self._gh())
+
+    def fetch_commit_messages(self) -> list[str]:
+        return fetch_pr_commit_messages(self._gh())
 
     def fetch_pr_meta(self) -> tuple[str, str]:
         """Pull ``(title, body)`` from ``GET /repos/{repo}/pulls/{n}``."""

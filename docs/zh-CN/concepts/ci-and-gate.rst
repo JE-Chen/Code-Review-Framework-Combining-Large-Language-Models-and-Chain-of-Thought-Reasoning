@@ -133,6 +133,13 @@ Check Run。CLI 会：
 贴出审查：评论与 inline 建议
 ----------------------------
 
+加上 ``--pr-overview``\ （环境变量 ``PRTHINKER_PR_OVERVIEW``）时，总结最上方
+会多一段不需模型的 **What this PR does (preliminary)** 区块，完全由 PR 的
+commit messages 与变更文件\ *确定式*\ 生成：文件／目录／扩展名分布、
+conventional-commit 类型统计（``feat (3) · fix (1)``），以及 commit 主旨列表。
+它是\ *上下文*\ 而非结论──回答「改了什么」，下方的摘要才回答「好不好」──
+同样固定在会被原地更新的 part-1 评论，每次审查都会刷新。
+
 每份逐文件总结最上方都有一个 **Review at a glance** 摘要──白话的状态
 （🔴 changes requested／🟡 review suggested／🔵 minor notes／✅ looks good）、
 按严重度分类的 finding 数量、已审查／有 finding／干净的文件分布，以及

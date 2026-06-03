@@ -392,6 +392,38 @@ def test_hide_info_does_not_mutate_original_result():
     assert len(result.per_file[0].inline_findings) == 1
 
 
+def test_preliminary_pinned_above_glance_and_files():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr]), _MARKER,
+        preliminary="### 📋 What this PR does (preliminary)\n\n- **Changes:** 1 file",
+    )
+    assert "What this PR does (preliminary)" in out
+    assert out.index("What this PR does") < out.index("Review at a glance")
+    assert out.index("Review at a glance") < out.index("<details>")
+
+
+def test_preliminary_shown_on_clean_pr_comment():
+    result = _review(per_file=[_file_result(path="a.py")])
+    out = formatters.format_pr_comment(
+        result, _MARKER, findings_only=True,
+        preliminary="### 📋 What this PR does (preliminary)\n\n- **Changes:** 1 file",
+    )
+    assert "What this PR does (preliminary)" in out
+    assert "✅ No findings across 1 reviewed file(s)." in out
+
+
+def test_preliminary_only_on_first_page():
+    files = [_padded_file(f"f{i}.py", 120) for i in range(6)]
+    pages = formatters.format_pr_comment_pages(
+        _review(per_file=files), _MARKER, max_chars=1500,
+        preliminary="### 📋 What this PR does (preliminary)\n\n- **Changes:** 6 files",
+    )
+    assert len(pages) > 1
+    assert "What this PR does" in pages[0]
+    assert all("What this PR does" not in p for p in pages[1:])
+
+
 def test_findings_only_pages_collapse_when_mostly_clean():
     files = [_padded_file(f"clean{i}.py", 120) for i in range(8)]
     files.append(_file_result(path="bug.py", inline_findings=[_finding(path="bug.py")]))

@@ -137,6 +137,29 @@ def fetch_pr_base_branch(config: GitHubConfig) -> str:
         return str(response.json()["base"]["ref"])
 
 
+def fetch_pr_commit_messages(config: GitHubConfig) -> list[str]:
+    """Return every commit message on the PR, oldest first (paginated)."""
+    messages: list[str] = []
+    page = 1
+    with _client(config.token) as client:
+        while True:
+            response = client.get(
+                f"/repos/{config.repo}/pulls/{config.pr_number}/commits",
+                params={"per_page": 100, "page": page},
+            )
+            response.raise_for_status()
+            batch = response.json()
+            if not batch:
+                break
+            messages.extend(
+                (c.get("commit") or {}).get("message", "") for c in batch
+            )
+            if len(batch) < 100:
+                break
+            page += 1
+    return messages
+
+
 def _iter_existing_comments(
     client: httpx.Client, config: GitHubConfig
 ) -> list[_Comment]:
@@ -643,6 +666,7 @@ __all__ = [
     "fetch_pr_diff",
     "fetch_pr_head_sha",
     "fetch_pr_base_branch",
+    "fetch_pr_commit_messages",
     "upsert_pr_comment",
     "upsert_pr_comments",
     "submit_inline_review",

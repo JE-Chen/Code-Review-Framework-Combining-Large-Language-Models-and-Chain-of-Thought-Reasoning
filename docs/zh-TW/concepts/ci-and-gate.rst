@@ -133,6 +133,13 @@ Check Run。CLI 會：
 貼出審查：留言與 inline 建議
 ----------------------------
 
+加上 ``--pr-overview``\ （環境變數 ``PRTHINKER_PR_OVERVIEW``）時，總結最上方
+會多一段不需模型的 **What this PR does (preliminary)** 區塊，完全由 PR 的
+commit messages 與變更檔案\ *決定式*\ 產生：檔案／目錄／副檔名分佈、
+conventional-commit 類型統計（``feat (3) · fix (1)``），以及 commit 主旨清單。
+它是\ *脈絡*\ 而非結論──回答「改了什麼」，下方的摘要才回答「好不好」──
+同樣固定在會被原地更新的 part-1 留言，每次審查都會刷新。
+
 每份逐檔總結最上方都有一個 **Review at a glance** 摘要──白話的狀態
 （🔴 changes requested／🟡 review suggested／🔵 minor notes／✅ looks good）、
 依嚴重度分類的 finding 數量、已審查／有 finding／乾淨的檔案分佈，以及

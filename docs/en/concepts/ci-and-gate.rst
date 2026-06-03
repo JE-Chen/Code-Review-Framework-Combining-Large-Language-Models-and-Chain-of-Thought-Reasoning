@@ -133,6 +133,15 @@ Failure modes
 Posting the review: comments and inline suggestions
 ---------------------------------------------------
 
+With ``--pr-overview`` (env ``PRTHINKER_PR_OVERVIEW``) the summary opens
+with a model-free **What this PR does (preliminary)** block, built
+deterministically from the PR's commit messages and changed files: a
+file/directory/extension breakdown, a conventional-commit type tally
+(``feat (3) · fix (1)``), and the commit-subject list. It is context, not
+a verdict — it answers "what changed" while the digest below answers "is
+it any good" — and like the digest it is pinned to the upserted part-1
+comment and refreshed on every review.
+
 Every per-file summary opens with a **Review at a glance** digest — a
 plain-language status (🔴 changes requested / 🟡 review suggested /
 🔵 minor notes / ✅ looks good), the finding counts by severity, the

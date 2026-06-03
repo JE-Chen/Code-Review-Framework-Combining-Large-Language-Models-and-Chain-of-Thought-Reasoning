@@ -38,6 +38,7 @@ from prthinker.diff import parse_unified_diff
 from prthinker.finding_dedup import dedupe_findings
 from prthinker.formatters import format_pr_comment, format_pr_comment_pages
 from prthinker.github_api import count_findings_on_diff
+from prthinker.pr_overview import build_overview_text
 from prthinker.html_report import write_report
 from prthinker.ignore import filter_findings, load_ignore
 from prthinker.sarif import write_sarif
@@ -758,6 +759,25 @@ def _append_api_impact(body: str, result: ReviewResult) -> str:
     return f"{body}\n\nPublic API impact: **{report.impact}**"
 
 
+def _build_preliminary_overview(
+    args: argparse.Namespace, adapter: object, result: ReviewResult
+) -> str | None:
+    """Build the model-free PR overview from commits + changed files, or None.
+
+    Best-effort: a commit-fetch failure degrades to a files-only overview
+    rather than breaking the review.
+    """
+    if not getattr(args, "pr_overview", False):
+        return None
+    try:
+        messages = adapter.fetch_commit_messages()
+    except Exception as exc:  # noqa: BLE001 — overview is best-effort
+        log.warning("Could not fetch commit messages for overview (%s)", exc)
+        messages = []
+    paths = [fr.path for fr in result.per_file]
+    return build_overview_text(messages, paths) or None
+
+
 def _publish_review_result(
     args: argparse.Namespace,
     adapter: object,
@@ -782,6 +802,7 @@ def _publish_review_result(
         result, marker=args.marker, posted_count=posted_count,
         findings_only=getattr(args, "findings_only", False),
         hide_info=getattr(args, "hide_info", False),
+        preliminary=_build_preliminary_overview(args, adapter, result),
     )
     if getattr(args, "api_impact", False):
         pages[-1] = _append_api_impact(pages[-1], result)
