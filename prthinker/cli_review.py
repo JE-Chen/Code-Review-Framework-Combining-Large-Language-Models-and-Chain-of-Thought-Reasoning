@@ -44,6 +44,7 @@ from prthinker.formatters import (
 )
 from prthinker.github_api import count_findings_on_diff
 from prthinker.impact_map import format_impact_note, impacted_files
+from prthinker.inline_ignore import filter_inline_ignored
 from prthinker.repo_kg import KnowledgeGraphStore
 from prthinker.pr_labels import compute_labels
 from prthinker.pr_overview import build_overview_text
@@ -741,7 +742,15 @@ def _maybe_autofix(
     _maybe_open_auto_fix_pr(gh, args, result)
 
 def _postprocess_findings(args: argparse.Namespace, result: ReviewResult) -> None:
-    """Apply .prthinkerignore suppression and de-duplication in place."""
+    """Apply inline / file ignore suppression and de-duplication in place."""
+    if result.code_diff:
+        result.inline_findings = filter_inline_ignored(
+            result.inline_findings, result.code_diff
+        )
+        for file_result in result.per_file:
+            file_result.inline_findings = filter_inline_ignored(
+                file_result.inline_findings, result.code_diff
+            )
     spec = load_ignore(getattr(args, "ignore_file", "") or ".prthinkerignore")
     if not spec.is_empty:
         result.inline_findings = filter_findings(result.inline_findings, spec)

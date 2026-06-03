@@ -490,6 +490,9 @@ sweep、GPU OOM、runner 逾時、人工 ``ask/cancel``\ ）\ ，現有之
 * **finding 抑制**\ （\ ``--ignore-file`` / ``.prthinkerignore``\ ）——依
   路徑 glob、\ ``severity:<level>``\ 、或 ``rule:<id>``\ （對 comment 子字串
   比對）丟棄 findings。缺檔即 no-op。
+* **行內 ignore 指令**\ ——變更行上若帶 ``# prthinker: ignore``\ （任何註解
+  語法皆可,只比對該 token）會抑制該新側行的 findings,讓作者在原始碼那一行
+  就地消音,而非寫在集中式檔案。
 * **finding 去重**\ （\ ``--dedupe-findings``\ ）——收斂近似重複（同 path+
   line、訊息等價；保留最高嚴重度）。
 * **公開 API 影響**\ （\ ``--api-impact``\ ）——以啟發式掃描 diff 中新增/

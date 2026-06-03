@@ -578,6 +578,10 @@ no inference — so they run on the runner profile.
 * **Finding suppression** (``--ignore-file`` / ``.prthinkerignore``) —
   drop findings by path glob, ``severity:<level>``, or ``rule:<id>``
   (substring match on the comment). Missing file is a no-op.
+* **Inline ignore directives** — a changed line carrying
+  ``# prthinker: ignore`` (any comment syntax; only the token is matched)
+  suppresses findings on that new-side line, letting authors silence a
+  finding at the exact source line instead of in a central file.
 * **Finding de-duplication** (``--dedupe-findings``) — collapse
   near-duplicate findings (same path+line, equivalent message; keeps the
   highest severity).
