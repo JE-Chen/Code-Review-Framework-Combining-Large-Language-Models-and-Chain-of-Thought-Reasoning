@@ -351,6 +351,47 @@ def test_overview_status_clean_has_no_hotspots():
     assert "**Hotspots:**" not in out
 
 
+def test_hide_info_drops_info_findings_from_summary():
+    fr = _file_result(path="a.py", inline_findings=[
+        _finding(path="a.py", line=1, severity="warning"),
+        _finding(path="a.py", line=2, severity="info"),
+    ])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER, hide_info=True)
+    # info is excluded from the count badge and the at-a-glance tally.
+    assert "🔴 0 · 🟡 1 · 🔵 0 (1 total)" in out
+    assert "<code>a.py</code> — 1 finding(s)" in out
+
+
+def test_hide_info_off_keeps_info():
+    fr = _file_result(path="a.py", inline_findings=[
+        _finding(path="a.py", line=2, severity="info"),
+    ])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER, hide_info=False)
+    assert "🔵 1" in out
+    assert "<code>a.py</code> — 1 finding(s)" in out
+
+
+def test_hide_info_with_findings_only_collapses_info_only_pr():
+    # A file whose only finding is info becomes "clean" once info is hidden.
+    fr = _file_result(path="a.py", inline_findings=[
+        _finding(path="a.py", severity="info"),
+    ])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr]), _MARKER, findings_only=True, hide_info=True
+    )
+    assert "✅ No findings across 1 reviewed file(s)." in out
+
+
+def test_hide_info_does_not_mutate_original_result():
+    fr = _file_result(path="a.py", inline_findings=[
+        _finding(path="a.py", severity="info", comment="fyi"),
+    ])
+    result = _review(per_file=[fr])
+    formatters.format_pr_comment(result, _MARKER, hide_info=True)
+    # Display filter must not strip findings from the caller's result.
+    assert len(result.per_file[0].inline_findings) == 1
+
+
 def test_findings_only_pages_collapse_when_mostly_clean():
     files = [_padded_file(f"clean{i}.py", 120) for i in range(8)]
     files.append(_file_result(path="bug.py", inline_findings=[_finding(path="bug.py")]))

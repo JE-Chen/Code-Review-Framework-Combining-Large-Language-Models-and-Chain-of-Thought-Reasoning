@@ -463,6 +463,7 @@ jobs:
           PRTHINKER_PR_NUMBER: ${{ github.event.pull_request.number }}
           PRTHINKER_INLINE_REVIEW: "true"
           PRTHINKER_FINDINGS_ONLY: "true"
+          PRTHINKER_HIDE_INFO: "true"
           PRTHINKER_GATE_ON: "error"
           PRTHINKER_AGGREGATE_FROM: ${{ runner.temp }}/partials
         run: |

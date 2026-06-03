@@ -214,6 +214,15 @@ def _add_per_file_mode_args(common: argparse.ArgumentParser) -> None:
         ),
     )
     common.add_argument(
+        "--hide-info",
+        action="store_true",
+        default=env_bool("PRTHINKER_HIDE_INFO", False),
+        help=(
+            "Omit info-severity findings from the rendered summary (display "
+            "only; the inline review and merge gate still see them)."
+        ),
+    )
+    common.add_argument(
         "--max-findings-per-file",
         type=int,
         default=int(env_str("PRTHINKER_MAX_FINDINGS_PER_FILE", "10") or 10),

@@ -54,6 +54,15 @@ def test_findings_only_defaults_false() -> None:
     assert ns.findings_only is False
 
 
+def test_hide_info_flag_parses() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote",
+        "--remote-url", "http://x", "--hide-info",
+    ])
+    assert ns.hide_info is True
+
+
 def test_each_backend_choice_is_accepted() -> None:
     p = _build_parser()
     for kind in BackendKind:

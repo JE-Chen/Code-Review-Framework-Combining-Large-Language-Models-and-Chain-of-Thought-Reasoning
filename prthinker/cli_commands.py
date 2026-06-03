@@ -101,6 +101,7 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
     pages = format_pr_comment_pages(
         merged, marker=args.marker,
         findings_only=getattr(args, "findings_only", False),
+        hide_info=getattr(args, "hide_info", False),
     )
     if args.dry_run:
         sys.stdout.write("\n\n".join(pages))

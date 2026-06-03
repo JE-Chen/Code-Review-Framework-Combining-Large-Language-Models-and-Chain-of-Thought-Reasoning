@@ -158,6 +158,12 @@ findings collapses to a one-line ``✅ No findings`` confirmation instead
 of a full empty result. On a large but mostly-clean PR this often brings
 a multi-page summary back down to a single comment.
 
+``--hide-info`` (env ``PRTHINKER_HIDE_INFO``) omits ``info``-severity
+findings from the rendered summary — the count badges, the at-a-glance
+tally, and the hotspot ranking all ignore them, and a file whose only
+findings are info is treated as clean. This is display-only: the inline
+review on the diff and the merge gate still see every finding.
+
 Inline suggestions — the one-click *Apply suggestion* blocks on the
 diff — are posted as a separate PR review. The new review is submitted
 **before** the previous run's inline comments are dismissed, and the

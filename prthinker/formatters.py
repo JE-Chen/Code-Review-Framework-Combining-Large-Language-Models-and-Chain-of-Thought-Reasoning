@@ -12,6 +12,7 @@ across repeated workflow runs.
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable
 
 from prthinker.pipeline import FileReviewResult, ReviewResult
@@ -108,12 +109,30 @@ def _format_overview_block(result: ReviewResult) -> list[str]:
     return lines
 
 
+def _without_info_findings(result: ReviewResult) -> ReviewResult:
+    """A display copy with every ``info``-severity finding stripped.
+
+    Display-only: the original result (and the flat ``inline_findings``
+    the CLI submits to the diff and feeds to the gate) is untouched.
+    """
+    per_file = [
+        dataclasses.replace(
+            fr,
+            inline_findings=[f for f in fr.inline_findings if f.severity != "info"],
+        )
+        for fr in result.per_file
+    ]
+    inline = [f for f in result.inline_findings if f.severity != "info"]
+    return dataclasses.replace(result, per_file=per_file, inline_findings=inline)
+
+
 def format_pr_comment(
     result: ReviewResult,
     marker: str,
     *,
     posted_count: int | None = None,
     findings_only: bool = False,
+    hide_info: bool = False,
 ) -> str:
     """Render the consolidated PR comment.
 
@@ -127,7 +146,12 @@ def format_pr_comment(
     ``findings_only`` lists only files that have findings (clean files are
     collapsed into a count) and reduces a zero-finding PR to a one-line
     confirmation instead of a full empty result.
+
+    ``hide_info`` omits ``info``-severity findings from the rendered
+    summary (display only — the inline review and gate still see them).
     """
+    if hide_info:
+        result = _without_info_findings(result)
     if findings_only and _total_inline_findings(result) == 0:
         return _format_clean_comment(result, marker)
     if result.per_file:
@@ -358,6 +382,7 @@ def format_pr_comment_pages(
     posted_count: int | None = None,
     max_chars: int = _PAGE_MAX_CHARS,
     findings_only: bool = False,
+    hide_info: bool = False,
 ) -> list[str]:
     """Render the PR comment, paginated so no page exceeds ``max_chars``.
 
@@ -370,8 +395,11 @@ def format_pr_comment_pages(
 
     ``findings_only`` renders only files with findings (clean ones become a
     count), which on a large but mostly-clean PR can collapse a multi-page
-    summary back to one comment.
+    summary back to one comment. ``hide_info`` drops ``info``-severity
+    findings from the rendered summary.
     """
+    if hide_info:
+        result = _without_info_findings(result)
     single = format_pr_comment(
         result, marker, posted_count=posted_count, findings_only=findings_only
     )
