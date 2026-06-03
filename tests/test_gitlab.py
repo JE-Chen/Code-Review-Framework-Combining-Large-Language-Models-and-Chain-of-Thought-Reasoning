@@ -59,7 +59,7 @@ class _ScriptedNotesClient:
 
 
 def _adapter_with_pages(pages: list[list[dict]]) -> GitLabAdapter:
-    adapter = GitLabAdapter(project="g/p", token="t", mr_iid=7)
+    adapter = GitLabAdapter(project="g/p", token="t", mr_iid=7)  # nosec B106 - test fixture token, not a credential
     adapter._client = lambda: _ScriptedNotesClient(pages)  # type: ignore[method-assign]  # noqa: SLF001
     return adapter
 
@@ -212,7 +212,7 @@ class _ScriptedReviewClient:
 
 
 def _review_adapter(client: _ScriptedReviewClient) -> GitLabAdapter:
-    adapter = GitLabAdapter(project="g/p", token="t", mr_iid=7)
+    adapter = GitLabAdapter(project="g/p", token="t", mr_iid=7)  # nosec B106 - test fixture token, not a credential
     adapter._client = lambda: client  # type: ignore[method-assign]  # noqa: SLF001
     return adapter
 
@@ -224,7 +224,7 @@ def _finding(path: str = "a.py", line: int = 3) -> InlineFinding:
 
 
 def test_submit_inline_review_no_findings_returns_none() -> None:
-    adapter = GitLabAdapter(project="g/p", token="t", mr_iid=7)
+    adapter = GitLabAdapter(project="g/p", token="t", mr_iid=7)  # nosec B106 - test fixture token, not a credential
     assert adapter.submit_inline_review(
         [], summary_body=None, event="COMMENT"
     ) is None

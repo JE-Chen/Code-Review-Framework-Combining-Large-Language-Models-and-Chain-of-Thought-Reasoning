@@ -103,7 +103,7 @@ def test_validate_args_missing_pr_number() -> None:
 
 def test_validate_args_missing_token() -> None:
     with pytest.raises(SystemExit, match="--github-token"):
-        cli_commands._validate_aggregate_args(_make_args(github_token=""))
+        cli_commands._validate_aggregate_args(_make_args(github_token=""))  # nosec B106 - test fixture, not a credential
 
 
 def test_validate_args_missing_input_dir() -> None:

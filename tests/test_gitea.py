@@ -115,7 +115,7 @@ def _install(
 
 
 def _adapter() -> GiteaAdapter:
-    return GiteaAdapter(
+    return GiteaAdapter(  # nosec B106 - test fixture token, not a credential
         repo="o/r", token="t", pr_number=7, comment_marker=MARKER,
         base_url="https://gitea.example/api/v1",
     )

@@ -64,7 +64,7 @@ class _ScriptedClient:
         return self._handle("DELETE", url)
 
 
-_CFG = GitHubConfig(repo="o/r", pr_number=7, token="t")
+_CFG = GitHubConfig(repo="o/r", pr_number=7, token="t")  # nosec B106 - test fixture token, not a credential
 _M = _CFG.comment_marker
 
 

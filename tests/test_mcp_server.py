@@ -46,12 +46,12 @@ def test_remote_backend_happy_path(monkeypatch):
 def test_local_backend(monkeypatch):
     monkeypatch.setenv("PRTHINKER_BACKEND", "local")
     monkeypatch.setenv("PRTHINKER_MODEL_NAME", "my/model")
-    monkeypatch.setenv("PRTHINKER_LORA_PATH", "/tmp/lora")
+    monkeypatch.setenv("PRTHINKER_LORA_PATH", "/data/lora")
     cfg = mcp_server._config_from_env()
     assert cfg.backend is BackendKind.LOCAL
     assert cfg.local is not None
     assert cfg.local.model_name == "my/model"
-    assert cfg.local.lora_path == "/tmp/lora"
+    assert cfg.local.lora_path == "/data/lora"
 
 
 def test_local_backend_default_model(monkeypatch):
@@ -133,17 +133,17 @@ def test_shared_config_fields(monkeypatch):
     monkeypatch.setenv("PRTHINKER_RAG_THRESHOLD", "0.55")
     monkeypatch.setenv("PRTHINKER_MAX_NEW_TOKENS", "100")
     monkeypatch.setenv("PRTHINKER_CACHE_ENABLED", "true")
-    monkeypatch.setenv("PRTHINKER_CACHE_PATH", "/tmp/c.sqlite")
+    monkeypatch.setenv("PRTHINKER_CACHE_PATH", "/data/c.sqlite")
     monkeypatch.setenv("PRTHINKER_TELEMETRY_ENABLED", "true")
-    monkeypatch.setenv("PRTHINKER_TELEMETRY_PATH", "/tmp/t.sqlite")
+    monkeypatch.setenv("PRTHINKER_TELEMETRY_PATH", "/data/t.sqlite")
     cfg = mcp_server._config_from_env()
     assert cfg.rag_enabled is False
     assert cfg.rag_threshold == 0.55
     assert cfg.max_new_tokens == 100
     assert cfg.cache.enabled is True
-    assert cfg.cache.path == "/tmp/c.sqlite"
+    assert cfg.cache.path == "/data/c.sqlite"
     assert cfg.telemetry.enabled is True
-    assert cfg.telemetry.path == "/tmp/t.sqlite"
+    assert cfg.telemetry.path == "/data/t.sqlite"
 
 
 def test_shared_config_defaults(monkeypatch):

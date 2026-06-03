@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import prthinker.review_modes.performance  # noqa: F401  # import triggers registration
+import prthinker.review_modes.performance  # noqa: F401  # pylint: disable=unused-import  # registration side-effect
 from prthinker.review_modes import available_modes, get_mode
 
 _SAMPLE_DIFF = (

@@ -17,3 +17,19 @@ pylint:
     - too-few-public-methods
     - too-many-arguments
     - too-many-locals
+    # import-outside-toplevel is the intentional runner-profile pattern:
+    # backends/__init__, backends/local, pipeline, rag, and mcp_server
+    # lazy-import torch / faiss / transformers / mcp inside functions so
+    # `pip install -e ".[runner]"` stays httpx + pydantic + PyYAML only.
+    # ruff (PLC0415, governed per-line with # noqa) owns the few cases
+    # that should be hoisted; prospector must not double-report the rest.
+    - import-outside-toplevel
+    # too-many-positional-arguments mirrors the too-many-arguments
+    # disable above: config / pydantic-heavy constructors and argparse
+    # handlers legitimately take several positional params.
+    - too-many-positional-arguments
+    # protected-access is governed per-line by ruff SLF001 (see the
+    # `# noqa: SLF001` sites). The only hits are argparse internals
+    # (_actions / _SubParsersAction) that have no public accessor, so
+    # prospector must not double-report them.
+    - protected-access

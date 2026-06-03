@@ -35,7 +35,7 @@ def _result(findings=None, per_file=None, code_diff="diff"):
 # ---------- platform factory ------------------------------------------------
 
 def test_factory_returns_gitea_adapter():
-    adapter = create_platform_adapter(
+    adapter = create_platform_adapter(  # nosec B106 - test fixture token, not a credential
         PlatformKind.GITEA, repo="o/r", token="t", pr_number=1,
     )
     assert isinstance(adapter, GiteaAdapter)

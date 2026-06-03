@@ -437,8 +437,6 @@ def _cmd_discover_rules(args: argparse.Namespace) -> int:
 
 def _cmd_derive_lessons(args: argparse.Namespace) -> int:
     """Batch dismissed + accepted, call backend, append to lessons.jsonl."""
-    from prthinker.accepted import AcceptedExamplesStore
-    from prthinker.dismissed import DismissedExamplesStore
     from prthinker.lessons import LessonsStore, derive_lessons
 
     dismissed_store = DismissedExamplesStore(args.dismissed_path)
@@ -482,7 +480,7 @@ def _cmd_derive_lessons(args: argparse.Namespace) -> int:
 def _cmd_report(args: argparse.Namespace) -> int:
     from prthinker.report import (
         ReportInputs,
-        render_html,
+        render_html as render_report_html,
         render_json,
         render_markdown,
     )
@@ -499,7 +497,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
     )
     renderer = {
         "markdown": render_markdown,
-        "html": render_html,
+        "html": render_report_html,
         "json": render_json,
     }[args.format]
     body = renderer(inputs)

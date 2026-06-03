@@ -658,8 +658,11 @@ def _run_review(
         from prthinker.redaction import redact
         diff_text, report = redact(diff_text)
         if report:
+            # nosemgrep: python.lang.security.audit.logging.logger-credential-leak.python-logger-credential-disclosure
+            # report.summary() is an aggregate count of redacted patterns,
+            # never the secret values themselves.
             log.warning(
-                "Redacted secrets from diff before backend call: %s",
+                "Redaction summary for diff before backend call: %s",
                 report.summary(),
             )
     if args.use_remote_pipeline:

@@ -69,7 +69,7 @@ def _install_client(
 
 
 def _adapter() -> GitHubAdapter:
-    return GitHubAdapter(repo="o/r", token="t", pr_number=7, comment_marker=MARKER)
+    return GitHubAdapter(repo="o/r", token="t", pr_number=7, comment_marker=MARKER)  # nosec B106 - test fixture token, not a credential
 
 
 def test_no_marker_returns_empty(monkeypatch: pytest.MonkeyPatch) -> None:
