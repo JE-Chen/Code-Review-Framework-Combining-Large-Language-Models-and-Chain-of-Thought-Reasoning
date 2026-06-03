@@ -251,6 +251,22 @@ def _add_per_file_mode_args(common: argparse.ArgumentParser) -> None:
         ),
     )
     common.add_argument(
+        "--review-delta",
+        action="store_true",
+        default=env_bool("PRTHINKER_REVIEW_DELTA", False),
+        help=(
+            "Show a 'since last review' new/resolved tally in the digest, "
+            "comparing against fingerprints persisted in the per-PR state."
+        ),
+    )
+    common.add_argument(
+        "--delta-state",
+        default=env_str(
+            "PRTHINKER_DELTA_STATE", ".prthinker/pr-state/findings-fp.json"
+        ),
+        help="Path to the persisted finding-fingerprint file for --review-delta.",
+    )
+    common.add_argument(
         "--max-findings-per-file",
         type=int,
         default=int(env_str("PRTHINKER_MAX_FINDINGS_PER_FILE", "10") or 10),

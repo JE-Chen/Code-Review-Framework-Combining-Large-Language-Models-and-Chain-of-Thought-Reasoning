@@ -128,7 +128,9 @@ def _hotspots_line(result: ReviewResult, files_url: str | None = None) -> str:
 
 
 def _format_overview_block(
-    result: ReviewResult, files_url: str | None = None
+    result: ReviewResult,
+    files_url: str | None = None,
+    delta: str | None = None,
 ) -> list[str]:
     """A compact, scannable digest pinned to the top of the summary.
 
@@ -148,6 +150,8 @@ def _format_overview_block(
         f"- **Files:** {reviewed} reviewed · {with_findings} with findings · "
         f"{reviewed - with_findings} clean",
     ]
+    if delta:
+        lines.append(f"- **Since last review:** {delta}")
     hotspots = _hotspots_line(result, files_url)
     if hotspots:
         lines.append(f"- **Hotspots:** {hotspots}")
@@ -181,6 +185,7 @@ def format_pr_comment(
     hide_info: bool = False,
     preliminary: str | None = None,
     files_url: str | None = None,
+    delta: str | None = None,
 ) -> str:
     """Render the consolidated PR comment.
 
@@ -209,7 +214,7 @@ def format_pr_comment(
         return _format_per_file(
             result, marker, posted_count=posted_count,
             findings_only=findings_only, preliminary=preliminary,
-            files_url=files_url,
+            files_url=files_url, delta=delta,
         )
     return _format_single(result, marker)
 
@@ -352,6 +357,7 @@ def _per_file_head_parts(
     findings_only: bool = False,
     preliminary: str | None = None,
     files_url: str | None = None,
+    delta: str | None = None,
 ) -> list[str]:
     """Everything in the per-file comment that precedes the file blocks."""
     parts: list[str] = [
@@ -361,7 +367,7 @@ def _per_file_head_parts(
     ]
     if preliminary:
         parts.append(preliminary)
-    parts += _format_overview_block(result, files_url)
+    parts += _format_overview_block(result, files_url, delta)
     parts.append(_per_file_header(result))
     parts.append("")
     parts += _format_per_file_intro(result, posted_count)
@@ -377,9 +383,11 @@ def _format_per_file(
     findings_only: bool = False,
     preliminary: str | None = None,
     files_url: str | None = None,
+    delta: str | None = None,
 ) -> str:
     parts = _per_file_head_parts(
-        result, marker, posted_count, findings_only, preliminary, files_url
+        result, marker, posted_count, findings_only, preliminary,
+        files_url, delta,
     )
     for fr in _files_to_render(result.per_file, findings_only):
         parts += _format_file_block(fr, files_url)
@@ -447,6 +455,7 @@ def format_pr_comment_pages(
     hide_info: bool = False,
     preliminary: str | None = None,
     files_url: str | None = None,
+    delta: str | None = None,
 ) -> list[str]:
     """Render the PR comment, paginated so no page exceeds ``max_chars``.
 
@@ -467,13 +476,15 @@ def format_pr_comment_pages(
         result = _without_info_findings(result)
     single = format_pr_comment(
         result, marker, posted_count=posted_count,
-        findings_only=findings_only, preliminary=preliminary, files_url=files_url,
+        findings_only=findings_only, preliminary=preliminary,
+        files_url=files_url, delta=delta,
     )
     if len(single) <= max_chars or not result.per_file:
         return [single]
     head = "\n".join(
         _per_file_head_parts(
-            result, marker, posted_count, findings_only, preliminary, files_url
+            result, marker, posted_count, findings_only, preliminary,
+            files_url, delta,
         )
     )
     blocks = [

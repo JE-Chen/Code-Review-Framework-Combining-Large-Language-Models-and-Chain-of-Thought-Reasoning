@@ -431,6 +431,20 @@ def test_no_links_when_files_url_absent():
     assert "diff-" not in out
 
 
+def test_delta_line_in_digest():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr]), _MARKER, delta="+2 new · 1 resolved · 3 carried"
+    )
+    assert "- **Since last review:** +2 new · 1 resolved · 3 carried" in out
+
+
+def test_no_delta_line_when_absent():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "Since last review" not in out
+
+
 def test_preliminary_pinned_above_glance_and_files():
     fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
     out = formatters.format_pr_comment(

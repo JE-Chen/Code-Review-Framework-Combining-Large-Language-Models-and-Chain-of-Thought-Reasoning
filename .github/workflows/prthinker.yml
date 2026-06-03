@@ -467,6 +467,7 @@ jobs:
           PRTHINKER_PR_OVERVIEW: "true"
           PRTHINKER_PR_LABELS: "true"
           PRTHINKER_CHECK_ANNOTATIONS: "true"
+          PRTHINKER_REVIEW_DELTA: "true"
           PRTHINKER_GATE_ON: "error"
           PRTHINKER_AGGREGATE_FROM: ${{ runner.temp }}/partials
         run: |

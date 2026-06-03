@@ -31,6 +31,7 @@ from prthinker.cli_review import (
     _build_preliminary_overview,
     _maybe_set_labels,
     _pr_files_url,
+    _review_delta_line,
     _run_review,
     _synthesize_overall_summary,
 )
@@ -107,6 +108,7 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
         hide_info=getattr(args, "hide_info", False),
         preliminary=_build_preliminary_overview(args, adapter, merged),
         files_url=_pr_files_url(args),
+        delta=_review_delta_line(args, merged),
     )
     if args.dry_run:
         sys.stdout.write("\n\n".join(pages))

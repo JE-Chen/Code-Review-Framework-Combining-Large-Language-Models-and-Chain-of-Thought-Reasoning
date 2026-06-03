@@ -157,6 +157,14 @@ file name — in the hotspots line and the block headers — is a deep link
 straight to that file's first finding in the Files-changed tab (set
 ``PRTHINKER_PR_FILES_URL`` for GitHub Enterprise hosts).
 
+With ``--review-delta`` (env ``PRTHINKER_REVIEW_DELTA``) the digest adds a
+``Since last review: +2 new · 3 resolved · 5 carried`` line. Findings are
+fingerprinted by ``(path, severity, comment)`` — not line number, which
+shifts between pushes — and the set is persisted in the per-PR state
+(``--delta-state``, default ``.prthinker/pr-state/findings-fp.json``) that
+CI already restores across pushes, so a re-push shows progress at a
+glance.
+
 A full per-file review can run to hundreds of KB — far past GitHub's
 65 536-character limit on a single comment. Rather than truncate, the
 summary is **paginated across multiple comments**: it is split between

@@ -40,6 +40,12 @@ from prthinker.formatters import format_pr_comment, format_pr_comment_pages
 from prthinker.github_api import count_findings_on_diff
 from prthinker.pr_labels import compute_labels
 from prthinker.pr_overview import build_overview_text
+from prthinker.review_delta import (
+    compute_delta,
+    format_delta,
+    load_fingerprints,
+    save_fingerprints,
+)
 from prthinker.html_report import write_report
 from prthinker.ignore import filter_findings, load_ignore
 from prthinker.sarif import write_sarif
@@ -760,6 +766,28 @@ def _append_api_impact(body: str, result: ReviewResult) -> str:
     return f"{body}\n\nPublic API impact: **{report.impact}**"
 
 
+def _review_delta_line(
+    args: argparse.Namespace, result: ReviewResult
+) -> str | None:
+    """New/resolved tally vs the last run; persists the current set.
+
+    Returns None on the first run (no baseline) or when disabled; the
+    fingerprints are still written so the next run has a baseline.
+    """
+    if not getattr(args, "review_delta", False) or args.dry_run:
+        return None
+    path = Path(getattr(args, "delta_state", "") or ".prthinker/pr-state/findings-fp.json")
+    previous = load_fingerprints(path)
+    line: str | None = None
+    if previous is not None:
+        line = format_delta(compute_delta(previous, result.inline_findings))
+    try:
+        save_fingerprints(path, result.inline_findings)
+    except OSError as exc:
+        log.warning("Could not persist finding fingerprints (%s)", exc)
+    return line
+
+
 def _maybe_set_labels(
     args: argparse.Namespace, adapter: object, result: ReviewResult
 ) -> None:
@@ -836,6 +864,7 @@ def _publish_review_result(
         hide_info=getattr(args, "hide_info", False),
         preliminary=_build_preliminary_overview(args, adapter, result),
         files_url=_pr_files_url(args),
+        delta=_review_delta_line(args, result),
     )
     if getattr(args, "api_impact", False):
         pages[-1] = _append_api_impact(pages[-1], result)
