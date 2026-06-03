@@ -43,7 +43,10 @@ from prthinker.pr_overview import build_overview_text
 from prthinker.review_delta import (
     compute_delta,
     format_delta,
+    format_resolved_block,
     load_fingerprints,
+    load_records,
+    resolved_records,
     save_fingerprints,
 )
 from prthinker.html_report import write_report
@@ -766,26 +769,51 @@ def _append_api_impact(body: str, result: ReviewResult) -> str:
     return f"{body}\n\nPublic API impact: **{report.impact}**"
 
 
-def _review_delta_line(
-    args: argparse.Namespace, result: ReviewResult
-) -> str | None:
-    """New/resolved tally vs the last run; persists the current set.
+def _author_reply_note(adapter: object) -> str:
+    """`💬 N author reply(ies)` since the last review, or empty (best-effort)."""
+    try:
+        replies = adapter.fetch_author_replies()
+    except Exception as exc:  # noqa: BLE001 — dialogue note is best-effort
+        log.warning("Could not fetch author replies (%s)", exc)
+        return ""
+    return f"💬 {len(replies)} author reply(ies)" if replies else ""
 
-    Returns None on the first run (no baseline) or when disabled; the
-    fingerprints are still written so the next run has a baseline.
+
+def _review_progress(
+    args: argparse.Namespace, adapter: object, result: ReviewResult
+) -> tuple[str | None, str | None]:
+    """Return (since-last-review line, resolved-block) and persist the run.
+
+    Both are None on the first run (no baseline) or when disabled; the
+    finding set is still written so the next run has a baseline.
     """
     if not getattr(args, "review_delta", False) or args.dry_run:
-        return None
-    path = Path(getattr(args, "delta_state", "") or ".prthinker/pr-state/findings-fp.json")
+        return None, None
+    path = Path(
+        getattr(args, "delta_state", "") or ".prthinker/pr-state/findings-fp.json"
+    )
     previous = load_fingerprints(path)
     line: str | None = None
+    resolved_block: str | None = None
     if previous is not None:
-        line = format_delta(compute_delta(previous, result.inline_findings))
+        bits = [format_delta(compute_delta(previous, result.inline_findings))]
+        note = _author_reply_note(adapter)
+        if note:
+            bits.append(note)
+        line = " · ".join(bits)
+        resolved = resolved_records(load_records(path), result.inline_findings)
+        resolved_block = format_resolved_block(resolved) or None
     try:
         save_fingerprints(path, result.inline_findings)
     except OSError as exc:
         log.warning("Could not persist finding fingerprints (%s)", exc)
-    return line
+    return line, resolved_block
+
+
+def _join_overview(preliminary: str | None, resolved_block: str | None) -> str | None:
+    """Combine the PR overview and the resolved-since-last block for the top."""
+    parts = [p for p in (preliminary, resolved_block) if p]
+    return "\n\n".join(parts) if parts else None
 
 
 def _maybe_set_labels(
@@ -858,13 +886,16 @@ def _publish_review_result(
         posted_count = count_findings_on_diff(
             result.inline_findings, result.code_diff
         )
+    delta_line, resolved_block = _review_progress(args, adapter, result)
     pages = format_pr_comment_pages(
         result, marker=args.marker, posted_count=posted_count,
         findings_only=getattr(args, "findings_only", False),
         hide_info=getattr(args, "hide_info", False),
-        preliminary=_build_preliminary_overview(args, adapter, result),
+        preliminary=_join_overview(
+            _build_preliminary_overview(args, adapter, result), resolved_block
+        ),
         files_url=_pr_files_url(args),
-        delta=_review_delta_line(args, result),
+        delta=delta_line,
         min_confidence=getattr(args, "summary_min_confidence", 0.0),
     )
     if getattr(args, "api_impact", False):

@@ -171,7 +171,11 @@ fingerprinted by ``(path, severity, comment)`` — not line number, which
 shifts between pushes — and the set is persisted in the per-PR state
 (``--delta-state``, default ``.prthinker/pr-state/findings-fp.json``) that
 CI already restores across pushes, so a re-push shows progress at a
-glance.
+glance. The same line appends ``💬 N author reply(ies)`` when the author
+has responded since the last review, and the findings that disappeared
+are listed struck-through in a collapsed **✅ Resolved since last review**
+block at the top — so authors get credit and reviewers see exactly what
+was addressed.
 
 A full per-file review can run to hundreds of KB — far past GitHub's
 65 536-character limit on a single comment. Rather than truncate, the

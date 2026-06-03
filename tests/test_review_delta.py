@@ -57,3 +57,96 @@ def test_load_corrupt_file_returns_none(tmp_path: Path):
     path = tmp_path / "fp.json"
     path.write_text("not json{", encoding="utf-8")
     assert review_delta.load_fingerprints(path) is None
+
+
+def test_records_dedup_and_fields():
+    recs = review_delta.records([_f("a.py", "msg"), _f("a.py", "msg")])
+    assert len(recs) == 1
+    assert recs[0]["path"] == "a.py" and recs[0]["severity"] == "warning"
+    assert recs[0]["comment"] == "msg"
+
+
+def test_resolved_records_finds_gone_findings():
+    prev = review_delta.records([_f("a.py", "old"), _f("b.py", "keep")])
+    resolved = review_delta.resolved_records(prev, [_f("b.py", "keep")])
+    assert len(resolved) == 1 and resolved[0]["path"] == "a.py"
+
+
+def test_save_persists_records_and_load(tmp_path: Path):
+    path = tmp_path / "fp.json"
+    review_delta.save_fingerprints(path, [_f("a.py", "one")])
+    recs = review_delta.load_records(path)
+    assert recs and recs[0]["path"] == "a.py"
+
+
+def test_format_resolved_block_struck_through():
+    block = review_delta.format_resolved_block(
+        [{"path": "a.py", "comment": "fixed it", "fp": "x"}]
+    )
+    assert "✅ Resolved since last review (1)" in block
+    assert "~~`a.py` — fixed it~~" in block
+
+
+def test_format_resolved_block_empty():
+    assert review_delta.format_resolved_block([]) == ""
+
+
+# --- cli wiring: _review_progress (delta + dialogue + resolved) --------------
+
+import argparse  # noqa: E402
+
+from prthinker.cli_review import _review_progress  # noqa: E402
+from prthinker.dialogue import AuthorReply  # noqa: E402
+from prthinker.pipeline import FileReviewResult, ReviewResult  # noqa: E402
+
+
+class _ReplyAdapter:
+    def __init__(self, replies):
+        self._replies = replies
+
+    def fetch_author_replies(self):
+        return self._replies
+
+
+def _result(comments: list[str]) -> ReviewResult:
+    findings = [_f("a.py", c) for c in comments]
+    fr = FileReviewResult(
+        path="a.py", rag_docs=[], step_outputs={}, inline_findings=findings,
+    )
+    return ReviewResult(
+        code_diff="", rag_docs=[], inline_findings=findings, per_file=[fr],
+    )
+
+
+def _args(tmp_path: Path, **kw):
+    base = {
+        "review_delta": True, "dry_run": False,
+        "delta_state": str(tmp_path / "fp.json"),
+    }
+    base.update(kw)
+    return argparse.Namespace(**base)
+
+
+def test_review_progress_first_run_returns_none_but_saves(tmp_path: Path):
+    adapter = _ReplyAdapter([])
+    line, resolved = _review_progress(_args(tmp_path), adapter, _result(["a"]))
+    assert line is None and resolved is None
+    assert (tmp_path / "fp.json").exists()
+
+
+def test_review_progress_second_run_reports_delta_and_resolved(tmp_path: Path):
+    adapter = _ReplyAdapter([AuthorReply(author="u", body="thanks")])
+    a = _args(tmp_path)
+    _review_progress(a, adapter, _result(["old", "keep"]))      # baseline
+    line, resolved = _review_progress(a, adapter, _result(["keep", "new"]))
+    assert "+1 new" in line and "1 resolved" in line
+    assert "💬 1 author reply(ies)" in line
+    assert resolved is not None and "old" in resolved
+
+
+def test_review_progress_disabled_returns_none(tmp_path: Path):
+    adapter = _ReplyAdapter([])
+    line, resolved = _review_progress(
+        _args(tmp_path, review_delta=False), adapter, _result(["a"])
+    )
+    assert line is None and resolved is None

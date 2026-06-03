@@ -37,6 +37,33 @@ def fingerprints(findings: list[InlineFinding]) -> list[str]:
     return sorted({fingerprint(f) for f in findings})
 
 
+def _first_line(text: str, cap: int = 120) -> str:
+    head = (text or "").strip().splitlines()[0] if (text or "").strip() else ""
+    return head if len(head) <= cap else head[: cap - 1] + "…"
+
+
+def records(findings: list[InlineFinding]) -> list[dict]:
+    """De-duplicated finding records (fingerprint + display fields)."""
+    by_fp: dict[str, dict] = {}
+    for f in findings:
+        fp = fingerprint(f)
+        by_fp.setdefault(fp, {
+            "fp": fp,
+            "path": f.path,
+            "severity": f.severity,
+            "comment": _first_line(f.comment),
+        })
+    return list(by_fp.values())
+
+
+def resolved_records(
+    previous: list[dict], current_findings: list[InlineFinding]
+) -> list[dict]:
+    """Previous-run records whose finding is gone this run."""
+    current = {fingerprint(f) for f in current_findings}
+    return [r for r in previous if r.get("fp") not in current]
+
+
 def compute_delta(
     previous: set[str], current_findings: list[InlineFinding]
 ) -> ReviewDelta:
@@ -48,21 +75,34 @@ def compute_delta(
     )
 
 
-def load_fingerprints(path: Path) -> set[str] | None:
-    """Previous run's fingerprints, or None when there is no prior run."""
+def _load(path: Path) -> dict | None:
     if not path.exists():
         return None
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    return set(data.get("fingerprints", []))
+
+
+def load_fingerprints(path: Path) -> set[str] | None:
+    """Previous run's fingerprints, or None when there is no prior run."""
+    data = _load(path)
+    return None if data is None else set(data.get("fingerprints", []))
+
+
+def load_records(path: Path) -> list[dict]:
+    """Previous run's finding records (empty when missing or pre-records)."""
+    data = _load(path)
+    return [] if data is None else list(data.get("records", []))
 
 
 def save_fingerprints(path: Path, findings: list[InlineFinding]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps({"fingerprints": fingerprints(findings)}, indent=2),
+        json.dumps(
+            {"fingerprints": fingerprints(findings), "records": records(findings)},
+            indent=2,
+        ),
         encoding="utf-8",
     )
 
@@ -75,12 +115,33 @@ def format_delta(delta: ReviewDelta) -> str:
     )
 
 
+def format_resolved_block(resolved: list[dict]) -> str:
+    """Collapsed, struck-through list of findings resolved since last run."""
+    if not resolved:
+        return ""
+    lines = [
+        f"<details><summary>✅ Resolved since last review ({len(resolved)})"
+        "</summary>",
+        "",
+    ]
+    for rec in resolved:
+        path = rec.get("path", "?")
+        comment = rec.get("comment", "")
+        lines.append(f"- ~~`{path}` — {comment}~~")
+    lines += ["", "</details>"]
+    return "\n".join(lines)
+
+
 __all__ = [
     "ReviewDelta",
     "compute_delta",
     "fingerprint",
     "fingerprints",
     "format_delta",
+    "format_resolved_block",
     "load_fingerprints",
+    "load_records",
+    "records",
+    "resolved_records",
     "save_fingerprints",
 ]

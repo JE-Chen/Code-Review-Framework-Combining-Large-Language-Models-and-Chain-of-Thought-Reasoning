@@ -163,6 +163,9 @@ error finding 以單行加深層連結列出，讓阻擋性問題不必展開任
 ``(path, severity, comment)`` 取指紋──而非會隨 push 位移的行號──並把這組
 指紋持久化在 CI 本來就會跨 push 還原的 per-PR 狀態（``--delta-state``\ ，預設
 ``.prthinker/pr-state/findings-fp.json``）裡，因此重推時一眼就能看到進展。
+同一行在作者於上次審查後有回覆時會接上 ``💬 N author reply(ies)``\ ；消失的
+finding 則以刪除線列在最上方收合的 **✅ Resolved since last review** 區塊──
+讓作者有成就感、審查者清楚看到哪些已處理。
 
 完整的逐檔審查可能達數百 KB，遠超過 GitHub 單則留言 65 536 字元的上限。
 與其截斷，總結會\ **切分成多則留言**\ ：只在整個檔案區塊之間切（絕不切在

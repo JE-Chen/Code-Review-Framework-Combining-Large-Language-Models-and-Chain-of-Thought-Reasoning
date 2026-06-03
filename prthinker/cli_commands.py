@@ -29,9 +29,10 @@ from prthinker.repo_kg import (
 from prthinker.cli_review import (
     _build_config,
     _build_preliminary_overview,
+    _join_overview,
     _maybe_set_labels,
     _pr_files_url,
-    _review_delta_line,
+    _review_progress,
     _run_review,
     _synthesize_overall_summary,
 )
@@ -102,13 +103,16 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
 
     gate_handle = _open_aggregate_gate(args, adapter)
 
+    _agg_delta, _agg_resolved = _review_progress(args, adapter, merged)
     pages = format_pr_comment_pages(
         merged, marker=args.marker,
         findings_only=getattr(args, "findings_only", False),
         hide_info=getattr(args, "hide_info", False),
-        preliminary=_build_preliminary_overview(args, adapter, merged),
+        preliminary=_join_overview(
+            _build_preliminary_overview(args, adapter, merged), _agg_resolved
+        ),
         files_url=_pr_files_url(args),
-        delta=_review_delta_line(args, merged),
+        delta=_agg_delta,
         min_confidence=getattr(args, "summary_min_confidence", 0.0),
     )
     if args.dry_run:
