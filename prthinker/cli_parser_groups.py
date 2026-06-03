@@ -204,6 +204,16 @@ def _add_per_file_mode_args(common: argparse.ArgumentParser) -> None:
         help="Collect JSON findings per file and submit a GitHub review",
     )
     common.add_argument(
+        "--findings-only",
+        action="store_true",
+        default=env_bool("PRTHINKER_FINDINGS_ONLY", False),
+        help=(
+            "Summary lists only files that have findings; clean files are "
+            "collapsed into a count. A PR with zero findings collapses to a "
+            "one-line confirmation instead of a full empty result."
+        ),
+    )
+    common.add_argument(
         "--max-findings-per-file",
         type=int,
         default=int(env_str("PRTHINKER_MAX_FINDINGS_PER_FILE", "10") or 10),

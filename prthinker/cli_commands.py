@@ -98,7 +98,10 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
 
     gate_handle = _open_aggregate_gate(args, adapter)
 
-    pages = format_pr_comment_pages(merged, marker=args.marker)
+    pages = format_pr_comment_pages(
+        merged, marker=args.marker,
+        findings_only=getattr(args, "findings_only", False),
+    )
     if args.dry_run:
         sys.stdout.write("\n\n".join(pages))
         if merged.inline_findings:

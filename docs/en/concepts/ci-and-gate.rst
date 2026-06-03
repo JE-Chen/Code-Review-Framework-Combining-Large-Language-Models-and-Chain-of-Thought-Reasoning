@@ -143,6 +143,13 @@ created, and any leftover pages from a longer previous run are deleted,
 so stale parts never linger. Platforms other than GitHub fall back to a
 single comment (the overflow stays in the job logs).
 
+With ``--findings-only`` (env ``PRTHINKER_FINDINGS_ONLY``) the summary
+lists *only* files that have findings; clean files are collapsed into a
+``N file(s) reviewed with no findings — hidden`` line, and a PR with zero
+findings collapses to a one-line ``✅ No findings`` confirmation instead
+of a full empty result. On a large but mostly-clean PR this often brings
+a multi-page summary back down to a single comment.
+
 Inline suggestions — the one-click *Apply suggestion* blocks on the
 diff — are posted as a separate PR review. The new review is submitted
 **before** the previous run's inline comments are dismissed, and the

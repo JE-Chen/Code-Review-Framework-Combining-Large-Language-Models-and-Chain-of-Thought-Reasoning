@@ -37,6 +37,23 @@ def test_redact_secrets_flag_parses() -> None:
     assert ns.redact_secrets is True
 
 
+def test_findings_only_flag_parses() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote",
+        "--remote-url", "http://x", "--findings-only",
+    ])
+    assert ns.findings_only is True
+
+
+def test_findings_only_defaults_false() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote", "--remote-url", "http://x",
+    ])
+    assert ns.findings_only is False
+
+
 def test_each_backend_choice_is_accepted() -> None:
     p = _build_parser()
     for kind in BackendKind:

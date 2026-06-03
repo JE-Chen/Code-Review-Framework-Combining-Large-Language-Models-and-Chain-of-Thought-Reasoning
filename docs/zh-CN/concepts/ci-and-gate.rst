@@ -140,6 +140,12 @@ Check Run。CLI 会：
 评论残留的多余分页删除，残缺的旧分页不会留下。GitHub 以外的平台则退回
 单条评论（溢出的内容留在 job log 里）。
 
+加上 ``--findings-only``\ （环境变量 ``PRTHINKER_FINDINGS_ONLY``）时，总结
+\ **只**\ 列出有 finding 的文件；干净的文件会折叠成一行
+``N file(s) reviewed with no findings — hidden``\ ，而整个 PR 零 finding 时
+则折叠成一行 ``✅ No findings`` 确认信息，而非完整的空结果。在大型但大多
+干净的 PR 上，这通常能把多条分页的总结缩回单条评论。
+
 inline 建议\ ──diff 上一键 *Apply suggestion* 的区块\ ──会以另一个 PR
 review 贴出。新的 review 会\ **先**\ 送出，之后才移除上一轮的 inline 评论，
 而且移除时会排除刚刚送出的 review。先贴再移除代表：当送出被拒（只要有任何

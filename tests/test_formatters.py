@@ -277,6 +277,60 @@ def test_pages_oversized_single_block_still_emitted():
     assert "huge.py" in "\n".join(pages)
 
 
+# --------------------------------------------------------------------------
+# findings_only mode
+# --------------------------------------------------------------------------
+
+def test_findings_only_hides_clean_files():
+    dirty = _file_result(path="bug.py", inline_findings=[_finding(path="bug.py")])
+    clean = _file_result(path="ok.py")
+    result = _review(per_file=[dirty, clean])
+    out = formatters.format_pr_comment(result, _MARKER, findings_only=True)
+    assert "bug.py" in out
+    assert "ok.py" not in out
+    assert "1 file(s) reviewed with no findings — hidden." in out
+
+
+def test_findings_only_off_shows_clean_files():
+    dirty = _file_result(path="bug.py", inline_findings=[_finding(path="bug.py")])
+    clean = _file_result(path="ok.py")
+    result = _review(per_file=[dirty, clean])
+    out = formatters.format_pr_comment(result, _MARKER, findings_only=False)
+    assert "ok.py" in out
+    assert "hidden." not in out
+
+
+def test_findings_only_zero_findings_collapses_to_one_liner():
+    result = _review(per_file=[_file_result(path="a.py"), _file_result(path="b.py")])
+    out = formatters.format_pr_comment(result, _MARKER, findings_only=True)
+    assert out.startswith(_MARKER)
+    assert "✅ No findings across 2 reviewed file(s)." in out
+    assert "<details>" not in out
+
+
+def test_findings_only_zero_findings_excludes_binary_from_count():
+    result = _review(per_file=[
+        _file_result(path="a.py"),
+        _file_result(path="x.bin", is_binary=True),
+    ])
+    out = formatters.format_pr_comment(result, _MARKER, findings_only=True)
+    # Only the one real reviewed file counts; the binary is not reviewed.
+    assert "✅ No findings across 1 reviewed file(s)." in out
+
+
+def test_findings_only_pages_collapse_when_mostly_clean():
+    files = [_padded_file(f"clean{i}.py", 120) for i in range(8)]
+    files.append(_file_result(path="bug.py", inline_findings=[_finding(path="bug.py")]))
+    result = _review(per_file=files)
+    # Without findings_only this paginates; with it, only bug.py remains.
+    pages = formatters.format_pr_comment_pages(
+        result, _MARKER, max_chars=700, findings_only=True
+    )
+    assert len(pages) == 1
+    assert "bug.py" in pages[0]
+    assert "clean0.py" not in pages[0]
+
+
 def test_per_file_ends_with_newline_and_no_trailing_blank():
     result = _review(per_file=[_file_result(path="a.py")])
     out = formatters.format_pr_comment(result, _MARKER)

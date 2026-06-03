@@ -779,7 +779,8 @@ def _publish_review_result(
             result.inline_findings, result.code_diff
         )
     pages = format_pr_comment_pages(
-        result, marker=args.marker, posted_count=posted_count
+        result, marker=args.marker, posted_count=posted_count,
+        findings_only=getattr(args, "findings_only", False),
     )
     if getattr(args, "api_impact", False):
         pages[-1] = _append_api_impact(pages[-1], result)

@@ -25,8 +25,33 @@ _SECTION_TITLES: dict[str, str] = {
 }
 
 
+def _total_inline_findings(result: ReviewResult) -> int:
+    """Total inline findings, counted from per_file when present."""
+    if result.per_file:
+        return sum(len(fr.inline_findings) for fr in result.per_file)
+    return len(result.inline_findings)
+
+
+def _reviewed_file_count(result: ReviewResult) -> int:
+    """Number of non-binary, non-deleted files actually reviewed."""
+    return sum(
+        1 for fr in result.per_file if not (fr.is_binary or fr.is_deleted)
+    )
+
+
+def _format_clean_comment(result: ReviewResult, marker: str) -> str:
+    """One-line confirmation for a PR that produced zero findings."""
+    reviewed = _reviewed_file_count(result)
+    scope = f" across {reviewed} reviewed file(s)" if reviewed else ""
+    return f"{marker}\n## CoT Code Review\n\n✅ No findings{scope}.\n"
+
+
 def format_pr_comment(
-    result: ReviewResult, marker: str, *, posted_count: int | None = None
+    result: ReviewResult,
+    marker: str,
+    *,
+    posted_count: int | None = None,
+    findings_only: bool = False,
 ) -> str:
     """Render the consolidated PR comment.
 
@@ -36,9 +61,17 @@ def format_pr_comment(
     instead of overstating that every finding was posted. When ``None``
     (local CLI, MCP, dry-run — no inline submission happens) only the
     total is shown.
+
+    ``findings_only`` lists only files that have findings (clean files are
+    collapsed into a count) and reduces a zero-finding PR to a one-line
+    confirmation instead of a full empty result.
     """
+    if findings_only and _total_inline_findings(result) == 0:
+        return _format_clean_comment(result, marker)
     if result.per_file:
-        return _format_per_file(result, marker, posted_count=posted_count)
+        return _format_per_file(
+            result, marker, posted_count=posted_count, findings_only=findings_only
+        )
     return _format_single(result, marker)
 
 
@@ -153,8 +186,30 @@ def _format_per_file_sections(result: ReviewResult) -> list[str]:
     return parts
 
 
+def _files_to_render(
+    per_file: list[FileReviewResult], findings_only: bool
+) -> list[FileReviewResult]:
+    """The file blocks to render: all of them, or only ones with findings."""
+    if not findings_only:
+        return per_file
+    return [fr for fr in per_file if fr.inline_findings]
+
+
+def _hidden_clean_note(result: ReviewResult, findings_only: bool) -> list[str]:
+    """A one-line note accounting for clean files omitted under findings-only."""
+    if not findings_only:
+        return []
+    hidden = sum(1 for fr in result.per_file if not fr.inline_findings)
+    if not hidden:
+        return []
+    return [f"_{hidden} file(s) reviewed with no findings — hidden._", ""]
+
+
 def _per_file_head_parts(
-    result: ReviewResult, marker: str, posted_count: int | None
+    result: ReviewResult,
+    marker: str,
+    posted_count: int | None,
+    findings_only: bool = False,
 ) -> list[str]:
     """Everything in the per-file comment that precedes the file blocks."""
     parts: list[str] = [
@@ -165,15 +220,19 @@ def _per_file_head_parts(
         "",
     ]
     parts += _format_per_file_intro(result, posted_count)
+    parts += _hidden_clean_note(result, findings_only)
     parts += _format_per_file_sections(result)
     return parts
 
 
 def _format_per_file(
-    result: ReviewResult, marker: str, posted_count: int | None = None
+    result: ReviewResult,
+    marker: str,
+    posted_count: int | None = None,
+    findings_only: bool = False,
 ) -> str:
-    parts = _per_file_head_parts(result, marker, posted_count)
-    for fr in result.per_file:
+    parts = _per_file_head_parts(result, marker, posted_count, findings_only)
+    for fr in _files_to_render(result.per_file, findings_only):
         parts += _format_file_block(fr)
 
     return "\n".join(parts).rstrip() + "\n"
@@ -235,6 +294,7 @@ def format_pr_comment_pages(
     *,
     posted_count: int | None = None,
     max_chars: int = _PAGE_MAX_CHARS,
+    findings_only: bool = False,
 ) -> list[str]:
     """Render the PR comment, paginated so no page exceeds ``max_chars``.
 
@@ -244,12 +304,23 @@ def format_pr_comment_pages(
     first carries a continuation header and a ``Part k/N`` label so a
     1 MB review is preserved across several comments instead of being
     truncated to the GitHub limit.
+
+    ``findings_only`` renders only files with findings (clean ones become a
+    count), which on a large but mostly-clean PR can collapse a multi-page
+    summary back to one comment.
     """
-    single = format_pr_comment(result, marker, posted_count=posted_count)
+    single = format_pr_comment(
+        result, marker, posted_count=posted_count, findings_only=findings_only
+    )
     if len(single) <= max_chars or not result.per_file:
         return [single]
-    head = "\n".join(_per_file_head_parts(result, marker, posted_count))
-    blocks = ["\n".join(_format_file_block(fr)) for fr in result.per_file]
+    head = "\n".join(
+        _per_file_head_parts(result, marker, posted_count, findings_only)
+    )
+    blocks = [
+        "\n".join(_format_file_block(fr))
+        for fr in _files_to_render(result.per_file, findings_only)
+    ]
     pages = _paginate_blocks(head, blocks, marker, max_chars)
     return _label_pages(pages, marker)
 

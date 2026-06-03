@@ -140,6 +140,12 @@ Check Run。CLI 會：
 留言殘留的多餘分頁刪除，殘缺的舊分頁不會留下。GitHub 以外的平台則退回
 單則留言（溢出的內容留在 job log 裡）。
 
+加上 ``--findings-only``\ （環境變數 ``PRTHINKER_FINDINGS_ONLY``）時，總結
+\ **只**\ 列出有 finding 的檔案；乾淨的檔案會收合成一行
+``N file(s) reviewed with no findings — hidden``\ ，而整個 PR 零 finding 時
+則收合成一行 ``✅ No findings`` 確認訊息，而非完整的空結果。在大型但大多
+乾淨的 PR 上，這通常能把多則分頁的總結縮回單則留言。
+
 inline 建議\ ──diff 上一鍵 *Apply suggestion* 的區塊\ ──會以另一個 PR
 review 貼出。新的 review 會\ **先**\ 送出，之後才移除上一輪的 inline 留言，
 而且移除時會排除剛剛送出的 review。先貼再移除代表：當送出被拒（只要有任何
