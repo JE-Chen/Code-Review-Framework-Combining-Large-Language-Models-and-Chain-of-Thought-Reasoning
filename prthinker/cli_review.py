@@ -858,7 +858,10 @@ def _publish_review_result(
         log.info("Posted inline review id=%s (event=%s)", review_id, review_event)
 
     if gate_handle is not None:
-        gate_result = evaluate_gate(result.inline_findings, gate_on=args.gate_on)
+        gate_result = evaluate_gate(
+            result.inline_findings, gate_on=args.gate_on,
+            with_annotations=getattr(args, "check_annotations", False),
+        )
         adapter.close_gate(gate_handle, gate_result)
         log.info(
             "Gate conclusion=%s (errors=%d warnings=%d info=%d, floor=%s)",

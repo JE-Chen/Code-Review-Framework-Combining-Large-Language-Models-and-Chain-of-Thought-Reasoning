@@ -197,6 +197,14 @@ single comment targets a line outside the diff hunks) leaves the prior
 run's suggestions intact instead of wiping them ahead of a failed
 re-post.
 
+With ``--check-annotations`` (env ``PRTHINKER_CHECK_ANNOTATIONS``) the
+gate's Check Run also carries per-line annotations (one per finding,
+``failure`` / ``warning`` / ``notice`` by severity). They render on the
+Files-changed and Checks tabs and are a robust *parallel* channel to the
+inline review: a single bad line is dropped individually rather than
+422-ing the whole batch, and GitHub appends them across requests so a
+review with more than 50 findings is sent over several updates.
+
 Combining CI signals + gate
 ---------------------------
 

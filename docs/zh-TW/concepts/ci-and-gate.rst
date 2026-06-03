@@ -182,6 +182,13 @@ review 貼出。新的 review 會\ **先**\ 送出，之後才移除上一輪的
 一則留言指到 diff hunk 範圍外的行，GitHub 會 422 拒絕\ *整個*\ review）時，
 上一輪的建議仍會保留，而不是在失敗的重貼之前就被清掉。
 
+加上 ``--check-annotations``\ （環境變數 ``PRTHINKER_CHECK_ANNOTATIONS``）時，
+gate 的 Check Run 還會帶逐行標註（每個 finding 一筆，依嚴重度為
+``failure`` / ``warning`` / ``notice``）。它們顯示在 Files-changed 與 Checks
+分頁，是 inline review 之外的\ *並行*\ 管道：單一壞行只會被個別丟棄，而不會
+422 拖垮整批；且 GitHub 會跨請求累加，因此超過 50 個 finding 的審查會分成
+數次更新送出。
+
 CI 訊號 + gate 一起用
 ---------------------
 

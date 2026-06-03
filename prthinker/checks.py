@@ -10,7 +10,7 @@ into branch protection as a required status check.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Iterable, Literal
 
 import httpx
@@ -38,6 +38,35 @@ class CheckResult:
     error_count: int
     warning_count: int
     info_count: int
+    annotations: list[dict] = field(default_factory=list)
+
+
+# Check Run annotations render per-line on the Files-changed and Checks
+# tabs. Unlike review comments, a bad line does not 422 the batch, so this
+# is a robust parallel channel. GitHub accepts at most 50 per request.
+_ANNOTATION_BATCH = 50
+_LEVEL_BY_SEVERITY: dict[Severity, str] = {
+    "error": "failure",
+    "warning": "warning",
+    "info": "notice",
+}
+
+
+def _build_annotations(findings: list[InlineFinding]) -> list[dict]:
+    """Map findings to GitHub Check Run annotation payloads."""
+    annotations: list[dict] = []
+    for finding in findings:
+        start = finding.line
+        if finding.start_line is not None and finding.start_line <= finding.line:
+            start = finding.start_line
+        annotations.append({
+            "path": finding.path,
+            "start_line": start,
+            "end_line": finding.line,
+            "annotation_level": _LEVEL_BY_SEVERITY.get(finding.severity, "notice"),
+            "message": finding.comment,
+        })
+    return annotations
 
 
 def _client(token: str) -> httpx.Client:
@@ -171,29 +200,45 @@ def create_check_run(
         return check_id
 
 
+def _annotation_batches(annotations: list[dict]) -> list[list[dict]]:
+    """Split annotations into GitHub-sized batches (≥1 batch, possibly empty)."""
+    if not annotations:
+        return [[]]
+    return [
+        annotations[i:i + _ANNOTATION_BATCH]
+        for i in range(0, len(annotations), _ANNOTATION_BATCH)
+    ]
+
+
 def complete_check_run(
     config: GitHubConfig,
     check_id: int,
     result: CheckResult,
 ) -> None:
-    payload = {
-        "status": "completed",
-        "conclusion": result.conclusion,
-        "output": {
-            "title": result.title,
-            "summary": result.summary,
-        },
-    }
+    # GitHub appends annotations across successive updates and caps each
+    # request at 50, so a >50-finding review is sent over several PATCHes.
+    batches = _annotation_batches(result.annotations)
     with _client(config.token) as client:
-        response = client.patch(
-            f"/repos/{config.repo}/check-runs/{check_id}",
-            json=payload,
-        )
-        response.raise_for_status()
-        log.info(
-            "Completed check run id=%d conclusion=%s",
-            check_id, result.conclusion,
-        )
+        for batch in batches:
+            output: dict[str, object] = {
+                "title": result.title,
+                "summary": result.summary,
+            }
+            if batch:
+                output["annotations"] = batch
+            response = client.patch(
+                f"/repos/{config.repo}/check-runs/{check_id}",
+                json={
+                    "status": "completed",
+                    "conclusion": result.conclusion,
+                    "output": output,
+                },
+            )
+            response.raise_for_status()
+    log.info(
+        "Completed check run id=%d conclusion=%s (%d annotation(s))",
+        check_id, result.conclusion, len(result.annotations),
+    )
 
 
 def _count_by_severity(findings: Iterable[InlineFinding]) -> dict[Severity, int]:
@@ -243,6 +288,8 @@ def _build_summary(counts: dict[Severity, int], gate_on: GateFloor) -> str:
 def evaluate_gate(
     findings: Iterable[InlineFinding],
     gate_on: GateFloor = "error",
+    *,
+    with_annotations: bool = False,
 ) -> CheckResult:
     """Decide pass/fail from the findings list at the configured floor.
 
@@ -250,8 +297,12 @@ def evaluate_gate(
       - "none"    → always pass (success regardless of findings)
       - "warning" → fail if any warning or error finding
       - "error"   → fail only on error-severity findings
+
+    When ``with_annotations`` is set, the result also carries per-line
+    Check Run annotations built from the findings.
     """
-    counts = _count_by_severity(findings)
+    items = list(findings)
+    counts = _count_by_severity(items)
     return CheckResult(
         conclusion=_derive_conclusion(counts, gate_on),
         title=_build_title(counts),
@@ -259,6 +310,7 @@ def evaluate_gate(
         error_count=counts["error"],
         warning_count=counts["warning"],
         info_count=counts["info"],
+        annotations=_build_annotations(items) if with_annotations else [],
     )
 
 

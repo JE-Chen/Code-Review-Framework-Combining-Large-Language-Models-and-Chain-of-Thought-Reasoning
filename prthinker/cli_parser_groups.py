@@ -241,6 +241,16 @@ def _add_per_file_mode_args(common: argparse.ArgumentParser) -> None:
         ),
     )
     common.add_argument(
+        "--check-annotations",
+        action="store_true",
+        default=env_bool("PRTHINKER_CHECK_ANNOTATIONS", False),
+        help=(
+            "Attach per-line Check Run annotations to the gate — a robust "
+            "parallel channel to inline comments (a bad line cannot 422 the "
+            "whole batch)."
+        ),
+    )
+    common.add_argument(
         "--max-findings-per-file",
         type=int,
         default=int(env_str("PRTHINKER_MAX_FINDINGS_PER_FILE", "10") or 10),

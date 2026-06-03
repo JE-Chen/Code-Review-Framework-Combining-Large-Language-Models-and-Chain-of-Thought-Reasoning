@@ -178,7 +178,10 @@ def _close_aggregate_gate(
     """Evaluate and close the check-run gate when one was opened."""
     if gate_handle is None:
         return
-    gate_result = evaluate_gate(merged.inline_findings, gate_on=args.gate_on)
+    gate_result = evaluate_gate(
+        merged.inline_findings, gate_on=args.gate_on,
+        with_annotations=getattr(args, "check_annotations", False),
+    )
     adapter.close_gate(gate_handle, gate_result)
     log.info(
         "Gate conclusion=%s (errors=%d warnings=%d info=%d, floor=%s)",
