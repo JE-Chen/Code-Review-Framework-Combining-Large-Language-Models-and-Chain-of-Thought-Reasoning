@@ -756,6 +756,14 @@ def _file_findings_badge(findings: list[InlineFinding]) -> str:
     return " — " + " ".join(parts)
 
 
+def _file_status_icon(findings: list[InlineFinding]) -> str:
+    """Leading status glyph for a file's ``<summary>`` (worst severity)."""
+    for sev, icon in _SEVERITY_ICON:  # error, warning, info — worst first
+        if any(f.severity == sev for f in findings):
+            return icon
+    return "✅"
+
+
 def _file_sort_key(fr: FileReviewResult) -> tuple[int, int]:
     """Rank a file by (worst severity, finding count) for summary ordering."""
     ranks = [_SEVERITY_RANK.get(f.severity, 0) for f in fr.inline_findings]
@@ -806,11 +814,12 @@ def _format_file_block(
     summary = fr.total_summary or "_no summary_"
     badge = _file_findings_badge(fr.inline_findings)
     ref = _file_summary_ref(fr.path, files_url, _first_finding_line(fr))
+    icon = _file_status_icon(fr.inline_findings)
     # Files with errors open expanded so the reviewer sees them with no click.
     has_error = any(f.severity == "error" for f in fr.inline_findings)
     tag = "<details open>" if has_error else "<details>"
 
-    block: list[str] = [f"{tag}<summary>{ref}{badge}</summary>", ""]
+    block: list[str] = [f"{tag}<summary>{icon} {ref}{badge}</summary>", ""]
     signal = _signal_note(fr.inline_findings)
     if signal:
         block += [signal, ""]

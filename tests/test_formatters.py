@@ -392,6 +392,25 @@ def test_hide_info_does_not_mutate_original_result():
     assert len(result.per_file[0].inline_findings) == 1
 
 
+def test_file_summary_has_status_icon_prefix():
+    err = _file_result(path="e.py", inline_findings=[_finding(path="e.py", severity="error")])
+    warn = _file_result(path="w.py", inline_findings=[_finding(path="w.py", severity="warning")])
+    clean = _file_result(path="c.py")
+    out = formatters.format_pr_comment(_review(per_file=[err, warn, clean]), _MARKER)
+    # Each file's <summary> opens with a worst-severity status glyph.
+    assert "<summary>🔴 " in out
+    assert "<summary>🟡 " in out
+    assert "<summary>✅ " in out
+
+
+def test_file_status_icon_helper():
+    f = lambda sev: _finding(severity=sev)  # noqa: E731
+    assert formatters._file_status_icon([f("info"), f("error")]) == "🔴"
+    assert formatters._file_status_icon([f("info"), f("warning")]) == "🟡"
+    assert formatters._file_status_icon([f("info")]) == "🔵"
+    assert formatters._file_status_icon([]) == "✅"
+
+
 def test_severity_badge_shows_icons():
     fr = _file_result(path="a.py", inline_findings=[
         _finding(path="a.py", severity="error"),

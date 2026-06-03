@@ -165,9 +165,14 @@ clean / warning / info files stay collapsed, and each file block surfaces
 a ``Signal:`` line tallying sandbox-verified suggestions (``✓``) and
 low-reproducibility findings (``⚠️``) so high-trust findings stand out.
 
-The per-file blocks are ordered most-severe first (files with errors,
-then warnings, then info, ties broken by finding count), each badged with
-severity icons (``🔴2 🟡1``) instead of a bare count. ``--summary-table``
+Each file is its own expandable ``<details>`` entry whose summary opens
+with a worst-severity status glyph (``🔴`` / ``🟡`` / ``🔵``) before the
+file name, so the whole review is one scannable menu of files. The
+per-file blocks are ordered most-severe first (files with errors, then
+warnings, then info, ties broken by finding count), each badged with
+severity icons (``🔴2 🟡1``) instead of a bare count. With
+``--findings-only`` (on by default in CI) files with no findings are
+skipped rather than listed. ``--summary-table``
 (env ``PRTHINKER_SUMMARY_TABLE``) swaps the collapsible blocks for one
 compact ``severity | location | finding`` table — faster to scan when a
 PR has many findings. On GitHub every

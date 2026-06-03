@@ -158,9 +158,12 @@ error finding 以單行加深層連結列出，讓阻擋性問題不必展開任
 收合；每個檔案區塊還會有一行 ``Signal:``\ ，統計 sandbox 驗證過的 suggestion
 （``✓``）與低再現性 finding（``⚠️``），讓高可信的 finding 更突出。
 
+每個檔案都是自己的可展開 ``<details>`` 項，summary 在檔名前以最嚴重度的狀態
+圖示（``🔴`` / ``🟡`` / ``🔵``）開頭，讓整份審查成為一份可掃描的檔案選單。
 逐檔區塊會\ **依嚴重度排序**\ （有 error 的檔案在前，再來 warning、info，
 同級再比 finding 數），每個檔案的徽章改用嚴重度圖示（``🔴2 🟡1``）而非單純
-數字。``--summary-table``\ （環境變數 ``PRTHINKER_SUMMARY_TABLE``）會把收合
+數字。加上 ``--findings-only``\ （CI 預設開啟）時，沒有 finding 的檔案會被
+跳過而不列出。``--summary-table``\ （環境變數 ``PRTHINKER_SUMMARY_TABLE``）會把收合
 區塊換成一個緊湊的 ``severity | location | finding`` 表格──finding 很多時
 更快掃。在 GitHub 上，每個檔名──熱點列與區塊標頭──都是\ **深層連結**\ ，
 直接跳到該檔在 Files-changed 分頁的第一個 finding（GitHub Enterprise 主機
