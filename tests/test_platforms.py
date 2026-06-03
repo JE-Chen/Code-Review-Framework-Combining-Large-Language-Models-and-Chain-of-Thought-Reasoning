@@ -83,6 +83,11 @@ def test_base_fetch_commit_messages_default_empty() -> None:
     assert _MiniAdapter().fetch_commit_messages() == []
 
 
+def test_base_set_labels_is_noop() -> None:
+    # Adapters without label support skip silently (no raise).
+    assert _MiniAdapter().set_labels(["prthinker/clean"]) is None
+
+
 def test_base_upsert_comments_drops_overflow_pages(caplog) -> None:
     adapter = _MiniAdapter()
     with caplog.at_level("WARNING"):

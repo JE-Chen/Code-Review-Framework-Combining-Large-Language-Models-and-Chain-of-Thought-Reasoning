@@ -170,6 +170,12 @@ finding 從總結中略去──數量徽章、at-a-glance 統計、熱點排名
 而只有 info finding 的檔案會被視為乾淨。這只影響顯示：diff 上的 inline
 review 與合併 gate 仍會看到所有 finding。
 
+加上 ``--pr-labels``\ （環境變數 ``PRTHINKER_PR_LABELS``）時，reviewer 還會
+在 PR 上貼兩個受管理的標籤──規模（``prthinker/size-xs`` … ``size-xl``\ ，
+依審查檔案數）與狀態（``prthinker/changes-requested`` / ``review-suggested``
+/ ``clean``）──讓 PR 列表不必逐一點開就能掃描。只有 ``prthinker/`` 前綴的
+標籤會跨 run 對齊，人工貼的標籤完全不動。
+
 inline 建議\ ──diff 上一鍵 *Apply suggestion* 的區塊\ ──會以另一個 PR
 review 貼出。新的 review 會\ **先**\ 送出，之後才移除上一輪的 inline 留言，
 而且移除時會排除剛剛送出的 review。先貼再移除代表：當送出被拒（只要有任何

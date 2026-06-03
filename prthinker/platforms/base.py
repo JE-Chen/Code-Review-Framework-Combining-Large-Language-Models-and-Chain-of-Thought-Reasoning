@@ -66,6 +66,14 @@ class PlatformAdapter(ABC):
         """
         return []
 
+    def set_labels(self, labels: list[str]) -> None:
+        """Apply the prthinker-managed labels to the PR.
+
+        Default is a no-op so adapters without label support simply skip
+        labelling. Concrete adapters override to reconcile labels.
+        """
+        log.info("%s does not support PR labels; skipping", type(self).__name__)
+
     # ----- summary comment (one per PR) ---------------------------------
 
     @abstractmethod

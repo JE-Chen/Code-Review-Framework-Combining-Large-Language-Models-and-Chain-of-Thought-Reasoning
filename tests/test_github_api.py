@@ -39,6 +39,7 @@ class _ScriptedClient:
 
     def __init__(self, queues: dict[str, list[_Resp]]) -> None:
         self.requests: list[tuple[str, str]] = []
+        self.json_by_method: dict[str, object] = {}
         self._queues = {k: list(v) for k, v in queues.items()}
 
     def __enter__(self) -> "_ScriptedClient":
@@ -47,24 +48,29 @@ class _ScriptedClient:
     def __exit__(self, *exc) -> bool:
         return False
 
-    def _handle(self, method: str, url: str) -> _Resp:
+    def _handle(self, method: str, url: str, json=None) -> _Resp:
         self.requests.append((method, url))
+        if json is not None:
+            self.json_by_method[method] = json
         queue = self._queues.get(method, [])
         if not queue:
             raise AssertionError(f"no scripted {method} response for {url}")
         return queue.pop(0)
 
-    def get(self, url: str, **_kw) -> _Resp:
-        return self._handle("GET", url)
+    def get(self, url: str, **kw) -> _Resp:
+        return self._handle("GET", url, kw.get("json"))
 
-    def post(self, url: str, **_kw) -> _Resp:
-        return self._handle("POST", url)
+    def post(self, url: str, **kw) -> _Resp:
+        return self._handle("POST", url, kw.get("json"))
 
-    def patch(self, url: str, **_kw) -> _Resp:
-        return self._handle("PATCH", url)
+    def patch(self, url: str, **kw) -> _Resp:
+        return self._handle("PATCH", url, kw.get("json"))
 
-    def delete(self, url: str, **_kw) -> _Resp:
-        return self._handle("DELETE", url)
+    def put(self, url: str, **kw) -> _Resp:
+        return self._handle("PUT", url, kw.get("json"))
+
+    def delete(self, url: str, **kw) -> _Resp:
+        return self._handle("DELETE", url, kw.get("json"))
 
 
 _CFG = GitHubConfig(repo="o/r", pr_number=7, token="t")  # nosec B106 - test fixture token, not a credential
@@ -370,6 +376,32 @@ def test_fetch_pr_commit_messages_paginates(monkeypatch):
     assert len(msgs) == 101
     assert msgs[0] == "feat: c0"
     assert msgs[-1] == "fix: last"
+
+
+def test_set_pr_labels_reconciles_keeping_human_labels(monkeypatch):
+    # Existing: one human label + a stale managed label. New managed set
+    # replaces the stale one; the human label survives.
+    issue = _Resp(json_data={"labels": [
+        {"name": "needs-qa"}, {"name": "prthinker/size-xl"},
+    ]})
+    client = _ScriptedClient({
+        "GET": [issue],
+        "POST": [_Resp(status=201), _Resp(status=422)],  # ensure-label create / exists
+        "PUT": [_Resp(json_data=[])],
+    })
+    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    github_api.set_pr_labels(
+        _CFG, ["prthinker/size-s", "prthinker/clean"],
+        managed_prefix="prthinker/",
+    )
+    methods = _methods(client)
+    assert methods == ["GET", "POST", "POST", "PUT"]
+    assert ("PUT", "/repos/o/r/issues/7/labels") in client.requests
+    applied = client.json_by_method["PUT"]["labels"]
+    assert "needs-qa" in applied               # human label preserved
+    assert "prthinker/size-s" in applied       # new managed labels
+    assert "prthinker/clean" in applied
+    assert "prthinker/size-xl" not in applied   # stale managed label dropped
 
 
 def test_fetch_pr_commit_messages_empty(monkeypatch):

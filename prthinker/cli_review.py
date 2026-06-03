@@ -38,6 +38,7 @@ from prthinker.diff import parse_unified_diff
 from prthinker.finding_dedup import dedupe_findings
 from prthinker.formatters import format_pr_comment, format_pr_comment_pages
 from prthinker.github_api import count_findings_on_diff
+from prthinker.pr_labels import compute_labels
 from prthinker.pr_overview import build_overview_text
 from prthinker.html_report import write_report
 from prthinker.ignore import filter_findings, load_ignore
@@ -759,6 +760,18 @@ def _append_api_impact(body: str, result: ReviewResult) -> str:
     return f"{body}\n\nPublic API impact: **{report.impact}**"
 
 
+def _maybe_set_labels(
+    args: argparse.Namespace, adapter: object, result: ReviewResult
+) -> None:
+    """Apply prthinker-managed PR labels when enabled (best-effort)."""
+    if not getattr(args, "pr_labels", False) or args.dry_run:
+        return
+    try:
+        adapter.set_labels(compute_labels(result))
+    except Exception as exc:  # noqa: BLE001 — labels must not break the review
+        log.warning("Could not set PR labels (%s)", exc)
+
+
 def _pr_files_url(args: argparse.Namespace) -> str | None:
     """Base URL of the PR's Files-changed tab, for diff deep links.
 
@@ -853,6 +866,7 @@ def _publish_review_result(
             gate_result.warning_count, gate_result.info_count, args.gate_on,
         )
 
+    _maybe_set_labels(args, adapter, result)
     _maybe_autofix(args, result, platform_kind)
     return 0
 

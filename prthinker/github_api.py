@@ -137,6 +137,55 @@ def fetch_pr_base_branch(config: GitHubConfig) -> str:
         return str(response.json()["base"]["ref"])
 
 
+_DEFAULT_LABEL_COLOR = "ededed"
+_LABEL_CREATED = 201
+_LABEL_EXISTS = 422
+
+
+def _ensure_label_exists(
+    client: httpx.Client, config: GitHubConfig, name: str
+) -> None:
+    """Create a repo label if missing; a 422 means it already exists."""
+    response = client.post(
+        f"/repos/{config.repo}/labels",
+        json={"name": name, "color": _DEFAULT_LABEL_COLOR},
+    )
+    if response.status_code not in (_LABEL_CREATED, _LABEL_EXISTS):
+        log.warning(
+            "Could not ensure label %r (%d)", name, response.status_code
+        )
+
+
+def set_pr_labels(
+    config: GitHubConfig,
+    labels: list[str],
+    *,
+    managed_prefix: str,
+) -> None:
+    """Reconcile the ``managed_prefix`` labels on the PR, keeping human ones.
+
+    Human-applied labels (those without the prefix) are preserved; stale
+    managed labels from a previous run are dropped because only the new
+    ``labels`` are re-applied under the prefix.
+    """
+    with _client(config.token) as client:
+        response = client.get(
+            f"/repos/{config.repo}/issues/{config.pr_number}"
+        )
+        response.raise_for_status()
+        current = [lb["name"] for lb in (response.json().get("labels") or [])]
+        human = [n for n in current if not n.startswith(managed_prefix)]
+        for name in labels:
+            _ensure_label_exists(client, config, name)
+        desired = human + [n for n in labels if n not in human]
+        applied = client.put(
+            f"/repos/{config.repo}/issues/{config.pr_number}/labels",
+            json={"labels": desired},
+        )
+        applied.raise_for_status()
+        log.info("Set PR labels: %s", labels)
+
+
 def fetch_pr_commit_messages(config: GitHubConfig) -> list[str]:
     """Return every commit message on the PR, oldest first (paginated)."""
     messages: list[str] = []
@@ -667,6 +716,7 @@ __all__ = [
     "fetch_pr_head_sha",
     "fetch_pr_base_branch",
     "fetch_pr_commit_messages",
+    "set_pr_labels",
     "upsert_pr_comment",
     "upsert_pr_comments",
     "submit_inline_review",

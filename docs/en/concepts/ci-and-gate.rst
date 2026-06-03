@@ -180,6 +180,14 @@ tally, and the hotspot ranking all ignore them, and a file whose only
 findings are info is treated as clean. This is display-only: the inline
 review on the diff and the merge gate still see every finding.
 
+With ``--pr-labels`` (env ``PRTHINKER_PR_LABELS``) the reviewer also
+applies two managed labels to the PR — a size bucket
+(``prthinker/size-xs`` … ``size-xl``, by reviewed file count) and a
+status (``prthinker/changes-requested`` / ``review-suggested`` /
+``clean``) — so the PR list is scannable without opening each one. Only
+labels under the ``prthinker/`` prefix are reconciled across runs;
+human-applied labels are never touched.
+
 Inline suggestions — the one-click *Apply suggestion* blocks on the
 diff — are posted as a separate PR review. The new review is submitted
 **before** the previous run's inline comments are dismissed, and the

@@ -232,6 +232,15 @@ def _add_per_file_mode_args(common: argparse.ArgumentParser) -> None:
         ),
     )
     common.add_argument(
+        "--pr-labels",
+        action="store_true",
+        default=env_bool("PRTHINKER_PR_LABELS", False),
+        help=(
+            "Apply prthinker-managed PR labels (size bucket + review status); "
+            "human-applied labels are left untouched."
+        ),
+    )
+    common.add_argument(
         "--max-findings-per-file",
         type=int,
         default=int(env_str("PRTHINKER_MAX_FINDINGS_PER_FILE", "10") or 10),

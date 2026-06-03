@@ -21,10 +21,12 @@ from prthinker.github_api import (
     fetch_pr_commit_messages,
     fetch_pr_diff,
     fetch_pr_head_sha,
+    set_pr_labels,
     submit_inline_review,
     upsert_pr_comment,
     upsert_pr_comments,
 )
+from prthinker.pr_labels import MANAGED_PREFIX
 from prthinker.platforms.base import PlatformAdapter
 from prthinker.schemas import InlineFinding
 
@@ -60,6 +62,9 @@ class GitHubAdapter(PlatformAdapter):
 
     def fetch_commit_messages(self) -> list[str]:
         return fetch_pr_commit_messages(self._gh())
+
+    def set_labels(self, labels: list[str]) -> None:
+        set_pr_labels(self._gh(), labels, managed_prefix=MANAGED_PREFIX)
 
     def fetch_pr_meta(self) -> tuple[str, str]:
         """Pull ``(title, body)`` from ``GET /repos/{repo}/pulls/{n}``."""
