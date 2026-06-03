@@ -150,6 +150,14 @@ that carry the most findings. It is pinned to the top of the upserted
 part-1 comment, so it is rewritten in place on every re-review and always
 reflects the latest run.
 
+When any error-severity findings exist, a **🚨 Must fix** list is pinned
+above everything else — the error findings as one-liners with deep links,
+so the blocking issues are unmissable without expanding a single block.
+Files that contain errors then render expanded (``<details open>``) while
+clean / warning / info files stay collapsed, and each file block surfaces
+a ``Signal:`` line tallying sandbox-verified suggestions (``✓``) and
+low-reproducibility findings (``⚠️``) so high-trust findings stand out.
+
 The per-file blocks are ordered most-severe first (files with errors,
 then warnings, then info, ties broken by finding count), each badged with
 severity icons (``🔴2 🟡1``) instead of a bare count. On GitHub every

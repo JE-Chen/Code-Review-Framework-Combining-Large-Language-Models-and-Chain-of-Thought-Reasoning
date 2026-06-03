@@ -56,6 +56,13 @@ def _first_finding_line(fr: FileReviewResult) -> int:
     """New-side line to anchor a file link at (first finding, else 1)."""
     return fr.inline_findings[0].line if fr.inline_findings else 1
 
+
+def _loc_ref(path: str, line: int, files_url: str | None) -> str:
+    """Markdown ``path:line`` as a diff deep link, or a plain code span."""
+    if not files_url:
+        return f"`{path}:{line}`"
+    return f"[`{path}:{line}`]({files_url}#{_diff_anchor(path, line)})"
+
 _SECTION_TITLES: dict[str, str] = {
     "first_summary": "PR Summary",
     "first_code_review": "First Code Review",
@@ -125,6 +132,36 @@ def _hotspots_line(result: ReviewResult, files_url: str | None = None) -> str:
         f"({len(fr.inline_findings)})"
         for fr in ranked
     )
+
+
+_MUST_FIX_LIMIT = 5
+
+
+def _first_line(text: str, cap: int = 120) -> str:
+    """First line of a finding comment, length-capped for a one-liner."""
+    head = (text or "").strip().splitlines()[0] if (text or "").strip() else ""
+    return head if len(head) <= cap else head[: cap - 1] + "…"
+
+
+def _format_must_fix_block(
+    result: ReviewResult, files_url: str | None = None
+) -> list[str]:
+    """Un-collapsed list of error-severity findings, pinned above all else."""
+    errors = [
+        f for fr in result.per_file for f in fr.inline_findings
+        if f.severity == "error"
+    ]
+    if not errors:
+        return []
+    lines = ["### 🚨 Must fix", ""]
+    for finding in errors[:_MUST_FIX_LIMIT]:
+        ref = _loc_ref(finding.path, finding.line, files_url)
+        lines.append(f"- 🔴 {ref} — {_first_line(finding.comment)}")
+    extra = len(errors) - _MUST_FIX_LIMIT
+    if extra > 0:
+        lines.append(f"- … and {extra} more error(s)")
+    lines += ["", "---", ""]
+    return lines
 
 
 def _format_overview_block(
@@ -365,6 +402,7 @@ def _per_file_head_parts(
         "## CoT Code Review (per-file)",
         "",
     ]
+    parts += _format_must_fix_block(result, files_url)
     if preliminary:
         parts.append(preliminary)
     parts += _format_overview_block(result, files_url, delta)
@@ -679,6 +717,21 @@ def _format_file_step_details(fr: FileReviewResult) -> list[str]:
     return block
 
 
+def _signal_note(findings: list[InlineFinding]) -> str:
+    """Surface already-computed trust signal: verified / low-repro counts."""
+    verified = sum(
+        1 for f in findings
+        if f.verification is not None and f.verification.status == "pass"
+    )
+    low_repro = sum(1 for f in findings if f.reproducibility == "low")
+    bits = []
+    if verified:
+        bits.append(f"✓ {verified} verified")
+    if low_repro:
+        bits.append(f"⚠️ {low_repro} low-repro")
+    return f"_Signal: {' · '.join(bits)}_" if bits else ""
+
+
 def _format_file_block(
     fr: FileReviewResult, files_url: str | None = None
 ) -> list[str]:
@@ -691,15 +744,15 @@ def _format_file_block(
     summary = fr.total_summary or "_no summary_"
     badge = _file_findings_badge(fr.inline_findings)
     ref = _file_summary_ref(fr.path, files_url, _first_finding_line(fr))
+    # Files with errors open expanded so the reviewer sees them with no click.
+    has_error = any(f.severity == "error" for f in fr.inline_findings)
+    tag = "<details open>" if has_error else "<details>"
 
-    block: list[str] = [
-        f"<details><summary>{ref}{badge}</summary>",
-        "",
-        "**Summary**",
-        "",
-        summary.strip(),
-        "",
-    ]
+    block: list[str] = [f"{tag}<summary>{ref}{badge}</summary>", ""]
+    signal = _signal_note(fr.inline_findings)
+    if signal:
+        block += [signal, ""]
+    block += ["**Summary**", "", summary.strip(), ""]
     block += _format_finding_annotations(fr.inline_findings)
     block += _format_file_step_details(fr)
     if fr.counterfactuals:

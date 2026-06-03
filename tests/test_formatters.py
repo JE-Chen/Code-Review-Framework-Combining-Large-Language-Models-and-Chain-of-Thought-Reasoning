@@ -431,6 +431,54 @@ def test_no_links_when_files_url_absent():
     assert "diff-" not in out
 
 
+def test_must_fix_block_lists_errors_at_top():
+    fr = _file_result(path="a.py", inline_findings=[
+        _finding(path="a.py", line=4, severity="error", comment="boom\nmore"),
+        _finding(path="a.py", line=9, severity="warning", comment="meh"),
+    ])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "### 🚨 Must fix" in out
+    # Pinned above the at-a-glance digest.
+    assert out.index("🚨 Must fix") < out.index("Review at a glance")
+    # One-liner only (no second comment line), with the error location.
+    assert "🔴 `a.py:4` — boom" in out
+    assert "more" not in out.split("Review at a glance")[0].split("Must fix")[1]
+
+
+def test_must_fix_absent_when_no_errors():
+    fr = _file_result(path="a.py", inline_findings=[_finding(severity="warning")])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "Must fix" not in out
+
+
+def test_must_fix_caps_and_counts_overflow():
+    findings = [_finding(path="a.py", line=i, severity="error") for i in range(1, 8)]
+    fr = _file_result(path="a.py", inline_findings=findings)
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "… and 2 more error(s)" in out
+
+
+def test_error_file_auto_expands():
+    err = _file_result(path="e.py", inline_findings=[_finding(path="e.py", severity="error")])
+    warn = _file_result(path="w.py", inline_findings=[_finding(path="w.py", severity="warning")])
+    out = formatters.format_pr_comment(_review(per_file=[err, warn]), _MARKER)
+    assert "<details open><summary>" in out          # error file expanded
+    assert "<details><summary>" in out               # warning file collapsed
+
+
+def test_signal_note_shows_verified_and_low_repro():
+    from prthinker.schemas import SuggestionVerification
+    verified = _finding(
+        path="a.py", line=1, severity="warning",
+        suggestion="x", verification=SuggestionVerification(status="pass", verify_cmd="pytest"),
+    )
+    shaky = _finding(path="a.py", line=2, severity="warning", reproducibility="low")
+    out = "\n".join(formatters._format_file_block(
+        _file_result(path="a.py", inline_findings=[verified, shaky])
+    ))
+    assert "_Signal: ✓ 1 verified · ⚠️ 1 low-repro_" in out
+
+
 def test_delta_line_in_digest():
     fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
     out = formatters.format_pr_comment(
