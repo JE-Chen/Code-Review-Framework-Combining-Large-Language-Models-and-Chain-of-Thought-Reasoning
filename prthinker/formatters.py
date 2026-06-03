@@ -12,6 +12,8 @@ across repeated workflow runs.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from prthinker.pipeline import FileReviewResult, ReviewResult
 from prthinker.schemas import InlineFinding
 
@@ -40,41 +42,50 @@ def format_pr_comment(
     return _format_single(result, marker)
 
 
-def _format_single(result: ReviewResult, marker: str) -> str:
-    parts: list[str] = [marker, "## CoT Code Review", ""]
+_SINGLE_RESERVED_STEPS: frozenset[str] = frozenset({"total_summary", "inline_findings"})
 
+
+def _format_single_total(result: ReviewResult) -> list[str]:
+    """Render the top-level total-summary lead for a single-pass review."""
     total = result.total_summary
     if total:
-        parts += ["### Total Summary", "", total.strip(), ""]
-    else:
-        parts += ["_No total summary produced._", ""]
+        return ["### Total Summary", "", total.strip(), ""]
+    return ["_No total summary produced._", ""]
 
+
+def _format_single_steps(result: ReviewResult) -> list[str]:
+    """Render the collapsible per-step detail blocks for a single-pass review."""
     detail_steps = [
         name for name in result.step_outputs
-        if name not in {"total_summary", "inline_findings"}
+        if name not in _SINGLE_RESERVED_STEPS
     ]
-    if detail_steps:
-        parts += ["---", "", "### Per-step Details", ""]
-        for name in detail_steps:
-            title = _SECTION_TITLES.get(name, name.replace("_", " ").title())
-            body = result.step_outputs[name].strip()
-            parts += [
-                f"<details><summary>{title}</summary>",
-                "",
-                body,
-                "",
-                "</details>",
-                "",
-            ]
+    if not detail_steps:
+        return []
+    parts: list[str] = ["---", "", "### Per-step Details", ""]
+    for name in detail_steps:
+        parts += _format_step_detail(
+            _step_title(name), result.step_outputs[name].strip()
+        )
+    return parts
 
+
+def _format_single_footer(result: ReviewResult) -> list[str]:
+    """Render the RAG / inline-finding footer line for a single-pass review."""
     footer_bits: list[str] = []
     if result.rag_docs:
         footer_bits.append(f"RAG rules applied: {len(result.rag_docs)}")
     if result.inline_findings:
         footer_bits.append(f"Inline findings: {len(result.inline_findings)}")
-    if footer_bits:
-        parts += ["---", "", "_" + " · ".join(footer_bits) + "_"]
+    if not footer_bits:
+        return []
+    return ["---", "", "_" + " · ".join(footer_bits) + "_"]
 
+
+def _format_single(result: ReviewResult, marker: str) -> str:
+    parts: list[str] = [marker, "## CoT Code Review", ""]
+    parts += _format_single_total(result)
+    parts += _format_single_steps(result)
+    parts += _format_single_footer(result)
     return "\n".join(parts).rstrip() + "\n"
 
 
@@ -370,20 +381,28 @@ def _step_title(name: str) -> str:
     return _SECTION_TITLES.get(name, name.replace("_", " ").title())
 
 
+def _annotation_subblock(
+    findings: list[InlineFinding],
+    predicate: Callable[[InlineFinding], bool],
+    renderer: Callable[[list[InlineFinding]], list[str]],
+) -> list[str]:
+    """Render one annotation sub-block for the findings matching ``predicate``."""
+    matched = [f for f in findings if predicate(f)]
+    return renderer(matched) if matched else []
+
+
 def _format_finding_annotations(findings: list[InlineFinding]) -> list[str]:
     """Render provenance, reproducibility, and verification sub-blocks."""
     block: list[str] = []
-    cited = [f for f in findings if f.provenance is not None]
-    if cited:
-        block += _format_provenance_block(cited)
-
-    labelled = [f for f in findings if f.reproducibility is not None]
-    if labelled:
-        block += _format_reproducibility_block(labelled)
-
-    verified = [f for f in findings if f.verification is not None]
-    if verified:
-        block += _format_verification_block(verified)
+    block += _annotation_subblock(
+        findings, lambda f: f.provenance is not None, _format_provenance_block
+    )
+    block += _annotation_subblock(
+        findings, lambda f: f.reproducibility is not None, _format_reproducibility_block
+    )
+    block += _annotation_subblock(
+        findings, lambda f: f.verification is not None, _format_verification_block
+    )
     return block
 
 

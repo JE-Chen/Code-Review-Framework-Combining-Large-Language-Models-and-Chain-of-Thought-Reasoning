@@ -15,17 +15,15 @@ import httpx
 from prthinker.backends import create_backend
 from prthinker.backends.remote import RemotePipelineClient
 from prthinker.config import (
-    AnthropicConfig,
     BackendKind,
-    CohereConfig,
     Config,
-    GeminiConfig,
     GitHubConfig,
-    LocalBackendConfig,
-    MistralConfig,
-    OpenAICompatConfig,
-    RemoteBackendConfig,
     env_str,
+)
+from prthinker.cli_review_helpers import (
+    BACKEND_CONFIG_BUILDERS,
+    build_cache_telemetry,
+    build_dialogue_block,
 )
 from prthinker.checks import (
     evaluate_gate,
@@ -46,10 +44,6 @@ from prthinker.sarif import write_sarif
 from prthinker.incremental_save import (
     IncrementalReviewWriter,
     ReviewMeta,
-)
-from prthinker.repo_kg import (
-    KnowledgeGraphStore,
-    format_kg_block,
 )
 from prthinker.pipeline import (
     CoTPipeline,
@@ -73,143 +67,6 @@ _OVERALL_SUMMARY_POLL_INTERVAL = 5.0
 _OVERALL_SUMMARY_DEADLINE_SECONDS = 1800.0
 _OVERALL_SUMMARY_MAX_NEW_TOKENS = 16784
 
-def _local_backend_config(
-    args: argparse.Namespace,
-) -> tuple[str, LocalBackendConfig]:
-    """Build the LOCAL backend sub-config from CLI args."""
-    return "local", LocalBackendConfig(
-        model_name=args.model_name,
-        lora_path=args.lora_path,
-    )
-
-def _remote_backend_config(
-    args: argparse.Namespace,
-) -> tuple[str, RemoteBackendConfig]:
-    """Build the REMOTE backend sub-config; raise on missing URL."""
-    if not args.remote_url:
-        raise SystemExit(
-            "remote backend requires --remote-url or PRTHINKER_REMOTE_URL"
-        )
-    return "remote", RemoteBackendConfig(
-        url=args.remote_url,
-        timeout_seconds=args.remote_timeout,
-        api_key=args.remote_api_key,
-    )
-
-def _openai_backend_config(
-    args: argparse.Namespace,
-) -> tuple[str, OpenAICompatConfig]:
-    """Build the OPENAI backend sub-config; raise on missing API key."""
-    if not args.openai_api_key:
-        raise SystemExit(
-            "openai backend requires --openai-api-key or "
-            "$PRTHINKER_OPENAI_API_KEY / $OPENAI_API_KEY"
-        )
-    return "openai", OpenAICompatConfig(
-        model=args.openai_model,
-        api_key=args.openai_api_key,
-        base_url=args.openai_base_url,
-        organization=args.openai_organization,
-        timeout_seconds=args.remote_timeout,
-    )
-
-def _anthropic_backend_config(
-    args: argparse.Namespace,
-) -> tuple[str, AnthropicConfig]:
-    """Build the ANTHROPIC backend sub-config; raise on missing API key."""
-    if not args.anthropic_api_key:
-        raise SystemExit(
-            "anthropic backend requires --anthropic-api-key or "
-            "$PRTHINKER_ANTHROPIC_API_KEY / $ANTHROPIC_API_KEY"
-        )
-    return "anthropic", AnthropicConfig(
-        model=args.anthropic_model,
-        api_key=args.anthropic_api_key,
-        base_url=args.anthropic_base_url,
-        anthropic_version=args.anthropic_version,
-        timeout_seconds=args.remote_timeout,
-    )
-
-def _gemini_backend_config(
-    args: argparse.Namespace,
-) -> tuple[str, GeminiConfig]:
-    """Build the GEMINI backend sub-config; raise on missing API key."""
-    if not args.gemini_api_key:
-        raise SystemExit(
-            "gemini backend requires --gemini-api-key or "
-            "$PRTHINKER_GEMINI_API_KEY / $GEMINI_API_KEY / $GOOGLE_API_KEY"
-        )
-    return "gemini", GeminiConfig(
-        model=args.gemini_model,
-        api_key=args.gemini_api_key,
-        base_url=args.gemini_base_url,
-        timeout_seconds=args.remote_timeout,
-    )
-
-
-def _cohere_backend_config(
-    args: argparse.Namespace,
-) -> tuple[str, CohereConfig]:
-    """Build the COHERE backend sub-config; raise on missing API key."""
-    if not args.cohere_api_key:
-        raise SystemExit(
-            "cohere backend requires --cohere-api-key or "
-            "$PRTHINKER_COHERE_API_KEY / $COHERE_API_KEY"
-        )
-    return "cohere", CohereConfig(
-        model=args.cohere_model,
-        api_key=args.cohere_api_key,
-        base_url=args.cohere_base_url,
-        timeout_seconds=args.remote_timeout,
-    )
-
-
-def _mistral_backend_config(
-    args: argparse.Namespace,
-) -> tuple[str, MistralConfig]:
-    """Build the MISTRAL backend sub-config; raise on missing API key."""
-    if not args.mistral_api_key:
-        raise SystemExit(
-            "mistral backend requires --mistral-api-key or "
-            "$PRTHINKER_MISTRAL_API_KEY / $MISTRAL_API_KEY"
-        )
-    return "mistral", MistralConfig(
-        model=args.mistral_model,
-        api_key=args.mistral_api_key,
-        base_url=args.mistral_base_url,
-        timeout_seconds=args.remote_timeout,
-    )
-
-
-_BACKEND_CONFIG_BUILDERS = {
-    BackendKind.LOCAL: _local_backend_config,
-    BackendKind.REMOTE: _remote_backend_config,
-    BackendKind.OPENAI: _openai_backend_config,
-    BackendKind.ANTHROPIC: _anthropic_backend_config,
-    BackendKind.GEMINI: _gemini_backend_config,
-    BackendKind.COHERE: _cohere_backend_config,
-    BackendKind.MISTRAL: _mistral_backend_config,
-}
-
-def _build_cache_telemetry(args: argparse.Namespace) -> tuple[object, object]:
-    """Build the CacheConfig / TelemetryConfig pair from CLI args."""
-    from prthinker.config import CacheConfig, TelemetryConfig
-
-    cache_cfg = CacheConfig(
-        enabled=bool(getattr(args, "cache_enabled", False)),
-        path=str(getattr(args, "cache_path", ".prthinker/cache.sqlite")),
-        ttl_days=(
-            None
-            if getattr(args, "cache_ttl_days", 7.0) in (None, 0, 0.0)
-            else float(getattr(args, "cache_ttl_days", 7.0))
-        ),
-    )
-    telemetry_cfg = TelemetryConfig(
-        enabled=bool(getattr(args, "telemetry_enabled", False)),
-        path=str(getattr(args, "telemetry_path", ".prthinker/telemetry.sqlite")),
-    )
-    return cache_cfg, telemetry_cfg
-
 def _build_config(args: argparse.Namespace) -> Config:
     if args.use_remote_pipeline and args.backend != BackendKind.REMOTE.value:
         log.info("--use-remote-pipeline forces --backend remote")
@@ -220,13 +77,13 @@ def _build_config(args: argparse.Namespace) -> Config:
         "local": None, "remote": None, "openai": None, "anthropic": None,
         "gemini": None, "cohere": None, "mistral": None,
     }
-    builder = _BACKEND_CONFIG_BUILDERS.get(backend)
+    builder = BACKEND_CONFIG_BUILDERS.get(backend)
     if builder is not None:
         field, cfg = builder(args)
         sub_configs[field] = cfg
 
     steps = tuple(s.strip() for s in args.steps.split(",") if s.strip())
-    cache_cfg, telemetry_cfg = _build_cache_telemetry(args)
+    cache_cfg, telemetry_cfg = build_cache_telemetry(args)
 
     return Config(
         backend=backend,
@@ -457,71 +314,99 @@ def _filter_per_file_targets(
     files = _apply_target_file_filter(files, args)
     return _apply_exclude_globs_filter(files, args)
 
+def _server_review_request(
+    config: Config, code_diff: str, extra_rules: list, file_path: str | None = None
+) -> ReviewRequest:
+    """Build a ReviewRequest for one server-side review call."""
+    return ReviewRequest(
+        code_diff=code_diff,
+        file_path=file_path,
+        rag_enabled=config.rag_enabled,
+        rag_threshold=config.rag_threshold,
+        max_new_tokens=config.max_new_tokens,
+        steps=list(config.steps) or None,
+        extra_rules=extra_rules,
+    )
+
+
+def _review_whole_diff_via_server(
+    client: RemotePipelineClient, config: Config, diff_text: str, extra_rules: list
+) -> ReviewResult:
+    """Run a single whole-diff review against the remote pipeline server."""
+    response = client.review(_server_review_request(config, diff_text, extra_rules))
+    return ReviewResult(
+        code_diff=diff_text,
+        rag_docs=response.rag_docs,
+        step_outputs=response.step_map(),
+        inline_findings=list(response.inline_findings),
+    )
+
+
+def _review_one_file_via_server(
+    client: RemotePipelineClient, config: Config, fd: object, extra_rules: list
+) -> tuple[FileReviewResult, dict[str, str]]:
+    """Review one parsed file via the server; return its result + namespaced steps."""
+    response = client.review(
+        _server_review_request(config, fd.raw, extra_rules, file_path=fd.path)
+    )
+    step_map = response.step_map()
+    namespaced = {f"{fd.path}::{name}": out for name, out in step_map.items()}
+    findings = list(response.inline_findings)
+    file_result = FileReviewResult(
+        path=fd.path,
+        rag_docs=response.rag_docs,
+        step_outputs=step_map,
+        inline_findings=findings,
+        is_binary=fd.is_binary,
+        is_deleted=fd.is_deleted,
+    )
+    return file_result, namespaced
+
+
+def _review_per_file_via_server(
+    client: RemotePipelineClient,
+    args: argparse.Namespace,
+    config: Config,
+    diff_text: str,
+    extra_rules: list,
+) -> ReviewResult:
+    """Run a per-file review against the remote pipeline server."""
+    files = _filter_per_file_targets(parse_unified_diff(diff_text), args)
+    all_findings: list[InlineFinding] = []
+    aggregated_steps: dict[str, str] = {}
+    per_file: list[FileReviewResult] = []
+    for fd in files:
+        if fd.is_binary or fd.is_deleted:
+            continue
+        file_result, namespaced = _review_one_file_via_server(
+            client, config, fd, extra_rules
+        )
+        aggregated_steps.update(namespaced)
+        all_findings.extend(file_result.inline_findings)
+        per_file.append(file_result)
+    return ReviewResult(
+        code_diff=diff_text,
+        rag_docs=[],
+        step_outputs=aggregated_steps,
+        inline_findings=all_findings,
+        per_file=per_file,
+    )
+
+
 def _review_via_server(
     args: argparse.Namespace, config: Config, diff_text: str
 ) -> ReviewResult:
-    assert config.remote is not None
+    if config.remote is None:
+        raise ValueError("remote backend config required for server review")
     extra_rules = load_rules_dir(args.rules_dir)
     client = RemotePipelineClient(config.remote)
     try:
         if not args.per_file:
-            response = client.review(
-                ReviewRequest(
-                    code_diff=diff_text,
-                    rag_enabled=config.rag_enabled,
-                    rag_threshold=config.rag_threshold,
-                    max_new_tokens=config.max_new_tokens,
-                    steps=list(config.steps) or None,
-                    extra_rules=extra_rules,
-                )
+            return _review_whole_diff_via_server(
+                client, config, diff_text, extra_rules
             )
-            return ReviewResult(
-                code_diff=diff_text,
-                rag_docs=response.rag_docs,
-                step_outputs=response.step_map(),
-                inline_findings=list(response.inline_findings),
-            )
-
-        files = parse_unified_diff(diff_text)
-        files = _filter_per_file_targets(files, args)
-        all_findings: list[InlineFinding] = []
-        aggregated_steps: dict[str, str] = {}
-        per_file: list[FileReviewResult] = []
-        for fd in files:
-            if fd.is_binary or fd.is_deleted:
-                continue
-            response = client.review(
-                ReviewRequest(
-                    code_diff=fd.raw,
-                    file_path=fd.path,
-                    rag_enabled=config.rag_enabled,
-                    rag_threshold=config.rag_threshold,
-                    max_new_tokens=config.max_new_tokens,
-                    steps=list(config.steps) or None,
-                    extra_rules=extra_rules,
-                )
-            )
-            sm = response.step_map()
-            for name, output in sm.items():
-                aggregated_steps[f"{fd.path}::{name}"] = output
-            findings = list(response.inline_findings)
-            all_findings.extend(findings)
-            per_file.append(
-                FileReviewResult(
-                    path=fd.path,
-                    rag_docs=response.rag_docs,
-                    step_outputs=sm,
-                    inline_findings=findings,
-                    is_binary=fd.is_binary,
-                    is_deleted=fd.is_deleted,
-                )
-            )
-        return ReviewResult(
-            code_diff=diff_text,
-            rag_docs=[],
-            step_outputs=aggregated_steps,
-            inline_findings=all_findings,
-            per_file=per_file,
+        return _review_per_file_via_server(
+            client, args, config, diff_text, extra_rules
         )
     finally:
         client.close()
@@ -568,8 +453,14 @@ def _build_review_cache(
         int(getattr(args, "pr_number", 0) or 0),
     )
 
-def _per_file_kwargs(args: argparse.Namespace) -> dict:
-    """Collect the optional per-file review toggles from CLI args."""
+def _csv_tuple(args: argparse.Namespace, attr: str) -> tuple[str, ...]:
+    """Split a comma-separated CLI string arg into a tuple of trimmed tokens."""
+    raw = getattr(args, attr, "") or ""
+    return tuple(s.strip() for s in raw.split(",") if s.strip())
+
+
+def _collect_core_kwargs(args: argparse.Namespace) -> dict:
+    """Collect the always-present per-file review toggles."""
     return {
         "inline_review": args.inline_review,
         "judge": bool(getattr(args, "judge", False)),
@@ -577,27 +468,49 @@ def _per_file_kwargs(args: argparse.Namespace) -> dict:
         "counterfactual": bool(getattr(args, "counterfactual", False)),
         "provenance": bool(getattr(args, "provenance", False)),
         "max_findings_per_file": args.max_findings_per_file,
+    }
+
+
+def _collect_verify_kwargs(args: argparse.Namespace) -> dict:
+    """Collect the suggestion-verification per-file toggles."""
+    return {
         "verify_suggestions": bool(getattr(args, "verify_suggestions", False)),
         "verify_workdir": getattr(args, "verify_workdir", None),
         "verify_cmd": getattr(args, "verify_cmd", "") or "",
         "verify_timeout": float(getattr(args, "verify_timeout", 60.0) or 60.0),
+    }
+
+
+def _collect_classify_kwargs(args: argparse.Namespace) -> dict:
+    """Collect the PR-classification / consistency per-file toggles."""
+    return {
         "api_consistency_check": bool(getattr(args, "api_consistency", False)),
         "pr_classify": bool(getattr(args, "pr_classify", False)),
         "pr_title": getattr(args, "pr_title", "") or "",
         "pr_body": getattr(args, "pr_body", "") or "",
         "reproducibility_check": bool(getattr(args, "reproducibility_check", False)),
         "dep_upgrade_check": bool(getattr(args, "dep_upgrade_check", False)),
-        "persona_set": tuple(
-            s.strip() for s in (getattr(args, "personas", "") or "").split(",")
-            if s.strip()
-        ),
+    }
+
+
+def _collect_risk_kwargs(args: argparse.Namespace) -> dict:
+    """Collect the persona / risk / entropy per-file toggles."""
+    return {
+        "persona_set": _csv_tuple(args, "personas"),
         "risk_weighted": bool(getattr(args, "risk_weighted", False)),
         "risk_workdir": getattr(args, "risk_workdir", None),
         "diff_entropy_check": bool(getattr(args, "diff_entropy", False)),
-        "review_modes": tuple(
-            s.strip() for s in (getattr(args, "review_modes", "") or "").split(",")
-            if s.strip()
-        ),
+        "review_modes": _csv_tuple(args, "review_modes"),
+    }
+
+
+def _per_file_kwargs(args: argparse.Namespace) -> dict:
+    """Collect the optional per-file review toggles from CLI args."""
+    return {
+        **_collect_core_kwargs(args),
+        **_collect_verify_kwargs(args),
+        **_collect_classify_kwargs(args),
+        **_collect_risk_kwargs(args),
     }
 
 def _run_per_file_review(
@@ -746,59 +659,6 @@ def _open_gate_if_needed(
         or head_sha is None
     )
     return None if skip else adapter.open_gate(head_sha)
-
-def _dialogue_from_replies(adapter: object) -> str:
-    """Render the author-reply dialogue block; tolerate fetch failure."""
-    try:
-        replies = adapter.fetch_author_replies()
-    except Exception as exc:
-        log.warning("Failed to fetch author replies (%s); skipping dialogue", exc)
-        return ""
-    if not replies:
-        return ""
-    from prthinker.dialogue import render_dialogue_block
-    log.info("Injecting %d author reply(ies) into inline-findings prompt", len(replies))
-    return render_dialogue_block(replies)
-
-def _dialogue_from_lessons(args: argparse.Namespace) -> str:
-    """Render the derived-lessons block from the lessons store."""
-    lessons_path = Path(getattr(args, "lessons_path", "") or ".prthinker/lessons.jsonl")
-    if not lessons_path.exists():
-        return ""
-    from prthinker.lessons import LessonsStore, format_lessons_block
-    top_k = int(getattr(args, "lessons_top_k", 5) or 5)
-    recent = list(LessonsStore(lessons_path))[-top_k:]
-    block = format_lessons_block(recent)
-    if block:
-        log.info("Injecting %d derived lesson(s) into inline-findings prompt", len(recent))
-    return block
-
-def _dialogue_from_kg(args: argparse.Namespace) -> str:
-    """Render the repo knowledge-graph symbol block."""
-    kg_store_path = Path(getattr(args, "kg_store", "") or ".prthinker/repo-kg.sqlite")
-    if not kg_store_path.exists():
-        return ""
-    kg_workdir = Path(getattr(args, "kg_workdir", "") or ".")
-    symbols = KnowledgeGraphStore(kg_store_path).all_symbols(kg_workdir)
-    block = format_kg_block(symbols)
-    if block:
-        log.info("Injecting %d known symbol(s) into inline-findings prompt", len(symbols))
-    return block
-
-def _build_dialogue_block(args: argparse.Namespace, adapter: object) -> str:
-    """Assemble the inline-findings context from replies, lessons, and KG."""
-    if not args.inline_review:
-        return ""
-    block = _dialogue_from_replies(adapter) if getattr(args, "reply_to_author", False) else ""
-    if getattr(args, "lessons", False):
-        lessons = _dialogue_from_lessons(args)
-        if lessons:
-            block = (lessons + "\n\n" + block).strip()
-    if getattr(args, "kg_ground", False):
-        kg = _dialogue_from_kg(args)
-        if kg:
-            block = (kg + "\n\n" + block).strip()
-    return block
 
 def _close_gate_on_crash(adapter: object, gate_handle: object | None) -> None:
     """Mark the gate failed when the reviewer raises before publishing."""
@@ -979,7 +839,7 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
     head_sha = _resolve_head_sha(args, adapter)
     diff = _maybe_prepend_ci_signals(args, diff, head_sha, platform_kind)
     gate_handle = _open_gate_if_needed(args, adapter, head_sha)
-    dialogue_block = _build_dialogue_block(args, adapter)
+    dialogue_block = build_dialogue_block(args, adapter)
 
     try:
         result = _run_review(args, config, diff, dialogue_block=dialogue_block)

@@ -114,9 +114,12 @@ def _spark(values: list[float]) -> str:
     return "".join(out)
 
 
-def _gather(inputs: ReportInputs) -> dict[str, object]:
-    """Run every read; return a plain dict for the renderer to format."""
-    data: dict[str, object] = {
+_TOP_FILES_LIMIT = 5
+
+
+def _gather_window(inputs: ReportInputs) -> dict[str, object]:
+    """Build the time-window header fields for the report dict."""
+    return {
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "window": (
             "all-time" if inputs.since_seconds is None
@@ -124,58 +127,69 @@ def _gather(inputs: ReportInputs) -> dict[str, object]:
         ),
     }
 
-    if inputs.telemetry_path.exists():
-        sink = TelemetrySink(inputs.telemetry_path)
-        stats = sink.aggregate(since_seconds=inputs.since_seconds)
-        data["telemetry"] = [
-            {
-                "backend": s.backend,
-                "model": s.model,
-                "calls": s.calls,
-                "cache_hits": s.cache_hits,
-                "prompt_tokens": s.prompt_tokens,
-                "completion_tokens": s.completion_tokens,
-                "cost_usd": round(s.cost_usd, 4),
-                "p50_ms": round(s.latency_p50_ms, 0),
-                "p95_ms": round(s.latency_p95_ms, 0),
-            }
-            for s in stats
-        ]
-        data["daily_cost"] = _daily_cost_series(inputs.telemetry_path, days=14)
-    else:
-        data["telemetry"] = []
-        data["daily_cost"] = []
 
-    if inputs.cache_path.exists():
-        cache = PromptCache(inputs.cache_path)
-        cstats = cache.stats()
-        data["cache"] = {
-            "entries": cstats.total_entries,
-            "hits": cstats.total_hits,
+def _gather_telemetry(inputs: ReportInputs) -> dict[str, object]:
+    """Aggregate per-(backend, model) totals + the daily-cost series."""
+    if not inputs.telemetry_path.exists():
+        return {"telemetry": [], "daily_cost": []}
+    sink = TelemetrySink(inputs.telemetry_path)
+    stats = sink.aggregate(since_seconds=inputs.since_seconds)
+    telemetry = [
+        {
+            "backend": s.backend,
+            "model": s.model,
+            "calls": s.calls,
+            "cache_hits": s.cache_hits,
+            "prompt_tokens": s.prompt_tokens,
+            "completion_tokens": s.completion_tokens,
+            "cost_usd": round(s.cost_usd, 4),
+            "p50_ms": round(s.latency_p50_ms, 0),
+            "p95_ms": round(s.latency_p95_ms, 0),
         }
-    else:
-        data["cache"] = {"entries": 0, "hits": 0}
+        for s in stats
+    ]
+    return {
+        "telemetry": telemetry,
+        "daily_cost": _daily_cost_series(inputs.telemetry_path, days=14),
+    }
 
-    if inputs.dismissed_path.exists():
-        d_store = DismissedExamplesStore(inputs.dismissed_path)
-        by_reason = _dismissed_by_reason(d_store)
-        data["dismissed"] = {
-            "total": len(d_store),
-            "by_reason": dict(by_reason.most_common()),
-        }
-    else:
-        data["dismissed"] = {"total": 0, "by_reason": {}}
 
-    if inputs.accepted_path.exists():
-        a_store = AcceptedExamplesStore(inputs.accepted_path)
-        by_file = _accepted_by_file(a_store)
-        data["accepted"] = {
-            "total": len(a_store),
-            "top_files": dict(by_file.most_common(5)),
-        }
-    else:
-        data["accepted"] = {"total": 0, "top_files": {}}
+def _gather_cache(inputs: ReportInputs) -> dict[str, object]:
+    """Read cache fill + lifetime-hit totals."""
+    if not inputs.cache_path.exists():
+        return {"entries": 0, "hits": 0}
+    cstats = PromptCache(inputs.cache_path).stats()
+    return {"entries": cstats.total_entries, "hits": cstats.total_hits}
 
+
+def _gather_dismissed(inputs: ReportInputs) -> dict[str, object]:
+    """Read the dismissed-corpus total + by-reason breakdown."""
+    if not inputs.dismissed_path.exists():
+        return {"total": 0, "by_reason": {}}
+    store = DismissedExamplesStore(inputs.dismissed_path)
+    by_reason = _dismissed_by_reason(store)
+    return {"total": len(store), "by_reason": dict(by_reason.most_common())}
+
+
+def _gather_accepted(inputs: ReportInputs) -> dict[str, object]:
+    """Read the accepted-corpus total + top-files breakdown."""
+    if not inputs.accepted_path.exists():
+        return {"total": 0, "top_files": {}}
+    store = AcceptedExamplesStore(inputs.accepted_path)
+    by_file = _accepted_by_file(store)
+    return {
+        "total": len(store),
+        "top_files": dict(by_file.most_common(_TOP_FILES_LIMIT)),
+    }
+
+
+def _gather(inputs: ReportInputs) -> dict[str, object]:
+    """Run every read; return a plain dict for the renderer to format."""
+    data: dict[str, object] = _gather_window(inputs)
+    data.update(_gather_telemetry(inputs))
+    data["cache"] = _gather_cache(inputs)
+    data["dismissed"] = _gather_dismissed(inputs)
+    data["accepted"] = _gather_accepted(inputs)
     return data
 
 

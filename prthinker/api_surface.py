@@ -80,6 +80,23 @@ def _classify(added: list[str], removed: list[str], changed: list[str]) -> str:
     return _IMPACT_PATCH
 
 
+def _accumulate_file_delta(
+    file_diff: FileDiff,
+    added: list[str],
+    removed: list[str],
+    changed: list[str],
+) -> None:
+    """Append one file's public-symbol additions/removals/changes in place."""
+    new_sigs = _collect_signatures(file_diff.raw, "+")
+    old_sigs = _collect_signatures(file_diff.raw, "-")
+    for name, signature in new_sigs.items():
+        if name not in old_sigs:
+            added.append(name)
+        elif old_sigs[name] != signature:
+            changed.append(name)
+    removed.extend(name for name in old_sigs if name not in new_sigs)
+
+
 def compute_api_surface(file_diffs: list[FileDiff]) -> ApiSurfaceReport:
     """Compute the public-API surface delta and semver impact for `file_diffs`.
 
@@ -95,16 +112,7 @@ def compute_api_surface(file_diffs: list[FileDiff]) -> ApiSurfaceReport:
     for file_diff in file_diffs:
         if file_diff.is_binary or file_diff.is_deleted:
             continue
-        new_sigs = _collect_signatures(file_diff.raw, "+")
-        old_sigs = _collect_signatures(file_diff.raw, "-")
-        for name, signature in new_sigs.items():
-            if name not in old_sigs:
-                added.append(name)
-            elif old_sigs[name] != signature:
-                changed.append(name)
-        for name in old_sigs:
-            if name not in new_sigs:
-                removed.append(name)
+        _accumulate_file_delta(file_diff, added, removed, changed)
 
     impact = _classify(added, removed, changed)
     return ApiSurfaceReport(added=added, removed=removed, changed=changed, impact=impact)

@@ -154,26 +154,36 @@ def scan_diff(diff_text: str) -> list[InjectionHit]:
     return hits
 
 
-def _neutralize_payload(payload: str) -> str:
-    """Wrap every detected injection span in the neutralizing marker."""
+def _collect_spans(payload: str) -> list[tuple[int, int]]:
+    """Collect every injection-pattern match span found in `payload`."""
     spans: list[tuple[int, int]] = []
     for pattern_group in (_DIRECT_PATTERNS, _ROLE_PATTERNS):
         for pattern in pattern_group:
             spans.extend(m.span() for m in pattern.finditer(payload))
     spans.extend(m.span() for m in _ENCODED_PATTERN.finditer(payload))
-    if not spans:
-        return payload
-    # Apply replacements right-to-left so earlier offsets stay valid;
-    # de-duplicate overlapping spans by sorting on start.
-    spans.sort()
+    return spans
+
+
+def _merge_spans(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Sort and coalesce overlapping spans into disjoint ascending ranges."""
     merged: list[tuple[int, int]] = []
-    for start, end in spans:
+    for start, end in sorted(spans):
         if merged and start <= merged[-1][1]:
             merged[-1] = (merged[-1][0], max(merged[-1][1], end))
         else:
             merged.append((start, end))
+    return merged
+
+
+def _neutralize_payload(payload: str) -> str:
+    """Wrap every detected injection span in the neutralizing marker."""
+    spans = _collect_spans(payload)
+    if not spans:
+        return payload
+    # Apply replacements right-to-left so earlier offsets stay valid;
+    # de-duplicate overlapping spans by sorting on start.
     out = payload
-    for start, end in reversed(merged):
+    for start, end in reversed(_merge_spans(spans)):
         out = f"{out[:start]}{_wrap_span(out[start:end])}{out[end:]}"
     return out
 
