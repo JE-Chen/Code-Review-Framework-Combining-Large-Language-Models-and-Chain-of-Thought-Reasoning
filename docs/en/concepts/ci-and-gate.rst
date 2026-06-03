@@ -196,6 +196,11 @@ tally, and the hotspot ranking all ignore them, and a file whose only
 findings are info is treated as clean. This is display-only: the inline
 review on the diff and the merge gate still see every finding.
 
+``--summary-min-confidence`` (env ``PRTHINKER_SUMMARY_MIN_CONFIDENCE``, a
+0–1 float) additionally drops findings whose model confidence is below
+the floor; findings without a confidence score are kept (drop nothing on
+unknown). Also display-only.
+
 With ``--pr-labels`` (env ``PRTHINKER_PR_LABELS``) the reviewer also
 applies two managed labels to the PR — a size bucket
 (``prthinker/size-xs`` … ``size-xl``, by reviewed file count) and a

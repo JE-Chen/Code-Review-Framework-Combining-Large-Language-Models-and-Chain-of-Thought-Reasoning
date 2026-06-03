@@ -267,6 +267,16 @@ def _add_per_file_mode_args(common: argparse.ArgumentParser) -> None:
         help="Path to the persisted finding-fingerprint file for --review-delta.",
     )
     common.add_argument(
+        "--summary-min-confidence",
+        type=float,
+        default=float(env_str("PRTHINKER_SUMMARY_MIN_CONFIDENCE", "0") or 0),
+        help=(
+            "Drop findings whose model confidence is below this floor (0–1) "
+            "from the rendered summary; findings without a score are kept. "
+            "Display only — the inline review and gate are unaffected."
+        ),
+    )
+    common.add_argument(
         "--max-findings-per-file",
         type=int,
         default=int(env_str("PRTHINKER_MAX_FINDINGS_PER_FILE", "10") or 10),

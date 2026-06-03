@@ -213,6 +213,37 @@ def _without_info_findings(result: ReviewResult) -> ReviewResult:
     return dataclasses.replace(result, per_file=per_file, inline_findings=inline)
 
 
+def _confident_enough(finding: InlineFinding, min_confidence: float) -> bool:
+    """Keep a finding unless its model confidence is known and below floor."""
+    conf = finding.provenance.confidence if finding.provenance else None
+    return conf is None or conf >= min_confidence
+
+
+def _without_low_confidence(
+    result: ReviewResult, min_confidence: float
+) -> ReviewResult:
+    """Display copy dropping findings whose confidence is below the floor.
+
+    Findings without a confidence score are kept (drop nothing on unknown).
+    Display-only: the submitted/gated findings are untouched.
+    """
+    per_file = [
+        dataclasses.replace(
+            fr,
+            inline_findings=[
+                f for f in fr.inline_findings
+                if _confident_enough(f, min_confidence)
+            ],
+        )
+        for fr in result.per_file
+    ]
+    inline = [
+        f for f in result.inline_findings
+        if _confident_enough(f, min_confidence)
+    ]
+    return dataclasses.replace(result, per_file=per_file, inline_findings=inline)
+
+
 def format_pr_comment(
     result: ReviewResult,
     marker: str,
@@ -223,6 +254,7 @@ def format_pr_comment(
     preliminary: str | None = None,
     files_url: str | None = None,
     delta: str | None = None,
+    min_confidence: float = 0.0,
 ) -> str:
     """Render the consolidated PR comment.
 
@@ -245,6 +277,8 @@ def format_pr_comment(
     """
     if hide_info:
         result = _without_info_findings(result)
+    if min_confidence > 0:
+        result = _without_low_confidence(result, min_confidence)
     if findings_only and _total_inline_findings(result) == 0:
         return _format_clean_comment(result, marker, preliminary)
     if result.per_file:
@@ -494,6 +528,7 @@ def format_pr_comment_pages(
     preliminary: str | None = None,
     files_url: str | None = None,
     delta: str | None = None,
+    min_confidence: float = 0.0,
 ) -> list[str]:
     """Render the PR comment, paginated so no page exceeds ``max_chars``.
 
@@ -512,6 +547,8 @@ def format_pr_comment_pages(
     """
     if hide_info:
         result = _without_info_findings(result)
+    if min_confidence > 0:
+        result = _without_low_confidence(result, min_confidence)
     single = format_pr_comment(
         result, marker, posted_count=posted_count,
         findings_only=findings_only, preliminary=preliminary,

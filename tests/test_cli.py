@@ -72,6 +72,15 @@ def test_pr_overview_flag_parses() -> None:
     assert ns.pr_overview is True
 
 
+def test_summary_min_confidence_flag_parses() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote",
+        "--remote-url", "http://x", "--summary-min-confidence", "0.4",
+    ])
+    assert ns.summary_min_confidence == 0.4
+
+
 def test_pr_files_url_github_default() -> None:
     import argparse as _argparse
 

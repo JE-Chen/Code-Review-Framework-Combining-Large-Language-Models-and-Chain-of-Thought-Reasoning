@@ -479,6 +479,33 @@ def test_signal_note_shows_verified_and_low_repro():
     assert "_Signal: ✓ 1 verified · ⚠️ 1 low-repro_" in out
 
 
+def test_min_confidence_drops_low_and_keeps_unknown():
+    from prthinker.schemas import Provenance
+    low = _finding(path="a.py", line=1, severity="warning",
+                   provenance=Provenance(citations=[], confidence=0.2))
+    high = _finding(path="a.py", line=2, severity="warning",
+                    provenance=Provenance(citations=[], confidence=0.9))
+    unknown = _finding(path="a.py", line=3, severity="warning")  # no provenance
+    fr = _file_result(path="a.py", inline_findings=[low, high, unknown])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr]), _MARKER, min_confidence=0.5
+    )
+    # low (0.2) dropped → 2 of 3 remain in the badge / tally.
+    assert "🟡2" in out
+    assert "🟡 2" in out  # at-a-glance warning tally
+
+
+def test_min_confidence_zero_keeps_all():
+    from prthinker.schemas import Provenance
+    low = _finding(path="a.py", severity="warning",
+                   provenance=Provenance(citations=[], confidence=0.1))
+    out = formatters.format_pr_comment(
+        _review(per_file=[_file_result(path="a.py", inline_findings=[low])]),
+        _MARKER, min_confidence=0.0,
+    )
+    assert "🟡1" in out
+
+
 def test_delta_line_in_digest():
     fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
     out = formatters.format_pr_comment(

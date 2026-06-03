@@ -109,6 +109,7 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
         preliminary=_build_preliminary_overview(args, adapter, merged),
         files_url=_pr_files_url(args),
         delta=_review_delta_line(args, merged),
+        min_confidence=getattr(args, "summary_min_confidence", 0.0),
     )
     if args.dry_run:
         sys.stdout.write("\n\n".join(pages))

@@ -182,6 +182,10 @@ finding 從總結中略去──數量徽章、at-a-glance 統計、熱點排名
 而只有 info finding 的檔案會被視為乾淨。這只影響顯示：diff 上的 inline
 review 與合併 gate 仍會看到所有 finding。
 
+``--summary-min-confidence``\ （環境變數 ``PRTHINKER_SUMMARY_MIN_CONFIDENCE``\ ，
+0–1 浮點數）會進一步把模型信心低於門檻的 finding 從總結中丟掉；沒有信心
+分數的 finding 一律保留（未知不丟）。同樣只影響顯示。
+
 加上 ``--pr-labels``\ （環境變數 ``PRTHINKER_PR_LABELS``）時，reviewer 還會
 在 PR 上貼兩個受管理的標籤──規模（``prthinker/size-xs`` … ``size-xl``\ ，
 依審查檔案數）與狀態（``prthinker/changes-requested`` / ``review-suggested``
