@@ -114,6 +114,7 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
         files_url=_pr_files_url(args),
         delta=_agg_delta,
         min_confidence=getattr(args, "summary_min_confidence", 0.0),
+        table=getattr(args, "summary_table", False),
     )
     if args.dry_run:
         sys.stdout.write("\n\n".join(pages))

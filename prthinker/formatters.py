@@ -27,6 +27,19 @@ _SEVERITY_ICON: tuple[tuple[str, str], ...] = (
     ("info", "🔵"),
 )
 _SEVERITY_RANK: dict[str, int] = {"error": 3, "warning": 2, "info": 1}
+_SEVERITY_ICON_BY_NAME: dict[str, str] = dict(_SEVERITY_ICON)
+
+
+@dataclasses.dataclass(frozen=True)
+class _RenderOpts:
+    """Bundled per-file render options (keeps helper signatures small)."""
+
+    posted_count: int | None = None
+    findings_only: bool = False
+    preliminary: str | None = None
+    files_url: str | None = None
+    delta: str | None = None
+    table: bool = False
 
 
 def _diff_anchor(path: str, line: int) -> str:
@@ -255,6 +268,7 @@ def format_pr_comment(
     files_url: str | None = None,
     delta: str | None = None,
     min_confidence: float = 0.0,
+    table: bool = False,
 ) -> str:
     """Render the consolidated PR comment.
 
@@ -282,11 +296,12 @@ def format_pr_comment(
     if findings_only and _total_inline_findings(result) == 0:
         return _format_clean_comment(result, marker, preliminary)
     if result.per_file:
-        return _format_per_file(
-            result, marker, posted_count=posted_count,
-            findings_only=findings_only, preliminary=preliminary,
-            files_url=files_url, delta=delta,
+        opts = _RenderOpts(
+            posted_count=posted_count, findings_only=findings_only,
+            preliminary=preliminary, files_url=files_url, delta=delta,
+            table=table,
         )
+        return _format_per_file(result, marker, opts)
     return _format_single(result, marker)
 
 
@@ -422,13 +437,7 @@ def _hidden_clean_note(result: ReviewResult, findings_only: bool) -> list[str]:
 
 
 def _per_file_head_parts(
-    result: ReviewResult,
-    marker: str,
-    posted_count: int | None,
-    findings_only: bool = False,
-    preliminary: str | None = None,
-    files_url: str | None = None,
-    delta: str | None = None,
+    result: ReviewResult, marker: str, opts: _RenderOpts
 ) -> list[str]:
     """Everything in the per-file comment that precedes the file blocks."""
     parts: list[str] = [
@@ -436,33 +445,48 @@ def _per_file_head_parts(
         "## CoT Code Review (per-file)",
         "",
     ]
-    parts += _format_must_fix_block(result, files_url)
-    if preliminary:
-        parts.append(preliminary)
-    parts += _format_overview_block(result, files_url, delta)
+    parts += _format_must_fix_block(result, opts.files_url)
+    if opts.preliminary:
+        parts.append(opts.preliminary)
+    parts += _format_overview_block(result, opts.files_url, opts.delta)
     parts.append(_per_file_header(result))
     parts.append("")
-    parts += _format_per_file_intro(result, posted_count)
-    parts += _hidden_clean_note(result, findings_only)
+    parts += _format_per_file_intro(result, opts.posted_count)
+    parts += _hidden_clean_note(result, opts.findings_only)
     parts += _format_per_file_sections(result)
     return parts
 
 
-def _format_per_file(
-    result: ReviewResult,
-    marker: str,
-    posted_count: int | None = None,
-    findings_only: bool = False,
-    preliminary: str | None = None,
-    files_url: str | None = None,
-    delta: str | None = None,
-) -> str:
-    parts = _per_file_head_parts(
-        result, marker, posted_count, findings_only, preliminary,
-        files_url, delta,
-    )
+def _format_findings_table(
+    result: ReviewResult, files_url: str | None, findings_only: bool
+) -> list[str]:
+    """Flat, compact table of every finding — faster to scan than blocks."""
+    rows: list[str] = []
     for fr in _files_to_render(result.per_file, findings_only):
-        parts += _format_file_block(fr, files_url)
+        ordered = sorted(
+            fr.inline_findings,
+            key=lambda f: _SEVERITY_RANK.get(f.severity, 0),
+            reverse=True,
+        )
+        for finding in ordered:
+            icon = _SEVERITY_ICON_BY_NAME.get(finding.severity, "")
+            loc = _loc_ref(finding.path, finding.line, files_url)
+            text = _first_line(finding.comment).replace("|", "\\|")
+            rows.append(f"| {icon} | {loc} | {text} |")
+    if not rows:
+        return []
+    return ["| | Location | Finding |", "| --- | --- | --- |", *rows, ""]
+
+
+def _format_per_file(
+    result: ReviewResult, marker: str, opts: _RenderOpts
+) -> str:
+    parts = _per_file_head_parts(result, marker, opts)
+    if opts.table:
+        parts += _format_findings_table(result, opts.files_url, opts.findings_only)
+    else:
+        for fr in _files_to_render(result.per_file, opts.findings_only):
+            parts += _format_file_block(fr, opts.files_url)
 
     return "\n".join(parts).rstrip() + "\n"
 
@@ -529,6 +553,7 @@ def format_pr_comment_pages(
     files_url: str | None = None,
     delta: str | None = None,
     min_confidence: float = 0.0,
+    table: bool = False,
 ) -> list[str]:
     """Render the PR comment, paginated so no page exceeds ``max_chars``.
 
@@ -552,16 +577,16 @@ def format_pr_comment_pages(
     single = format_pr_comment(
         result, marker, posted_count=posted_count,
         findings_only=findings_only, preliminary=preliminary,
-        files_url=files_url, delta=delta,
+        files_url=files_url, delta=delta, table=table,
     )
-    if len(single) <= max_chars or not result.per_file:
+    # The table layout is compact; never block-paginate it.
+    if len(single) <= max_chars or not result.per_file or table:
         return [single]
-    head = "\n".join(
-        _per_file_head_parts(
-            result, marker, posted_count, findings_only, preliminary,
-            files_url, delta,
-        )
+    opts = _RenderOpts(
+        posted_count=posted_count, findings_only=findings_only,
+        preliminary=preliminary, files_url=files_url, delta=delta,
     )
+    head = "\n".join(_per_file_head_parts(result, marker, opts))
     blocks = [
         "\n".join(_format_file_block(fr, files_url))
         for fr in _files_to_render(result.per_file, findings_only)

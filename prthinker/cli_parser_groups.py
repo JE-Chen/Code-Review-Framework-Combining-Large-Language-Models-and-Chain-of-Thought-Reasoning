@@ -277,6 +277,15 @@ def _add_per_file_mode_args(common: argparse.ArgumentParser) -> None:
         ),
     )
     common.add_argument(
+        "--summary-table",
+        action="store_true",
+        default=env_bool("PRTHINKER_SUMMARY_TABLE", False),
+        help=(
+            "Render findings as one compact table (severity | location | "
+            "finding) instead of per-file collapsible blocks."
+        ),
+    )
+    common.add_argument(
         "--max-findings-per-file",
         type=int,
         default=int(env_str("PRTHINKER_MAX_FINDINGS_PER_FILE", "10") or 10),

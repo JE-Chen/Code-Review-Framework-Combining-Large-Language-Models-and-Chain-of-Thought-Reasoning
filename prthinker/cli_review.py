@@ -897,6 +897,7 @@ def _publish_review_result(
         files_url=_pr_files_url(args),
         delta=delta_line,
         min_confidence=getattr(args, "summary_min_confidence", 0.0),
+        table=getattr(args, "summary_table", False),
     )
     if getattr(args, "api_impact", False):
         pages[-1] = _append_api_impact(pages[-1], result)

@@ -72,6 +72,15 @@ def test_pr_overview_flag_parses() -> None:
     assert ns.pr_overview is True
 
 
+def test_summary_table_flag_parses() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote",
+        "--remote-url", "http://x", "--summary-table",
+    ])
+    assert ns.summary_table is True
+
+
 def test_summary_min_confidence_flag_parses() -> None:
     p = _build_parser()
     ns = p.parse_args([

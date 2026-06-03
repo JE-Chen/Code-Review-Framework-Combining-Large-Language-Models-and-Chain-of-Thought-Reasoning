@@ -154,7 +154,9 @@ error finding 以單行加深層連結列出，讓阻擋性問題不必展開任
 
 逐檔區塊會\ **依嚴重度排序**\ （有 error 的檔案在前，再來 warning、info，
 同級再比 finding 數），每個檔案的徽章改用嚴重度圖示（``🔴2 🟡1``）而非單純
-數字。在 GitHub 上，每個檔名──熱點列與區塊標頭──都是\ **深層連結**\ ，
+數字。``--summary-table``\ （環境變數 ``PRTHINKER_SUMMARY_TABLE``）會把收合
+區塊換成一個緊湊的 ``severity | location | finding`` 表格──finding 很多時
+更快掃。在 GitHub 上，每個檔名──熱點列與區塊標頭──都是\ **深層連結**\ ，
 直接跳到該檔在 Files-changed 分頁的第一個 finding（GitHub Enterprise 主機
 請設定 ``PRTHINKER_PR_FILES_URL``）。
 

@@ -160,7 +160,10 @@ low-reproducibility findings (``⚠️``) so high-trust findings stand out.
 
 The per-file blocks are ordered most-severe first (files with errors,
 then warnings, then info, ties broken by finding count), each badged with
-severity icons (``🔴2 🟡1``) instead of a bare count. On GitHub every
+severity icons (``🔴2 🟡1``) instead of a bare count. ``--summary-table``
+(env ``PRTHINKER_SUMMARY_TABLE``) swaps the collapsible blocks for one
+compact ``severity | location | finding`` table — faster to scan when a
+PR has many findings. On GitHub every
 file name — in the hotspots line and the block headers — is a deep link
 straight to that file's first finding in the Files-changed tab (set
 ``PRTHINKER_PR_FILES_URL`` for GitHub Enterprise hosts).

@@ -506,6 +506,33 @@ def test_min_confidence_zero_keeps_all():
     assert "🟡1" in out
 
 
+def test_summary_table_renders_rows_not_blocks():
+    findings = [
+        _finding(path="a.py", line=4, severity="error", comment="boom"),
+        _finding(path="b.py", line=9, severity="warning", comment="meh|pipe"),
+    ]
+    a = _file_result(path="a.py", inline_findings=[findings[0]])
+    b = _file_result(path="b.py", inline_findings=[findings[1]])
+    out = formatters.format_pr_comment(_review(per_file=[a, b]), _MARKER, table=True)
+    assert "| | Location | Finding |" in out
+    assert "| 🔴 | `a.py:4` | boom |" in out
+    assert "| 🟡 | `b.py:9` | meh\\|pipe |"  # pipe escaped
+    # Table mode replaces the collapsible per-file blocks.
+    assert "<details><summary>" not in out and "<details open>" not in out
+
+
+def test_summary_table_pages_single():
+    files = [_padded_file(f"f{i}.py", 120) for i in range(6)]
+    for fr in files:
+        fr.inline_findings = [_finding(path=fr.path, severity="warning")]
+    pages = formatters.format_pr_comment_pages(
+        _review(per_file=files), _MARKER, max_chars=300, table=True
+    )
+    # Compact table is never block-paginated.
+    assert len(pages) == 1
+    assert "| | Location | Finding |" in pages[0]
+
+
 def test_delta_line_in_digest():
     fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
     out = formatters.format_pr_comment(
