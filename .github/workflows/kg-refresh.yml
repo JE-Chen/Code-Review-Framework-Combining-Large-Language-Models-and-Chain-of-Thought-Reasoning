@@ -15,7 +15,7 @@ name: KG Refresh
 
 on:
   push:
-    branches: [dev, main]
+    branches: [main]
     paths:
       - "**.py"
       - "**.ts"
