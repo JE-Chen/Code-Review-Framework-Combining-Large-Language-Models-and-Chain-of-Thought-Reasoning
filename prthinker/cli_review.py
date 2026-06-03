@@ -38,7 +38,8 @@ from prthinker.api_surface import compute_api_surface
 from prthinker.confidence import filter_by_confidence
 from prthinker.diff import parse_unified_diff
 from prthinker.finding_dedup import dedupe_findings
-from prthinker.formatters import format_pr_comment
+from prthinker.formatters import format_pr_comment, format_pr_comment_pages
+from prthinker.github_api import count_findings_on_diff
 from prthinker.html_report import write_report
 from prthinker.ignore import filter_findings, load_ignore
 from prthinker.sarif import write_sarif
@@ -904,17 +905,29 @@ def _publish_review_result(
     """Post comment + inline review, close the gate, and trigger auto-fix."""
     _postprocess_findings(args, result)
     _emit_review_artifacts(args, result)
-    body = format_pr_comment(result, marker=args.marker)
+    # The summary text reports how many findings actually land on a diff
+    # hunk (= will be posted as inline comments) versus the raw total, so
+    # it never claims findings outside the diff were posted. Only compute
+    # it when inline review is enabled; otherwise nothing is posted inline
+    # and the breakdown would be misleading.
+    posted_count: int | None = None
+    if getattr(args, "inline_review", False):
+        posted_count = count_findings_on_diff(
+            result.inline_findings, result.code_diff
+        )
+    pages = format_pr_comment_pages(
+        result, marker=args.marker, posted_count=posted_count
+    )
     if getattr(args, "api_impact", False):
-        body = _append_api_impact(body, result)
+        pages[-1] = _append_api_impact(pages[-1], result)
     if args.dry_run:
-        return _emit_dry_run(result, body)
+        return _emit_dry_run(result, "\n\n".join(pages))
     output_json = getattr(args, "output_json", "")
     if output_json:
         return _emit_partial_json(result, output_json)
 
-    comment_id = adapter.upsert_summary_comment(body)
-    log.info("Posted summary comment id=%d", comment_id)
+    comment_ids = adapter.upsert_summary_comments(pages)
+    log.info("Posted %d summary comment(s): %s", len(comment_ids), comment_ids)
 
     review_event = _resolve_review_event(args, result)
     if args.inline_review and result.inline_findings:

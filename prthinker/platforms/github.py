@@ -22,6 +22,7 @@ from prthinker.github_api import (
     fetch_pr_head_sha,
     submit_inline_review,
     upsert_pr_comment,
+    upsert_pr_comments,
 )
 from prthinker.platforms.base import PlatformAdapter
 from prthinker.schemas import InlineFinding
@@ -83,6 +84,9 @@ class GitHubAdapter(PlatformAdapter):
 
     def upsert_summary_comment(self, body: str) -> int:
         return upsert_pr_comment(self._gh(), body)
+
+    def upsert_summary_comments(self, bodies: list[str]) -> list[int]:
+        return upsert_pr_comments(self._gh(), bodies)
 
     def submit_inline_review(
         self,

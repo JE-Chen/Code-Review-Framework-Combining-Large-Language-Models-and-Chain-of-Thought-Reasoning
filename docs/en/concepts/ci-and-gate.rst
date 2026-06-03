@@ -130,6 +130,28 @@ Failure modes
   summary comment still shows the empty result so authors know the
   reviewer ran.
 
+Posting the review: comments and inline suggestions
+---------------------------------------------------
+
+A full per-file review can run to hundreds of KB — far past GitHub's
+65 536-character limit on a single comment. Rather than truncate, the
+summary is **paginated across multiple comments**: it is split between
+whole file blocks (never inside one), and every page after the first
+carries a ``Part k/N`` label. Across re-pushes the pages are reconciled
+by marker — existing comments are updated in place, extra pages are
+created, and any leftover pages from a longer previous run are deleted,
+so stale parts never linger. Platforms other than GitHub fall back to a
+single comment (the overflow stays in the job logs).
+
+Inline suggestions — the one-click *Apply suggestion* blocks on the
+diff — are posted as a separate PR review. The new review is submitted
+**before** the previous run's inline comments are dismissed, and the
+dismissal excludes the review just posted. Posting before dismissing
+means a rejected submission (GitHub 422s the *whole* review if any
+single comment targets a line outside the diff hunks) leaves the prior
+run's suggestions intact instead of wiping them ahead of a failed
+re-post.
+
 Combining CI signals + gate
 ---------------------------
 

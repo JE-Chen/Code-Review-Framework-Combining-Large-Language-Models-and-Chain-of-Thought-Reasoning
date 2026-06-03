@@ -76,6 +76,9 @@ class _FakeAdapter:
         self.calls.append(("upsert_summary_comment", body))
         return 123
 
+    def upsert_summary_comments(self, bodies: list[str]) -> list[int]:
+        return [self.upsert_summary_comment(b) for b in bodies]
+
     def submit_inline_review(self, findings, summary_body, event):  # noqa: ANN001
         self.calls.append(("submit_inline_review", event))
         if self.submit_inline_error is not None:

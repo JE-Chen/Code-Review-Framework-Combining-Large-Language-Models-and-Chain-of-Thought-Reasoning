@@ -21,7 +21,7 @@ from prthinker.checks import (
     evaluate_gate,
 )
 from prthinker.dismissed import DismissedExamplesStore
-from prthinker.formatters import format_pr_comment
+from prthinker.formatters import format_pr_comment_pages
 from prthinker.harvest import harvest, harvest_accepted
 from prthinker.kg_visualize import build_graph_data, render_html
 from prthinker.repo_kg import (
@@ -258,17 +258,18 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
 
     gate_handle = _open_aggregate_gate(args, adapter)
 
-    body = format_pr_comment(merged, marker=args.marker)
+    pages = format_pr_comment_pages(merged, marker=args.marker)
     if args.dry_run:
-        sys.stdout.write(body)
+        sys.stdout.write("\n\n".join(pages))
         if merged.inline_findings:
             sys.stdout.write(
-                f"\n[would post {len(merged.inline_findings)} inline findings]\n"
+                f"\n[would post {len(merged.inline_findings)} inline findings "
+                f"across {len(pages)} summary comment(s)]\n"
             )
         return 0
 
-    comment_id = adapter.upsert_summary_comment(body)
-    log.info("Posted summary comment id=%d", comment_id)
+    comment_ids = adapter.upsert_summary_comments(pages)
+    log.info("Posted %d summary comment(s): %s", len(comment_ids), comment_ids)
 
     review_event = _resolve_review_event(args, merged)
     _submit_aggregate_inline_review(args, adapter, merged, review_event)

@@ -176,9 +176,105 @@ def test_per_file_total_findings_and_overall_summary():
     fr = _file_result(inline_findings=[f])
     result = _review(per_file=[fr], step_outputs={"total_summary": "the overall"})
     out = formatters.format_pr_comment(result, _MARKER)
-    assert "Posted **1** inline finding(s)." in out
+    assert "Found **1** inline finding(s)" in out
+    assert "Posted **1** inline finding(s)." not in out
     assert "### Overall Summary" in out
     assert "the overall" in out
+
+
+def test_per_file_findings_summary_with_posted_count():
+    fr = _file_result(inline_findings=[_finding(line=10), _finding(line=20)])
+    result = _review(per_file=[fr])
+    out = formatters.format_pr_comment(result, _MARKER, posted_count=1)
+    assert "**Inline findings**" in out
+    assert "- Found **2** inline finding(s)" in out
+    assert "- **1** posted to the diff" in out
+    assert "- **1** outside the diff hunks (not posted)" in out
+
+
+def test_per_file_findings_summary_all_posted_hides_outside_line():
+    fr = _file_result(inline_findings=[_finding(line=10), _finding(line=20)])
+    result = _review(per_file=[fr])
+    out = formatters.format_pr_comment(result, _MARKER, posted_count=2)
+    assert "- Found **2** inline finding(s)" in out
+    assert "- **2** posted to the diff" in out
+    assert "outside the diff hunks" not in out
+
+
+def test_per_file_findings_summary_without_posted_count():
+    fr = _file_result(inline_findings=[_finding()])
+    result = _review(per_file=[fr])
+    out = formatters.format_pr_comment(result, _MARKER)
+    assert "- Found **1** inline finding(s)" in out
+    assert "posted to the diff" not in out
+
+
+def test_format_findings_summary_zero_total_renders_nothing():
+    assert formatters._format_findings_summary(0, None) == []
+    assert formatters._format_findings_summary(0, 0) == []
+
+
+def test_format_findings_summary_posted_zero_shows_outside():
+    out = formatters._format_findings_summary(3, 0)
+    assert "- Found **3** inline finding(s)" in out
+    assert "- **0** posted to the diff" in out
+    assert "- **3** outside the diff hunks (not posted)" in out
+
+
+# --------------------------------------------------------------------------
+# format_pr_comment_pages (multi-comment pagination)
+# --------------------------------------------------------------------------
+
+def _padded_file(path: str, pad: int) -> FileReviewResult:
+    return _file_result(
+        path=path,
+        step_outputs={"total_summary": "x" * pad, "first_code_review": "y" * pad},
+    )
+
+
+def test_pages_single_when_under_cap():
+    result = _review(per_file=[_file_result(path="a.py")])
+    pages = formatters.format_pr_comment_pages(result, _MARKER)
+    assert len(pages) == 1
+    # Single page is byte-identical to the non-paginated render.
+    assert pages[0] == formatters.format_pr_comment(result, _MARKER)
+
+
+def test_pages_split_between_file_blocks_preserves_all():
+    files = [_padded_file(f"f{i}.py", 120) for i in range(6)]
+    result = _review(per_file=files, step_outputs={"total_summary": "overall"})
+    pages = formatters.format_pr_comment_pages(result, _MARKER, max_chars=700)
+    assert len(pages) > 1
+    # Every page stays under the cap and carries the marker for upsert.
+    assert all(len(p) <= 700 for p in pages)
+    assert all(_MARKER in p for p in pages)
+    # No file block is lost across the split.
+    joined = "\n".join(pages)
+    for i in range(6):
+        assert f"f{i}.py" in joined
+
+
+def test_pages_label_and_continuation_header():
+    files = [_padded_file(f"f{i}.py", 120) for i in range(6)]
+    result = _review(per_file=files)
+    pages = formatters.format_pr_comment_pages(result, _MARKER, max_chars=700)
+    total = len(pages)
+    assert f"_Part 1 of {total}_" in pages[0]
+    assert f"_Part {total} of {total}_" in pages[-1]
+    assert "<!-- prthinker:part=1/" in pages[0]
+    # Intro / header only on the first page; later pages are continuations.
+    assert "## CoT Code Review (per-file)" in pages[0]
+    assert "Reviewed **6** file(s)." in pages[0]
+    assert "(per-file, continued)" in pages[1]
+    assert "Reviewed **6**" not in pages[1]
+
+
+def test_pages_oversized_single_block_still_emitted():
+    # One block alone exceeds the budget — it must still appear (it is
+    # capped later by the comment-body limit, never dropped).
+    result = _review(per_file=[_padded_file("huge.py", 2000)])
+    pages = formatters.format_pr_comment_pages(result, _MARKER, max_chars=500)
+    assert "huge.py" in "\n".join(pages)
 
 
 def test_per_file_ends_with_newline_and_no_trailing_blank():

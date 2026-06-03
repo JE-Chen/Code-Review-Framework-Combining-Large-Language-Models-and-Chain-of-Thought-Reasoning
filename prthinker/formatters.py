@@ -23,9 +23,20 @@ _SECTION_TITLES: dict[str, str] = {
 }
 
 
-def format_pr_comment(result: ReviewResult, marker: str) -> str:
+def format_pr_comment(
+    result: ReviewResult, marker: str, *, posted_count: int | None = None
+) -> str:
+    """Render the consolidated PR comment.
+
+    ``posted_count`` is the number of inline findings that actually land
+    on a diff hunk (i.e. that GitHub will accept). When supplied, the
+    findings summary distinguishes "found" from "posted to the diff"
+    instead of overstating that every finding was posted. When ``None``
+    (local CLI, MCP, dry-run — no inline submission happens) only the
+    total is shown.
+    """
     if result.per_file:
-        return _format_per_file(result, marker)
+        return _format_per_file(result, marker, posted_count=posted_count)
     return _format_single(result, marker)
 
 
@@ -77,7 +88,28 @@ def _per_file_header(result: ReviewResult) -> str:
     return header
 
 
-def _format_per_file_intro(result: ReviewResult) -> list[str]:
+def _format_findings_summary(total: int, posted: int | None) -> list[str]:
+    """Render the inline-findings counts as one unified bullet list.
+
+    ``posted`` is how many findings fall on a diff hunk (and are therefore
+    actually posted as inline comments). When it is ``None`` the count is
+    unknown (no inline submission in this context) and only the total is
+    listed.
+    """
+    if total <= 0:
+        return []
+    bullets = [f"- Found **{total}** inline finding(s)"]
+    if posted is not None:
+        bullets.append(f"- **{posted}** posted to the diff")
+        outside = total - posted
+        if outside > 0:
+            bullets.append(f"- **{outside}** outside the diff hunks (not posted)")
+    return ["**Inline findings**", "", *bullets, ""]
+
+
+def _format_per_file_intro(
+    result: ReviewResult, posted_count: int | None = None
+) -> list[str]:
     """Render the classification, finding count, and overall summary lead."""
     parts: list[str] = []
     if result.pr_classification is not None:
@@ -88,9 +120,7 @@ def _format_per_file_intro(result: ReviewResult) -> list[str]:
         parts.append("")
 
     total_findings = sum(len(f.inline_findings) for f in result.per_file)
-    if total_findings:
-        parts.append(f"Posted **{total_findings}** inline finding(s).")
-        parts.append("")
+    parts += _format_findings_summary(total_findings, posted_count)
 
     overall = result.total_summary
     if overall:
@@ -112,7 +142,10 @@ def _format_per_file_sections(result: ReviewResult) -> list[str]:
     return parts
 
 
-def _format_per_file(result: ReviewResult, marker: str) -> str:
+def _per_file_head_parts(
+    result: ReviewResult, marker: str, posted_count: int | None
+) -> list[str]:
+    """Everything in the per-file comment that precedes the file blocks."""
     parts: list[str] = [
         marker,
         "## CoT Code Review (per-file)",
@@ -120,12 +153,94 @@ def _format_per_file(result: ReviewResult, marker: str) -> str:
         _per_file_header(result),
         "",
     ]
-    parts += _format_per_file_intro(result)
+    parts += _format_per_file_intro(result, posted_count)
     parts += _format_per_file_sections(result)
+    return parts
+
+
+def _format_per_file(
+    result: ReviewResult, marker: str, posted_count: int | None = None
+) -> str:
+    parts = _per_file_head_parts(result, marker, posted_count)
     for fr in result.per_file:
         parts += _format_file_block(fr)
 
     return "\n".join(parts).rstrip() + "\n"
+
+
+# GitHub rejects an issue / PR comment body longer than 65 536 chars with a
+# 422. Pages stay under this with headroom for the part label and the
+# truncation safety net in github_api._cap_comment_body.
+_PAGE_MAX_CHARS = 60000
+_PART_LABEL_OVERHEAD = 200
+
+
+def _continuation_head(marker: str) -> str:
+    """Header that opens every page after the first."""
+    return f"{marker}\n## CoT Code Review (per-file, continued)\n"
+
+
+def _paginate_blocks(
+    head: str, blocks: list[str], marker: str, max_chars: int
+) -> list[str]:
+    """Pack file blocks into pages, splitting only between whole blocks.
+
+    At least one block lands on each page even if it alone exceeds the
+    budget (an oversized single file is truncated later by the comment
+    cap rather than dropped).
+    """
+    budget = max_chars - _PART_LABEL_OVERHEAD
+    pages: list[str] = []
+    current = head
+    has_block = False
+    for block in blocks:
+        candidate = f"{current}\n{block}"
+        if has_block and len(candidate) > budget:
+            pages.append(current)
+            current = f"{_continuation_head(marker)}\n{block}"
+        else:
+            current = candidate
+        has_block = True
+    pages.append(current)
+    return pages
+
+
+def _label_pages(pages: list[str], marker: str) -> list[str]:
+    """Insert a hidden part marker + visible ``Part k/N`` line on each page."""
+    if len(pages) <= 1:
+        return pages
+    total = len(pages)
+    labelled: list[str] = []
+    for idx, page in enumerate(pages, start=1):
+        label = f"<!-- prthinker:part={idx}/{total} -->\n_Part {idx} of {total}_\n"
+        rest = page[len(marker):].lstrip("\n") if page.startswith(marker) else page
+        labelled.append(f"{marker}\n{label}\n{rest}")
+    return labelled
+
+
+def format_pr_comment_pages(
+    result: ReviewResult,
+    marker: str,
+    *,
+    posted_count: int | None = None,
+    max_chars: int = _PAGE_MAX_CHARS,
+) -> list[str]:
+    """Render the PR comment, paginated so no page exceeds ``max_chars``.
+
+    Returns one body per comment. A short review is a single page,
+    identical to :func:`format_pr_comment`. A long per-file review is
+    split between file blocks (never inside one); each page after the
+    first carries a continuation header and a ``Part k/N`` label so a
+    1 MB review is preserved across several comments instead of being
+    truncated to the GitHub limit.
+    """
+    single = format_pr_comment(result, marker, posted_count=posted_count)
+    if len(single) <= max_chars or not result.per_file:
+        return [single]
+    head = "\n".join(_per_file_head_parts(result, marker, posted_count))
+    blocks = ["\n".join(_format_file_block(fr)) for fr in result.per_file]
+    pages = _paginate_blocks(head, blocks, marker, max_chars)
+    return _label_pages(pages, marker)
 
 
 _ENTROPY_NOTE: dict[str, str] = {
@@ -456,4 +571,4 @@ def _format_counterfactuals_block(fr: FileReviewResult) -> list[str]:
     return block
 
 
-__all__ = ["format_pr_comment"]
+__all__ = ["format_pr_comment", "format_pr_comment_pages"]

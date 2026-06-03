@@ -54,7 +54,7 @@ def test_per_file_layout_renders_one_block_per_file() -> None:
     assert "<code>a.py</code>" in body
     assert "<code>b.py</code>" in body
     # Top-level header reports inline findings, per-file row reports findings.
-    assert "Posted **1** inline finding(s)." in body
+    assert "Found **1** inline finding(s)" in body
     assert "1 finding(s)" in body
 
 
