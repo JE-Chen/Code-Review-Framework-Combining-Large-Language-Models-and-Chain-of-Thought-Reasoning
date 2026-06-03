@@ -40,6 +40,7 @@ class _RenderOpts:
     files_url: str | None = None
     delta: str | None = None
     table: bool = False
+    gate: str | None = None
 
 
 def _diff_anchor(path: str, line: int) -> str:
@@ -181,6 +182,7 @@ def _format_overview_block(
     result: ReviewResult,
     files_url: str | None = None,
     delta: str | None = None,
+    gate: str | None = None,
 ) -> list[str]:
     """A compact, scannable digest pinned to the top of the summary.
 
@@ -195,6 +197,10 @@ def _format_overview_block(
         "### 🔎 Review at a glance",
         "",
         f"- **Status:** {_overall_status(counts)}",
+    ]
+    if gate:
+        lines.append(f"- **Gate:** {gate}")
+    lines += [
         f"- **Findings:** 🔴 {counts['error']} error · "
         f"🟡 {counts['warning']} warning · 🔵 {counts['info']} info "
         f"({total} total)",
@@ -270,6 +276,7 @@ def format_pr_comment(
     delta: str | None = None,
     min_confidence: float = 0.0,
     table: bool = False,
+    gate: str | None = None,
 ) -> str:
     """Render the consolidated PR comment.
 
@@ -300,7 +307,7 @@ def format_pr_comment(
         opts = _RenderOpts(
             posted_count=posted_count, findings_only=findings_only,
             preliminary=preliminary, files_url=files_url, delta=delta,
-            table=table,
+            table=table, gate=gate,
         )
         return _format_per_file(result, marker, opts)
     return _format_single(result, marker)
@@ -437,6 +444,38 @@ def _hidden_clean_note(result: ReviewResult, findings_only: bool) -> list[str]:
     return [f"_{hidden} file(s) reviewed with no findings — hidden._", ""]
 
 
+def _files_with_severity(result: ReviewResult, severity: str) -> list[FileReviewResult]:
+    """Files whose worst displayed severity equals ``severity``."""
+    out = []
+    for fr in result.per_file:
+        if not fr.inline_findings:
+            continue
+        if _file_status_icon(fr.inline_findings) == _SEVERITY_ICON_BY_NAME[severity]:
+            out.append(fr)
+    return out
+
+
+def _format_severity_groups(
+    result: ReviewResult, files_url: str | None = None
+) -> list[str]:
+    """Collapsible 'By severity' index grouping files by worst severity."""
+    rows: list[str] = []
+    for severity, icon in _SEVERITY_ICON:
+        files = _files_with_severity(result, severity)
+        if not files:
+            continue
+        refs = " · ".join(
+            _file_ref(fr.path, files_url, _first_finding_line(fr)) for fr in files
+        )
+        rows.append(f"- {icon} **{severity}** ({len(files)} file(s)): {refs}")
+    if not rows:
+        return []
+    return [
+        f"<details><summary>By severity ({len(rows)} group(s))</summary>",
+        "", *rows, "", "</details>", "",
+    ]
+
+
 def _per_file_head_parts(
     result: ReviewResult, marker: str, opts: _RenderOpts
 ) -> list[str]:
@@ -449,7 +488,8 @@ def _per_file_head_parts(
     parts += _format_must_fix_block(result, opts.files_url)
     if opts.preliminary:
         parts.append(opts.preliminary)
-    parts += _format_overview_block(result, opts.files_url, opts.delta)
+    parts += _format_overview_block(result, opts.files_url, opts.delta, opts.gate)
+    parts += _format_severity_groups(result, opts.files_url)
     parts.append(_per_file_header(result))
     parts.append("")
     parts += _format_per_file_intro(result, opts.posted_count)
@@ -555,6 +595,7 @@ def format_pr_comment_pages(
     delta: str | None = None,
     min_confidence: float = 0.0,
     table: bool = False,
+    gate: str | None = None,
 ) -> list[str]:
     """Render the PR comment, paginated so no page exceeds ``max_chars``.
 
@@ -578,14 +619,14 @@ def format_pr_comment_pages(
     single = format_pr_comment(
         result, marker, posted_count=posted_count,
         findings_only=findings_only, preliminary=preliminary,
-        files_url=files_url, delta=delta, table=table,
+        files_url=files_url, delta=delta, table=table, gate=gate,
     )
     # The table layout is compact; never block-paginate it.
     if len(single) <= max_chars or not result.per_file or table:
         return [single]
     opts = _RenderOpts(
         posted_count=posted_count, findings_only=findings_only,
-        preliminary=preliminary, files_url=files_url, delta=delta,
+        preliminary=preliminary, files_url=files_url, delta=delta, gate=gate,
     )
     head = "\n".join(_per_file_head_parts(result, marker, opts))
     blocks = [
@@ -594,6 +635,55 @@ def format_pr_comment_pages(
     ]
     pages = _paginate_blocks(head, blocks, marker, max_chars)
     return _label_pages(pages, marker)
+
+
+_LEGEND_LINES: tuple[str, ...] = (
+    "- **🔴 error · 🟡 warning · 🔵 info** — finding severity",
+    "- **✅** no findings · **🚨** must-fix (errors) · "
+    "**📋** PR overview · **🔎** review digest",
+    "- **💬** author reply · **✓** sandbox-verified suggestion · "
+    "**⚠️** low-reproducibility finding",
+    "- file badge `🔴2 🟡1` = per-severity finding counts; "
+    "filenames link into the diff",
+)
+
+
+def _format_legend() -> list[str]:
+    """A collapsed key explaining every glyph used in the report."""
+    return [
+        "<details><summary>Legend</summary>",
+        "", *_LEGEND_LINES, "", "</details>", "",
+    ]
+
+
+def format_review_footer(
+    result: ReviewResult,
+    *,
+    head_sha: str = "",
+    backend: str = "",
+    model: str = "",
+    version: str = "",
+    generated_at: str = "",
+) -> str:
+    """Render the metadata footer + legend appended to the last page.
+
+    Surfaces the review's context — commit, backend/model, time, file
+    coverage, tool version — so a reader knows exactly what produced it.
+    """
+    skipped = sum(1 for fr in result.per_file if fr.is_binary or fr.is_deleted)
+    reviewed = _reviewed_file_count(result)
+    bits: list[str] = []
+    if head_sha:
+        bits.append(f"commit `{head_sha[:8]}`")
+    if backend or model:
+        bits.append(f"via {backend or 'backend'} `{model}`".rstrip(" `"))
+    bits.append(f"{reviewed} reviewed / {skipped} skipped")
+    if version:
+        bits.append(f"prthinker {version}")
+    if generated_at:
+        bits.append(generated_at)
+    meta = "_Review metadata: " + " · ".join(bits) + "._"
+    return "\n".join(["---", "", meta, "", *_format_legend()]).rstrip() + "\n"
 
 
 _ENTROPY_NOTE: dict[str, str] = {
@@ -985,4 +1075,9 @@ def format_digest(result: ReviewResult, files_url: str | None = None) -> str:
     return "\n".join(_format_overview_block(result, files_url)).strip()
 
 
-__all__ = ["format_digest", "format_pr_comment", "format_pr_comment_pages"]
+__all__ = [
+    "format_digest",
+    "format_pr_comment",
+    "format_pr_comment_pages",
+    "format_review_footer",
+]

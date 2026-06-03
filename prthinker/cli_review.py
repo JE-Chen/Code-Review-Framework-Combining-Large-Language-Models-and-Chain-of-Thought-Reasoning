@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import json
 import logging
 import os
@@ -41,6 +42,7 @@ from prthinker.formatters import (
     format_digest,
     format_pr_comment,
     format_pr_comment_pages,
+    format_review_footer,
 )
 from prthinker.github_api import count_findings_on_diff
 from prthinker.impact_map import format_impact_note, impacted_files
@@ -866,6 +868,47 @@ def _append_report_links(args: argparse.Namespace, pages: list[str]) -> None:
         pages[-1] = pages[-1].rstrip() + "\n\n" + footer + "\n"
 
 
+_GATE_CONCLUSION_ICON: dict[str, str] = {
+    "success": "✅", "failure": "❌", "neutral": "⚪",
+}
+
+
+def _gate_line(args: argparse.Namespace, result: ReviewResult) -> str | None:
+    """A pass/fail gate line for the digest, or None when not gating."""
+    gate_on = getattr(args, "gate_on", "none")
+    if gate_on == "none":
+        return None
+    gate = evaluate_gate(result.inline_findings, gate_on=gate_on)
+    icon = _GATE_CONCLUSION_ICON.get(gate.conclusion, "")
+    return (
+        f"{icon} {gate.conclusion} (gate-on: {gate_on}; "
+        f"{gate.error_count} error, {gate.warning_count} warning)"
+    )
+
+
+def _prthinker_version() -> str:
+    try:
+        return importlib.metadata.version("prthinker")
+    except importlib.metadata.PackageNotFoundError:
+        return ""
+
+
+def _append_review_footer(
+    args: argparse.Namespace, result: ReviewResult, pages: list[str]
+) -> None:
+    """Append the metadata + legend footer to the last summary page."""
+    generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    footer = format_review_footer(
+        result,
+        head_sha=os.environ.get("GITHUB_SHA", ""),
+        backend=getattr(args, "backend", "") or "",
+        model=getattr(args, "model_name", "") or "",
+        version=_prthinker_version(),
+        generated_at=generated,
+    )
+    pages[-1] = pages[-1].rstrip() + "\n\n" + footer
+
+
 def _maybe_write_job_summary(body: str) -> None:
     """Append the summary to the Actions run page when ``$GITHUB_STEP_SUMMARY``
     is set, so it is visible from the Checks tab without opening the PR."""
@@ -995,8 +1038,10 @@ def _publish_review_result(
         delta=delta_line,
         min_confidence=getattr(args, "summary_min_confidence", 0.0),
         table=getattr(args, "summary_table", False),
+        gate=_gate_line(args, result),
     )
     _append_report_links(args, pages)
+    _append_review_footer(args, result, pages)
     _maybe_write_job_summary(pages[0])
     if getattr(args, "api_impact", False):
         pages[-1] = _append_api_impact(pages[-1], result)

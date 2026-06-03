@@ -149,8 +149,13 @@ diff 本身看不到的波及面。比對是啟發式（模組名 vs import targ
 每份逐檔總結最上方都有一個 **Review at a glance** 摘要──白話的狀態
 （🔴 changes requested／🟡 review suggested／🔵 minor notes／✅ looks good）、
 依嚴重度分類的 finding 數量、已審查／有 finding／乾淨的檔案分佈，以及
-finding 最多的\ *熱點*\ 檔案。它固定在會被原地更新的 part-1 留言最上方，所以
-每次重新審查都會原地改寫，永遠反映最新一次的結果。
+finding 最多的\ *熱點*\ 檔案。有開 gate 時還會顯示一行 **Gate**\ （✅ pass /
+❌ failure 與 error/warning 數）。它固定在會被原地更新的 part-1 留言最上方，
+所以每次重新審查都會原地改寫，永遠反映最新一次的結果。
+
+摘要下方有一個可展開的 **By severity** 索引，依最嚴重度把檔案分組；每則留言
+結尾則有中繼資料 footer（commit、後端/模型、檔案覆蓋、prthinker 版本、時間戳）
+以及一個可展開的 **Legend** 解釋所有圖示。
 
 當存在 error 嚴重度的 finding 時，最上方會釘一個 **🚨 Must fix** 清單──把
 error finding 以單行加深層連結列出，讓阻擋性問題不必展開任何區塊就看得到。

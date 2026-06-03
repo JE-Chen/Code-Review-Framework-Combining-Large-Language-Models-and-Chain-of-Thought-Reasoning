@@ -536,8 +536,10 @@ def test_summary_table_renders_rows_not_blocks():
     assert "| | Location | Finding |" in out
     assert "| 🔴 | `a.py:4` | boom |" in out
     assert "| 🟡 | `b.py:9` | meh\\|pipe |"  # pipe escaped
-    # Table mode replaces the collapsible per-file blocks.
-    assert "<details><summary>" not in out and "<details open>" not in out
+    # Table mode replaces the collapsible per-file blocks (no per-file
+    # "**Summary**" sections, no auto-expanded error file blocks).
+    assert "**Summary**" not in out
+    assert "<details open>" not in out
 
 
 def test_summary_table_pages_single():
@@ -559,6 +561,54 @@ def test_format_digest_standalone():
     assert "🔴 Changes requested" in digest
     # Standalone digest carries no file blocks.
     assert "<details>" not in digest
+
+
+def test_gate_line_in_digest():
+    fr = _file_result(path="a.py", inline_findings=[_finding(severity="error")])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr]), _MARKER, gate="❌ failure (gate-on: error; 1 error, 0 warning)"
+    )
+    assert "- **Gate:** ❌ failure (gate-on: error; 1 error, 0 warning)" in out
+
+
+def test_no_gate_line_when_absent():
+    fr = _file_result(path="a.py", inline_findings=[_finding(severity="warning")])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "**Gate:**" not in out
+
+
+def test_severity_groups_block():
+    err = _file_result(path="e.py", inline_findings=[_finding(path="e.py", severity="error")])
+    warn = _file_result(path="w.py", inline_findings=[_finding(path="w.py", severity="warning")])
+    out = formatters.format_pr_comment(_review(per_file=[err, warn]), _MARKER)
+    assert "<details><summary>By severity (2 group(s))</summary>" in out
+    assert "🔴 **error** (1 file(s)):" in out
+    assert "🟡 **warning** (1 file(s)):" in out
+
+
+def test_review_footer_and_legend():
+    fr = _file_result(path="a.py", inline_findings=[_finding()])
+    footer = formatters.format_review_footer(
+        _review(per_file=[fr]),
+        head_sha="abcdef1234", backend="anthropic", model="claude",
+        version="0.1.0", generated_at="2026-06-03 04:00 UTC",
+    )
+    assert "Review metadata:" in footer
+    assert "commit `abcdef12`" in footer
+    assert "anthropic" in footer and "claude" in footer
+    assert "prthinker 0.1.0" in footer
+    assert "2026-06-03 04:00 UTC" in footer
+    assert "1 reviewed / 0 skipped" in footer
+    # Legend explains the glyphs.
+    assert "<details><summary>Legend</summary>" in footer
+    assert "🔴 error · 🟡 warning · 🔵 info" in footer
+
+
+def test_review_footer_minimal_omits_empty_fields():
+    footer = formatters.format_review_footer(_review(per_file=[_file_result(path="a.py")]))
+    assert "Review metadata:" in footer
+    assert "commit" not in footer  # no head_sha given
+    assert "prthinker" not in footer.split("Legend")[0]  # no version given
 
 
 def test_delta_line_in_digest():

@@ -153,9 +153,15 @@ Every per-file summary opens with a **Review at a glance** digest — a
 plain-language status (🔴 changes requested / 🟡 review suggested /
 🔵 minor notes / ✅ looks good), the finding counts by severity, the
 reviewed / with-findings / clean file split, and the *hotspot* files
-that carry the most findings. It is pinned to the top of the upserted
-part-1 comment, so it is rewritten in place on every re-review and always
-reflects the latest run.
+that carry the most findings. When gating is on it also shows a **Gate**
+line (✅ pass / ❌ failure with the error/warning counts). It is pinned to
+the top of the upserted part-1 comment, so it is rewritten in place on
+every re-review and always reflects the latest run.
+
+Below the digest a collapsible **By severity** index groups the files by
+their worst severity, and every comment closes with a metadata footer
+(commit, backend/model, file coverage, prthinker version, timestamp) plus
+a collapsible **Legend** explaining every glyph.
 
 When any error-severity findings exist, a **🚨 Must fix** list is pinned
 above everything else — the error findings as one-liners with deep links,
