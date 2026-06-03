@@ -37,7 +37,11 @@ from prthinker.api_surface import compute_api_surface
 from prthinker.confidence import filter_by_confidence
 from prthinker.diff import parse_unified_diff
 from prthinker.finding_dedup import dedupe_findings
-from prthinker.formatters import format_pr_comment, format_pr_comment_pages
+from prthinker.formatters import (
+    format_digest,
+    format_pr_comment,
+    format_pr_comment_pages,
+)
 from prthinker.github_api import count_findings_on_diff
 from prthinker.impact_map import format_impact_note, impacted_files
 from prthinker.repo_kg import KnowledgeGraphStore
@@ -862,6 +866,21 @@ def _maybe_set_labels(
         log.warning("Could not set PR labels (%s)", exc)
 
 
+def _maybe_update_pr_body(
+    args: argparse.Namespace, adapter: object, result: ReviewResult
+) -> None:
+    """Upsert the at-a-glance digest into the PR description (best-effort)."""
+    if not getattr(args, "pr_body_summary", False) or args.dry_run:
+        return
+    digest = format_digest(result, _pr_files_url(args))
+    if not digest:
+        return
+    try:
+        adapter.update_body_section(digest)
+    except Exception as exc:  # noqa: BLE001 — body edit must not break review
+        log.warning("Could not update PR body summary (%s)", exc)
+
+
 def _pr_files_url(args: argparse.Namespace) -> str | None:
     """Base URL of the PR's Files-changed tab, for diff deep links.
 
@@ -968,6 +987,7 @@ def _publish_review_result(
         )
 
     _maybe_set_labels(args, adapter, result)
+    _maybe_update_pr_body(args, adapter, result)
     _maybe_autofix(args, result, platform_kind)
     return 0
 

@@ -186,6 +186,43 @@ def set_pr_labels(
         log.info("Set PR labels: %s", labels)
 
 
+_BODY_START = "<!-- prthinker:body:start -->"
+_BODY_END = "<!-- prthinker:body:end -->"
+
+
+def _replace_marked_section(
+    body: str, section: str, start: str, end: str
+) -> str:
+    """Insert/replace a marker-delimited block in a PR body."""
+    block = f"{start}\n{section}\n{end}"
+    if start in body and end in body:
+        pre = body.split(start, 1)[0].rstrip()
+        post = body.split(end, 1)[1].lstrip()
+        joined = "\n\n".join(p for p in (pre, block, post) if p)
+        return joined.strip() + "\n"
+    base = body.rstrip()
+    return (f"{base}\n\n{block}\n" if base else f"{block}\n")
+
+
+def upsert_pr_body_section(config: GitHubConfig, section: str) -> None:
+    """Insert/replace the prthinker section in the PR description (body)."""
+    with _client(config.token) as client:
+        response = client.get(
+            f"/repos/{config.repo}/pulls/{config.pr_number}"
+        )
+        response.raise_for_status()
+        body = response.json().get("body") or ""
+        new_body = _replace_marked_section(body, section, _BODY_START, _BODY_END)
+        if new_body == body:
+            return
+        patch = client.patch(
+            f"/repos/{config.repo}/pulls/{config.pr_number}",
+            json={"body": new_body},
+        )
+        patch.raise_for_status()
+        log.info("Updated PR body summary section")
+
+
 def fetch_pr_commit_messages(config: GitHubConfig) -> list[str]:
     """Return every commit message on the PR, oldest first (paginated)."""
     messages: list[str] = []
@@ -717,6 +754,7 @@ __all__ = [
     "fetch_pr_base_branch",
     "fetch_pr_commit_messages",
     "set_pr_labels",
+    "upsert_pr_body_section",
     "upsert_pr_comment",
     "upsert_pr_comments",
     "submit_inline_review",

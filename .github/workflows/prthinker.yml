@@ -479,6 +479,7 @@ jobs:
           PRTHINKER_CHECK_ANNOTATIONS: "true"
           PRTHINKER_REVIEW_DELTA: "true"
           PRTHINKER_IMPACT_MAP: "true"
+          PRTHINKER_PR_BODY_SUMMARY: "true"
           PRTHINKER_GATE_ON: "error"
           PRTHINKER_SARIF_OUT: ${{ runner.temp }}/prthinker.sarif
           PRTHINKER_AGGREGATE_FROM: ${{ runner.temp }}/partials

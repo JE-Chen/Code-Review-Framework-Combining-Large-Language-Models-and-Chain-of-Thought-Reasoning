@@ -413,6 +413,15 @@ def _add_kg_lessons_args(common: argparse.ArgumentParser) -> None:
         help="Workdir scope the KG was built against.",
     )
     common.add_argument(
+        "--pr-body-summary",
+        action="store_true",
+        default=env_bool("PRTHINKER_PR_BODY_SUMMARY", False),
+        help=(
+            "Upsert the at-a-glance digest into the PR description (body) "
+            "between markers, so the verdict shows at the top of the PR."
+        ),
+    )
+    common.add_argument(
         "--impact-map",
         action="store_true",
         default=env_bool("PRTHINKER_IMPACT_MAP", False),

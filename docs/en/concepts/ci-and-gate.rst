@@ -253,6 +253,12 @@ is set (every Actions run), the at-a-glance summary is appended to the
 **run summary page**, visible straight from the Checks tab without
 opening the PR.
 
+With ``--pr-body-summary`` (env ``PRTHINKER_PR_BODY_SUMMARY``) the
+at-a-glance digest is also upserted into the **PR description** itself,
+between markers, so the verdict sits at the very top of the PR rather
+than only in the comment thread. Only the marked block is rewritten;
+the author's description is preserved.
+
 Review in progress
 ~~~~~~~~~~~~~~~~~~~
 

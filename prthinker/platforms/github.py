@@ -23,6 +23,7 @@ from prthinker.github_api import (
     fetch_pr_head_sha,
     set_pr_labels,
     submit_inline_review,
+    upsert_pr_body_section,
     upsert_pr_comment,
     upsert_pr_comments,
 )
@@ -65,6 +66,9 @@ class GitHubAdapter(PlatformAdapter):
 
     def set_labels(self, labels: list[str]) -> None:
         set_pr_labels(self._gh(), labels, managed_prefix=MANAGED_PREFIX)
+
+    def update_body_section(self, section: str) -> None:
+        upsert_pr_body_section(self._gh(), section)
 
     def fetch_pr_meta(self) -> tuple[str, str]:
         """Pull ``(title, body)`` from ``GET /repos/{repo}/pulls/{n}``."""

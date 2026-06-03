@@ -74,6 +74,16 @@ class PlatformAdapter(ABC):
         """
         log.info("%s does not support PR labels; skipping", type(self).__name__)
 
+    def update_body_section(self, section: str) -> None:
+        """Insert / replace a prthinker section in the PR description.
+
+        Default is a no-op; adapters that support editing the PR body
+        override to upsert a marker-delimited block.
+        """
+        log.info(
+            "%s does not support PR body editing; skipping", type(self).__name__
+        )
+
     # ----- summary comment (one per PR) ---------------------------------
 
     @abstractmethod

@@ -32,6 +32,7 @@ from prthinker.cli_review import (
     _impact_note,
     _join_overview,
     _maybe_set_labels,
+    _maybe_update_pr_body,
     _maybe_write_job_summary,
     _pr_files_url,
     _review_progress,
@@ -147,6 +148,7 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
     _submit_aggregate_inline_review(args, adapter, merged, review_event)
     _close_aggregate_gate(args, adapter, merged, gate_handle)
     _maybe_set_labels(args, adapter, merged)
+    _maybe_update_pr_body(args, adapter, merged)
 
     return 0
 

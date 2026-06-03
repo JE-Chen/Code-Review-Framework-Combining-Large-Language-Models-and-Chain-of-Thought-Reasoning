@@ -88,6 +88,10 @@ def test_base_set_labels_is_noop() -> None:
     assert _MiniAdapter().set_labels(["prthinker/clean"]) is None
 
 
+def test_base_update_body_section_is_noop() -> None:
+    assert _MiniAdapter().update_body_section("digest") is None
+
+
 def test_base_upsert_comments_drops_overflow_pages(caplog) -> None:
     adapter = _MiniAdapter()
     with caplog.at_level("WARNING"):

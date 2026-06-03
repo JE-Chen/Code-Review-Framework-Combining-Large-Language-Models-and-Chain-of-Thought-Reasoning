@@ -966,4 +966,13 @@ def _format_counterfactuals_block(fr: FileReviewResult) -> list[str]:
     return block
 
 
-__all__ = ["format_pr_comment", "format_pr_comment_pages"]
+def format_digest(result: ReviewResult, files_url: str | None = None) -> str:
+    """The standalone at-a-glance digest (status / counts / hotspots).
+
+    Reused for the compact PR-description section so the verdict shows at
+    the top of the PR, not only in the comments.
+    """
+    return "\n".join(_format_overview_block(result, files_url)).strip()
+
+
+__all__ = ["format_digest", "format_pr_comment", "format_pr_comment_pages"]

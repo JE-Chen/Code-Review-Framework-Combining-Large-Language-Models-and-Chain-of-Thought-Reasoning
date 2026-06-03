@@ -404,6 +404,43 @@ def test_set_pr_labels_reconciles_keeping_human_labels(monkeypatch):
     assert "prthinker/size-xl" not in applied   # stale managed label dropped
 
 
+def test_replace_marked_section_appends_when_absent():
+    out = github_api._replace_marked_section(
+        "Existing description.", "DIGEST", "<!--s-->", "<!--e-->"
+    )
+    assert out.startswith("Existing description.")
+    assert "<!--s-->\nDIGEST\n<!--e-->" in out
+
+
+def test_replace_marked_section_replaces_in_place():
+    body = "Top\n\n<!--s-->\nOLD\n<!--e-->\n\nBottom"
+    out = github_api._replace_marked_section(body, "NEW", "<!--s-->", "<!--e-->")
+    assert "NEW" in out and "OLD" not in out
+    assert "Top" in out and "Bottom" in out
+
+
+def test_upsert_pr_body_section_patches(monkeypatch):
+    client = _ScriptedClient({
+        "GET": [_Resp(json_data={"body": "desc"})],
+        "PATCH": [_Resp(json_data={})],
+    })
+    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    github_api.upsert_pr_body_section(_CFG, "DIGEST")
+    assert _methods(client) == ["GET", "PATCH"]
+    assert "DIGEST" in client.json_by_method["PATCH"]["body"]
+
+
+def test_upsert_pr_body_section_skips_when_unchanged(monkeypatch):
+    # Body already holds the identical section → no PATCH.
+    existing = github_api._replace_marked_section(
+        "desc", "DIGEST", github_api._BODY_START, github_api._BODY_END
+    )
+    client = _ScriptedClient({"GET": [_Resp(json_data={"body": existing})]})
+    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    github_api.upsert_pr_body_section(_CFG, "DIGEST")
+    assert "PATCH" not in _methods(client)
+
+
 def test_fetch_pr_commit_messages_empty(monkeypatch):
     client = _ScriptedClient({"GET": [_Resp(json_data=[])]})
     monkeypatch.setattr(github_api, "_client", lambda _t: client)

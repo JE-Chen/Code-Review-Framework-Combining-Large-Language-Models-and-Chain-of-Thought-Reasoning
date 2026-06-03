@@ -533,6 +533,15 @@ def test_summary_table_pages_single():
     assert "| | Location | Finding |" in pages[0]
 
 
+def test_format_digest_standalone():
+    fr = _file_result(path="a.py", inline_findings=[_finding(severity="error")])
+    digest = formatters.format_digest(_review(per_file=[fr]))
+    assert digest.startswith("### 🔎 Review at a glance")
+    assert "🔴 Changes requested" in digest
+    # Standalone digest carries no file blocks.
+    assert "<details>" not in digest
+
+
 def test_delta_line_in_digest():
     fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
     out = formatters.format_pr_comment(
