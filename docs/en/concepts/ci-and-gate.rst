@@ -240,6 +240,19 @@ inline review: a single bad line is dropped individually rather than
 422-ing the whole batch, and GitHub appends them across requests so a
 review with more than 50 findings is sent over several updates.
 
+Other output channels
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The review is not confined to the PR conversation. The aggregate job
+writes the merged findings as **SARIF** (``--sarif-out`` /
+``PRTHINKER_SARIF_OUT``) and the workflow uploads it with
+``github/codeql-action/upload-sarif``, so findings also appear in the
+**Security tab** and as native diff annotations — dismissable and
+deduped by GitHub across PRs. Separately, when ``$GITHUB_STEP_SUMMARY``
+is set (every Actions run), the at-a-glance summary is appended to the
+**run summary page**, visible straight from the Checks tab without
+opening the PR.
+
 Review in progress
 ~~~~~~~~~~~~~~~~~~~
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -818,6 +819,19 @@ def _join_overview(*sections: str | None) -> str | None:
     return "\n\n".join(parts) if parts else None
 
 
+def _maybe_write_job_summary(body: str) -> None:
+    """Append the summary to the Actions run page when ``$GITHUB_STEP_SUMMARY``
+    is set, so it is visible from the Checks tab without opening the PR."""
+    path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not path:
+        return
+    try:
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(body.rstrip() + "\n")
+    except OSError as exc:  # noqa: BLE001 — job summary is best-effort
+        log.warning("Could not write job summary (%s)", exc)
+
+
 def _impact_note(args: argparse.Namespace, result: ReviewResult) -> str | None:
     """'Impacted areas' note from the repo KG, or None (best-effort)."""
     if not getattr(args, "impact_map", False):
@@ -920,6 +934,7 @@ def _publish_review_result(
         min_confidence=getattr(args, "summary_min_confidence", 0.0),
         table=getattr(args, "summary_table", False),
     )
+    _maybe_write_job_summary(pages[0])
     if getattr(args, "api_impact", False):
         pages[-1] = _append_api_impact(pages[-1], result)
     if args.dry_run:

@@ -281,6 +281,34 @@ def test_cmd_post_status_upserts_placeholder(monkeypatch) -> None:
     assert posted and "Review in progress" in posted[0][1]
 
 
+def test_maybe_write_job_summary(tmp_path: Path, monkeypatch) -> None:
+    from prthinker.cli_review import _maybe_write_job_summary
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    _maybe_write_job_summary("## digest\nhello")
+    assert "## digest" in summary.read_text(encoding="utf-8")
+
+
+def test_maybe_write_job_summary_noop_without_env(monkeypatch) -> None:
+    from prthinker.cli_review import _maybe_write_job_summary
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    # Must not raise when the env var is absent.
+    _maybe_write_job_summary("ignored")
+
+
+def test_maybe_write_sarif(tmp_path: Path) -> None:
+    out = tmp_path / "out.sarif"
+    merged = _review([_file_result("a.py")])
+    cli_commands._maybe_write_sarif(_make_args(sarif_out=str(out)), merged)
+    assert out.exists()
+    assert "$schema" in out.read_text(encoding="utf-8")
+
+
+def test_maybe_write_sarif_noop_when_unset(tmp_path: Path) -> None:
+    merged = _review([_file_result("a.py")])
+    cli_commands._maybe_write_sarif(_make_args(sarif_out=""), merged)  # no raise
+
+
 def test_cmd_aggregate_posts_summary(tmp_path: Path, monkeypatch) -> None:
     partial = {
         "code_diff": "",
