@@ -243,10 +243,10 @@ def test_pages_single_when_under_cap():
 def test_pages_split_between_file_blocks_preserves_all():
     files = [_padded_file(f"f{i}.py", 120) for i in range(6)]
     result = _review(per_file=files, step_outputs={"total_summary": "overall"})
-    pages = formatters.format_pr_comment_pages(result, _MARKER, max_chars=700)
+    pages = formatters.format_pr_comment_pages(result, _MARKER, max_chars=1500)
     assert len(pages) > 1
     # Every page stays under the cap and carries the marker for upsert.
-    assert all(len(p) <= 700 for p in pages)
+    assert all(len(p) <= 1500 for p in pages)
     assert all(_MARKER in p for p in pages)
     # No file block is lost across the split.
     joined = "\n".join(pages)
@@ -257,7 +257,7 @@ def test_pages_split_between_file_blocks_preserves_all():
 def test_pages_label_and_continuation_header():
     files = [_padded_file(f"f{i}.py", 120) for i in range(6)]
     result = _review(per_file=files)
-    pages = formatters.format_pr_comment_pages(result, _MARKER, max_chars=700)
+    pages = formatters.format_pr_comment_pages(result, _MARKER, max_chars=1500)
     total = len(pages)
     assert f"_Part 1 of {total}_" in pages[0]
     assert f"_Part {total} of {total}_" in pages[-1]
@@ -316,6 +316,39 @@ def test_findings_only_zero_findings_excludes_binary_from_count():
     out = formatters.format_pr_comment(result, _MARKER, findings_only=True)
     # Only the one real reviewed file counts; the binary is not reviewed.
     assert "✅ No findings across 1 reviewed file(s)." in out
+
+
+def test_overview_block_at_top_with_severity_and_status():
+    findings = [
+        _finding(path="a.py", severity="error"),
+        _finding(path="a.py", severity="warning"),
+        _finding(path="b.py", severity="info"),
+    ]
+    a = _file_result(path="a.py", inline_findings=findings[:2])
+    b = _file_result(path="b.py", inline_findings=findings[2:])
+    out = formatters.format_pr_comment(_review(per_file=[a, b]), _MARKER)
+    glance = out.index("### 🔎 Review at a glance")
+    # The digest sits above the detailed per-file blocks.
+    assert glance < out.index("<details>")
+    assert "🔴 Changes requested" in out
+    assert "🔴 1 · 🟡 1 · 🔵 1 (3 total)" in out
+    assert "2 reviewed · 2 with findings · 0 clean" in out
+    assert "**Hotspots:**" in out and "`a.py` (2)" in out
+
+
+def test_overview_status_warning_when_no_errors():
+    fr = _file_result(path="a.py", inline_findings=[_finding(severity="warning")])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "🟡 Review suggested" in out
+    assert "Changes requested" not in out
+
+
+def test_overview_status_clean_has_no_hotspots():
+    out = formatters.format_pr_comment(
+        _review(per_file=[_file_result(path="a.py")]), _MARKER
+    )
+    assert "✅ Looks good — no findings" in out
+    assert "**Hotspots:**" not in out
 
 
 def test_findings_only_pages_collapse_when_mostly_clean():

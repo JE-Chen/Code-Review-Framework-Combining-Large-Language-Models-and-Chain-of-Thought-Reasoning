@@ -46,6 +46,68 @@ def _format_clean_comment(result: ReviewResult, marker: str) -> str:
     return f"{marker}\n## CoT Code Review\n\n✅ No findings{scope}.\n"
 
 
+_STATUS_BY_SEVERITY: tuple[tuple[str, str], ...] = (
+    ("error", "🔴 Changes requested"),
+    ("warning", "🟡 Review suggested"),
+    ("info", "🔵 Minor notes"),
+)
+_OVERVIEW_HOTSPOT_LIMIT = 5
+
+
+def _severity_counts(result: ReviewResult) -> dict[str, int]:
+    """Tally inline findings by severity across every reviewed file."""
+    counts = {"error": 0, "warning": 0, "info": 0}
+    for fr in result.per_file:
+        for finding in fr.inline_findings:
+            key = finding.severity if finding.severity in counts else "info"
+            counts[key] += 1
+    return counts
+
+
+def _overall_status(counts: dict[str, int]) -> str:
+    """Plain-language verdict derived from the worst severity present."""
+    for severity, label in _STATUS_BY_SEVERITY:
+        if counts.get(severity):
+            return label
+    return "✅ Looks good — no findings"
+
+
+def _hotspots_line(result: ReviewResult) -> str:
+    """Top files by finding count — where a reviewer should look first."""
+    ranked = sorted(
+        (fr for fr in result.per_file if fr.inline_findings),
+        key=lambda fr: len(fr.inline_findings),
+        reverse=True,
+    )[:_OVERVIEW_HOTSPOT_LIMIT]
+    return " · ".join(f"`{fr.path}` ({len(fr.inline_findings)})" for fr in ranked)
+
+
+def _format_overview_block(result: ReviewResult) -> list[str]:
+    """A compact, scannable digest pinned to the top of the summary.
+
+    Lives in the upserted part-1 comment, so it is rewritten in place on
+    every re-review and always reflects the latest run.
+    """
+    counts = _severity_counts(result)
+    total = sum(counts.values())
+    reviewed = _reviewed_file_count(result)
+    with_findings = sum(1 for fr in result.per_file if fr.inline_findings)
+    lines = [
+        "### 🔎 Review at a glance",
+        "",
+        f"- **Status:** {_overall_status(counts)}",
+        f"- **Findings:** 🔴 {counts['error']} · 🟡 {counts['warning']} · "
+        f"🔵 {counts['info']} ({total} total)",
+        f"- **Files:** {reviewed} reviewed · {with_findings} with findings · "
+        f"{reviewed - with_findings} clean",
+    ]
+    hotspots = _hotspots_line(result)
+    if hotspots:
+        lines.append(f"- **Hotspots:** {hotspots}")
+    lines += ["", "---", ""]
+    return lines
+
+
 def format_pr_comment(
     result: ReviewResult,
     marker: str,
@@ -216,9 +278,10 @@ def _per_file_head_parts(
         marker,
         "## CoT Code Review (per-file)",
         "",
-        _per_file_header(result),
-        "",
     ]
+    parts += _format_overview_block(result)
+    parts.append(_per_file_header(result))
+    parts.append("")
     parts += _format_per_file_intro(result, posted_count)
     parts += _hidden_clean_note(result, findings_only)
     parts += _format_per_file_sections(result)

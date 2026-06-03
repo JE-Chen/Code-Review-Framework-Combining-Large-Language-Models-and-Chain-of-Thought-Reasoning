@@ -133,6 +133,12 @@ Check Run。CLI 会：
 贴出审查：评论与 inline 建议
 ----------------------------
 
+每份逐文件总结最上方都有一个 **Review at a glance** 摘要──白话的状态
+（🔴 changes requested／🟡 review suggested／🔵 minor notes／✅ looks good）、
+按严重度分类的 finding 数量、已审查／有 finding／干净的文件分布，以及
+finding 最多的\ *热点*\ 文件。它固定在会被原地更新的 part-1 评论最上方，所以
+每次重新审查都会原地改写，永远反映最新一次的结果。
+
 完整的逐文件审查可能达数百 KB，远超过 GitHub 单条评论 65 536 字符的上限。
 与其截断，总结会\ **切分成多条评论**\ ：只在整个文件区块之间切（绝不切在
 区块中间），第一条之后的每一条都带有 ``Part k/N`` 标记。跨多次 push 时，

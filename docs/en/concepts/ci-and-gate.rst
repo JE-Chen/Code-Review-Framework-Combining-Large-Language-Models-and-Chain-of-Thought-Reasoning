@@ -133,6 +133,14 @@ Failure modes
 Posting the review: comments and inline suggestions
 ---------------------------------------------------
 
+Every per-file summary opens with a **Review at a glance** digest — a
+plain-language status (🔴 changes requested / 🟡 review suggested /
+🔵 minor notes / ✅ looks good), the finding counts by severity, the
+reviewed / with-findings / clean file split, and the *hotspot* files
+that carry the most findings. It is pinned to the top of the upserted
+part-1 comment, so it is rewritten in place on every re-review and always
+reflects the latest run.
+
 A full per-file review can run to hundreds of KB — far past GitHub's
 65 536-character limit on a single comment. Rather than truncate, the
 summary is **paginated across multiple comments**: it is split between

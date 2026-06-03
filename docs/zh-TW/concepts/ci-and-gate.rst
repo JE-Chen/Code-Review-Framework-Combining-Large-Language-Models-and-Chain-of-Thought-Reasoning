@@ -133,6 +133,12 @@ Check Run。CLI 會：
 貼出審查：留言與 inline 建議
 ----------------------------
 
+每份逐檔總結最上方都有一個 **Review at a glance** 摘要──白話的狀態
+（🔴 changes requested／🟡 review suggested／🔵 minor notes／✅ looks good）、
+依嚴重度分類的 finding 數量、已審查／有 finding／乾淨的檔案分佈，以及
+finding 最多的\ *熱點*\ 檔案。它固定在會被原地更新的 part-1 留言最上方，所以
+每次重新審查都會原地改寫，永遠反映最新一次的結果。
+
 完整的逐檔審查可能達數百 KB，遠超過 GitHub 單則留言 65 536 字元的上限。
 與其截斷，總結會\ **切分成多則留言**\ ：只在整個檔案區塊之間切（絕不切在
 區塊中間），第一則之後的每一則都帶有 ``Part k/N`` 標記。跨多次 push 時，
