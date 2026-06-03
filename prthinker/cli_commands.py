@@ -129,6 +129,39 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
 
     return 0
 
+_STATUS_PLACEHOLDER = (
+    "## CoT Code Review\n\n"
+    "⏳ **Review in progress…** The reviewer has started; the full summary "
+    "will replace this comment when it finishes."
+)
+
+
+def _cmd_post_status(args: argparse.Namespace) -> int:
+    """Upsert a 'review in progress' placeholder under the summary marker.
+
+    Posted early (e.g. by the enumerate job) so the PR shows the review
+    has started; the later aggregate run reconciles it into the real
+    summary via the same marker.
+    """
+    from prthinker.platforms import PlatformKind, create_platform_adapter
+
+    adapter = create_platform_adapter(
+        PlatformKind(args.platform),
+        repo=args.repo,
+        token=args.github_token,
+        pr_number=args.pr_number,
+        comment_marker=args.marker,
+        base_url=args.platform_base_url,
+    )
+    body = f"{args.marker}\n{_STATUS_PLACEHOLDER}\n"
+    if args.dry_run:
+        sys.stdout.write(body)
+        return 0
+    adapter.upsert_summary_comments([body])
+    log.info("Posted review-in-progress placeholder")
+    return 0
+
+
 def _cmd_harvest(args: argparse.Namespace) -> int:
     if not args.repo:
         raise SystemExit("--repo or $GITHUB_REPOSITORY is required")

@@ -213,6 +213,16 @@ inline review: a single bad line is dropped individually rather than
 422-ing the whole batch, and GitHub appends them across requests so a
 review with more than 50 findings is sent over several updates.
 
+Review in progress
+~~~~~~~~~~~~~~~~~~~
+
+A GPU review of a large PR takes minutes, during which the PR shows
+nothing. The ``post-status`` command upserts a ``⏳ Review in progress…``
+placeholder under the summary marker; the CI ``enumerate`` job runs it
+first (best-effort), and the later aggregate run reconciles it into the
+real summary through the same marker — so reviewers see the review has
+started instead of an empty PR.
+
 Combining CI signals + gate
 ---------------------------
 

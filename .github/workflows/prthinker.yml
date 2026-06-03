@@ -59,6 +59,16 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Post review-in-progress placeholder
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PRTHINKER_PR_NUMBER: ${{ github.event.pull_request.number }}
+        # Best-effort: a placeholder failure must never block the review.
+        run: |
+          pip install -e ".[runner]"
+          python -m prthinker post-status || true
+
       - name: List PR files and filter unchanged
         id: list
         env:

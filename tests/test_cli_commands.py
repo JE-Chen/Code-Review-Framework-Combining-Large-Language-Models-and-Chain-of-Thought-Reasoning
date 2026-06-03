@@ -252,6 +252,35 @@ def test_cmd_aggregate_dry_run(tmp_path: Path, monkeypatch, capsys) -> None:
     assert out  # body written to stdout
 
 
+def _status_args(**overrides: object) -> argparse.Namespace:
+    base = {
+        "platform": "github", "platform_base_url": None,
+        "repo": "o/r", "pr_number": 7, "github_token": "tok",
+        "marker": "<!--prthinker-->", "dry_run": False, "gate_on": "none",
+    }
+    base.update(overrides)
+    return argparse.Namespace(**base)
+
+
+def test_cmd_post_status_dry_run(capsys) -> None:
+    rc = cli_commands._cmd_post_status(_status_args(dry_run=True))
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Review in progress" in out
+    assert "<!--prthinker-->" in out
+
+
+def test_cmd_post_status_upserts_placeholder(monkeypatch) -> None:
+    adapter = _FakeAdapter()
+    monkeypatch.setattr(
+        "prthinker.platforms.create_platform_adapter", lambda *a, **k: adapter
+    )
+    rc = cli_commands._cmd_post_status(_status_args())
+    assert rc == 0
+    posted = [c for c in adapter.calls if c[0] == "upsert_summary_comment"]
+    assert posted and "Review in progress" in posted[0][1]
+
+
 def test_cmd_aggregate_posts_summary(tmp_path: Path, monkeypatch) -> None:
     partial = {
         "code_diff": "",

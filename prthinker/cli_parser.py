@@ -243,6 +243,24 @@ def add_aggregate_parser(sub, common: argparse.ArgumentParser) -> None:
     )
     _add_aggregate_target_args(p_agg)
 
+    p_status = sub.add_parser(
+        "post-status",
+        help=(
+            "Upsert a 'review in progress' placeholder comment so reviewers "
+            "see the review has started before the full result is posted."
+        ),
+    )
+    p_status.add_argument(
+        "--platform",
+        choices=["github", "gitlab", "gitea"],
+        default=env_str("PRTHINKER_PLATFORM", "github"),
+    )
+    p_status.add_argument(
+        "--platform-base-url",
+        default=env_str("PRTHINKER_PLATFORM_BASE_URL"),
+    )
+    _add_aggregate_target_args(p_status)
+
 
 def _add_aggregate_target_args(p_agg: argparse.ArgumentParser) -> None:
     """Add repo / PR / token / marker / gate arguments to ``aggregate``."""
