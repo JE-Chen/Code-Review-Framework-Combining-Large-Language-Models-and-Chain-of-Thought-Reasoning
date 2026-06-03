@@ -431,3 +431,42 @@ def test_cmd_stats_includes_cache_summary(tmp_path: Path, capsys) -> None:
     out = capsys.readouterr().out
     assert "Cache:" in out
     assert "entries stored" in out
+
+
+# --- report links footer + html report --------------------------------------
+
+def test_report_links_footer_with_artifacts(monkeypatch) -> None:
+    from prthinker.cli_review import _report_links_footer
+    monkeypatch.setenv("GITHUB_SERVER_URL", "https://github.com")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+    monkeypatch.setenv("GITHUB_RUN_ID", "123")
+    args = _make_args(sarif_out="x.sarif", html_report="r.html", pr_number=7)
+    footer = _report_links_footer(args)
+    assert "**Reports:**" in footer
+    assert "actions/runs/123" in footer
+    assert "report.html" in footer and "prthinker.sarif" in footer
+    assert "security/code-scanning?query=pr%3A7" in footer
+
+
+def test_report_links_footer_none_without_ci(monkeypatch) -> None:
+    from prthinker.cli_review import _report_links_footer
+    monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+    args = _make_args(sarif_out="", html_report="", repo="", pr_number=0)
+    assert _report_links_footer(args) is None
+
+
+def test_append_report_links_appends_to_last_page(monkeypatch) -> None:
+    from prthinker.cli_review import _append_report_links
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+    monkeypatch.setenv("GITHUB_RUN_ID", "9")
+    pages = ["page1", "page2"]
+    _append_report_links(_make_args(html_report="r.html"), pages)
+    assert "Reports:" in pages[-1] and "Reports:" not in pages[0]
+
+
+def test_maybe_write_html_report(tmp_path: Path) -> None:
+    out = tmp_path / "r.html"
+    merged = _review([_file_result("a.py")])
+    cli_commands._maybe_write_html_report(_make_args(html_report=str(out)), merged)
+    assert out.exists()

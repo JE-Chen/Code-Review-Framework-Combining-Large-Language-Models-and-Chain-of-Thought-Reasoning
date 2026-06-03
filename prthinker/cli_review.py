@@ -832,6 +832,40 @@ def _join_overview(*sections: str | None) -> str | None:
     return "\n\n".join(parts) if parts else None
 
 
+def _report_links_footer(args: argparse.Namespace) -> str | None:
+    """A '**Reports**' footer linking to the run artifacts / code scanning.
+
+    The HTML report and SARIF are uploaded as workflow artifacts (no stable
+    per-file URL), so the artifact link points at the run page; SARIF also
+    surfaces under code scanning. Returns None outside CI / when nothing
+    was produced.
+    """
+    server = os.environ.get("GITHUB_SERVER_URL", "https://github.com").rstrip("/")
+    repo = os.environ.get("GITHUB_REPOSITORY") or getattr(args, "repo", "") or ""
+    run_id = os.environ.get("GITHUB_RUN_ID", "")
+    pr_number = getattr(args, "pr_number", 0)
+    links: list[str] = []
+    artifacts = [
+        name for name, flag in (("report.html", "html_report"), ("prthinker.sarif", "sarif_out"))
+        if getattr(args, flag, "")
+    ]
+    if repo and run_id and artifacts:
+        joined = ", ".join(artifacts)
+        links.append(f"[Workflow artifacts: {joined}]({server}/{repo}/actions/runs/{run_id})")
+    if getattr(args, "sarif_out", "") and repo and pr_number:
+        links.append(f"[Code scanning]({server}/{repo}/security/code-scanning?query=pr%3A{pr_number})")
+    if not links:
+        return None
+    return "---\n\n**Reports:** " + " · ".join(links)
+
+
+def _append_report_links(args: argparse.Namespace, pages: list[str]) -> None:
+    """Append the reports footer to the last summary page, when applicable."""
+    footer = _report_links_footer(args)
+    if footer:
+        pages[-1] = pages[-1].rstrip() + "\n\n" + footer + "\n"
+
+
 def _maybe_write_job_summary(body: str) -> None:
     """Append the summary to the Actions run page when ``$GITHUB_STEP_SUMMARY``
     is set, so it is visible from the Checks tab without opening the PR."""
@@ -962,6 +996,7 @@ def _publish_review_result(
         min_confidence=getattr(args, "summary_min_confidence", 0.0),
         table=getattr(args, "summary_table", False),
     )
+    _append_report_links(args, pages)
     _maybe_write_job_summary(pages[0])
     if getattr(args, "api_impact", False):
         pages[-1] = _append_api_impact(pages[-1], result)

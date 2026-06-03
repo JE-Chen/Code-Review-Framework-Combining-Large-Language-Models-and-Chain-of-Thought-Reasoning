@@ -27,6 +27,7 @@ from prthinker.repo_kg import (
     scan_workdir_full,
 )
 from prthinker.cli_review import (
+    _append_report_links,
     _build_config,
     _build_preliminary_overview,
     _impact_note,
@@ -39,6 +40,7 @@ from prthinker.cli_review import (
     _run_review,
     _synthesize_overall_summary,
 )
+from prthinker.html_report import write_report
 from prthinker.sarif import write_sarif
 from prthinker.cli_commands_helpers import (
     _close_aggregate_gate,
@@ -70,6 +72,15 @@ def _maybe_write_sarif(args: argparse.Namespace, result: ReviewResult) -> None:
         return
     write_sarif(result, out)
     log.info("Wrote SARIF to %s", out)
+
+
+def _maybe_write_html_report(args: argparse.Namespace, result: ReviewResult) -> None:
+    """Write the standalone HTML report (a workflow artifact) when requested."""
+    out = getattr(args, "html_report", "") or ""
+    if not out:
+        return
+    write_report(result, Path(out))
+    log.info("Wrote HTML report to %s", out)
 
 
 def _cmd_aggregate(args: argparse.Namespace) -> int:
@@ -130,8 +141,10 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
         min_confidence=getattr(args, "summary_min_confidence", 0.0),
         table=getattr(args, "summary_table", False),
     )
+    _append_report_links(args, pages)
     _maybe_write_job_summary(pages[0])
     _maybe_write_sarif(args, merged)
+    _maybe_write_html_report(args, merged)
     if args.dry_run:
         sys.stdout.write("\n\n".join(pages))
         if merged.inline_findings:

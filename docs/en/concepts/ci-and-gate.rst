@@ -251,7 +251,11 @@ writes the merged findings as **SARIF** (``--sarif-out`` /
 deduped by GitHub across PRs. Separately, when ``$GITHUB_STEP_SUMMARY``
 is set (every Actions run), the at-a-glance summary is appended to the
 **run summary page**, visible straight from the Checks tab without
-opening the PR.
+opening the PR. Both the SARIF and the HTML report
+(``PRTHINKER_HTML_REPORT``) are uploaded as run artifacts, and the
+summary comment closes with a **Reports** footer linking back to the
+workflow run (to download them) and to code scanning — so the rendered
+report files are always one click from the review.
 
 With ``--pr-body-summary`` (env ``PRTHINKER_PR_BODY_SUMMARY``) the
 at-a-glance digest is also upserted into the **PR description** itself,

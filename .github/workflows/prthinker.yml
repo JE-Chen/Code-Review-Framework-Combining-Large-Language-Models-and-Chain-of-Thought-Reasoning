@@ -482,6 +482,9 @@ jobs:
           PRTHINKER_PR_BODY_SUMMARY: "true"
           PRTHINKER_GATE_ON: "error"
           PRTHINKER_SARIF_OUT: ${{ runner.temp }}/prthinker.sarif
+          PRTHINKER_HTML_REPORT: ${{ runner.temp }}/report.html
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
           PRTHINKER_AGGREGATE_FROM: ${{ runner.temp }}/partials
         run: |
           # If neither a matrix shard nor enumerate's skip path
@@ -517,6 +520,19 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ runner.temp }}/prthinker.sarif
+
+      # Upload the rendered reports as run artifacts; the summary comment's
+      # "Reports" footer links back to this run so reviewers can download them.
+      - name: Upload review reports
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: prthinker-reports
+          path: |
+            ${{ runner.temp }}/report.html
+            ${{ runner.temp }}/prthinker.sarif
+          if-no-files-found: ignore
 
       # Rebuild .prthinker/pr-state from the downloaded partials +
       # the current PR files API so the NEXT push's enumerate job
