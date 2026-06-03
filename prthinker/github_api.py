@@ -44,13 +44,75 @@ def _client(token: str) -> httpx.Client:
     )
 
 
+# GitHub rejects the ``.diff`` / ``.patch`` media type with 406 once a PR's
+# diff grows past its rendering cap. The files API still serves each file's
+# hunks, so we reconstruct the diff from there instead of crashing.
+_DIFF_TOO_LARGE = 406
+
+
+def _file_patch_to_diff(file_entry: dict) -> str:
+    """Reconstruct one file's unified-diff text from a files-API entry.
+
+    Emits the ``diff --git`` + ``---`` / ``+++`` headers the pipeline's
+    parser and the inline diff-hunk filter need, followed by GitHub's
+    ``patch`` hunks. Files with no textual patch (binary, or a per-file
+    patch too large for GitHub to return) are recorded as binary so the
+    file is still listed rather than silently lost.
+    """
+    new_path = file_entry["filename"]
+    old_path = file_entry.get("previous_filename", new_path)
+    header = f"diff --git a/{old_path} b/{new_path}\n"
+    patch = file_entry.get("patch")
+    if not patch:
+        return f"{header}Binary files a/{old_path} and b/{new_path} differ\n"
+    status = file_entry.get("status")
+    a_side = "/dev/null" if status == "added" else f"a/{old_path}"
+    b_side = "/dev/null" if status == "removed" else f"b/{new_path}"
+    body = patch if patch.endswith("\n") else patch + "\n"
+    return f"{header}--- {a_side}\n+++ {b_side}\n{body}"
+
+
+def _reconstruct_diff_from_files(
+    client: httpx.Client, config: GitHubConfig
+) -> str:
+    """Rebuild a unified diff from the paginated PR files API."""
+    parts: list[str] = []
+    page = 1
+    while True:
+        resp = client.get(
+            f"/repos/{config.repo}/pulls/{config.pr_number}/files",
+            params={"per_page": 100, "page": page},
+        )
+        resp.raise_for_status()
+        batch = resp.json()
+        if not batch:
+            break
+        parts.extend(_file_patch_to_diff(f) for f in batch)
+        if len(batch) < 100:
+            break
+        page += 1
+    return "".join(parts)
+
+
 def fetch_pr_diff(config: GitHubConfig) -> str:
-    """Return the unified diff for the PR. Empty PRs return ''."""
+    """Return the unified diff for the PR. Empty PRs return ''.
+
+    A large PR makes GitHub reject the diff media type with 406; we then
+    rebuild the diff from the paginated files API rather than failing the
+    whole review.
+    """
     with _client(config.token) as client:
         response = client.get(
             f"/repos/{config.repo}/pulls/{config.pr_number}",
             headers={"Accept": "application/vnd.github.v3.diff"},
         )
+        if response.status_code == _DIFF_TOO_LARGE:
+            log.warning(
+                "Diff media type rejected (406, too large) for %s#%d; "
+                "reconstructing from the files API",
+                config.repo, config.pr_number,
+            )
+            return _reconstruct_diff_from_files(client, config)
         response.raise_for_status()
         return response.text
 

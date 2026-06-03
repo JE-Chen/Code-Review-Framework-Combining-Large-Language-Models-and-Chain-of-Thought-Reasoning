@@ -18,10 +18,13 @@ from prthinker.schemas import InlineFinding
 class _Resp:
     """Minimal httpx.Response stand-in with a programmable status."""
 
-    def __init__(self, *, status: int = 200, json_data=None) -> None:
+    def __init__(self, *, status: int = 200, json_data=None, text=None) -> None:
         self.status_code = status
         self._json = json_data
-        self.text = "" if json_data is None else str(json_data)
+        if text is not None:
+            self.text = text
+        else:
+            self.text = "" if json_data is None else str(json_data)
 
     def json(self):
         return self._json
@@ -294,3 +297,78 @@ def test_inline_review_skips_when_all_off_diff(monkeypatch):
     # line 999 is off every hunk → filtered out → no POST at all.
     assert github_api.submit_inline_review(_CFG, [_finding(line=999)]) is None
     assert client.requests == []
+
+
+# --------------------------------------------------------------------------
+# fetch_pr_diff — 406 (too large) falls back to the files API
+# --------------------------------------------------------------------------
+
+def test_fetch_pr_diff_returns_text_on_200(monkeypatch):
+    client = _ScriptedClient({"GET": [_Resp(text="diff --git a/x b/x\n")]})
+    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    assert github_api.fetch_pr_diff(_CFG) == "diff --git a/x b/x\n"
+
+
+def test_fetch_pr_diff_406_reconstructs_from_files(monkeypatch):
+    files = [
+        {"filename": "a.py", "status": "modified",
+         "patch": "@@ -1,1 +1,2 @@\n line\n+added"},
+        {"filename": "new.py", "status": "added", "patch": "@@ -0,0 +1,1 @@\n+hi"},
+        {"filename": "img.png", "status": "added"},  # binary: no patch
+    ]
+    client = _ScriptedClient({"GET": [_Resp(status=406), _Resp(json_data=files)]})
+    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    diff = github_api.fetch_pr_diff(_CFG)
+    # Reconstructed diff is parseable by the inline diff-hunk filter.
+    valid = github_api._new_side_lines(diff)
+    assert valid["a.py"] == {1, 2}
+    assert valid["new.py"] == {1}
+    assert "diff --git a/img.png b/img.png" in diff
+    assert "Binary files" in diff
+
+
+def test_file_patch_to_diff_added():
+    out = github_api._file_patch_to_diff(
+        {"filename": "n.py", "status": "added", "patch": "@@ -0,0 +1,1 @@\n+x"}
+    )
+    assert "diff --git a/n.py b/n.py" in out
+    assert "--- /dev/null" in out
+    assert "+++ b/n.py" in out
+
+
+def test_file_patch_to_diff_removed():
+    out = github_api._file_patch_to_diff(
+        {"filename": "d.py", "status": "removed", "patch": "@@ -1,1 +0,0 @@\n-x"}
+    )
+    assert "--- a/d.py" in out
+    assert "+++ /dev/null" in out
+
+
+def test_file_patch_to_diff_renamed_uses_previous():
+    out = github_api._file_patch_to_diff({
+        "filename": "new.py", "previous_filename": "old.py",
+        "status": "renamed", "patch": "@@ -1,1 +1,1 @@\n-a\n+b",
+    })
+    assert "diff --git a/old.py b/new.py" in out
+    assert "--- a/old.py" in out
+    assert "+++ b/new.py" in out
+
+
+def test_file_patch_to_diff_binary_no_patch():
+    out = github_api._file_patch_to_diff({"filename": "b.bin", "status": "added"})
+    assert "diff --git a/b.bin b/b.bin" in out
+    assert "Binary files a/b.bin and b/b.bin differ" in out
+    assert "@@" not in out
+
+
+def test_reconstruct_diff_paginates(monkeypatch):
+    page1 = [{"filename": f"f{i}.py", "status": "added",
+              "patch": "@@ -0,0 +1,1 @@\n+x"} for i in range(100)]
+    page2 = [{"filename": "last.py", "status": "added",
+              "patch": "@@ -0,0 +1,1 @@\n+y"}]
+    client = _ScriptedClient({
+        "GET": [_Resp(status=406), _Resp(json_data=page1), _Resp(json_data=page2)],
+    })
+    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    diff = github_api.fetch_pr_diff(_CFG)
+    assert "f0.py" in diff and "f99.py" in diff and "last.py" in diff
