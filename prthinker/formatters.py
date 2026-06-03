@@ -195,8 +195,9 @@ def _format_overview_block(
         "### 🔎 Review at a glance",
         "",
         f"- **Status:** {_overall_status(counts)}",
-        f"- **Findings:** 🔴 {counts['error']} · 🟡 {counts['warning']} · "
-        f"🔵 {counts['info']} ({total} total)",
+        f"- **Findings:** 🔴 {counts['error']} error · "
+        f"🟡 {counts['warning']} warning · 🔵 {counts['info']} info "
+        f"({total} total)",
         f"- **Files:** {reviewed} reviewed · {with_findings} with findings · "
         f"{reviewed - with_findings} clean",
     ]

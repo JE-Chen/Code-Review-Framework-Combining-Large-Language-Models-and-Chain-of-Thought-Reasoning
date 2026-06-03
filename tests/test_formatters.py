@@ -331,7 +331,7 @@ def test_overview_block_at_top_with_severity_and_status():
     # The digest sits above the detailed per-file blocks.
     assert glance < out.index("<details>")
     assert "🔴 Changes requested" in out
-    assert "🔴 1 · 🟡 1 · 🔵 1 (3 total)" in out
+    assert "🔴 1 error · 🟡 1 warning · 🔵 1 info (3 total)" in out
     assert "2 reviewed · 2 with findings · 0 clean" in out
     assert "**Hotspots:**" in out and "`a.py` (2)" in out
 
@@ -358,7 +358,7 @@ def test_hide_info_drops_info_findings_from_summary():
     ])
     out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER, hide_info=True)
     # info is excluded from the count badge and the at-a-glance tally.
-    assert "🔴 0 · 🟡 1 · 🔵 0 (1 total)" in out
+    assert "🔴 0 error · 🟡 1 warning · 🔵 0 info (1 total)" in out
     assert "<code>a.py</code> — 🟡1" in out
 
 
@@ -511,7 +511,7 @@ def test_min_confidence_drops_low_and_keeps_unknown():
     )
     # low (0.2) dropped → 2 of 3 remain in the badge / tally.
     assert "🟡2" in out
-    assert "🟡 2" in out  # at-a-glance warning tally
+    assert "🟡 2 warning" in out  # at-a-glance warning tally
 
 
 def test_min_confidence_zero_keeps_all():
