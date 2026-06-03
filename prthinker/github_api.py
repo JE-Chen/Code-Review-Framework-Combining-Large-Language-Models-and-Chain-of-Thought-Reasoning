@@ -223,6 +223,27 @@ def upsert_pr_body_section(config: GitHubConfig, section: str) -> None:
         log.info("Updated PR body summary section")
 
 
+def fetch_pr_file_paths(config: GitHubConfig) -> list[str]:
+    """Return every changed file path on the PR (all statuses, paginated)."""
+    paths: list[str] = []
+    page = 1
+    with _client(config.token) as client:
+        while True:
+            response = client.get(
+                f"/repos/{config.repo}/pulls/{config.pr_number}/files",
+                params={"per_page": 100, "page": page},
+            )
+            response.raise_for_status()
+            batch = response.json()
+            if not batch:
+                break
+            paths.extend(str(f["filename"]) for f in batch)
+            if len(batch) < 100:
+                break
+            page += 1
+    return paths
+
+
 def fetch_pr_commit_messages(config: GitHubConfig) -> list[str]:
     """Return every commit message on the PR, oldest first (paginated)."""
     messages: list[str] = []
@@ -753,6 +774,7 @@ __all__ = [
     "fetch_pr_head_sha",
     "fetch_pr_base_branch",
     "fetch_pr_commit_messages",
+    "fetch_pr_file_paths",
     "set_pr_labels",
     "upsert_pr_body_section",
     "upsert_pr_comment",

@@ -470,3 +470,64 @@ def test_maybe_write_html_report(tmp_path: Path) -> None:
     merged = _review([_file_result("a.py")])
     cli_commands._maybe_write_html_report(_make_args(html_report=str(out)), merged)
     assert out.exists()
+
+
+# --- full-scan coverage gating ----------------------------------------------
+
+class _PathsAdapter(_FakeAdapter):
+    def __init__(self, paths):
+        super().__init__()
+        self._paths = paths
+
+    def fetch_changed_paths(self):
+        return self._paths
+
+
+def test_missing_review_files_detects_gap() -> None:
+    merged = _review([_file_result("a.py")])
+    adapter = _PathsAdapter(["a.py", "b.py"])
+    missing, expected = cli_commands._missing_review_files(_make_args(), adapter, merged)
+    assert missing == ["b.py"] and expected == 2
+
+
+def test_missing_review_files_respects_exclude_globs() -> None:
+    merged = _review([_file_result("a.py")])
+    adapter = _PathsAdapter(["a.py", "datas/big.json"])
+    missing, expected = cli_commands._missing_review_files(
+        _make_args(exclude_globs="datas/*"), adapter, merged
+    )
+    assert missing == [] and expected == 1
+
+
+def test_missing_review_files_fails_open_on_error() -> None:
+    merged = _review([_file_result("a.py")])
+    # _FakeAdapter has no fetch_changed_paths override -> base returns []? It's
+    # not a PlatformAdapter subclass, so attribute is missing -> AttributeError
+    # caught -> fail open.
+    missing, expected = cli_commands._missing_review_files(_make_args(), _FakeAdapter(), merged)
+    assert missing == [] and expected == 0
+
+
+def test_withhold_partial_review_posts_notice() -> None:
+    merged = _review([_file_result("a.py")])
+    adapter = _PathsAdapter(["a.py", "b.py"])
+    withheld = cli_commands._withhold_partial_review(
+        _make_args(require_full_scan=True), adapter, merged
+    )
+    assert withheld is True
+    posted = [c for c in adapter.calls if c[0] == "upsert_summary_comment"]
+    assert posted and "Review in progress" in posted[0][1] and "1/2" in posted[0][1]
+
+
+def test_withhold_disabled_by_default() -> None:
+    merged = _review([_file_result("a.py")])
+    adapter = _PathsAdapter(["a.py", "b.py"])
+    assert cli_commands._withhold_partial_review(_make_args(), adapter, merged) is False
+
+
+def test_no_withhold_when_complete() -> None:
+    merged = _review([_file_result("a.py"), _file_result("b.py")])
+    adapter = _PathsAdapter(["a.py", "b.py"])
+    assert cli_commands._withhold_partial_review(
+        _make_args(require_full_scan=True), adapter, merged
+    ) is False

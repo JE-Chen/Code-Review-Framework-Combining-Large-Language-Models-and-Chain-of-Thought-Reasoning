@@ -20,6 +20,7 @@ from prthinker.github_api import (
     fetch_pr_base_branch,
     fetch_pr_commit_messages,
     fetch_pr_diff,
+    fetch_pr_file_paths,
     fetch_pr_head_sha,
     set_pr_labels,
     submit_inline_review,
@@ -63,6 +64,9 @@ class GitHubAdapter(PlatformAdapter):
 
     def fetch_commit_messages(self) -> list[str]:
         return fetch_pr_commit_messages(self._gh())
+
+    def fetch_changed_paths(self) -> list[str]:
+        return fetch_pr_file_paths(self._gh())
 
     def set_labels(self, labels: list[str]) -> None:
         set_pr_labels(self._gh(), labels, managed_prefix=MANAGED_PREFIX)

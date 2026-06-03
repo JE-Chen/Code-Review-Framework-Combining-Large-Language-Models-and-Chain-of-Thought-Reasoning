@@ -268,6 +268,17 @@ between markers, so the verdict sits at the very top of the PR rather
 than only in the comment thread. Only the marked block is rewritten;
 the author's description is preserved.
 
+No partial reports
+~~~~~~~~~~~~~~~~~~~
+
+With ``--require-full-scan`` (env ``PRTHINKER_REQUIRE_FULL_SCAN``) the
+aggregate publishes the report **only when every PR file has a result**.
+It compares the PR's changed files (minus ``--exclude-globs``) against the
+files covered by the merged partials; if any are missing — a shard failed,
+say — it posts a ``⏳ Review in progress — N/M files scanned`` notice and
+withholds the menu, gate, and inline review until a later run covers them
+all. The check fails open if the file list cannot be fetched.
+
 Review in progress
 ~~~~~~~~~~~~~~~~~~~
 

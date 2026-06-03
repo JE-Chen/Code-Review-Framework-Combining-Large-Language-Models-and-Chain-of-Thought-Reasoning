@@ -413,6 +413,15 @@ def _add_kg_lessons_args(common: argparse.ArgumentParser) -> None:
         help="Workdir scope the KG was built against.",
     )
     common.add_argument(
+        "--require-full-scan",
+        action="store_true",
+        default=env_bool("PRTHINKER_REQUIRE_FULL_SCAN", False),
+        help=(
+            "Withhold the report (post only a progress notice) until every "
+            "PR file has been reviewed — never publish a partial result."
+        ),
+    )
+    common.add_argument(
         "--pr-body-summary",
         action="store_true",
         default=env_bool("PRTHINKER_PR_BODY_SUMMARY", False),

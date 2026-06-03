@@ -83,6 +83,64 @@ def _maybe_write_html_report(args: argparse.Namespace, result: ReviewResult) -> 
     log.info("Wrote HTML report to %s", out)
 
 
+def _exclude_glob_patterns(args: argparse.Namespace) -> list[str]:
+    raw = (getattr(args, "exclude_globs", "") or "").strip()
+    return [p.strip() for p in raw.split(",") if p.strip()]
+
+
+def _missing_review_files(
+    args: argparse.Namespace, adapter: object, merged: ReviewResult
+) -> tuple[list[str], int]:
+    """Return (unreviewed PR files, expected total). Empty list = complete.
+
+    Expected = the PR's changed files minus ``--exclude-globs``. Covered =
+    files with any result in ``merged``. When the PR file list cannot be
+    fetched the check fails open (no missing, expected 0).
+    """
+    import fnmatch
+
+    try:
+        paths = adapter.fetch_changed_paths()
+    except Exception as exc:  # noqa: BLE001 — coverage check is best-effort
+        log.warning("Could not list PR files for coverage (%s)", exc)
+        return ([], 0)
+    patterns = _exclude_glob_patterns(args)
+    expected = {
+        p for p in paths
+        if not any(fnmatch.fnmatch(p, pat) for pat in patterns)
+    }
+    covered = {fr.path for fr in merged.per_file}
+    return (sorted(expected - covered), len(expected))
+
+
+def _withhold_partial_review(
+    args: argparse.Namespace, adapter: object, merged: ReviewResult
+) -> bool:
+    """Post a progress notice and withhold the report if files are unreviewed.
+
+    Returns True when the full report should be suppressed this run.
+    """
+    if not getattr(args, "require_full_scan", False):
+        return False
+    missing, expected = _missing_review_files(args, adapter, merged)
+    if not missing:
+        return False
+    reviewed = expected - len(missing)
+    log.info(
+        "Partial review (%d/%d files); withholding full report (%d missing)",
+        reviewed, expected, len(missing),
+    )
+    if args.dry_run:
+        return True
+    notice = (
+        f"{args.marker}\n## CoT Code Review\n\n"
+        f"⏳ **Review in progress** — {reviewed}/{expected} files scanned. "
+        "The full report appears once every file has been reviewed.\n"
+    )
+    adapter.upsert_summary_comments([notice])
+    return True
+
+
 def _cmd_aggregate(args: argparse.Namespace) -> int:
     """Merge partial review JSONs and post a single review to the PR.
 
@@ -124,6 +182,9 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
         comment_marker=args.marker,
         base_url=args.platform_base_url,
     )
+
+    if _withhold_partial_review(args, adapter, merged):
+        return 0
 
     gate_handle = _open_aggregate_gate(args, adapter)
 

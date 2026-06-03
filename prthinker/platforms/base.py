@@ -66,6 +66,14 @@ class PlatformAdapter(ABC):
         """
         return []
 
+    def fetch_changed_paths(self) -> list[str]:
+        """Return every changed file path on the PR.
+
+        Default returns ``[]`` so adapters that cannot enumerate files
+        skip the full-scan coverage check. Concrete adapters override.
+        """
+        return []
+
     def set_labels(self, labels: list[str]) -> None:
         """Apply the prthinker-managed labels to the PR.
 

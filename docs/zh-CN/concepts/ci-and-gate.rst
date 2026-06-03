@@ -237,6 +237,16 @@ at-a-glance 总结还会被 upsert 进 **PR 描述（body）本身**\ ,以 marke
 让结论出现在 PR 最顶端,而非只在评论串里。只会改写被圈起的区块,作者原本的
 描述完整保留。
 
+不贴部分结果
+~~~~~~~~~~~~
+
+加上 ``--require-full-scan``\ （环境变量 ``PRTHINKER_REQUIRE_FULL_SCAN``）时,
+aggregate **只在 PR 的每个文件都有结果时**\ 才贴报告。它会把 PR 的变更文件
+（扣掉 ``--exclude-globs``）与合并后 partials 已覆盖的文件比对;只要有缺
+（例如某 shard 失败）,就贴 ``⏳ Review in progress — N/M files scanned`` 提示,
+并把菜单、gate、inline review 全部押后,直到之后某次 run 覆盖到全部文件。
+若无法取得文件清单,则 fail-open(照常贴)。
+
 审查进行中
 ~~~~~~~~~~
 
