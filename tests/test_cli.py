@@ -72,6 +72,22 @@ def test_pr_overview_flag_parses() -> None:
     assert ns.pr_overview is True
 
 
+def test_pr_files_url_github_default() -> None:
+    import argparse as _argparse
+
+    from prthinker.cli_review import _pr_files_url
+    ns = _argparse.Namespace(platform="github", repo="o/r", pr_number=7)
+    assert _pr_files_url(ns) == "https://github.com/o/r/pull/7/files"
+
+
+def test_pr_files_url_none_for_non_github() -> None:
+    import argparse as _argparse
+
+    from prthinker.cli_review import _pr_files_url
+    ns = _argparse.Namespace(platform="gitlab", repo="o/r", pr_number=7)
+    assert _pr_files_url(ns) is None
+
+
 def test_each_backend_choice_is_accepted() -> None:
     p = _build_parser()
     for kind in BackendKind:

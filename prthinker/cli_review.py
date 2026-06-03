@@ -759,6 +759,25 @@ def _append_api_impact(body: str, result: ReviewResult) -> str:
     return f"{body}\n\nPublic API impact: **{report.impact}**"
 
 
+def _pr_files_url(args: argparse.Namespace) -> str | None:
+    """Base URL of the PR's Files-changed tab, for diff deep links.
+
+    Honours ``PRTHINKER_PR_FILES_URL`` (set this for GitHub Enterprise);
+    otherwise defaults to github.com for the GitHub platform and returns
+    None elsewhere (so links are simply omitted).
+    """
+    override = (env_str("PRTHINKER_PR_FILES_URL", "") or "").strip()
+    if override:
+        return override
+    if getattr(args, "platform", "github") != "github":
+        return None
+    repo = getattr(args, "repo", "")
+    pr_number = getattr(args, "pr_number", 0)
+    if not repo or not pr_number:
+        return None
+    return f"https://github.com/{repo}/pull/{pr_number}/files"
+
+
 def _build_preliminary_overview(
     args: argparse.Namespace, adapter: object, result: ReviewResult
 ) -> str | None:
@@ -803,6 +822,7 @@ def _publish_review_result(
         findings_only=getattr(args, "findings_only", False),
         hide_info=getattr(args, "hide_info", False),
         preliminary=_build_preliminary_overview(args, adapter, result),
+        files_url=_pr_files_url(args),
     )
     if getattr(args, "api_impact", False):
         pages[-1] = _append_api_impact(pages[-1], result)

@@ -122,7 +122,7 @@ def test_file_block_with_findings_and_provenance():
     f = _finding(provenance=Provenance(citations=[cite], confidence=0.5))
     fr = _file_result(inline_findings=[f], step_outputs={"total_summary": "x"})
     text = "\n".join(formatters._format_file_block(fr))
-    assert "— 1 finding(s)" in text
+    assert "— 🔵1" in text
     assert "Audit trail (provenance)" in text
     # total_summary is excluded from per-step detail blocks.
     assert "<details><summary>Total Summary</summary>" not in text
@@ -359,7 +359,7 @@ def test_hide_info_drops_info_findings_from_summary():
     out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER, hide_info=True)
     # info is excluded from the count badge and the at-a-glance tally.
     assert "🔴 0 · 🟡 1 · 🔵 0 (1 total)" in out
-    assert "<code>a.py</code> — 1 finding(s)" in out
+    assert "<code>a.py</code> — 🟡1" in out
 
 
 def test_hide_info_off_keeps_info():
@@ -368,7 +368,7 @@ def test_hide_info_off_keeps_info():
     ])
     out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER, hide_info=False)
     assert "🔵 1" in out
-    assert "<code>a.py</code> — 1 finding(s)" in out
+    assert "<code>a.py</code> — 🔵1" in out
 
 
 def test_hide_info_with_findings_only_collapses_info_only_pr():
@@ -390,6 +390,45 @@ def test_hide_info_does_not_mutate_original_result():
     formatters.format_pr_comment(result, _MARKER, hide_info=True)
     # Display filter must not strip findings from the caller's result.
     assert len(result.per_file[0].inline_findings) == 1
+
+
+def test_severity_badge_shows_icons():
+    fr = _file_result(path="a.py", inline_findings=[
+        _finding(path="a.py", severity="error"),
+        _finding(path="a.py", severity="error"),
+        _finding(path="a.py", severity="warning"),
+    ])
+    text = "\n".join(formatters._format_file_block(fr))
+    assert "— 🔴2 🟡1" in text
+
+
+def test_files_sorted_by_severity_then_count():
+    err = _file_result(path="err.py", inline_findings=[_finding(path="err.py", severity="error")])
+    warn = _file_result(path="warn.py", inline_findings=[_finding(path="warn.py", severity="warning")])
+    clean = _file_result(path="clean.py")
+    # Input order is clean, warn, err; output must be err, warn, clean.
+    out = formatters.format_pr_comment(_review(per_file=[clean, warn, err]), _MARKER)
+    assert out.index("err.py") < out.index("warn.py") < out.index("clean.py")
+
+
+def test_deep_links_when_files_url_given():
+    import hashlib
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py", line=7)])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr]), _MARKER, files_url="https://github.com/o/r/pull/1/files"
+    )
+    anchor = hashlib.sha256(b"a.py").hexdigest()
+    assert f"https://github.com/o/r/pull/1/files#diff-{anchor}R7" in out
+    # Hotspot in the digest is a markdown link; the file header is an <a>.
+    assert "](https://github.com/o/r/pull/1/files#diff-" in out
+    assert '<a href="https://github.com/o/r/pull/1/files#diff-' in out
+
+
+def test_no_links_when_files_url_absent():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py", line=7)])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "<code>a.py</code>" in out
+    assert "diff-" not in out
 
 
 def test_preliminary_pinned_above_glance_and_files():

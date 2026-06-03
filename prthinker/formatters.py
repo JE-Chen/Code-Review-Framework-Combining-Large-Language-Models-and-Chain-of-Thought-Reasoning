@@ -13,10 +13,48 @@ across repeated workflow runs.
 from __future__ import annotations
 
 import dataclasses
+import hashlib
+from collections import Counter
 from collections.abc import Callable
 
 from prthinker.pipeline import FileReviewResult, ReviewResult
 from prthinker.schemas import InlineFinding
+
+# Severity presentation, shared by the at-a-glance digest and per-file badges.
+_SEVERITY_ICON: tuple[tuple[str, str], ...] = (
+    ("error", "🔴"),
+    ("warning", "🟡"),
+    ("info", "🔵"),
+)
+_SEVERITY_RANK: dict[str, int] = {"error": 3, "warning": 2, "info": 1}
+
+
+def _diff_anchor(path: str, line: int) -> str:
+    """GitHub's Files-changed anchor for ``path`` at new-side ``line``."""
+    digest = hashlib.sha256(path.encode("utf-8")).hexdigest()
+    return f"diff-{digest}R{line}"
+
+
+def _file_ref(path: str, files_url: str | None, line: int = 1) -> str:
+    """Markdown: a deep link into the diff, or a plain code span."""
+    if not files_url:
+        return f"`{path}`"
+    return f"[`{path}`]({files_url}#{_diff_anchor(path, line)})"
+
+
+def _file_summary_ref(path: str, files_url: str | None, line: int = 1) -> str:
+    """HTML (for ``<summary>``): a linked code span, or a plain one."""
+    if not files_url:
+        return f"<code>{path}</code>"
+    return (
+        f'<a href="{files_url}#{_diff_anchor(path, line)}">'
+        f"<code>{path}</code></a>"
+    )
+
+
+def _first_finding_line(fr: FileReviewResult) -> int:
+    """New-side line to anchor a file link at (first finding, else 1)."""
+    return fr.inline_findings[0].line if fr.inline_findings else 1
 
 _SECTION_TITLES: dict[str, str] = {
     "first_summary": "PR Summary",
@@ -77,17 +115,21 @@ def _overall_status(counts: dict[str, int]) -> str:
     return "✅ Looks good — no findings"
 
 
-def _hotspots_line(result: ReviewResult) -> str:
-    """Top files by finding count — where a reviewer should look first."""
-    ranked = sorted(
-        (fr for fr in result.per_file if fr.inline_findings),
-        key=lambda fr: len(fr.inline_findings),
-        reverse=True,
+def _hotspots_line(result: ReviewResult, files_url: str | None = None) -> str:
+    """Top files by severity then finding count — look here first."""
+    ranked = _sort_files_by_severity(
+        [fr for fr in result.per_file if fr.inline_findings]
     )[:_OVERVIEW_HOTSPOT_LIMIT]
-    return " · ".join(f"`{fr.path}` ({len(fr.inline_findings)})" for fr in ranked)
+    return " · ".join(
+        f"{_file_ref(fr.path, files_url, _first_finding_line(fr))} "
+        f"({len(fr.inline_findings)})"
+        for fr in ranked
+    )
 
 
-def _format_overview_block(result: ReviewResult) -> list[str]:
+def _format_overview_block(
+    result: ReviewResult, files_url: str | None = None
+) -> list[str]:
     """A compact, scannable digest pinned to the top of the summary.
 
     Lives in the upserted part-1 comment, so it is rewritten in place on
@@ -106,7 +148,7 @@ def _format_overview_block(result: ReviewResult) -> list[str]:
         f"- **Files:** {reviewed} reviewed · {with_findings} with findings · "
         f"{reviewed - with_findings} clean",
     ]
-    hotspots = _hotspots_line(result)
+    hotspots = _hotspots_line(result, files_url)
     if hotspots:
         lines.append(f"- **Hotspots:** {hotspots}")
     lines += ["", "---", ""]
@@ -138,6 +180,7 @@ def format_pr_comment(
     findings_only: bool = False,
     hide_info: bool = False,
     preliminary: str | None = None,
+    files_url: str | None = None,
 ) -> str:
     """Render the consolidated PR comment.
 
@@ -166,6 +209,7 @@ def format_pr_comment(
         return _format_per_file(
             result, marker, posted_count=posted_count,
             findings_only=findings_only, preliminary=preliminary,
+            files_url=files_url,
         )
     return _format_single(result, marker)
 
@@ -284,10 +328,11 @@ def _format_per_file_sections(result: ReviewResult) -> list[str]:
 def _files_to_render(
     per_file: list[FileReviewResult], findings_only: bool
 ) -> list[FileReviewResult]:
-    """The file blocks to render: all of them, or only ones with findings."""
-    if not findings_only:
-        return per_file
-    return [fr for fr in per_file if fr.inline_findings]
+    """File blocks to render — filtered (findings-only) then severity-sorted."""
+    files = per_file
+    if findings_only:
+        files = [fr for fr in per_file if fr.inline_findings]
+    return _sort_files_by_severity(files)
 
 
 def _hidden_clean_note(result: ReviewResult, findings_only: bool) -> list[str]:
@@ -306,6 +351,7 @@ def _per_file_head_parts(
     posted_count: int | None,
     findings_only: bool = False,
     preliminary: str | None = None,
+    files_url: str | None = None,
 ) -> list[str]:
     """Everything in the per-file comment that precedes the file blocks."""
     parts: list[str] = [
@@ -315,7 +361,7 @@ def _per_file_head_parts(
     ]
     if preliminary:
         parts.append(preliminary)
-    parts += _format_overview_block(result)
+    parts += _format_overview_block(result, files_url)
     parts.append(_per_file_header(result))
     parts.append("")
     parts += _format_per_file_intro(result, posted_count)
@@ -330,12 +376,13 @@ def _format_per_file(
     posted_count: int | None = None,
     findings_only: bool = False,
     preliminary: str | None = None,
+    files_url: str | None = None,
 ) -> str:
     parts = _per_file_head_parts(
-        result, marker, posted_count, findings_only, preliminary
+        result, marker, posted_count, findings_only, preliminary, files_url
     )
     for fr in _files_to_render(result.per_file, findings_only):
-        parts += _format_file_block(fr)
+        parts += _format_file_block(fr, files_url)
 
     return "\n".join(parts).rstrip() + "\n"
 
@@ -399,6 +446,7 @@ def format_pr_comment_pages(
     findings_only: bool = False,
     hide_info: bool = False,
     preliminary: str | None = None,
+    files_url: str | None = None,
 ) -> list[str]:
     """Render the PR comment, paginated so no page exceeds ``max_chars``.
 
@@ -419,17 +467,17 @@ def format_pr_comment_pages(
         result = _without_info_findings(result)
     single = format_pr_comment(
         result, marker, posted_count=posted_count,
-        findings_only=findings_only, preliminary=preliminary,
+        findings_only=findings_only, preliminary=preliminary, files_url=files_url,
     )
     if len(single) <= max_chars or not result.per_file:
         return [single]
     head = "\n".join(
         _per_file_head_parts(
-            result, marker, posted_count, findings_only, preliminary
+            result, marker, posted_count, findings_only, preliminary, files_url
         )
     )
     blocks = [
-        "\n".join(_format_file_block(fr))
+        "\n".join(_format_file_block(fr, files_url))
         for fr in _files_to_render(result.per_file, findings_only)
     ]
     pages = _paginate_blocks(head, blocks, marker, max_chars)
@@ -588,9 +636,26 @@ def _format_finding_annotations(findings: list[InlineFinding]) -> list[str]:
     return block
 
 
-def _file_findings_badge(findings_n: int) -> str:
-    """Return the per-file summary badge for an inline-finding count."""
-    return f" — {findings_n} finding(s)" if findings_n else " — no findings"
+def _file_findings_badge(findings: list[InlineFinding]) -> str:
+    """Per-file badge as severity icons (🔴2 🟡1), or a no-findings note."""
+    if not findings:
+        return " — no findings"
+    counts = Counter(f.severity for f in findings)
+    parts = [f"{icon}{counts[sev]}" for sev, icon in _SEVERITY_ICON if counts.get(sev)]
+    return " — " + " ".join(parts)
+
+
+def _file_sort_key(fr: FileReviewResult) -> tuple[int, int]:
+    """Rank a file by (worst severity, finding count) for summary ordering."""
+    ranks = [_SEVERITY_RANK.get(f.severity, 0) for f in fr.inline_findings]
+    return (max(ranks, default=0), len(fr.inline_findings))
+
+
+def _sort_files_by_severity(
+    files: list[FileReviewResult],
+) -> list[FileReviewResult]:
+    """Most-severe / most-findings files first so they read at the top."""
+    return sorted(files, key=_file_sort_key, reverse=True)
 
 
 def _format_file_step_details(fr: FileReviewResult) -> list[str]:
@@ -603,7 +668,9 @@ def _format_file_step_details(fr: FileReviewResult) -> list[str]:
     return block
 
 
-def _format_file_block(fr: FileReviewResult) -> list[str]:
+def _format_file_block(
+    fr: FileReviewResult, files_url: str | None = None
+) -> list[str]:
     # Skipped files (binary / deleted) are still listed so every touched
     # file is accounted for — just with the skip reason instead of a review.
     if fr.is_binary or fr.is_deleted:
@@ -611,10 +678,11 @@ def _format_file_block(fr: FileReviewResult) -> list[str]:
         return [f"- <code>{fr.path}</code> — _skipped ({reason})_", ""]
 
     summary = fr.total_summary or "_no summary_"
-    badge = _file_findings_badge(len(fr.inline_findings))
+    badge = _file_findings_badge(fr.inline_findings)
+    ref = _file_summary_ref(fr.path, files_url, _first_finding_line(fr))
 
     block: list[str] = [
-        f"<details><summary><code>{fr.path}</code>{badge}</summary>",
+        f"<details><summary>{ref}{badge}</summary>",
         "",
         "**Summary**",
         "",

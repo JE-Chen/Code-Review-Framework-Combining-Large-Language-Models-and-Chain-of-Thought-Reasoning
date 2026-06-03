@@ -55,7 +55,7 @@ def test_per_file_layout_renders_one_block_per_file() -> None:
     assert "<code>b.py</code>" in body
     # Top-level header reports inline findings, per-file row reports findings.
     assert "Found **1** inline finding(s)" in body
-    assert "1 finding(s)" in body
+    assert "🟡1" in body
 
 
 def test_empty_result_renders_no_summary_text() -> None:

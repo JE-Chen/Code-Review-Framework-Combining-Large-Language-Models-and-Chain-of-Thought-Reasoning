@@ -29,6 +29,7 @@ from prthinker.repo_kg import (
 from prthinker.cli_review import (
     _build_config,
     _build_preliminary_overview,
+    _pr_files_url,
     _run_review,
     _synthesize_overall_summary,
 )
@@ -104,6 +105,7 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
         findings_only=getattr(args, "findings_only", False),
         hide_info=getattr(args, "hide_info", False),
         preliminary=_build_preliminary_overview(args, adapter, merged),
+        files_url=_pr_files_url(args),
     )
     if args.dry_run:
         sys.stdout.write("\n\n".join(pages))

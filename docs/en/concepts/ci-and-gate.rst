@@ -150,6 +150,13 @@ that carry the most findings. It is pinned to the top of the upserted
 part-1 comment, so it is rewritten in place on every re-review and always
 reflects the latest run.
 
+The per-file blocks are ordered most-severe first (files with errors,
+then warnings, then info, ties broken by finding count), each badged with
+severity icons (``🔴2 🟡1``) instead of a bare count. On GitHub every
+file name — in the hotspots line and the block headers — is a deep link
+straight to that file's first finding in the Files-changed tab (set
+``PRTHINKER_PR_FILES_URL`` for GitHub Enterprise hosts).
+
 A full per-file review can run to hundreds of KB — far past GitHub's
 65 536-character limit on a single comment. Rather than truncate, the
 summary is **paginated across multiple comments**: it is split between
