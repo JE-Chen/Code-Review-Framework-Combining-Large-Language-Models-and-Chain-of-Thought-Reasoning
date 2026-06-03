@@ -21,15 +21,17 @@ runner = []
 dev = [
     "pytest>=8.4",
 ]
-# transformers is capped below 5.0 on purpose. transformers 5.x
-# rewrote the MoE forward in a way that, for Qwen3-*-A3B, materialises a
-# dense fp32 [seq, hidden, intermediate] tensor instead of routing the
-# top-k experts sparsely. That allocation is *linear* in input length
-# (~48 MiB/token = hidden_size*intermediate_size*4) and OOMs a 44 GiB
-# L40S at a few thousand prompt tokens — the "Tried to allocate 269 GiB"
-# failure. It also stopped applying bitsandbytes 4-bit (the model loaded
-# in bf16, ~59 GiB). A `--no-cache` rebuild pulled 5.9.0 because these
-# were unpinned; 4.x (resolves to 4.57.x) keeps sparse MoE + 4-bit.
+# The heavy ML stack is intentionally UNPINNED — the supported deploy
+# loads the 30B-A3B model in bf16 (see CLAUDE.md "GPU Server: bf16, no
+# flash-attn, no dependency pins" and codes/util/qwen3_util.load_qwen3_model).
+# bf16 + SDPA does NOT trigger the transformers>=5 MoE densification path,
+# so transformers 5.x is fine. The danger is the *4-bit + transformers>=5*
+# combination: 4-bit re-engaging on 5.x densifies the A3B MoE forward (an
+# allocation linear in input length) and OOMs the L40S — the recurring
+# "Tried to allocate NN GiB" failure. load_qwen3_model never requests 4-bit
+# for the A3B models, and _verify_quant_safe() refuses to boot if 4-bit
+# somehow engaged on transformers>=5. Do not re-pin transformers<5 or add
+# flash-attn; either nudges bitsandbytes 4-bit back into effect.
 local = [
     "transformers",
     "torch",
