@@ -45,6 +45,14 @@ jobs:
       skipped: ${{ steps.list.outputs.skipped }}
       deleted: ${{ steps.list.outputs.deleted }}
     steps:
+      # Checkout first so its working-tree clean does not wipe the
+      # restored .prthinker/ state cache that follows.
+      - name: Check out PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
       - name: Restore prthinker state cache
         id: state-restore
         uses: actions/cache/restore@v4
@@ -60,11 +68,12 @@ jobs:
           python-version: "3.12"
 
       - name: Post review-in-progress placeholder
+        # Best-effort: a placeholder failure must never block the matrix.
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           PRTHINKER_PR_NUMBER: ${{ github.event.pull_request.number }}
-        # Best-effort: a placeholder failure must never block the review.
         run: |
           pip install -e ".[runner]"
           python -m prthinker post-status || true
