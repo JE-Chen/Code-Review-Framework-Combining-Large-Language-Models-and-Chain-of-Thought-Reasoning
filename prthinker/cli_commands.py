@@ -29,6 +29,7 @@ from prthinker.repo_kg import (
 from prthinker.cli_review import (
     _build_config,
     _build_preliminary_overview,
+    _impact_note,
     _join_overview,
     _maybe_set_labels,
     _pr_files_url,
@@ -109,7 +110,8 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
         findings_only=getattr(args, "findings_only", False),
         hide_info=getattr(args, "hide_info", False),
         preliminary=_join_overview(
-            _build_preliminary_overview(args, adapter, merged), _agg_resolved
+            _build_preliminary_overview(args, adapter, merged),
+            _impact_note(args, merged), _agg_resolved,
         ),
         files_url=_pr_files_url(args),
         delta=_agg_delta,

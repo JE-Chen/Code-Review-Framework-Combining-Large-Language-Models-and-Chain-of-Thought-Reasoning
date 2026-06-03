@@ -142,6 +142,13 @@ a verdict — it answers "what changed" while the digest below answers "is
 it any good" — and like the digest it is pinned to the upserted part-1
 comment and refreshed on every review.
 
+``--impact-map`` (env ``PRTHINKER_IMPACT_MAP``) adds an **Impacted areas**
+note listing the *downstream importers* of the changed files — files that
+import a changed module but were not themselves touched — read from the
+repo knowledge graph (``repo-kg.sqlite``). It flags ripple effects the
+diff alone does not show. Matching is heuristic (module name vs import
+target), so it is a hint, and it degrades silently when the KG is absent.
+
 Every per-file summary opens with a **Review at a glance** digest — a
 plain-language status (🔴 changes requested / 🟡 review suggested /
 🔵 minor notes / ✅ looks good), the finding counts by severity, the

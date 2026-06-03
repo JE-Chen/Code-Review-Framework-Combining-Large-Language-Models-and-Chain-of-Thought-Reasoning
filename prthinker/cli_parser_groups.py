@@ -413,6 +413,15 @@ def _add_kg_lessons_args(common: argparse.ArgumentParser) -> None:
         help="Workdir scope the KG was built against.",
     )
     common.add_argument(
+        "--impact-map",
+        action="store_true",
+        default=env_bool("PRTHINKER_IMPACT_MAP", False),
+        help=(
+            "Add an 'Impacted areas' note to the overview listing downstream "
+            "importers of the changed files (from the repo knowledge graph)."
+        ),
+    )
+    common.add_argument(
         "--lessons",
         action="store_true",
         default=env_bool("PRTHINKER_LESSONS", False),

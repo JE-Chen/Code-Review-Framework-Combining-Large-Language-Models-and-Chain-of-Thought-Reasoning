@@ -38,6 +38,8 @@ from prthinker.diff import parse_unified_diff
 from prthinker.finding_dedup import dedupe_findings
 from prthinker.formatters import format_pr_comment, format_pr_comment_pages
 from prthinker.github_api import count_findings_on_diff
+from prthinker.impact_map import format_impact_note, impacted_files
+from prthinker.repo_kg import KnowledgeGraphStore
 from prthinker.pr_labels import compute_labels
 from prthinker.pr_overview import build_overview_text
 from prthinker.review_delta import (
@@ -810,10 +812,28 @@ def _review_progress(
     return line, resolved_block
 
 
-def _join_overview(preliminary: str | None, resolved_block: str | None) -> str | None:
-    """Combine the PR overview and the resolved-since-last block for the top."""
-    parts = [p for p in (preliminary, resolved_block) if p]
+def _join_overview(*sections: str | None) -> str | None:
+    """Combine the top-of-comment context sections, dropping empties."""
+    parts = [s for s in sections if s]
     return "\n\n".join(parts) if parts else None
+
+
+def _impact_note(args: argparse.Namespace, result: ReviewResult) -> str | None:
+    """'Impacted areas' note from the repo KG, or None (best-effort)."""
+    if not getattr(args, "impact_map", False):
+        return None
+    kg_path = Path(getattr(args, "kg_store", "") or ".prthinker/repo-kg.sqlite")
+    if not kg_path.exists():
+        return None
+    try:
+        imports = KnowledgeGraphStore(kg_path).all_imports(
+            Path(getattr(args, "kg_workdir", "") or ".")
+        )
+        changed = [fr.path for fr in result.per_file]
+        return format_impact_note(impacted_files(imports, changed)) or None
+    except Exception as exc:  # noqa: BLE001 — impact map is best-effort
+        log.warning("Could not build impact map (%s)", exc)
+        return None
 
 
 def _maybe_set_labels(
@@ -892,7 +912,8 @@ def _publish_review_result(
         findings_only=getattr(args, "findings_only", False),
         hide_info=getattr(args, "hide_info", False),
         preliminary=_join_overview(
-            _build_preliminary_overview(args, adapter, result), resolved_block
+            _build_preliminary_overview(args, adapter, result),
+            _impact_note(args, result), resolved_block,
         ),
         files_url=_pr_files_url(args),
         delta=delta_line,
