@@ -550,6 +550,14 @@ sweep、GPU OOM、runner 逾時、人工 ``ask/cancel``\ ）\ ，現有之
   ``path:line``\ ,使新引入之技術債在提交時即可見;context 行上的既有標記不
   計入\ 。
 
+* **純格式變更訊號**\ （library：\ ``whitespace_only``\ ）——將各檔案之新增
+  與刪除行去除所有空白後比對;若兩者相符,則該變更僅為重新縮排/重排,標記
+  為「formatting only」使行為審查者可略過。真正的新內容不會相符,故不會被
+  誤標\ 。
+* **二進位變更訊號**\ （library：\ ``binary_changes``\ ）——列出 PR 變更之
+  二進位檔案（無文字 hunk 可讀）,使審查者在他處檢視 rendered asset 與其
+  provenance,而非默默放行不透明 blob\ 。
+
 monitoring overlay 另附 **Prometheus alerting 規則**\ （\
 ``docker/monitoring/alerts.yml``\ ）；詳見 Docker 概念頁。
 

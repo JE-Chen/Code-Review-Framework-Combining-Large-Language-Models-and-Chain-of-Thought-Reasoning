@@ -381,6 +381,35 @@ def test_extra_sections_clean_diff_adds_no_new_blocks():
     assert "renamed or moved" not in blob
     assert "low-attention file(s)" not in blob
     assert "deferred-work marker(s)" not in blob
+    assert "formatting only" not in blob
+    assert "binary file(s) changed" not in blob
+
+
+def test_extra_sections_whitespace_note_from_diff():
+    diff = (
+        "diff --git a/a.py b/a.py\n"
+        "--- a/a.py\n"
+        "+++ b/a.py\n"
+        "@@ -1,1 +1,1 @@\n"
+        "-x=1\n"
+        "+x = 1\n"
+    )
+    result = ReviewResult(code_diff=diff, rag_docs=[], per_file=[_per_file("a.py")])
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("formatting only" in s for s in sections)
+
+
+def test_extra_sections_binary_note_from_diff():
+    diff = (
+        "diff --git a/logo.png b/logo.png\n"
+        "index abc..def 100644\n"
+        "Binary files a/logo.png and b/logo.png differ\n"
+    )
+    result = ReviewResult(
+        code_diff=diff, rag_docs=[], per_file=[_per_file("logo.png")]
+    )
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("binary file(s) changed" in s for s in sections)
 
 
 if __name__ == "__main__":

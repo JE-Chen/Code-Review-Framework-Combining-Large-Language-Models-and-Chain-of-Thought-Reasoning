@@ -653,6 +653,16 @@ no inference — so they run on the runner profile.
   visible at submission time; pre-existing markers on context lines do
   not register.
 
+* **Formatting-only signal** (library: ``whitespace_only``) — collapses
+  each file's added vs removed lines with all whitespace stripped; when
+  the two match, the change is reindentation / reflow only and is flagged
+  "formatting only" so a behaviour reviewer can skip it. Genuinely new
+  content never collapses, so it is never mis-flagged.
+* **Binary-change signal** (library: ``binary_changes``) — lists the
+  binary files a PR touches (no textual hunk exists for them) so the
+  reviewer inspects the rendered asset and its provenance out of band
+  rather than silently waving an opaque blob through.
+
 The monitoring overlay also ships **Prometheus alerting rules**
 (``docker/monitoring/alerts.yml``); see the Docker concepts page.
 

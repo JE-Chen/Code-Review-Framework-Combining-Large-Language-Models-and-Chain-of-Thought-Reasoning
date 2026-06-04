@@ -55,6 +55,11 @@ from prthinker.impact_map import format_impact_note, impacted_files
 from prthinker.rename_map import detect_renames, format_rename_note
 from prthinker.noise_files import format_noise_note, noise_files
 from prthinker.new_markers import format_new_markers_note, new_markers
+from prthinker.whitespace_only import (
+    format_whitespace_note,
+    whitespace_only_files,
+)
+from prthinker.binary_changes import binary_changed_files, format_binary_note
 from prthinker.inline_ignore import filter_inline_ignored
 from prthinker.repo_kg import KnowledgeGraphStore
 from prthinker.pr_labels import compute_labels
@@ -1052,6 +1057,8 @@ def _extra_sections(
         _risk_note(args, result),
         format_rename_note(detect_renames(diff)),
         format_noise_note(noise_files(changed)),
+        format_whitespace_note(whitespace_only_files(diff)),
+        format_binary_note(binary_changed_files(diff)),
         format_coverage_gap_note(coverage_gaps(changed)),
         format_new_markers_note(new_markers(diff)),
         _change_map_note(args, result),
