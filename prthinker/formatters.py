@@ -58,6 +58,7 @@ class _RenderOpts:
     gate: str | None = None
     off_diff: tuple[InlineFinding, ...] = ()
     extra_sections: tuple[str, ...] = ()
+    filtered: str | None = None
 
 
 def _diff_anchor(path: str, line: int) -> str:
@@ -272,6 +273,7 @@ def _format_overview_block(
     files_url: str | None = None,
     delta: str | None = None,
     gate: str | None = None,
+    filtered: str | None = None,
 ) -> list[str]:
     """A compact, scannable digest pinned to the top of the summary.
 
@@ -296,6 +298,8 @@ def _format_overview_block(
         f"- **Files:** {reviewed} reviewed · {with_findings} with findings · "
         f"{reviewed - with_findings} clean",
     ]
+    if filtered:
+        lines.append(f"- **Filtered from view:** {filtered}")
     lines += _overview_extra_lines(result, with_findings)
     if delta:
         lines.append(f"- **Since last review:** {delta}")
@@ -354,6 +358,33 @@ def _without_low_confidence(
     return dataclasses.replace(result, per_file=per_file, inline_findings=inline)
 
 
+def _filtered_note(
+    result: ReviewResult, hide_info: bool, min_confidence: float
+) -> str | None:
+    """How many findings the display filters drop, counted on the original.
+
+    ``--hide-info`` and ``--summary-min-confidence`` mutate the *display*
+    copy (including the digest counts), so without this note a reader sees
+    e.g. ``🔵 0 info`` and wrongly concludes there were none. Surfacing the
+    hidden tallies keeps the summary honest (the project's no-silent-caps
+    rule). A finding hidden as ``info`` is not also counted as low-confidence.
+    """
+    info_hidden = 0
+    low_conf_hidden = 0
+    for fr in result.per_file:
+        for finding in fr.inline_findings:
+            if hide_info and finding.severity == "info":
+                info_hidden += 1
+            elif min_confidence > 0 and not _confident_enough(finding, min_confidence):
+                low_conf_hidden += 1
+    bits: list[str] = []
+    if info_hidden:
+        bits.append(f"{info_hidden} info")
+    if low_conf_hidden:
+        bits.append(f"{low_conf_hidden} low-confidence")
+    return " · ".join(bits) + " hidden" if bits else None
+
+
 def format_pr_comment(
     result: ReviewResult,
     marker: str,
@@ -369,6 +400,7 @@ def format_pr_comment(
     gate: str | None = None,
     off_diff_findings: tuple[InlineFinding, ...] = (),
     extra_sections: tuple[str, ...] = (),
+    filtered: str | None = None,
 ) -> str:
     """Render the consolidated PR comment.
 
@@ -389,6 +421,8 @@ def format_pr_comment(
     ``preliminary`` is a pre-rendered, model-free "what this PR does"
     overview (from commit messages + changed files) pinned to the top.
     """
+    if filtered is None:
+        filtered = _filtered_note(result, hide_info, min_confidence)
     if hide_info:
         result = _without_info_findings(result)
     if min_confidence > 0:
@@ -400,7 +434,7 @@ def format_pr_comment(
             posted_count=posted_count, findings_only=findings_only,
             preliminary=preliminary, files_url=files_url, delta=delta,
             table=table, gate=gate, off_diff=off_diff_findings,
-            extra_sections=extra_sections,
+            extra_sections=extra_sections, filtered=filtered,
         )
         return _format_per_file(result, marker, opts)
     return _format_single(result, marker)
@@ -722,7 +756,9 @@ def _per_file_head_parts(
     parts += _format_must_fix_block(result, opts.files_url)
     if opts.preliminary:
         parts.append(opts.preliminary)
-    parts += _format_overview_block(result, opts.files_url, opts.delta, opts.gate)
+    parts += _format_overview_block(
+        result, opts.files_url, opts.delta, opts.gate, opts.filtered
+    )
     parts += _format_severity_groups(result, opts.files_url)
     parts += _format_category_groups(result, opts.files_url)
     parts += _format_top_findings(result, opts.files_url)
@@ -919,6 +955,7 @@ def format_pr_comment_pages(
     findings from the rendered summary. ``preliminary`` is the model-free
     PR overview pinned to the top of page 1.
     """
+    filtered = _filtered_note(result, hide_info, min_confidence)
     if hide_info:
         result = _without_info_findings(result)
     if min_confidence > 0:
@@ -928,6 +965,7 @@ def format_pr_comment_pages(
         findings_only=findings_only, preliminary=preliminary,
         files_url=files_url, delta=delta, table=table, gate=gate,
         off_diff_findings=off_diff_findings, extra_sections=extra_sections,
+        filtered=filtered,
     )
     # The table layout is compact; never block-paginate it.
     if len(single) <= max_chars or not result.per_file or table:
@@ -936,6 +974,7 @@ def format_pr_comment_pages(
         posted_count=posted_count, findings_only=findings_only,
         preliminary=preliminary, files_url=files_url, delta=delta, gate=gate,
         off_diff=off_diff_findings, extra_sections=extra_sections,
+        filtered=filtered,
     )
     head = "\n".join(_per_file_head_parts(result, marker, opts))
     change_stats = compute_change_stats(result.code_diff)

@@ -1054,3 +1054,67 @@ def test_walkthrough_absent_when_step_did_not_run():
     fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
     out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
     assert "📝 Walkthrough" not in out
+
+
+# --------------------------------------------------------------------------
+# Filtered-from-view transparency note
+# --------------------------------------------------------------------------
+
+def test_hide_info_surfaces_filtered_count():
+    fr = _file_result(path="a.py", inline_findings=[
+        _finding(path="a.py", line=1, severity="warning"),
+        _finding(path="a.py", line=2, severity="info"),
+        _finding(path="a.py", line=3, severity="info"),
+    ])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER, hide_info=True)
+    assert "- **Filtered from view:** 2 info hidden" in out
+    # The hidden info findings are gone from the rendered body.
+    assert "🔵 0 info" in out
+
+
+def test_min_confidence_surfaces_filtered_count():
+    from prthinker.schemas import Provenance
+
+    fr = _file_result(path="a.py", inline_findings=[
+        _finding(path="a.py", line=1, severity="warning",
+                 provenance=Provenance(confidence=0.2)),
+        _finding(path="a.py", line=2, severity="warning",
+                 provenance=Provenance(confidence=0.9)),
+    ])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr]), _MARKER, min_confidence=0.5
+    )
+    assert "1 low-confidence hidden" in out
+
+
+def test_filtered_note_absent_without_filters():
+    fr = _file_result(path="a.py", inline_findings=[
+        _finding(path="a.py", severity="info"),
+    ])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "Filtered from view" not in out
+
+
+def test_filtered_note_combines_info_and_confidence():
+    from prthinker.schemas import Provenance
+
+    fr = _file_result(path="a.py", inline_findings=[
+        _finding(path="a.py", line=1, severity="info"),
+        _finding(path="a.py", line=2, severity="warning",
+                 provenance=Provenance(confidence=0.1)),
+    ])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr]), _MARKER, hide_info=True, min_confidence=0.5
+    )
+    assert "1 info · 1 low-confidence hidden" in out
+
+
+def test_filtered_note_shown_on_paginated_single_page():
+    fr = _file_result(path="a.py", inline_findings=[
+        _finding(path="a.py", line=1, severity="info"),
+    ])
+    pages = formatters.format_pr_comment_pages(
+        _review(per_file=[fr]), _MARKER, hide_info=True
+    )
+    assert len(pages) == 1
+    assert "1 info hidden" in pages[0]
