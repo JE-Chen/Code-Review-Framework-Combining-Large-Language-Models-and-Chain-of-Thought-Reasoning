@@ -639,6 +639,20 @@ no inference — so they run on the runner profile.
   output is appended to the consolidated summary; unknown names are
   skipped. Prompts are the source of truth in each mode module.
 
+* **Renamed/moved file signal** (library: ``rename_map``) — pulls
+  ``rename from`` / ``rename to`` pairs (with the ``similarity index``)
+  straight from the diff and renders a self-omitting "renamed or moved"
+  note, so a pure move is not re-reviewed as a new file plus a deletion.
+* **Low-attention file signal** (library: ``noise_files``) — classifies
+  changed lock files, minified/generated bundles, vendored trees, and
+  committed snapshots into a "safe to skim" note. Advisory only — it
+  never drops a file or gates the verdict.
+* **Deferred-work markers** (library: ``new_markers``) — scans only the
+  *added* diff lines for ``TODO`` / ``FIXME`` / ``XXX`` / ``HACK`` /
+  ``BUG`` markers and lists each ``path:line`` so newly-shipped debt is
+  visible at submission time; pre-existing markers on context lines do
+  not register.
+
 The monitoring overlay also ships **Prometheus alerting rules**
 (``docker/monitoring/alerts.yml``); see the Docker concepts page.
 

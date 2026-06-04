@@ -52,6 +52,9 @@ from prthinker.coverage_gap import coverage_gaps, format_coverage_gap_note
 from prthinker.review_order import format_review_order_note, suggested_order
 from prthinker.risk_score import compute_risk_scores, format_risk_note
 from prthinker.impact_map import format_impact_note, impacted_files
+from prthinker.rename_map import detect_renames, format_rename_note
+from prthinker.noise_files import format_noise_note, noise_files
+from prthinker.new_markers import format_new_markers_note, new_markers
 from prthinker.inline_ignore import filter_inline_ignored
 from prthinker.repo_kg import KnowledgeGraphStore
 from prthinker.pr_labels import compute_labels
@@ -1043,10 +1046,14 @@ def _extra_sections(
     nothing to say); only the non-empty ones survive into the comment.
     """
     changed = [fr.path for fr in result.per_file]
+    diff = result.code_diff or ""
     sections = (
         _review_order_note(args, result),
         _risk_note(args, result),
+        format_rename_note(detect_renames(diff)),
+        format_noise_note(noise_files(changed)),
         format_coverage_gap_note(coverage_gaps(changed)),
+        format_new_markers_note(new_markers(diff)),
         _change_map_note(args, result),
         format_reviewer_checklist(result, files_url),
     )

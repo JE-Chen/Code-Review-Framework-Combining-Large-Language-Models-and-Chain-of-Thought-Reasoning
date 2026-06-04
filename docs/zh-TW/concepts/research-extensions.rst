@@ -538,6 +538,18 @@ sweep、GPU OOM、runner 逾時、人工 ``ask/cancel``\ ）\ ，現有之
   accessibility、secret-scan、PII。各啟用模式之輸出附於彙整摘要；未知名稱
   略過。prompt 為各模式模組內之 source of truth。
 
+* **重新命名/搬移檔案訊號**\ （library：\ ``rename_map``\ ）——直接從 diff
+  取出 ``rename from`` / ``rename to`` 配對（含 ``similarity index``\ ），
+  輸出可自我省略之「renamed or moved」提示,使純搬移不會被當成新增檔案
+  加刪除而重複審查\ 。
+* **低關注檔案訊號**\ （library：\ ``noise_files``\ ）——將變更的 lock 檔、
+  minified/generated bundle、vendored 目錄與提交之 snapshot 歸類為「safe to
+  skim」提示。僅供參考——不丟棄任何檔案,也不左右結論\ 。
+* **延遲工作標記**\ （library：\ ``new_markers``\ ）——僅掃描\ *新增*\ 之 diff
+  行中的 ``TODO`` / ``FIXME`` / ``XXX`` / ``HACK`` / ``BUG`` 標記,並列出各
+  ``path:line``\ ,使新引入之技術債在提交時即可見;context 行上的既有標記不
+  計入\ 。
+
 monitoring overlay 另附 **Prometheus alerting 規則**\ （\
 ``docker/monitoring/alerts.yml``\ ）；詳見 Docker 概念頁。
 

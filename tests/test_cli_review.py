@@ -343,5 +343,45 @@ def test_extra_sections_includes_checklist_for_error_finding():
     assert any("Reviewer checklist" in s for s in sections)
 
 
+def test_extra_sections_rename_note_from_diff():
+    diff = (
+        "diff --git a/old.py b/new.py\n"
+        "similarity index 100%\n"
+        "rename from old.py\n"
+        "rename to new.py\n"
+    )
+    result = ReviewResult(code_diff=diff, rag_docs=[], per_file=[_per_file("new.py")])
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("renamed or moved" in s for s in sections)
+
+
+def test_extra_sections_noise_note_always_on():
+    result = _result_with_files("poetry.lock")
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("low-attention file(s)" in s for s in sections)
+
+
+def test_extra_sections_new_marker_note_from_diff():
+    diff = (
+        "diff --git a/a.py b/a.py\n"
+        "--- a/a.py\n"
+        "+++ b/a.py\n"
+        "@@ -0,0 +1,1 @@\n"
+        "+# TODO: wire this up\n"
+    )
+    result = ReviewResult(code_diff=diff, rag_docs=[], per_file=[_per_file("a.py")])
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("deferred-work marker(s) added" in s for s in sections)
+
+
+def test_extra_sections_clean_diff_adds_no_new_blocks():
+    # An empty diff + handwritten file: rename/noise/marker notes self-omit.
+    result = _result_with_files("prthinker/cli.py")
+    blob = "\n".join(cli_review._extra_sections(Namespace(), result, None))
+    assert "renamed or moved" not in blob
+    assert "low-attention file(s)" not in blob
+    assert "deferred-work marker(s)" not in blob
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))
