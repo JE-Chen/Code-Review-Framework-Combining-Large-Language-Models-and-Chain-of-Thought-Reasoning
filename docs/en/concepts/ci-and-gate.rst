@@ -177,11 +177,20 @@ version, timestamp) plus a collapsible **Legend** explaining every glyph.
 
 When any error-severity findings exist, a **🚨 Must fix** list is pinned
 above everything else — the error findings as one-liners with deep links,
-so the blocking issues are unmissable without expanding a single block.
-Files that contain errors then render expanded (``<details open>``) while
-clean / warning / info files stay collapsed, and each file block surfaces
-a ``Signal:`` line tallying sandbox-verified suggestions (``✓``) and
-low-reproducibility findings (``⚠️``) so high-trust findings stand out.
+each quoting the offending source line (parsed from the diff) so the
+blocking issues are readable without expanding a single block or opening
+the Files-changed tab. Files that contain errors then render expanded
+(``<details open>``) while clean / warning / info files stay collapsed,
+and each file block surfaces a ``Signal:`` line tallying sandbox-verified
+suggestions (``✓``) and low-reproducibility findings (``⚠️``) so
+high-trust findings stand out.
+
+For a single prioritised queue across the whole PR, a collapsible
+**🔝 Top findings** list ranks every finding by severity then model
+confidence — wider than the errors-only Must-fix list and flatter than
+the file-level hotspots — so a reviewer has one "look at these first"
+order. It is skipped on small reviews where the per-file blocks already
+make the priority obvious.
 
 Each file is its own expandable ``<details>`` entry whose summary opens
 with a worst-severity status glyph (``🔴`` / ``🟡`` / ``🔵``) before the
@@ -277,6 +286,14 @@ status (``prthinker/changes-requested`` / ``review-suggested`` /
 ``clean``) — so the PR list is scannable without opening each one. Only
 labels under the ``prthinker/`` prefix are reconciled across runs;
 human-applied labels are never touched.
+
+Each inline comment body opens with a `Conventional Comments
+<https://conventionalcomments.org>`_ label derived from the finding's
+severity and category — ``🔴 issue (security):``, ``🟡 suggestion:``,
+``🔵 nitpick:`` — so a reader (and any tooling) can triage blocking from
+optional at a glance. The same shared formatter renders the body on
+every platform (GitHub, Gitea), so the label and the one-click
+suggestion block stay identical across hosts.
 
 Inline suggestions — the one-click *Apply suggestion* blocks on the
 diff — are posted as a separate PR review. The new review is submitted
