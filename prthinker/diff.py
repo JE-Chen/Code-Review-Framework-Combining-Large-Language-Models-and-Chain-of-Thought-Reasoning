@@ -200,4 +200,40 @@ def parse_unified_diff(diff_text: str) -> list[FileDiff]:
     return files
 
 
-__all__ = ["FileDiff", "parse_unified_diff"]
+def _content_from_raw(raw: str) -> dict[int, str]:
+    """Map new-side line numbers to their content within one file's diff."""
+    content: dict[int, str] = {}
+    new_line = 0
+    in_hunk = False
+    for line in raw.splitlines():
+        if line.startswith("@@"):
+            match = _HUNK_RE.match(line)
+            in_hunk = match is not None
+            if match:
+                new_line = int(match.group("new_start")) - 1
+            continue
+        if not in_hunk:
+            continue
+        if line.startswith("+") and not line.startswith("+++"):
+            new_line += 1
+            content[new_line] = line[1:]
+        elif line.startswith(" "):
+            new_line += 1
+            content[new_line] = line[1:]
+        # '-' lines are old-side deletions and do not advance the new side.
+    return content
+
+
+def new_side_content(diff_text: str) -> dict[str, dict[int, str]]:
+    """Map ``{path: {new_line_no: source_text}}`` across a unified diff.
+
+    Lets the summary quote the actual offending line next to a finding so
+    a reviewer reads it without opening the Files-changed tab. Only new-side
+    (added / context) lines are captured; removed lines have no new number.
+    """
+    return {
+        fd.path: _content_from_raw(fd.raw) for fd in parse_unified_diff(diff_text)
+    }
+
+
+__all__ = ["FileDiff", "new_side_content", "parse_unified_diff"]

@@ -930,3 +930,93 @@ def test_checklist_includes_api_drift():
 def test_checklist_empty_when_nothing_to_verify():
     fr = _file_result(path="a.py", inline_findings=[_finding(severity="info")])
     assert formatters.format_reviewer_checklist(_review(per_file=[fr])) == ""
+
+
+# --------------------------------------------------------------------------
+# Must-fix code snippet (#2)
+# --------------------------------------------------------------------------
+
+_SNIPPET_DIFF = (
+    "diff --git a/a.py b/a.py\n"
+    "--- a/a.py\n"
+    "+++ b/a.py\n"
+    "@@ -1,1 +1,2 @@\n"
+    " ctx\n"
+    "+    return user_input  # unsanitised\n"
+)
+
+
+def test_must_fix_quotes_offending_line():
+    err = _finding(path="a.py", line=2, severity="error", comment="injection")
+    fr = _file_result(path="a.py", inline_findings=[err])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr], code_diff=_SNIPPET_DIFF), _MARKER
+    )
+    assert "🚨 Must fix" in out
+    assert "↳ <code>return user_input  # unsanitised</code>" in out
+
+
+def test_must_fix_no_snippet_when_line_off_diff():
+    err = _finding(path="a.py", line=99, severity="error", comment="ghost")
+    fr = _file_result(path="a.py", inline_findings=[err])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr], code_diff=_SNIPPET_DIFF), _MARKER
+    )
+    assert "ghost" in out
+    assert "↳ <code>" not in out
+
+
+def test_must_fix_snippet_html_escaped():
+    diff = (
+        "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n"
+        "@@ -1,0 +1,1 @@\n+x = a < b & c\n"
+    )
+    err = _finding(path="a.py", line=1, severity="error", comment="cmp")
+    fr = _file_result(path="a.py", inline_findings=[err])
+    out = formatters.format_pr_comment(_review(per_file=[fr], code_diff=diff), _MARKER)
+    assert "x = a &lt; b &amp; c" in out
+
+
+# --------------------------------------------------------------------------
+# Top findings queue (#3)
+# --------------------------------------------------------------------------
+
+def test_top_findings_ranks_across_files_by_severity():
+    fr1 = _file_result(path="a.py", inline_findings=[
+        _finding(path="a.py", line=1, severity="info", comment="nit"),
+        _finding(path="a.py", line=2, severity="warning", comment="warn"),
+    ])
+    fr2 = _file_result(path="b.py", inline_findings=[
+        _finding(path="b.py", line=3, severity="error", comment="boom"),
+        _finding(path="b.py", line=4, severity="info", comment="nit2"),
+    ])
+    out = formatters.format_pr_comment(_review(per_file=[fr1, fr2]), _MARKER)
+    assert "🔝 Top 4 of 4 findings" in out
+    # Error ranks first in the queue.
+    assert out.index("boom") < out.index("warn") < out.index("nit")
+
+
+def test_top_findings_skipped_when_few():
+    fr = _file_result(path="a.py", inline_findings=[
+        _finding(path="a.py", line=1, severity="error", comment="one"),
+        _finding(path="a.py", line=2, severity="warning", comment="two"),
+    ])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "Top" not in out.split("Must fix")[0]  # no top-findings header
+    assert "🔝" not in out
+
+
+def test_top_findings_confidence_breaks_severity_ties():
+    from prthinker.schemas import Provenance
+
+    findings = [
+        _finding(path="a.py", line=1, severity="warning", comment="low-conf",
+                 provenance=Provenance(confidence=0.2)),
+        _finding(path="a.py", line=2, severity="warning", comment="high-conf",
+                 provenance=Provenance(confidence=0.9)),
+        _finding(path="a.py", line=3, severity="info", comment="i1"),
+        _finding(path="a.py", line=4, severity="info", comment="i2"),
+    ]
+    fr = _file_result(path="a.py", inline_findings=findings)
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert out.index("high-conf") < out.index("low-conf")

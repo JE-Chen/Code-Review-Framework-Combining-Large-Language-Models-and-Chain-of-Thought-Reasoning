@@ -6,7 +6,7 @@ comments on lines it will reject.
 
 from __future__ import annotations
 
-from prthinker.diff import parse_unified_diff
+from prthinker.diff import new_side_content, parse_unified_diff
 
 
 def test_empty_diff_returns_no_files() -> None:
@@ -112,3 +112,23 @@ def test_commentable_lines_matches_new_lines() -> None:
     )
     f = parse_unified_diff(diff)[0]
     assert f.commentable_lines() == f.new_lines == {1, 2, 3}
+
+
+def test_new_side_content_maps_lines_to_text() -> None:
+    diff = (
+        "diff --git a/a.py b/a.py\n"
+        "--- a/a.py\n"
+        "+++ b/a.py\n"
+        "@@ -1,2 +1,3 @@\n"
+        " context\n"
+        "-removed\n"
+        "+added one\n"
+        "+added two\n"
+    )
+    content = new_side_content(diff)
+    # New side: line 1 = context, 2 = added one, 3 = added two.
+    assert content["a.py"] == {1: "context", 2: "added one", 3: "added two"}
+
+
+def test_new_side_content_empty_diff() -> None:
+    assert new_side_content("") == {}

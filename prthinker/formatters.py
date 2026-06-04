@@ -18,6 +18,7 @@ from collections import Counter
 from collections.abc import Callable
 
 from prthinker.change_stats import ChangeStat, change_badge, compute_change_stats
+from prthinker.diff import new_side_content
 from prthinker.pipeline import FileReviewResult, ReviewResult
 from prthinker.schemas import InlineFinding
 
@@ -165,12 +166,37 @@ def _hotspots_line(result: ReviewResult, files_url: str | None = None) -> str:
 
 
 _MUST_FIX_LIMIT = 5
+_SNIPPET_CAP = 100
 
 
 def _first_line(text: str, cap: int = 120) -> str:
     """First line of a finding comment, length-capped for a one-liner."""
     head = (text or "").strip().splitlines()[0] if (text or "").strip() else ""
     return head if len(head) <= cap else head[: cap - 1] + "…"
+
+
+def _html_escape(text: str) -> str:
+    """Minimal HTML escape so a quoted source line renders verbatim."""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _finding_snippet(
+    content_map: dict[str, dict[int, str]], path: str, line: int
+) -> str:
+    """An inline ``↳ <code>…</code>`` quote of the offending source line.
+
+    Returns ``""`` when the line content is unknown (the finding is off
+    the diff hunks) or blank. HTML ``<code>`` is used rather than a
+    markdown fence so any source character renders without escaping the
+    list markup.
+    """
+    raw = (content_map.get(path) or {}).get(line)
+    if not raw or not raw.strip():
+        return ""
+    snippet = raw.strip()
+    if len(snippet) > _SNIPPET_CAP:
+        snippet = snippet[: _SNIPPET_CAP - 1] + "…"
+    return f"<br>↳ <code>{_html_escape(snippet)}</code>"
 
 
 def _format_must_fix_block(
@@ -183,10 +209,12 @@ def _format_must_fix_block(
     ]
     if not errors:
         return []
+    content_map = new_side_content(result.code_diff)
     lines = ["### 🚨 Must fix", ""]
     for finding in errors[:_MUST_FIX_LIMIT]:
         ref = _loc_ref(finding.path, finding.line, files_url)
-        lines.append(f"- 🔴 {ref} — {_first_line(finding.comment)}")
+        snippet = _finding_snippet(content_map, finding.path, finding.line)
+        lines.append(f"- 🔴 {ref} — {_first_line(finding.comment)}{snippet}")
     extra = len(errors) - _MUST_FIX_LIMIT
     if extra > 0:
         lines.append(f"- … and {extra} more error(s)")
@@ -585,6 +613,49 @@ def _format_category_groups(
     ]
 
 
+_TOP_FINDINGS_LIMIT = 10
+_TOP_FINDINGS_MIN = 4
+
+
+def _finding_confidence(finding: InlineFinding) -> float:
+    """Self-rated confidence in ``[0, 1]``, or ``-1`` when not provided."""
+    prov = finding.provenance
+    if prov is not None and prov.confidence is not None:
+        return prov.confidence
+    return -1.0
+
+
+def _format_top_findings(
+    result: ReviewResult, files_url: str | None = None
+) -> list[str]:
+    """A single cross-file queue of findings ranked by severity then confidence.
+
+    Complements the errors-only **Must fix** list and the file-level
+    hotspots with one flat, prioritised "look at these first" list across
+    every file. Collapsed, and skipped on small reviews where the per-file
+    blocks already make the priority obvious.
+    """
+    flat = [f for fr in result.per_file for f in fr.inline_findings]
+    if len(flat) < _TOP_FINDINGS_MIN:
+        return []
+    ranked = sorted(
+        flat,
+        key=lambda f: (_SEVERITY_RANK.get(f.severity, 0), _finding_confidence(f)),
+        reverse=True,
+    )
+    shown = ranked[:_TOP_FINDINGS_LIMIT]
+    rows = [
+        f"{idx}. {_SEVERITY_ICON_BY_NAME.get(f.severity, '')} "
+        f"{_loc_ref(f.path, f.line, files_url)} — {_first_line(f.comment)}"
+        for idx, f in enumerate(shown, start=1)
+    ]
+    return [
+        f"<details><summary>🔝 Top {len(shown)} of {len(flat)} findings"
+        "</summary>",
+        "", *rows, "", "</details>", "",
+    ]
+
+
 def _format_off_diff_block(
     off_diff: tuple[InlineFinding, ...], files_url: str | None = None
 ) -> list[str]:
@@ -654,6 +725,7 @@ def _per_file_head_parts(
     parts += _format_overview_block(result, opts.files_url, opts.delta, opts.gate)
     parts += _format_severity_groups(result, opts.files_url)
     parts += _format_category_groups(result, opts.files_url)
+    parts += _format_top_findings(result, opts.files_url)
     parts += _format_off_diff_block(opts.off_diff, opts.files_url)
     parts += _format_extra_sections(opts.extra_sections)
     parts.append(_per_file_header(result))

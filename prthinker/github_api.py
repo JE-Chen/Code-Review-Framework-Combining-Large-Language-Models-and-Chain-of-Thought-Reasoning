@@ -17,6 +17,7 @@ from typing import Iterable
 import httpx
 
 from prthinker.config import GitHubConfig
+from prthinker.conventional import format_inline_body
 from prthinker.schemas import InlineFinding
 
 log = logging.getLogger(__name__)
@@ -748,13 +749,6 @@ def submit_inline_review(
     return review_id
 
 
-_SEVERITY_BADGE: dict[str, str] = {
-    "error": "🔴 **error**",
-    "warning": "🟡 **warning**",
-    "info": "🔵 _info_",
-}
-
-
 def _build_inline_comment(finding: InlineFinding) -> dict[str, object]:
     """Build the JSON payload for one entry in `comments[]` of a Review.
 
@@ -774,12 +768,7 @@ def _build_inline_comment(finding: InlineFinding) -> dict[str, object]:
 
 
 def _format_inline_body(finding: InlineFinding) -> str:
-    badge = _SEVERITY_BADGE.get(finding.severity, finding.severity)
-    body = f"{badge} — {finding.comment.strip()}"
-    if finding.suggestion is not None:
-        # GitHub renders ```suggestion blocks as a one-click "Apply" button.
-        body += "\n\n```suggestion\n" + finding.suggestion.rstrip("\n") + "\n```"
-    return body
+    return format_inline_body(finding)
 
 
 __all__ = [
