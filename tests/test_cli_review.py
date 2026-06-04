@@ -386,6 +386,20 @@ def test_extra_sections_clean_diff_adds_no_new_blocks():
     assert "merge-conflict marker(s)" not in blob
     assert "file mode change(s)" not in blob
     assert "file(s) deleted" not in blob
+    assert "debug statement(s)" not in blob
+
+
+def test_extra_sections_debug_note_from_diff():
+    diff = (
+        "diff --git a/a.py b/a.py\n"
+        "--- a/a.py\n"
+        "+++ b/a.py\n"
+        "@@ -0,0 +1,1 @@\n"
+        "+    breakpoint()\n"
+    )
+    result = ReviewResult(code_diff=diff, rag_docs=[], per_file=[_per_file("a.py")])
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("debug statement(s)" in s for s in sections)
 
 
 def test_extra_sections_conflict_note_from_diff():

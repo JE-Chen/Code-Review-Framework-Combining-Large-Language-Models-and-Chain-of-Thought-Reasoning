@@ -676,6 +676,13 @@ no inference — so they run on the runner profile.
   PR removes outright so a dropped test or security guard is not lost in
   a wall of removed lines.
 
+* **Leftover debug statements** (library: ``debug_left``) — scans added
+  lines for a conservative, high-precision set of debug constructs
+  (``breakpoint()`` / ``pdb`` / ``ipdb`` ``set_trace`` / ``console.log``
+  / ``console.debug`` / ``debugger`` / ``var_dump`` / ``dd``) and lists
+  each ``path:line``. Bare ``print(`` is deliberately excluded so the
+  note stays trustworthy.
+
 The monitoring overlay also ships **Prometheus alerting rules**
 (``docker/monitoring/alerts.yml``); see the Docker concepts page.
 

@@ -568,6 +568,12 @@ sweep、GPU OOM、runner 逾時、人工 ``ask/cancel``\ ）\ ，現有之
 * **刪除檔案訊號**\ （library：\ ``deleted_files``\ ）——列出 PR 直接移除之
   檔案,使被刪之測試或安全防護不致淹沒於大量刪除行中\ 。
 
+* **殘留 debug 敘述**\ （library：\ ``debug_left``\ ）——掃描新增行中一組
+  保守且高精度之 debug 構造（\ ``breakpoint()`` / ``pdb`` / ``ipdb``
+  ``set_trace`` / ``console.log`` / ``console.debug`` / ``debugger`` /
+  ``var_dump`` / ``dd``\ ）,並列出各 ``path:line``\ 。刻意排除裸 ``print(``
+  以維持此提示之可信度\ 。
+
 monitoring overlay 另附 **Prometheus alerting 規則**\ （\
 ``docker/monitoring/alerts.yml``\ ）；詳見 Docker 概念頁。
 
