@@ -192,6 +192,13 @@ the file-level hotspots — so a reviewer has one "look at these first"
 order. It is skipped on small reviews where the per-file blocks already
 make the priority obvious.
 
+With ``--walkthrough`` each file block is led by a **📝 Walkthrough** — a
+short model-written narrative of what that file's change does and why,
+pinned above the review summary because it is orientation (what the
+change *is*) read before the assessment (what is *wrong* with it). It is
+the inference-backed counterpart to the model-free, commit-message PR
+overview, and describes only — it never reviews.
+
 Each file is its own expandable ``<details>`` entry whose summary opens
 with a worst-severity status glyph (``🔴`` / ``🟡`` / ``🔵``) before the
 file name, so the whole review is one scannable menu of files. The

@@ -89,6 +89,15 @@ Research-grade flags (opt-in, ``--inline-review`` required):
    are silently dropped; a bad citation never drops a real finding.
    Env: ``PRTHINKER_PROVENANCE``.
 
+.. option:: --walkthrough
+
+   Add a per-file ``WalkthroughStep`` that writes a short two-to-four
+   sentence narrative of what the file's change does and why, pinned to
+   the top of that file's block — the inference-backed counterpart to the
+   model-free commit-message PR overview. It only describes the change
+   (no review or criticism), depends on nothing but the diff, and so runs
+   with or without ``--inline-review``. Env: ``PRTHINKER_WALKTHROUGH``.
+
 .. option:: --judge
 
    Per-file self-assessment step that emits an ``approve`` /

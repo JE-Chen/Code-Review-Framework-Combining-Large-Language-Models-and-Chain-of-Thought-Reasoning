@@ -83,6 +83,14 @@ review-pr
    越界之引用會被靜默丟棄\ ；壞引用絕不拖垮真評論\ 。環境變數：
    ``PRTHINKER_PROVENANCE``\ 。
 
+.. option:: --walkthrough
+
+   新增一個每檔 ``WalkthroughStep``\ ，就該檔變更寫出二至四句\
+   「\ 做了什麼、為何\ 」\ 之敘事\ ，釘於該檔區塊最上方──為無推論之
+   commit-message PR 概覽之推論側對應物\ 。它只描述（不評斷）\ ，只依賴
+   diff\ ，故開不開 ``--inline-review`` 皆可執行\ 。環境變數：
+   ``PRTHINKER_WALKTHROUGH``\ 。
+
 .. option:: --judge
 
    每檔自評步驟\ ，輸出 ``approve`` / ``request_changes`` / ``comment``
