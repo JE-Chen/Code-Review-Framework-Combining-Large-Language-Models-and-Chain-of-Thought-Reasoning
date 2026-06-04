@@ -17,13 +17,12 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from prthinker.diff import parse_unified_diff
+from prthinker.diff import iter_added_lines, parse_unified_diff
 
 _MARKER_LIMIT = 15
 _TEXT_CAP = 80
 _MARKER_TOKENS = ("TODO", "FIXME", "XXX", "HACK", "BUG")
 _MARKER_RE = re.compile(r"\b(" + "|".join(_MARKER_TOKENS) + r")\b")
-_HUNK_RE = re.compile(r"@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 
 
 @dataclass(frozen=True)
@@ -34,27 +33,6 @@ class Marker:
     line: int
     kind: str
     text: str
-
-
-def _added_lines(raw: str) -> list[tuple[int, str]]:
-    """Yield ``(new_line_no, content)`` for added lines in one file's diff."""
-    out: list[tuple[int, str]] = []
-    new_line = 0
-    in_hunk = False
-    for line in raw.splitlines():
-        match = _HUNK_RE.match(line)
-        if match:
-            in_hunk = True
-            new_line = int(match.group(1)) - 1
-            continue
-        if not in_hunk:
-            continue
-        if line.startswith("+") and not line.startswith("+++"):
-            new_line += 1
-            out.append((new_line, line[1:]))
-        elif line.startswith(" "):
-            new_line += 1
-    return out
 
 
 def _marker_for_line(path: str, line_no: int, content: str) -> Marker | None:
@@ -74,7 +52,7 @@ def new_markers(diff_text: str) -> list[Marker]:
     """Return every deferred-work marker added on a new-side line."""
     found: list[Marker] = []
     for file_diff in parse_unified_diff(diff_text):
-        for line_no, content in _added_lines(file_diff.raw):
+        for line_no, content in iter_added_lines(file_diff.raw):
             marker = _marker_for_line(file_diff.path, line_no, content)
             if marker is not None:
                 found.append(marker)

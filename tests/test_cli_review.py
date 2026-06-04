@@ -383,6 +383,47 @@ def test_extra_sections_clean_diff_adds_no_new_blocks():
     assert "deferred-work marker(s)" not in blob
     assert "formatting only" not in blob
     assert "binary file(s) changed" not in blob
+    assert "merge-conflict marker(s)" not in blob
+    assert "file mode change(s)" not in blob
+    assert "file(s) deleted" not in blob
+
+
+def test_extra_sections_conflict_note_from_diff():
+    diff = (
+        "diff --git a/a.py b/a.py\n"
+        "--- a/a.py\n"
+        "+++ b/a.py\n"
+        "@@ -0,0 +1,1 @@\n"
+        "+<<<<<<< HEAD\n"
+    )
+    result = ReviewResult(code_diff=diff, rag_docs=[], per_file=[_per_file("a.py")])
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("merge-conflict marker(s)" in s for s in sections)
+
+
+def test_extra_sections_mode_note_from_diff():
+    diff = "diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n"
+    result = ReviewResult(
+        code_diff=diff, rag_docs=[], per_file=[_per_file("run.sh")]
+    )
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("file mode change(s)" in s for s in sections)
+
+
+def test_extra_sections_deleted_note_from_diff():
+    diff = (
+        "diff --git a/old.py b/old.py\n"
+        "deleted file mode 100644\n"
+        "--- a/old.py\n"
+        "+++ /dev/null\n"
+        "@@ -1 +0,0 @@\n"
+        "-x = 1\n"
+    )
+    result = ReviewResult(
+        code_diff=diff, rag_docs=[], per_file=[_per_file("old.py")]
+    )
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("file(s) deleted" in s for s in sections)
 
 
 def test_extra_sections_whitespace_note_from_diff():

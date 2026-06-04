@@ -558,6 +558,16 @@ sweep、GPU OOM、runner 逾時、人工 ``ask/cancel``\ ）\ ，現有之
   二進位檔案（無文字 hunk 可讀）,使審查者在他處檢視 rendered asset 與其
   provenance,而非默默放行不透明 blob\ 。
 
+* **殘留衝突標記**\ （library：\ ``merge_markers``\ ）——掃描新增 diff 行中之
+  ``<<<<<<<`` / ``>>>>>>>`` / diff3 ``|||||||`` 標記（忽略 ``=======``
+  分隔線以避免 RST/Markdown 底線誤判）,並以警示開頭,因殘留標記幾乎必為
+  失敗之衝突解決\ 。
+* **檔案 mode 變更**\ （library：\ ``mode_changes``\ ）——擷取 ``old mode`` /
+  ``new mode`` 轉換,並標記新獲得執行位元（\ ``644`` → ``755``\ ）之檔案,
+  此可改變 CI 或 deploy 所執行之內容\ 。
+* **刪除檔案訊號**\ （library：\ ``deleted_files``\ ）——列出 PR 直接移除之
+  檔案,使被刪之測試或安全防護不致淹沒於大量刪除行中\ 。
+
 monitoring overlay 另附 **Prometheus alerting 規則**\ （\
 ``docker/monitoring/alerts.yml``\ ）；詳見 Docker 概念頁。
 

@@ -663,6 +663,19 @@ no inference — so they run on the runner profile.
   reviewer inspects the rendered asset and its provenance out of band
   rather than silently waving an opaque blob through.
 
+* **Leftover conflict markers** (library: ``merge_markers``) — scans the
+  added diff lines for ``<<<<<<<`` / ``>>>>>>>`` / diff3 ``|||||||``
+  markers (the ``=======`` separator is ignored to avoid RST/Markdown
+  underline false positives) and leads with a warning, since a leftover
+  marker is almost always a botched conflict resolution.
+* **File-mode changes** (library: ``mode_changes``) — extracts ``old
+  mode`` / ``new mode`` transitions and flags a file that newly gains the
+  execute bit (``644`` → ``755``), which can change what CI or a deploy
+  runs.
+* **Deleted-file signal** (library: ``deleted_files``) — lists files the
+  PR removes outright so a dropped test or security guard is not lost in
+  a wall of removed lines.
+
 The monitoring overlay also ships **Prometheus alerting rules**
 (``docker/monitoring/alerts.yml``); see the Docker concepts page.
 

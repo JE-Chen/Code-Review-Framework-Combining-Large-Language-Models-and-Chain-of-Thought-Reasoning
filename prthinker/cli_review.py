@@ -60,6 +60,9 @@ from prthinker.whitespace_only import (
     whitespace_only_files,
 )
 from prthinker.binary_changes import binary_changed_files, format_binary_note
+from prthinker.merge_markers import find_conflict_markers, format_conflict_note
+from prthinker.mode_changes import detect_mode_changes, format_mode_note
+from prthinker.deleted_files import deleted_files, format_deleted_note
 from prthinker.inline_ignore import filter_inline_ignored
 from prthinker.repo_kg import KnowledgeGraphStore
 from prthinker.pr_labels import compute_labels
@@ -1053,9 +1056,12 @@ def _extra_sections(
     changed = [fr.path for fr in result.per_file]
     diff = result.code_diff or ""
     sections = (
+        format_conflict_note(find_conflict_markers(diff)),
         _review_order_note(args, result),
         _risk_note(args, result),
         format_rename_note(detect_renames(diff)),
+        format_deleted_note(deleted_files(diff)),
+        format_mode_note(detect_mode_changes(diff)),
         format_noise_note(noise_files(changed)),
         format_whitespace_note(whitespace_only_files(diff)),
         format_binary_note(binary_changed_files(diff)),
