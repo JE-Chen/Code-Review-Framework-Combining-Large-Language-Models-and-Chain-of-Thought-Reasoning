@@ -188,7 +188,9 @@ with a worst-severity status glyph (``🔴`` / ``🟡`` / ``🔵``) before the
 file name, so the whole review is one scannable menu of files. The
 per-file blocks are ordered most-severe first (files with errors, then
 warnings, then info, ties broken by finding count), each badged with
-severity icons (``🔴2 🟡1``) instead of a bare count. With
+severity icons (``🔴2 🟡1``) instead of a bare count, and with a change
+size badge (``+12 −3 · 2 hunks``, parsed straight from the diff) so the
+menu shows *how big* each change is before it is expanded. With
 ``--findings-only`` (on by default in CI) files with no findings are
 skipped rather than listed. ``--summary-table``
 (env ``PRTHINKER_SUMMARY_TABLE``) swaps the collapsible blocks for one
@@ -197,6 +199,30 @@ PR has many findings. On GitHub every
 file name — in the hotspots line and the block headers — is a deep link
 straight to that file's first finding in the Files-changed tab (set
 ``PRTHINKER_PR_FILES_URL`` for GitHub Enterprise hosts).
+
+Between the index blocks and the per-file detail sit a set of optional
+*orientation* blocks, each best-effort and self-omitting (rendered only
+when it has something to say):
+
+* A **Suggested review order** note (``--review-order``) ranks the
+  changed files most-depended-upon first, using the repo knowledge
+  graph's import edges, and marks the most foundational file "start
+  here" — so the reviewer reads base changes before their call sites.
+* A **high-risk files** note (``--risk-weighted``) surfaces the per-file
+  risk score the budget allocator already computes (churn + complexity +
+  bug history) so the reviewer knows which files history says are most
+  fragile, independent of whether this PR raised a finding on them.
+* A **🧪 changed without a matching test change** block lists production
+  ``.py`` files whose same-named test was not also touched — a cheap,
+  deterministic hint (no model call), always on and never a gate, since
+  a docs-only or pure-refactor change legitimately needs no test.
+* A **🗺️ Change map** (``--change-map``) embeds a small Mermaid graph of
+  the import edges between the changed files, so the shape of the change
+  is visible inline.
+* A **✅ Reviewer checklist** gathers the items a one-click suggestion
+  cannot close on its own — unverified error fixes, low-reproducibility
+  findings, and cross-language API drift — as ``- [ ]`` boxes, giving
+  the reviewer an explicit gate list instead of re-deriving it.
 
 With ``--review-delta`` (env ``PRTHINKER_REVIEW_DELTA``) the digest adds a
 ``Since last review: +2 new · 3 resolved · 5 carried`` line. Findings are

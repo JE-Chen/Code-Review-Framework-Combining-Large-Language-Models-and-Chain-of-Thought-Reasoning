@@ -175,12 +175,32 @@ error finding 以單行加深層連結列出，讓阻擋性問題不必展開任
 圖示（``🔴`` / ``🟡`` / ``🔵``）開頭，讓整份審查成為一份可掃描的檔案選單。
 逐檔區塊會\ **依嚴重度排序**\ （有 error 的檔案在前，再來 warning、info，
 同級再比 finding 數），每個檔案的徽章改用嚴重度圖示（``🔴2 🟡1``）而非單純
-數字。加上 ``--findings-only``\ （CI 預設開啟）時，沒有 finding 的檔案會被
-跳過而不列出。``--summary-table``\ （環境變數 ``PRTHINKER_SUMMARY_TABLE``）會把收合
-區塊換成一個緊湊的 ``severity | location | finding`` 表格──finding 很多時
-更快掃。在 GitHub 上，每個檔名──熱點列與區塊標頭──都是\ **深層連結**\ ，
-直接跳到該檔在 Files-changed 分頁的第一個 finding（GitHub Enterprise 主機
-請設定 ``PRTHINKER_PR_FILES_URL``）。
+數字，並附上變更規模徽章（``+12 −3 · 2 hunks``\ ，直接從 diff 解析），讓選單
+在展開前就顯示每個變更\ *有多大*\ 。加上 ``--findings-only``\ （CI 預設開啟）時，
+沒有 finding 的檔案會被跳過而不列出。``--summary-table``\ （環境變數
+``PRTHINKER_SUMMARY_TABLE``）會把收合區塊換成一個緊湊的
+``severity | location | finding`` 表格──finding 很多時更快掃。在 GitHub 上，
+每個檔名──熱點列與區塊標頭──都是\ **深層連結**\ ，直接跳到該檔在
+Files-changed 分頁的第一個 finding（GitHub Enterprise 主機請設定
+``PRTHINKER_PR_FILES_URL``）。
+
+在索引區塊與逐檔細節之間，會放一組可選的\ *定位*\ 區塊，每個都是 best-effort、
+會自我省略（只有有話可說時才呈現）：
+
+* 一個 **Suggested review order** 註記（``--review-order``）用 repo knowledge
+  graph 的 import 邊把變更檔案按\ 「\ 被最多其他變更檔案依賴\ 」\ 排前面，最地基
+  的檔案標上\ 「\ start here\ 」\ ──讓審查者先讀基礎變更再讀其呼叫端。
+* 一個 **high-risk files** 註記（``--risk-weighted``）把預算分配器本來就算出的
+  每檔風險分（churn＋複雜度＋bug 歷史）秀出來，讓審查者知道歷史上哪些檔案最
+  脆弱──不論本次 PR 是否在它們上面提出 finding。
+* 一個 **🧪 changed without a matching test change** 區塊，列出同名測試未一併
+  變更的 production ``.py`` 檔──一個便宜、確定性的提示（不需推論），永遠開啟
+  且永不作為 gate，因為 docs-only 或純重構的變更本來就不需要動測試。
+* 一個 **🗺️ Change map**\ （``--change-map``\ ）在留言內嵌一張小的 Mermaid 圖，
+  畫出變更檔案之間的 import 邊，讓改動的結構一眼可見。
+* 一個 **✅ Reviewer checklist** 收集一鍵 suggestion 無法自行了結的項目──未驗證
+  的 error 修正、低再現性 finding、跨語言 API drift──以 ``- [ ]`` 方框呈現，給
+  審查者一份明確的把關清單，而不必自己重新推導。
 
 加上 ``--review-delta``\ （環境變數 ``PRTHINKER_REVIEW_DELTA``）時，摘要會多一行
 ``Since last review: +2 new · 3 resolved · 5 carried``\ 。finding 以
