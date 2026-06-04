@@ -1102,7 +1102,7 @@ def _format_api_drift_block(drift: "list") -> list[str]:
 
 
 _FILE_RESERVED_STEPS: frozenset[str] = frozenset(
-    {"total_summary", "inline_findings", "counterfactual"}
+    {"total_summary", "inline_findings", "counterfactual", "walkthrough"}
 )
 
 
@@ -1213,6 +1213,19 @@ def _change_badge_suffix(
     return f" ({badge})" if badge else ""
 
 
+def _format_walkthrough_block(fr: FileReviewResult) -> list[str]:
+    """Render the model-written 'what this change does' lead, when present.
+
+    Pinned above the review **Summary** because it is orientation (what
+    the change *is*) that the reviewer reads before the assessment (what
+    is *wrong* with it). Rendered only when the ``--walkthrough`` step ran.
+    """
+    text = (fr.step_outputs.get("walkthrough") or "").strip()
+    if not text:
+        return []
+    return ["**📝 Walkthrough**", "", text, ""]
+
+
 def _format_file_block(
     fr: FileReviewResult,
     files_url: str | None = None,
@@ -1237,6 +1250,7 @@ def _format_file_block(
     signal = _signal_note(fr.inline_findings)
     if signal:
         block += [signal, ""]
+    block += _format_walkthrough_block(fr)
     block += ["**Summary**", "", summary.strip(), ""]
     block += _format_finding_annotations(fr.inline_findings)
     block += _format_file_step_details(fr)

@@ -1020,3 +1020,37 @@ def test_top_findings_confidence_breaks_severity_ties():
     fr = _file_result(path="a.py", inline_findings=findings)
     out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
     assert out.index("high-conf") < out.index("low-conf")
+
+
+# --------------------------------------------------------------------------
+# Walkthrough block (#4)
+# --------------------------------------------------------------------------
+
+def test_walkthrough_rendered_above_summary():
+    fr = _file_result(
+        path="a.py",
+        inline_findings=[_finding(path="a.py")],
+        step_outputs={"walkthrough": "Adds a guard clause.", "total_summary": "ok"},
+    )
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "**📝 Walkthrough**" in out
+    assert "Adds a guard clause." in out
+    # Orientation precedes the review summary inside the file block.
+    assert out.index("Walkthrough") < out.index("**Summary**")
+
+
+def test_walkthrough_not_rendered_as_generic_step_detail():
+    fr = _file_result(
+        path="a.py",
+        inline_findings=[_finding(path="a.py")],
+        step_outputs={"walkthrough": "narrative"},
+    )
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    # Reserved: must not show up as a "Walkthrough" collapsible step block.
+    assert "<details><summary>Walkthrough</summary>" not in out
+
+
+def test_walkthrough_absent_when_step_did_not_run():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "📝 Walkthrough" not in out

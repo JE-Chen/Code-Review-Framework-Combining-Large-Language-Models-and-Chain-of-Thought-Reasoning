@@ -495,6 +495,7 @@ def _collect_core_kwargs(args: argparse.Namespace) -> dict:
         "judge": bool(getattr(args, "judge", False)),
         "self_correct": bool(getattr(args, "self_correct", False)),
         "counterfactual": bool(getattr(args, "counterfactual", False)),
+        "walkthrough": bool(getattr(args, "walkthrough", False)),
         "provenance": bool(getattr(args, "provenance", False)),
         "max_findings_per_file": args.max_findings_per_file,
     }

@@ -384,6 +384,17 @@ def _add_dialogue_feature_args(common: argparse.ArgumentParser) -> None:
             "PR comment. Requires --inline-review."
         ),
     )
+    common.add_argument(
+        "--walkthrough",
+        action="store_true",
+        default=env_bool("PRTHINKER_WALKTHROUGH", False),
+        help=(
+            "Generate a short model-written narrative of what each file "
+            "change does and why, pinned to the top of that file's block — "
+            "the inference-backed counterpart to the commit-message PR "
+            "overview. Independent of --inline-review."
+        ),
+    )
 
 
 def _add_kg_lessons_args(common: argparse.ArgumentParser) -> None:
