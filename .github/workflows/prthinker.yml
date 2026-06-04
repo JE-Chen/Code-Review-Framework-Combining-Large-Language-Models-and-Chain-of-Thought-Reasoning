@@ -451,7 +451,7 @@ jobs:
             prthinker-state-pr-${{ github.event.pull_request.number }}-
 
       - name: Download all partial review artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: ${{ runner.temp }}/partials
           pattern: partial-*
