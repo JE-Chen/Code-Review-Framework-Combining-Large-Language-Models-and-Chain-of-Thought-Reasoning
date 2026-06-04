@@ -129,7 +129,11 @@ informed it — and an optional self-rated ``confidence`` in ``[0, 1]``:
 
 The PR comment then carries a small *Audit trail* section under each
 file showing those citations, so reviewers can interrogate the model
-rather than guess. Safety guarantees baked into the parser:
+rather than guess. Every finding the provenance step ran for is listed:
+one that produced no citation is flagged as resting on *model judgement
+(no external citation)* rather than dropped from the trail, so a finding
+is never silently hidden just because its support came back empty.
+Safety guarantees baked into the parser:
 
 * A malformed ``provenance`` block never drops the underlying finding
   (citations are an audit aid, not a correctness gate).

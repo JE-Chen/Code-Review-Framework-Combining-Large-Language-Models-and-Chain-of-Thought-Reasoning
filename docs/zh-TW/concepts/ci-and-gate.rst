@@ -149,13 +149,21 @@ diff 本身看不到的波及面。比對是啟發式（模組名 vs import targ
 每份逐檔總結最上方都有一個 **Review at a glance** 摘要──白話的狀態
 （🔴 changes requested／🟡 review suggested／🔵 minor notes／✅ looks good）、
 依嚴重度分類的 finding 數量、已審查／有 finding／乾淨的檔案分佈，以及
-finding 最多的\ *熱點*\ 檔案。有開 gate 時還會顯示一行 **Gate**\ （✅ pass /
-❌ failure 與 error/warning 數）。它固定在會被原地更新的 part-1 留言最上方，
-所以每次重新審查都會原地改寫，永遠反映最新一次的結果。
+finding 最多的\ *熱點*\ 檔案。當任何 finding 附帶一鍵 ``suggestion`` 時，摘要
+會在一行 **Suggestions** 統計它們的數量（跑過 ``--verify-suggestions`` 時還會
+標出沙箱驗證過的數量）；另有一行 **Review effort** 給出粗略的 ``~N min`` 估計
+（依檔案數與 finding 嚴重度加權）以及有幾個檔案需要注意，讓人不必展開任何
+區塊就能掌握工作量。有開 gate 時還會顯示一行 **Gate**\ （✅ pass / ❌ failure
+與 error／warning／info 數）；結算為 failure 時，這行會連結第一個觸發 floor 的
+finding 作為\ *第一個阻擋點*\ ，讓原因一鍵可達。此摘要固定在會被原地更新的
+part-1 留言最上方，所以每次重新審查都會原地改寫，永遠反映最新一次的結果。
 
-摘要下方有一個可展開的 **By severity** 索引，依最嚴重度把檔案分組；每則留言
-結尾則有中繼資料 footer（commit、後端/模型、檔案覆蓋、prthinker 版本、時間戳）
-以及一個可展開的 **Legend** 解釋所有圖示。
+摘要下方有一個可展開的 **By severity** 索引，依最嚴重度把檔案分組。當 finding
+帶有 ``category``\ （security／correctness／performance／design／test／docs／
+style／other）時，旁邊還會有一個可展開的 **By category** 索引，依主題把 finding
+分組，讓審查者一次只處理一類關注點；沒有任何 finding 被分類時則整段省略。每則
+留言結尾則有中繼資料 footer（commit、後端/模型、檔案覆蓋、prthinker 版本、
+時間戳）以及一個可展開的 **Legend** 解釋所有圖示。
 
 當存在 error 嚴重度的 finding 時，最上方會釘一個 **🚨 Must fix** 清單──把
 error finding 以單行加深層連結列出，讓阻擋性問題不必展開任何區塊就看得到。
@@ -179,13 +187,18 @@ error finding 以單行加深層連結列出，讓阻擋性問題不必展開任
 ``(path, severity, comment)`` 取指紋──而非會隨 push 位移的行號──並把這組
 指紋持久化在 CI 本來就會跨 push 還原的 per-PR 狀態（``--delta-state``\ ，預設
 ``.prthinker/pr-state/findings-fp.json``）裡，因此重推時一眼就能看到進展。
-同一行在作者於上次審查後有回覆時會接上 ``💬 N author reply(ies)``\ ；消失的
-finding 則以刪除線列在最上方收合的 **✅ Resolved since last review** 區塊──
-讓作者有成就感、審查者清楚看到哪些已處理。
+同一行在作者於上次審查後有回覆時會接上 ``💬 N author reply(ies)``\ 。接著由
+兩個收合清單把差異具體呈現：本次 run 才首度出現的 finding 會收進一個
+**🆕 New since last review** 區塊，消失的 finding 則以刪除線列在 **✅ Resolved
+since last review** 區塊──讓重新審查只需讀新增的條目、作者有成就感、審查者
+清楚看到哪些已處理。
 
 完整的逐檔審查可能達數百 KB，遠超過 GitHub 單則留言 65 536 字元的上限。
-與其截斷，總結會\ **切分成多則留言**\ ：只在整個檔案區塊之間切（絕不切在
-區塊中間），第一則之後的每一則都帶有 ``Part k/N`` 標記。跨多次 push 時，
+與其截斷，總結會\ **切分成多則留言**\ ：在整個檔案區塊之間切，第一則之後的
+每一則都帶有 ``Part k/N`` 標記。單一檔案區塊若本身就超過一頁，會在它的巢狀
+子區塊邊界切分──每一片都是自我閉合、可獨立成立的 ``<details>``\ ，所以標記
+不會跨留言斷裂，續接的片段會標上 ``(continued)``\ ──而不是被單則留言上限
+截斷。跨多次 push 時，
 這些分頁會以 marker 對齊\ ──既有留言原地更新、不足的分頁新增、上一輪較長
 留言殘留的多餘分頁刪除，殘缺的舊分頁不會留下。GitHub 以外的平台則退回
 單則留言（溢出的內容留在 job log 裡）。
@@ -216,6 +229,12 @@ review 貼出。新的 review 會\ **先**\ 送出，之後才移除上一輪的
 而且移除時會排除剛剛送出的 review。先貼再移除代表：當送出被拒（只要有任何
 一則留言指到 diff hunk 範圍外的行，GitHub 會 422 拒絕\ *整個*\ review）時，
 上一輪的建議仍會保留，而不是在失敗的重貼之前就被清掉。
+
+行落在 diff hunk 範圍外的 finding 無法 inline 貼出，否則就會憑空消失。為了讓
+總結誠實，這些 finding 會收進一個收合的 **⚠️ Outside the diff** 區塊，逐一列出
+（位置＋留言）：inline finding 的數量已經說明\ *丟了幾個*\ ，而這個區塊說明\
+*是哪些*\ ，讓審查者仍能手動處理。當每個 finding 都落在 diff 上時，這個區塊
+會省略。
 
 加上 ``--check-annotations``\ （環境變數 ``PRTHINKER_CHECK_ANNOTATIONS``）時，
 gate 的 Check Run 還會帶逐行標註（每個 finding 一筆，依嚴重度為

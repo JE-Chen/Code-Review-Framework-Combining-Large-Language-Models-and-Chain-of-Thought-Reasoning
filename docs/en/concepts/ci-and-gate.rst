@@ -153,15 +153,27 @@ Every per-file summary opens with a **Review at a glance** digest — a
 plain-language status (🔴 changes requested / 🟡 review suggested /
 🔵 minor notes / ✅ looks good), the finding counts by severity, the
 reviewed / with-findings / clean file split, and the *hotspot* files
-that carry the most findings. When gating is on it also shows a **Gate**
-line (✅ pass / ❌ failure with the error/warning counts). It is pinned to
-the top of the upserted part-1 comment, so it is rewritten in place on
-every re-review and always reflects the latest run.
+that carry the most findings. When any finding ships a one-click
+``suggestion`` the digest tallies them on a **Suggestions** line (with
+the sandbox-verified count when ``--verify-suggestions`` ran), and a
+**Review effort** line gives a rough ``~N min`` estimate — weighted by
+file count and finding severity — plus how many files need attention, so
+the size of the job is visible before a single block is opened. When
+gating is on it also shows a **Gate** line (✅ pass / ❌ failure with the
+error / warning / info counts); on a failure the line links the first
+finding that trips the floor as the *first blocker*, so the cause is one
+click away. The digest is pinned to the top of the upserted part-1
+comment, so it is rewritten in place on every re-review and always
+reflects the latest run.
 
 Below the digest a collapsible **By severity** index groups the files by
-their worst severity, and every comment closes with a metadata footer
-(commit, backend/model, file coverage, prthinker version, timestamp) plus
-a collapsible **Legend** explaining every glyph.
+their worst severity. When findings carry a ``category`` (security /
+correctness / performance / design / test / docs / style / other), a
+collapsible **By category** index sits beside it, grouping findings by
+theme so a reviewer can triage one concern at a time; it is omitted
+entirely when nothing is categorised. Every comment closes with a
+metadata footer (commit, backend/model, file coverage, prthinker
+version, timestamp) plus a collapsible **Legend** explaining every glyph.
 
 When any error-severity findings exist, a **🚨 Must fix** list is pinned
 above everything else — the error findings as one-liners with deep links,
@@ -193,16 +205,22 @@ shifts between pushes — and the set is persisted in the per-PR state
 (``--delta-state``, default ``.prthinker/pr-state/findings-fp.json``) that
 CI already restores across pushes, so a re-push shows progress at a
 glance. The same line appends ``💬 N author reply(ies)`` when the author
-has responded since the last review, and the findings that disappeared
-are listed struck-through in a collapsed **✅ Resolved since last review**
-block at the top — so authors get credit and reviewers see exactly what
-was addressed.
+has responded since the last review. Two collapsed lists then make the
+delta concrete: the findings that first appeared this run are gathered
+in a **🆕 New since last review** block, and the ones that disappeared
+are listed struck-through in a **✅ Resolved since last review** block —
+so a re-review only needs the new entries read, authors get credit, and
+reviewers see exactly what was addressed.
 
 A full per-file review can run to hundreds of KB — far past GitHub's
 65 536-character limit on a single comment. Rather than truncate, the
 summary is **paginated across multiple comments**: it is split between
-whole file blocks (never inside one), and every page after the first
-carries a ``Part k/N`` label. Across re-pushes the pages are reconciled
+whole file blocks, and every page after the first carries a ``Part k/N``
+label. A single file block that alone exceeds a page is itself split at
+its nested-sub-block boundaries — each piece a self-contained,
+independently-closed ``<details>`` so the markup never breaks across a
+comment, and the continued pieces are tagged ``(continued)`` — instead
+of being truncated by the per-comment cap. Across re-pushes the pages are reconciled
 by marker — existing comments are updated in place, extra pages are
 created, and any leftover pages from a longer previous run are deleted,
 so stale parts never linger. Platforms other than GitHub fall back to a
@@ -242,6 +260,14 @@ means a rejected submission (GitHub 422s the *whole* review if any
 single comment targets a line outside the diff hunks) leaves the prior
 run's suggestions intact instead of wiping them ahead of a failed
 re-post.
+
+A finding whose line falls outside the diff hunks cannot be posted
+inline, so it would otherwise vanish. To keep the summary honest, those
+findings are gathered in a collapsed **⚠️ Outside the diff** block that
+lists each one (location + comment): the inline-findings counts already
+say *how many* were dropped, and this block says *which*, so a reviewer
+can still act on them by hand. The block is omitted when every finding
+lands on the diff.
 
 With ``--check-annotations`` (env ``PRTHINKER_CHECK_ANNOTATIONS``) the
 gate's Check Run also carries per-line annotations (one per finding,
