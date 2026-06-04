@@ -55,7 +55,7 @@ jobs:
 
       - name: Restore prthinker state cache
         id: state-restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
@@ -237,7 +237,7 @@ jobs:
       # remembers, the CoT pipeline short-circuits before any GPU
       # work. Only the aggregate job writes back to this key.
       - name: Restore prthinker state cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
@@ -398,7 +398,7 @@ jobs:
 
       - name: Save shard state checkpoint
         if: success() && steps.shard-state.outputs.updated == 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-shard-${{ strategy.job-index }}
@@ -443,7 +443,7 @@ jobs:
       # known baseline (defends against half-written state from a run
       # that died mid-aggregate).
       - name: Restore prthinker state cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
@@ -703,7 +703,7 @@ jobs:
 
       - name: Save prthinker state cache
         if: always() && steps.write-state.outcome == 'success'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
