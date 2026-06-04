@@ -286,6 +286,12 @@ review on the diff and the merge gate still see every finding.
 the floor; findings without a confidence score are kept (drop nothing on
 unknown). Also display-only.
 
+Because both of these silently shrink the digest counts (a reader would
+otherwise see ``🔵 0 info`` and conclude there were none), the digest
+gains a **Filtered from view** line — ``2 info · 1 low-confidence
+hidden`` — counted on the unfiltered result, so the summary never hides
+how much it is hiding (the no-silent-caps rule).
+
 With ``--pr-labels`` (env ``PRTHINKER_PR_LABELS``) the reviewer also
 applies two managed labels to the PR — a size bucket
 (``prthinker/size-xs`` … ``size-xl``, by reviewed file count) and a

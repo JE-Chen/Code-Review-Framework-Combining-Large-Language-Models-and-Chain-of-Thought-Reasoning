@@ -249,6 +249,11 @@ review 與合併 gate 仍會看到所有 finding。
 0–1 浮點數）會進一步把模型信心低於門檻的 finding 從總結中丟掉；沒有信心
 分數的 finding 一律保留（未知不丟）。同樣只影響顯示。
 
+由於這兩者會悄悄縮小摘要計數（否則讀者會看到 ``🔵 0 info`` 而誤以為本來就
+沒有），摘要會多一行 **Filtered from view**\ ──``2 info · 1 low-confidence
+hidden``\ ──以\ *未過濾*\ 的結果計算，使摘要永不隱藏它隱藏了多少
+（no-silent-caps 原則）。
+
 加上 ``--pr-labels``\ （環境變數 ``PRTHINKER_PR_LABELS``）時，reviewer 還會
 在 PR 上貼兩個受管理的標籤──規模（``prthinker/size-xs`` … ``size-xl``\ ，
 依審查檔案數）與狀態（``prthinker/changes-requested`` / ``review-suggested``
