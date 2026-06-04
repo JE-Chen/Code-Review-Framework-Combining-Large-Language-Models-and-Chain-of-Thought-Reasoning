@@ -48,7 +48,7 @@ jobs:
       # Checkout first so its working-tree clean does not wipe the
       # restored .prthinker/ state cache that follows.
       - name: Check out PR head
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
@@ -213,7 +213,7 @@ jobs:
         file: ${{ fromJSON(needs.enumerate.outputs.files) }}
     steps:
       - name: Check out PR head
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
@@ -422,7 +422,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out PR head
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
