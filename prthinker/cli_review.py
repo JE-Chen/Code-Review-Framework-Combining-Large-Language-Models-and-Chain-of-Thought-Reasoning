@@ -38,14 +38,19 @@ from prthinker.api_surface import compute_api_surface
 from prthinker.confidence import filter_by_confidence
 from prthinker.diff import parse_unified_diff
 from prthinker.finding_dedup import dedupe_findings
+from prthinker.change_map import change_map_edges, format_change_map_mermaid
 from prthinker.formatters import (
     first_finding_ref,
     format_digest,
     format_pr_comment,
     format_pr_comment_pages,
     format_review_footer,
+    format_reviewer_checklist,
 )
 from prthinker.github_api import count_findings_on_diff, findings_off_diff
+from prthinker.coverage_gap import coverage_gaps, format_coverage_gap_note
+from prthinker.review_order import format_review_order_note, suggested_order
+from prthinker.risk_score import compute_risk_scores, format_risk_note
 from prthinker.impact_map import format_impact_note, impacted_files
 from prthinker.inline_ignore import filter_inline_ignored
 from prthinker.repo_kg import KnowledgeGraphStore
@@ -978,6 +983,75 @@ def _impact_note(args: argparse.Namespace, result: ReviewResult) -> str | None:
         return None
 
 
+def _kg_imports(args: argparse.Namespace) -> list | None:
+    """Import edges from the repo KG, or None when unavailable (best-effort)."""
+    kg_path = Path(getattr(args, "kg_store", "") or ".prthinker/repo-kg.sqlite")
+    if not kg_path.exists():
+        return None
+    try:
+        return KnowledgeGraphStore(kg_path).all_imports(
+            Path(getattr(args, "kg_workdir", "") or ".")
+        )
+    except Exception as exc:  # noqa: BLE001 — KG-derived sections are best-effort
+        log.warning("Could not read repo KG (%s)", exc)
+        return None
+
+
+def _review_order_note(args: argparse.Namespace, result: ReviewResult) -> str:
+    """'Suggested review order' note from the KG, or '' (best-effort)."""
+    if not getattr(args, "review_order", False):
+        return ""
+    imports = _kg_imports(args)
+    if imports is None:
+        return ""
+    changed = [fr.path for fr in result.per_file]
+    return format_review_order_note(suggested_order(imports, changed))
+
+
+def _change_map_note(args: argparse.Namespace, result: ReviewResult) -> str:
+    """Inline Mermaid change-map from the KG, or '' (best-effort)."""
+    if not getattr(args, "change_map", False):
+        return ""
+    imports = _kg_imports(args)
+    if imports is None:
+        return ""
+    changed = [fr.path for fr in result.per_file]
+    return format_change_map_mermaid(change_map_edges(imports, changed), changed)
+
+
+def _risk_note(args: argparse.Namespace, result: ReviewResult) -> str:
+    """'High-risk files' note when --risk-weighted is on, or '' (best-effort)."""
+    if not getattr(args, "risk_weighted", False):
+        return ""
+    workdir = Path(getattr(args, "risk_workdir", "") or ".")
+    changed = [fr.path for fr in result.per_file]
+    try:
+        scores = compute_risk_scores(changed, workdir=workdir)
+    except Exception as exc:  # noqa: BLE001 — risk note is best-effort
+        log.warning("Could not compute risk scores (%s)", exc)
+        return ""
+    return format_risk_note(scores)
+
+
+def _extra_sections(
+    args: argparse.Namespace, result: ReviewResult, files_url: str | None
+) -> tuple[str, ...]:
+    """Pre-rendered orientation blocks placed below the digest.
+
+    Each is best-effort and self-omitting (empty string when it has
+    nothing to say); only the non-empty ones survive into the comment.
+    """
+    changed = [fr.path for fr in result.per_file]
+    sections = (
+        _review_order_note(args, result),
+        _risk_note(args, result),
+        format_coverage_gap_note(coverage_gaps(changed)),
+        _change_map_note(args, result),
+        format_reviewer_checklist(result, files_url),
+    )
+    return tuple(s for s in sections if s)
+
+
 def _maybe_set_labels(
     args: argparse.Namespace, adapter: object, result: ReviewResult
 ) -> None:
@@ -1081,6 +1155,7 @@ def _publish_review_result(
         table=getattr(args, "summary_table", False),
         gate=_gate_line(args, result, files_url),
         off_diff_findings=off_diff,
+        extra_sections=_extra_sections(args, result, files_url),
     )
     _append_report_links(args, pages)
     _append_review_footer(args, result, pages)

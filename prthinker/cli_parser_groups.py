@@ -440,6 +440,26 @@ def _add_kg_lessons_args(common: argparse.ArgumentParser) -> None:
         ),
     )
     common.add_argument(
+        "--review-order",
+        action="store_true",
+        default=env_bool("PRTHINKER_REVIEW_ORDER", False),
+        help=(
+            "Add a 'Suggested review order' note that ranks the changed files "
+            "most-depended-upon first (from the repo knowledge graph), so the "
+            "reviewer reads foundational changes before their call sites."
+        ),
+    )
+    common.add_argument(
+        "--change-map",
+        action="store_true",
+        default=env_bool("PRTHINKER_CHANGE_MAP", False),
+        help=(
+            "Embed a small Mermaid graph of the import edges between the "
+            "changed files (from the repo knowledge graph) so the shape of "
+            "the change is visible inline."
+        ),
+    )
+    common.add_argument(
         "--lessons",
         action="store_true",
         default=env_bool("PRTHINKER_LESSONS", False),

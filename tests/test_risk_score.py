@@ -15,10 +15,42 @@ from pathlib import Path
 import pytest
 
 from prthinker.risk_score import (
+    RiskScore,
     RiskWeights,
     budget_for_file,
     compute_risk_scores,
+    format_risk_note,
 )
+
+
+# ----- format_risk_note -------------------------------------------------
+
+def test_risk_note_lists_high_risk_files() -> None:
+    scores = [
+        RiskScore(path="hot.py", churn=20, complexity_proxy=400,
+                  bug_commits=5, score=0.82),
+        RiskScore(path="cold.py", churn=1, complexity_proxy=10,
+                  bug_commits=0, score=0.05),
+    ]
+    note = format_risk_note(scores)
+    assert "1 high-risk file(s)" in note
+    assert "`hot.py` — risk 0.82" in note
+    assert "20 commits · 5 bug-fix · 400 lines" in note
+    assert "cold.py" not in note  # below the high-risk floor
+
+
+def test_risk_note_empty_when_all_low() -> None:
+    scores = [RiskScore(path="a.py", score=0.1)]
+    assert format_risk_note(scores) == ""
+
+
+def test_risk_note_orders_by_score_desc() -> None:
+    scores = [
+        RiskScore(path="mid.py", score=0.6),
+        RiskScore(path="top.py", score=0.9),
+    ]
+    note = format_risk_note(scores)
+    assert note.index("top.py") < note.index("mid.py")
 
 
 # ----- budget mapping ---------------------------------------------------

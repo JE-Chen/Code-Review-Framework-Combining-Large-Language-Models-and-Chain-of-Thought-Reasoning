@@ -836,3 +836,97 @@ def test_oversized_single_block_split_across_pages():
 def test_split_file_block_passthrough_when_small():
     block = "<details><summary>x</summary>\n\nbody\n</details>\n"
     assert formatters._split_file_block(block, 10_000) == [block]
+
+
+# --------------------------------------------------------------------------
+# Per-file change badge (#3)
+# --------------------------------------------------------------------------
+
+_BADGE_DIFF = (
+    "diff --git a/a.py b/a.py\n"
+    "--- a/a.py\n"
+    "+++ b/a.py\n"
+    "@@ -1,1 +1,2 @@\n"
+    " ctx\n"
+    "+added one\n"
+    "+added two\n"
+)
+
+
+def test_file_block_shows_change_badge():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr], code_diff=_BADGE_DIFF), _MARKER
+    )
+    assert "(+2 −0)" in out
+
+
+def test_file_block_no_badge_without_diff():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    # No diff text → no change badge in the summary line.
+    assert "−0)" not in out and "−1)" not in out
+
+
+# --------------------------------------------------------------------------
+# extra_sections carrier
+# --------------------------------------------------------------------------
+
+def test_extra_sections_render_after_indexes_before_files():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr]), _MARKER,
+        extra_sections=("**Injected section** here",),
+    )
+    assert "**Injected section** here" in out
+    # Sits below the digest and above the per-file detail block.
+    assert out.index("Review at a glance") < out.index("Injected section")
+    assert out.index("Injected section") < out.index("**Summary**")
+
+
+def test_extra_sections_skip_empty_strings():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr]), _MARKER, extra_sections=("", "  ", "real"),
+    )
+    assert "real" in out
+
+
+# --------------------------------------------------------------------------
+# Reviewer checklist (#5)
+# --------------------------------------------------------------------------
+
+def test_checklist_includes_unverified_error_and_low_repro():
+    err = _finding(path="a.py", line=3, severity="error", comment="null deref")
+    low = _finding(path="a.py", line=7, reproducibility="low", comment="maybe racy")
+    fr = _file_result(path="a.py", inline_findings=[err, low])
+    out = formatters.format_reviewer_checklist(_review(per_file=[fr]))
+    assert "Reviewer checklist (2 item(s))" in out
+    assert "- [ ] Verify the fix for `a.py:3`" in out
+    assert "- [ ] Re-confirm (low reproducibility) `a.py:7`" in out
+
+
+def test_checklist_skips_verified_error():
+    from prthinker.schemas import SuggestionVerification
+
+    err = _finding(
+        path="a.py", severity="error", suggestion="x",
+        verification=SuggestionVerification(status="pass", verify_cmd="pytest"),
+    )
+    fr = _file_result(path="a.py", inline_findings=[err])
+    assert formatters.format_reviewer_checklist(_review(per_file=[fr])) == ""
+
+
+def test_checklist_includes_api_drift():
+    from prthinker.schemas import ApiDriftFinding
+
+    drift = ApiDriftFinding(
+        backend_path="api.py", frontend_path="api.ts", summary="diverged",
+    )
+    out = formatters.format_reviewer_checklist(_review(api_drift=[drift]))
+    assert "Confirm cross-language contract `api.py` ↔ `api.ts`" in out
+
+
+def test_checklist_empty_when_nothing_to_verify():
+    fr = _file_result(path="a.py", inline_findings=[_finding(severity="info")])
+    assert formatters.format_reviewer_checklist(_review(per_file=[fr])) == ""

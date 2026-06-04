@@ -290,5 +290,58 @@ def test_gate_line_warning_floor_blocker_prefers_error():
     assert "a.py:9" in line  # error outranks warning in priority order
 
 
+# --------------------------------------------------------------------------
+# _extra_sections: orientation blocks below the digest
+# --------------------------------------------------------------------------
+
+def _per_file(path: str) -> object:
+    from prthinker.pipeline import FileReviewResult
+
+    return FileReviewResult(
+        path=path, rag_docs=[], step_outputs={}, inline_findings=[]
+    )
+
+
+def _result_with_files(*paths) -> ReviewResult:
+    files = [_per_file(p) for p in paths]
+    return ReviewResult(code_diff="", rag_docs=[], per_file=files)
+
+
+def test_extra_sections_coverage_gap_always_on():
+    # No flags enabled, but a prod file without a test still surfaces.
+    args = Namespace()
+    result = _result_with_files("prthinker/x.py")
+    sections = cli_review._extra_sections(args, result, None)
+    assert any("without a matching test change" in s for s in sections)
+
+
+def test_extra_sections_gated_features_off_by_default():
+    args = Namespace()
+    result = _result_with_files("prthinker/x.py")
+    sections = cli_review._extra_sections(args, result, None)
+    blob = "\n".join(sections)
+    assert "Suggested review order" not in blob   # --review-order off
+    assert "high-risk file" not in blob           # --risk-weighted off
+    assert "Change map" not in blob               # --change-map off
+
+
+def test_extra_sections_review_order_gated_off_without_kg():
+    # Flag on but no KG store present → still empty (best-effort).
+    args = Namespace(review_order=True, kg_store="/nonexistent/kg.sqlite")
+    result = _result_with_files("a/foo.py", "a/bar.py")
+    sections = cli_review._extra_sections(args, result, None)
+    assert all("Suggested review order" not in s for s in sections)
+
+
+def test_extra_sections_includes_checklist_for_error_finding():
+    fr = _per_file("a.py")
+    fr.inline_findings.append(
+        InlineFinding(path="a.py", line=2, severity="error", comment="boom")
+    )
+    result = ReviewResult(code_diff="", rag_docs=[], per_file=[fr])
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("Reviewer checklist" in s for s in sections)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))

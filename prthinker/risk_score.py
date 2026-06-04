@@ -201,6 +201,46 @@ def budget_for_file(
     return int(floor + round(span * max(0.0, min(1.0, score))))
 
 
+# A file is called out as high-risk once its normalised score crosses
+# this floor — high enough that a quiet, rarely-touched file never trips
+# it, low enough that a genuinely churny / bug-prone file does.
+_HIGH_RISK_FLOOR = 0.5
+_RISK_NOTE_LIMIT = 8
+
+
+def format_risk_note(scores: list[RiskScore]) -> str:
+    """Collapsible 'high-risk files' note with the churn / bug breakdown.
+
+    Surfaces the score that risk-weighting already computes (it otherwise
+    only affects the per-file findings budget, invisibly) so a reviewer
+    knows which files history says are most likely to break — independent
+    of whether this PR happened to raise a finding on them. Returns ``""``
+    when no file crosses :data:`_HIGH_RISK_FLOOR`.
+    """
+    risky = sorted(
+        (s for s in scores if s.score >= _HIGH_RISK_FLOOR),
+        key=lambda s: s.score,
+        reverse=True,
+    )
+    if not risky:
+        return ""
+    shown = risky[:_RISK_NOTE_LIMIT]
+    rows = [
+        f"- `{s.path}` — risk {s.score:.2f} "
+        f"({s.churn} commits · {s.bug_commits} bug-fix · "
+        f"{s.complexity_proxy} lines)"
+        for s in shown
+    ]
+    extra = len(risky) - len(shown)
+    if extra > 0:
+        rows.append(f"- … and {extra} more")
+    return "\n".join([
+        f"<details><summary>⚠️ {len(risky)} high-risk file(s) "
+        "(churn / complexity / bug history)</summary>",
+        "", *rows, "", "</details>",
+    ])
+
+
 __all__ = [
     "DEFAULT_BUG_WEIGHT",
     "DEFAULT_CHURN_WEIGHT",
@@ -209,4 +249,5 @@ __all__ = [
     "RiskWeights",
     "budget_for_file",
     "compute_risk_scores",
+    "format_risk_note",
 ]

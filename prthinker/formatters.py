@@ -17,6 +17,7 @@ import hashlib
 from collections import Counter
 from collections.abc import Callable
 
+from prthinker.change_stats import ChangeStat, change_badge, compute_change_stats
 from prthinker.pipeline import FileReviewResult, ReviewResult
 from prthinker.schemas import InlineFinding
 
@@ -55,6 +56,7 @@ class _RenderOpts:
     table: bool = False
     gate: str | None = None
     off_diff: tuple[InlineFinding, ...] = ()
+    extra_sections: tuple[str, ...] = ()
 
 
 def _diff_anchor(path: str, line: int) -> str:
@@ -338,6 +340,7 @@ def format_pr_comment(
     table: bool = False,
     gate: str | None = None,
     off_diff_findings: tuple[InlineFinding, ...] = (),
+    extra_sections: tuple[str, ...] = (),
 ) -> str:
     """Render the consolidated PR comment.
 
@@ -369,6 +372,7 @@ def format_pr_comment(
             posted_count=posted_count, findings_only=findings_only,
             preliminary=preliminary, files_url=files_url, delta=delta,
             table=table, gate=gate, off_diff=off_diff_findings,
+            extra_sections=extra_sections,
         )
         return _format_per_file(result, marker, opts)
     return _format_single(result, marker)
@@ -621,6 +625,20 @@ def first_finding_ref(
     return None
 
 
+def _format_extra_sections(sections: tuple[str, ...]) -> list[str]:
+    """Render caller-supplied markdown blocks (risk, review order, …).
+
+    Each non-empty section is a pre-rendered markdown string from the
+    publish path; they sit between the index blocks and the per-file
+    detail so the digest stays at the very top.
+    """
+    parts: list[str] = []
+    for section in sections:
+        if section and section.strip():
+            parts += [section.rstrip(), ""]
+    return parts
+
+
 def _per_file_head_parts(
     result: ReviewResult, marker: str, opts: _RenderOpts
 ) -> list[str]:
@@ -637,6 +655,7 @@ def _per_file_head_parts(
     parts += _format_severity_groups(result, opts.files_url)
     parts += _format_category_groups(result, opts.files_url)
     parts += _format_off_diff_block(opts.off_diff, opts.files_url)
+    parts += _format_extra_sections(opts.extra_sections)
     parts.append(_per_file_header(result))
     parts.append("")
     parts += _format_per_file_intro(result, opts.posted_count)
@@ -673,8 +692,9 @@ def _format_per_file(
     if opts.table:
         parts += _format_findings_table(result, opts.files_url, opts.findings_only)
     else:
+        change_stats = compute_change_stats(result.code_diff)
         for fr in _files_to_render(result.per_file, opts.findings_only):
-            parts += _format_file_block(fr, opts.files_url)
+            parts += _format_file_block(fr, opts.files_url, change_stats)
 
     return "\n".join(parts).rstrip() + "\n"
 
@@ -810,6 +830,7 @@ def format_pr_comment_pages(
     table: bool = False,
     gate: str | None = None,
     off_diff_findings: tuple[InlineFinding, ...] = (),
+    extra_sections: tuple[str, ...] = (),
 ) -> list[str]:
     """Render the PR comment, paginated so no page exceeds ``max_chars``.
 
@@ -834,7 +855,7 @@ def format_pr_comment_pages(
         result, marker, posted_count=posted_count,
         findings_only=findings_only, preliminary=preliminary,
         files_url=files_url, delta=delta, table=table, gate=gate,
-        off_diff_findings=off_diff_findings,
+        off_diff_findings=off_diff_findings, extra_sections=extra_sections,
     )
     # The table layout is compact; never block-paginate it.
     if len(single) <= max_chars or not result.per_file or table:
@@ -842,11 +863,12 @@ def format_pr_comment_pages(
     opts = _RenderOpts(
         posted_count=posted_count, findings_only=findings_only,
         preliminary=preliminary, files_url=files_url, delta=delta, gate=gate,
-        off_diff=off_diff_findings,
+        off_diff=off_diff_findings, extra_sections=extra_sections,
     )
     head = "\n".join(_per_file_head_parts(result, marker, opts))
+    change_stats = compute_change_stats(result.code_diff)
     blocks = [
-        "\n".join(_format_file_block(fr, files_url))
+        "\n".join(_format_file_block(fr, files_url, change_stats))
         for fr in _files_to_render(result.per_file, findings_only)
     ]
     pages = _paginate_blocks(head, blocks, marker, max_chars)
@@ -1109,8 +1131,20 @@ def _signal_note(findings: list[InlineFinding]) -> str:
     return f"_Signal: {' · '.join(bits)}_" if bits else ""
 
 
+def _change_badge_suffix(
+    path: str, change_stats: dict[str, ChangeStat] | None
+) -> str:
+    """Per-file ``(+12 −3 · 2 hunks)`` summary suffix, or ``""``."""
+    if not change_stats:
+        return ""
+    badge = change_badge(change_stats.get(path))
+    return f" ({badge})" if badge else ""
+
+
 def _format_file_block(
-    fr: FileReviewResult, files_url: str | None = None
+    fr: FileReviewResult,
+    files_url: str | None = None,
+    change_stats: dict[str, ChangeStat] | None = None,
 ) -> list[str]:
     # Skipped files (binary / deleted) are still listed so every touched
     # file is accounted for — just with the skip reason instead of a review.
@@ -1120,13 +1154,14 @@ def _format_file_block(
 
     summary = fr.total_summary or "_no summary_"
     badge = _file_findings_badge(fr.inline_findings)
+    change = _change_badge_suffix(fr.path, change_stats)
     ref = _file_summary_ref(fr.path, files_url, _first_finding_line(fr))
     icon = _file_status_icon(fr.inline_findings)
     # Files with errors open expanded so the reviewer sees them with no click.
     has_error = any(f.severity == "error" for f in fr.inline_findings)
     tag = "<details open>" if has_error else "<details>"
 
-    block: list[str] = [f"{tag}<summary>{icon} {ref}{badge}</summary>", ""]
+    block: list[str] = [f"{tag}<summary>{icon} {ref}{badge}{change}</summary>", ""]
     signal = _signal_note(fr.inline_findings)
     if signal:
         block += [signal, ""]
@@ -1288,10 +1323,72 @@ def format_digest(result: ReviewResult, files_url: str | None = None) -> str:
     return "\n".join(_format_overview_block(result, files_url)).strip()
 
 
+_CHECKLIST_LIMIT = 12
+_CHECKLIST_COMMENT_CAP = 80
+
+
+def _checklist_item_for_finding(
+    finding: InlineFinding, files_url: str | None
+) -> str | None:
+    """A manual-verification item for a finding that needs human follow-up.
+
+    An error whose suggestion is not sandbox-verified still needs a human
+    to confirm the fix; a low-reproducibility finding needs a second look.
+    Everything else is left off the checklist to keep it short.
+    """
+    loc = _loc_ref(finding.path, finding.line, files_url)
+    head = _first_line(finding.comment, _CHECKLIST_COMMENT_CAP)
+    verified = (
+        finding.verification is not None
+        and finding.verification.status == "pass"
+    )
+    if finding.severity == "error" and not verified:
+        return f"Verify the fix for {loc} — {head}"
+    if finding.reproducibility == "low":
+        return f"Re-confirm (low reproducibility) {loc} — {head}"
+    return None
+
+
+def format_reviewer_checklist(
+    result: ReviewResult, files_url: str | None = None
+) -> str:
+    """A collapsible 'things to verify by hand' checklist, or ``""``.
+
+    Built from the findings that a one-click suggestion cannot close on
+    its own — unverified error fixes, low-reproducibility findings, and
+    cross-language API drift — so the reviewer has an explicit gate list
+    instead of re-deriving it from the full report.
+    """
+    items: list[str] = []
+    for fr in result.per_file:
+        for finding in fr.inline_findings:
+            item = _checklist_item_for_finding(finding, files_url)
+            if item:
+                items.append(item)
+    for drift in result.api_drift:
+        items.append(
+            f"Confirm cross-language contract `{drift.backend_path}` ↔ "
+            f"`{drift.frontend_path}`"
+        )
+    if not items:
+        return ""
+    shown = items[:_CHECKLIST_LIMIT]
+    rows = [f"- [ ] {item}" for item in shown]
+    extra = len(items) - len(shown)
+    if extra > 0:
+        rows.append(f"- [ ] … and {extra} more item(s)")
+    return "\n".join([
+        f"<details><summary>✅ Reviewer checklist ({len(items)} item(s))"
+        "</summary>",
+        "", *rows, "", "</details>",
+    ])
+
+
 __all__ = [
     "first_finding_ref",
     "format_digest",
     "format_pr_comment",
     "format_pr_comment_pages",
     "format_review_footer",
+    "format_reviewer_checklist",
 ]
