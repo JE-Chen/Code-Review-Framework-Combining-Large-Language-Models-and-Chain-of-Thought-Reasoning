@@ -47,6 +47,36 @@ def _create_inner_backend(config: Config) -> InferenceBackend:
         assert config.anthropic is not None
         return AnthropicBackend(config.anthropic)
 
+    if config.backend is BackendKind.GEMINI:
+        from prthinker.backends.gemini import GeminiBackend
+
+        assert config.gemini is not None
+        return GeminiBackend(
+            model=config.gemini.model, api_key=config.gemini.api_key,
+            base_url=config.gemini.base_url,
+            timeout_seconds=config.gemini.timeout_seconds,
+        )
+
+    if config.backend is BackendKind.COHERE:
+        from prthinker.backends.cohere import CohereBackend
+
+        assert config.cohere is not None
+        return CohereBackend(
+            model=config.cohere.model, api_key=config.cohere.api_key,
+            base_url=config.cohere.base_url,
+            timeout_seconds=config.cohere.timeout_seconds,
+        )
+
+    if config.backend is BackendKind.MISTRAL:
+        from prthinker.backends.mistral import MistralBackend
+
+        assert config.mistral is not None
+        return MistralBackend(
+            model=config.mistral.model, api_key=config.mistral.api_key,
+            base_url=config.mistral.base_url,
+            timeout_seconds=config.mistral.timeout_seconds,
+        )
+
     raise ValueError(f"Unsupported backend: {config.backend!r}")
 
 

@@ -27,6 +27,9 @@ import httpx
 from prthinker.backends.base import InferenceBackend, Usage
 from prthinker.config import OpenAICompatConfig
 
+SSE_DATA_PREFIX = "data:"
+SSE_DONE_SENTINEL = "[DONE]"
+
 
 class OpenAICompatBackend(InferenceBackend):
     def __init__(self, config: OpenAICompatConfig) -> None:
@@ -91,6 +94,41 @@ class OpenAICompatBackend(InferenceBackend):
 
         return text
 
+    @staticmethod
+    def _sse_payload(line: str) -> str | None:
+        """Strip the ``data:`` prefix from one SSE line, or None if not data."""
+        if not line or not line.startswith(SSE_DATA_PREFIX):
+            return None
+        return line[len(SSE_DATA_PREFIX) :].strip()
+
+    @staticmethod
+    def _decode_sse_event(data: str) -> dict | None:
+        """Parse one SSE payload as JSON, returning None on malformed data."""
+        try:
+            return json.loads(data)
+        except json.JSONDecodeError:
+            return None
+
+    def _record_stream_usage(self, event: dict) -> None:
+        """Populate ``last_usage`` when an event carries a full usage block."""
+        usage = event.get("usage") or {}
+        prompt_tokens = usage.get("prompt_tokens")
+        completion_tokens = usage.get("completion_tokens")
+        if prompt_tokens is not None and completion_tokens is not None:
+            self._last_usage = Usage(
+                int(prompt_tokens), int(completion_tokens)
+            )
+
+    @staticmethod
+    def _extract_delta_content(event: dict) -> str | None:
+        """Return the content delta of an event, or None when absent / empty."""
+        choices = event.get("choices") or []
+        if not choices:
+            return None
+        delta = (choices[0] or {}).get("delta") or {}
+        chunk = delta.get("content")
+        return str(chunk) if chunk else None
+
     def stream_generate(
         self, prompt: str, max_new_tokens: int
     ) -> Iterator[str]:
@@ -114,29 +152,18 @@ class OpenAICompatBackend(InferenceBackend):
         ) as response:
             response.raise_for_status()
             for line in response.iter_lines():
-                if not line or not line.startswith("data:"):
+                data = self._sse_payload(line)
+                if data is None:
                     continue
-                data = line[5:].strip()
-                if data == "[DONE]":
+                if data == SSE_DONE_SENTINEL:
                     break
-                try:
-                    event = json.loads(data)
-                except json.JSONDecodeError:
+                event = self._decode_sse_event(data)
+                if event is None:
                     continue
-
-                usage = event.get("usage") or {}
-                p = usage.get("prompt_tokens")
-                c = usage.get("completion_tokens")
-                if p is not None and c is not None:
-                    self._last_usage = Usage(int(p), int(c))
-
-                choices = event.get("choices") or []
-                if not choices:
-                    continue
-                delta = (choices[0] or {}).get("delta") or {}
-                chunk = delta.get("content")
-                if chunk:
-                    yield str(chunk)
+                self._record_stream_usage(event)
+                chunk = self._extract_delta_content(event)
+                if chunk is not None:
+                    yield chunk
 
     def close(self) -> None:
         self._client.close()

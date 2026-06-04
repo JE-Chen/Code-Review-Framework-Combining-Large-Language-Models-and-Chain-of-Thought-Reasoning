@@ -38,9 +38,14 @@ GET /metrics
 
 Prometheus exposition endpoint。安装 ``prometheus-fastapi-instrumentator``
 时启用（未安装则服务器记录一笔 log 并跳过），导出各 endpoint 的请求数、
-延迟 histogram（p50 / p95 / p99 panel 之来源）与 HTTP 状态计数。与其他
-路径一样\ **不做认证**\ ——monitoring overlay 之 nginx 在内网 docker
-network 上 scrape；未经 reverse-proxy ACL 请勿对外公开。
+延迟 histogram（p50 / p95 / p99 panel 之来源）与 HTTP 状态计数。除了这些
+transport 指标,服务器在同一 endpoint 另外输出 review 领域指标——
+``prthinker_reviews_total``\ （依 ``mode``\ 、\ ``outcome``\ ）、
+``prthinker_review_duration_seconds``\ 、\ ``prthinker_review_findings``\
+与 ``prthinker_reviews_in_progress``\ ——所以每跑完一次审查都会留下数据点,
+与 HTTP 流量无关。与其他路径一样\ **不做认证**\ ——monitoring overlay 之
+nginx 在内网 docker network 上 scrape；未经 reverse-proxy ACL 请勿对外
+公开。
 
 **Response 200**\ ：Prometheus 文本 exposition 格式之 ``text/plain``\ 。
 

@@ -15,8 +15,10 @@ from pathlib import Path
 from prthinker.repo_kg import Import, KnowledgeGraphStore, Symbol
 
 
+_KIND_FILE = "file"
+
 _KIND_GROUP: dict[str, int] = {
-    "file": 0,
+    _KIND_FILE: 0,
     "class": 1,
     "function": 2,
     "method": 3,
@@ -138,6 +140,109 @@ def _resolve_tsjs_target(
     return None
 
 
+def _file_node(file_path: str) -> dict:
+    """Build the D3 node dict for a file node."""
+    return {
+        "id": _file_node_id(file_path),
+        "label": file_path,
+        "kind": _KIND_FILE,
+        "group": _KIND_GROUP[_KIND_FILE],
+    }
+
+
+def _add_file_nodes(
+    symbols: list[Symbol], nodes: list[dict], seen_files: set[str]
+) -> None:
+    """Emit one file node per distinct file path that owns a symbol."""
+    for s in symbols:
+        if s.file_path not in seen_files:
+            seen_files.add(s.file_path)
+            nodes.append(_file_node(s.file_path))
+
+
+def _add_symbol_nodes(
+    symbols: list[Symbol],
+    nodes: list[dict],
+    links: list[dict],
+    class_index: dict[tuple[str, str], str],
+) -> None:
+    """Emit a symbol node + ``file-of`` link for each symbol; index classes."""
+    for s in symbols:
+        nid = _symbol_node_id(s)
+        nodes.append({
+            "id": nid,
+            "label": s.symbol,
+            "kind": s.kind,
+            "file": s.file_path,
+            "line": s.line,
+            "parent": s.parent,
+            "group": _KIND_GROUP.get(s.kind, 99),
+        })
+        links.append({
+            "source": _file_node_id(s.file_path),
+            "target": nid,
+            "rel": "file-of",
+        })
+        if s.kind == "class":
+            class_index[(s.file_path, s.symbol)] = nid
+
+
+def _add_method_links(
+    symbols: list[Symbol],
+    links: list[dict],
+    class_index: dict[tuple[str, str], str],
+) -> None:
+    """Emit a ``method-of`` link from each method to its enclosing class."""
+    for s in symbols:
+        if s.parent and (s.file_path, s.parent) in class_index:
+            links.append({
+                "source": class_index[(s.file_path, s.parent)],
+                "target": _symbol_node_id(s),
+                "rel": "method-of",
+            })
+
+
+def _resolve_import_target(imp: Import, seen_files: set[str]) -> str | None:
+    """Resolve an import to a known workdir file, or ``None`` if external."""
+    if imp.kind == "tsjs":
+        return _resolve_tsjs_target(imp.target, imp.from_file, seen_files)
+    return _resolve_python_target(
+        imp.target, imp.kind, imp.from_file, seen_files,
+    )
+
+
+def _add_import_links(
+    imports: list[Import],
+    nodes: list[dict],
+    links: list[dict],
+    seen_files: set[str],
+) -> None:
+    """Emit deduplicated file→file ``imports`` links for resolved targets."""
+    seen_edges: set[tuple[str, str]] = set()
+    for imp in imports:
+        resolved = _resolve_import_target(imp, seen_files)
+        if not resolved or resolved == imp.from_file:
+            continue
+        # A symbol-less source file (e.g. __main__.py, __init__.py, or an
+        # example script with no def/class) gets no node from the symbol
+        # passes above, but can still originate an import edge. Add its
+        # file node here so the edge endpoint is not dangling — d3's
+        # forceLink throws on a link to a missing node id, which blanks
+        # the entire graph. (`resolved` is always a seen file already.)
+        if imp.from_file not in seen_files:
+            seen_files.add(imp.from_file)
+            nodes.append(_file_node(imp.from_file))
+        edge = (imp.from_file, resolved)
+        if edge in seen_edges:
+            continue
+        seen_edges.add(edge)
+        links.append({
+            "source": _file_node_id(imp.from_file),
+            "target": _file_node_id(resolved),
+            "rel": "imports",
+        })
+
+
 def build_graph_data(store: KnowledgeGraphStore, workdir: Path) -> dict:
     """Convert KG rows into ``{nodes, links}`` for the D3 force layout.
 
@@ -159,76 +264,10 @@ def build_graph_data(store: KnowledgeGraphStore, workdir: Path) -> dict:
     seen_files: set[str] = set()
     class_index: dict[tuple[str, str], str] = {}
 
-    for s in symbols:
-        if s.file_path not in seen_files:
-            seen_files.add(s.file_path)
-            nodes.append({
-                "id": _file_node_id(s.file_path),
-                "label": s.file_path,
-                "kind": "file",
-                "group": _KIND_GROUP["file"],
-            })
-
-    for s in symbols:
-        nid = _symbol_node_id(s)
-        nodes.append({
-            "id": nid,
-            "label": s.symbol,
-            "kind": s.kind,
-            "file": s.file_path,
-            "line": s.line,
-            "parent": s.parent,
-            "group": _KIND_GROUP.get(s.kind, 99),
-        })
-        links.append({
-            "source": _file_node_id(s.file_path),
-            "target": nid,
-            "rel": "file-of",
-        })
-        if s.kind == "class":
-            class_index[(s.file_path, s.symbol)] = nid
-
-    for s in symbols:
-        if s.parent and (s.file_path, s.parent) in class_index:
-            links.append({
-                "source": class_index[(s.file_path, s.parent)],
-                "target": _symbol_node_id(s),
-                "rel": "method-of",
-            })
-
-    seen_edges: set[tuple[str, str]] = set()
-    for imp in imports:
-        if imp.kind == "tsjs":
-            resolved = _resolve_tsjs_target(imp.target, imp.from_file, seen_files)
-        else:
-            resolved = _resolve_python_target(
-                imp.target, imp.kind, imp.from_file, seen_files,
-            )
-        if not resolved or resolved == imp.from_file:
-            continue
-        # A symbol-less source file (e.g. __main__.py, __init__.py, or an
-        # example script with no def/class) gets no node from the symbol
-        # passes above, but can still originate an import edge. Add its
-        # file node here so the edge endpoint is not dangling — d3's
-        # forceLink throws on a link to a missing node id, which blanks
-        # the entire graph. (`resolved` is always a seen file already.)
-        if imp.from_file not in seen_files:
-            seen_files.add(imp.from_file)
-            nodes.append({
-                "id": _file_node_id(imp.from_file),
-                "label": imp.from_file,
-                "kind": "file",
-                "group": _KIND_GROUP["file"],
-            })
-        edge = (imp.from_file, resolved)
-        if edge in seen_edges:
-            continue
-        seen_edges.add(edge)
-        links.append({
-            "source": _file_node_id(imp.from_file),
-            "target": _file_node_id(resolved),
-            "rel": "imports",
-        })
+    _add_file_nodes(symbols, nodes, seen_files)
+    _add_symbol_nodes(symbols, nodes, links, class_index)
+    _add_method_links(symbols, links, class_index)
+    _add_import_links(imports, nodes, links, seen_files)
 
     return {"nodes": nodes, "links": links}
 

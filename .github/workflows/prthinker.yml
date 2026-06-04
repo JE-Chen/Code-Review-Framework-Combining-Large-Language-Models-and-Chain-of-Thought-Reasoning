@@ -45,6 +45,14 @@ jobs:
       skipped: ${{ steps.list.outputs.skipped }}
       deleted: ${{ steps.list.outputs.deleted }}
     steps:
+      # Checkout first so its working-tree clean does not wipe the
+      # restored .prthinker/ state cache that follows.
+      - name: Check out PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
       - name: Restore prthinker state cache
         id: state-restore
         uses: actions/cache/restore@v4
@@ -58,6 +66,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Post review-in-progress placeholder
+        # Best-effort: a placeholder failure must never block the matrix.
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PRTHINKER_PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          pip install -e ".[runner]"
+          python -m prthinker post-status || true
 
       - name: List PR files and filter unchanged
         id: list
@@ -462,7 +481,20 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           PRTHINKER_PR_NUMBER: ${{ github.event.pull_request.number }}
           PRTHINKER_INLINE_REVIEW: "true"
+          PRTHINKER_FINDINGS_ONLY: "true"
+          PRTHINKER_HIDE_INFO: "true"
+          PRTHINKER_PR_OVERVIEW: "true"
+          PRTHINKER_PR_LABELS: "true"
+          PRTHINKER_CHECK_ANNOTATIONS: "true"
+          PRTHINKER_REVIEW_DELTA: "true"
+          PRTHINKER_IMPACT_MAP: "true"
+          PRTHINKER_PR_BODY_SUMMARY: "true"
+          PRTHINKER_REQUIRE_FULL_SCAN: "true"
           PRTHINKER_GATE_ON: "error"
+          PRTHINKER_SARIF_OUT: ${{ runner.temp }}/prthinker.sarif
+          PRTHINKER_HTML_REPORT: ${{ runner.temp }}/report.html
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
           PRTHINKER_AGGREGATE_FROM: ${{ runner.temp }}/partials
         run: |
           # If neither a matrix shard nor enumerate's skip path
@@ -488,6 +520,29 @@ jobs:
           fi
 
           python -m prthinker aggregate
+
+      # Upload the merged findings to GitHub code scanning so they also
+      # appear in the Security tab and as native diff annotations. Best
+      # effort: skipped when no SARIF was produced (e.g. skip notice).
+      - name: Upload SARIF to code scanning
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ runner.temp }}/prthinker.sarif
+
+      # Upload the rendered reports as run artifacts; the summary comment's
+      # "Reports" footer links back to this run so reviewers can download them.
+      - name: Upload review reports
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: prthinker-reports
+          path: |
+            ${{ runner.temp }}/report.html
+            ${{ runner.temp }}/prthinker.sarif
+          if-no-files-found: ignore
 
       # Rebuild .prthinker/pr-state from the downloaded partials +
       # the current PR files API so the NEXT push's enumerate job

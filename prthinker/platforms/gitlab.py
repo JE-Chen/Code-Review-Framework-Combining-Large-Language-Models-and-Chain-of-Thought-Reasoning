@@ -172,46 +172,15 @@ class GitLabAdapter(PlatformAdapter):
 
         with self._client() as client:
             mr = self._mr(client)
-            diff_refs = mr.get("diff_refs") or {}
-            position_base = {
-                "base_sha":  diff_refs.get("base_sha"),
-                "start_sha": diff_refs.get("start_sha"),
-                "head_sha":  diff_refs.get("head_sha"),
-                "position_type": "text",
-            }
-            if not all([
-                position_base["base_sha"], position_base["start_sha"],
-                position_base["head_sha"],
-            ]):
-                raise RuntimeError(
-                    f"GitLab MR {self.mr_iid}: diff_refs missing required SHAs"
-                )
-
+            position_base = self._build_position_base(mr.get("diff_refs") or {})
             event_prefix = _EVENT_BODY_PREFIX.get(event, "")
             first_id: int | None = None
-            for f in findings:
-                body = event_prefix + _format_body(f)
-                payload = {
-                    "body": body,
-                    "position": {
-                        **position_base,
-                        "new_path": f.path,
-                        "new_line": f.line,
-                    },
-                }
-                response = client.post(
-                    f"/projects/{self._project_quoted}"
-                    f"/merge_requests/{self.mr_iid}/discussions",
-                    json=payload,
+            for finding in findings:
+                new_id = self._post_finding_discussion(
+                    client, position_base, event_prefix, finding,
                 )
-                if response.status_code >= 400:
-                    log.warning(
-                        "GitLab discussion POST failed (%d) for %s:%d: %s",
-                        response.status_code, f.path, f.line, response.text,
-                    )
-                    continue
                 if first_id is None:
-                    first_id = int(response.json().get("id", 0)) or None
+                    first_id = new_id
 
             if summary_body:
                 # Drop a top-level note tying the discussions together.
@@ -222,6 +191,52 @@ class GitLabAdapter(PlatformAdapter):
                 )
 
             return first_id
+
+    def _build_position_base(self, diff_refs: dict[str, Any]) -> dict[str, Any]:
+        """Validate diff_refs and assemble the shared discussion position."""
+        position_base = {
+            "base_sha":  diff_refs.get("base_sha"),
+            "start_sha": diff_refs.get("start_sha"),
+            "head_sha":  diff_refs.get("head_sha"),
+            "position_type": "text",
+        }
+        if not all([
+            position_base["base_sha"], position_base["start_sha"],
+            position_base["head_sha"],
+        ]):
+            raise RuntimeError(
+                f"GitLab MR {self.mr_iid}: diff_refs missing required SHAs"
+            )
+        return position_base
+
+    def _post_finding_discussion(
+        self,
+        client: httpx.Client,
+        position_base: dict[str, Any],
+        event_prefix: str,
+        finding: InlineFinding,
+    ) -> int | None:
+        """POST one finding as a discussion; return its id or None on failure."""
+        payload = {
+            "body": event_prefix + _format_body(finding),
+            "position": {
+                **position_base,
+                "new_path": finding.path,
+                "new_line": finding.line,
+            },
+        }
+        response = client.post(
+            f"/projects/{self._project_quoted}"
+            f"/merge_requests/{self.mr_iid}/discussions",
+            json=payload,
+        )
+        if response.status_code >= 400:
+            log.warning(
+                "GitLab discussion POST failed (%d) for %s:%d: %s",
+                response.status_code, finding.path, finding.line, response.text,
+            )
+            return None
+        return int(response.json().get("id", 0)) or None
 
     # ----- dialogue ------------------------------------------------------
 
@@ -235,42 +250,61 @@ class GitLabAdapter(PlatformAdapter):
         until the next marker note overwrites it.
         """
         with self._client() as client:
-            notes: list[dict] = []
-            page = 1
-            while True:
-                response = client.get(
-                    f"/projects/{self._project_quoted}"
-                    f"/merge_requests/{self.mr_iid}/notes",
-                    params={"per_page": 100, "page": page, "sort": "asc"},
-                )
-                response.raise_for_status()
-                batch = response.json()
-                if not batch:
-                    break
-                notes.extend(batch)
-                if len(batch) < 100:
-                    break
-                page += 1
+            notes = self._collect_all_notes(client)
 
-        marker_idx = None
-        for i, note in enumerate(notes):
-            if self.comment_marker in (note.get("body") or ""):
-                marker_idx = i  # last wins
+        marker_idx = self._find_last_marker_idx(notes, self.comment_marker)
         if marker_idx is None:
             return []
+        return self._build_replies(notes, marker_idx)
 
-        marker_user = ((notes[marker_idx].get("author") or {}).get("username") or "")
+    def _collect_all_notes(self, client: httpx.Client) -> list[dict]:
+        """Page through every MR note in ascending creation order."""
+        notes: list[dict] = []
+        page = 1
+        while True:
+            response = client.get(
+                f"/projects/{self._project_quoted}"
+                f"/merge_requests/{self.mr_iid}/notes",
+                params={"per_page": 100, "page": page, "sort": "asc"},
+            )
+            response.raise_for_status()
+            batch = response.json()
+            if not batch:
+                break
+            notes.extend(batch)
+            if len(batch) < 100:
+                break
+            page += 1
+        return notes
+
+    @staticmethod
+    def _find_last_marker_idx(notes: list[dict], marker: str) -> int | None:
+        """Index of the last note containing the prthinker marker, else None."""
+        marker_idx: int | None = None
+        for i, note in enumerate(notes):
+            if marker in (note.get("body") or ""):
+                marker_idx = i  # last wins
+        return marker_idx
+
+    @staticmethod
+    def _note_username(note: dict) -> str:
+        """Author username for a note, or empty string when absent."""
+        return (note.get("author") or {}).get("username") or ""
+
+    @staticmethod
+    def _build_replies(notes: list[dict], marker_idx: int) -> list[AuthorReply]:
+        """Author replies trailing the marker note, dropping bot/system notes."""
+        marker_user = GitLabAdapter._note_username(notes[marker_idx])
+        marker_id = int(notes[marker_idx]["id"])
         replies: list[AuthorReply] = []
         for note in notes[marker_idx + 1:]:
-            author = (note.get("author") or {}).get("username") or ""
-            if author == marker_user:
-                continue
-            if note.get("system"):
+            author = GitLabAdapter._note_username(note)
+            if author == marker_user or note.get("system"):
                 continue
             replies.append(AuthorReply(
                 author=author,
                 body=str(note.get("body") or "").strip(),
-                in_reply_to_id=int(notes[marker_idx]["id"]),
+                in_reply_to_id=marker_id,
                 created_at=str(note.get("created_at") or ""),
             ))
         return replies

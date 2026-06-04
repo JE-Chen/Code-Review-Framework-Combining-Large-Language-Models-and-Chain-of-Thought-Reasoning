@@ -152,18 +152,27 @@ Prometheus scrapes four jobs — ``prthinker-fastapi`` (the ``/metrics``
 endpoint), ``dcgm-gpu`` (per-GPU telemetry), ``cadvisor-containers``
 (per-container resource use), and ``prometheus-self`` — and keeps 30
 days of history. The provisioned ``prthinker-overview`` Grafana
-dashboard renders them as ten panels:
+dashboard renders them as fourteen panels:
 
 * **Service** — request rate by endpoint, latency p50 / p95 / p99, and
   HTTP 5xx rate (from the FastAPI ``/metrics`` histograms).
+* **Reviews** — completed-review rate by outcome, review duration
+  p50 / p95, reviews in progress, and average findings per review (from
+  the ``prthinker_reviews_total`` / ``prthinker_review_duration_seconds``
+  / ``prthinker_review_findings`` / ``prthinker_reviews_in_progress``
+  series the server emits on every completed review — so the dashboard
+  has review data even when HTTP traffic is idle).
 * **GPU** — utilization, memory used, power draw, and temperature
   (from DCGM).
 * **Container** — prthinker CPU cores, RAM, and network RX/TX
   (from cAdvisor).
 
-Alerting is not provisioned — add rules under
-``monitoring/prometheus.yml`` (or wire Grafana alerting against the same
-datasource) for the thresholds your deploy cares about.
+Alerting rules ship in ``monitoring/alerts.yml`` (loaded via
+``rule_files`` in ``prometheus.yml``) — backend-down, >5% 5xx, review
+p95 over 10 min, review errors, and GPU over 85 °C. They surface as
+``ALERTS`` series in the Prometheus UI and Grafana; add an Alertmanager
+(point Prometheus at it with an ``alerting:`` block) if you need routing
+or paging. Tune the thresholds to your traffic and SLOs.
 
 Rebuilding the image safely (``rebuild-server.sh``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

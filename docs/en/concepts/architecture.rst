@@ -72,6 +72,12 @@ Component map
    │                         │         │ AcceptedExamplesRetriever              │
    └─────────────────────────┘         └─────────────────────────────────────────┘
 
+The CLI is itself a small package: ``cli.py`` holds only the entry point
+and a name → handler registry, ``cli_parser.py`` builds the argparse
+tree, and ``cli_review.py`` / ``cli_commands.py`` carry the command
+handlers. Adding a subcommand is one registry entry plus one handler —
+the dispatch has no ``if/elif`` chain.
+
 Runner vs server
 ----------------
 

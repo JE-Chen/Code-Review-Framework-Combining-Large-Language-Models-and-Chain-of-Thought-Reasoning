@@ -1,7 +1,7 @@
 研究級擴充：對抗強健性、多輪對話、反事實審查
 =============================================
 
-三個機制\ ，超越目前 LLM 程式碼審查文獻多停留在「一次性審查」之範疇\ 。
+十七個研究機制\ ，超越目前 LLM 程式碼審查文獻多停留在「一次性審查」之範疇\ ；另附一組可操作性／輸出整合與少數僅設計之未來工作項目（見下列各節）\ 。
 每一個機制都是\ **框架貢獻**\ ：程式碼已在本套件中、有單元測試覆蓋；
 但依照本專案的不謊造原則\ ，本頁\ **不提供任何實測偵測率、精度差、基準表格**\ 。量化數字唯有在你針對所選後端跑過對應語料之後才會出現\ 。
 
@@ -477,9 +477,90 @@ sweep、GPU OOM、runner 逾時、人工 ``ask/cancel``\ ）\ ，現有之
 那條路徑請繼續用 ``--output-json``\ 。
 
 
+營運與輸出整合
+--------------
+
+除上述審查機制外，以下 opt-in flag/指令把 prthinker 與外部工具整合。
+它們皆為純轉換或 adapter——不做推論——因此可在 runner profile 上執行。
+
+* **SARIF 匯出**\ （\ ``--sarif-out PATH``\ ）——以 SARIF 2.1.0 輸出
+  findings，接 GitHub code-scanning 或任何 SARIF viewer。
+* **HTML 報告**\ （\ ``--html-report PATH``\ ）——獨立、XSS-safe 之 HTML
+  審查報告（嚴重度摘要 + 各檔 findings）。
+* **finding 抑制**\ （\ ``--ignore-file`` / ``.prthinkerignore``\ ）——依
+  路徑 glob、\ ``severity:<level>``\ 、或 ``rule:<id>``\ （對 comment 子字串
+  比對）丟棄 findings。缺檔即 no-op。
+* **行內 ignore 指令**\ ——變更行上若帶 ``# prthinker: ignore``\ （任何註解
+  語法皆可,只比對該 token）會抑制該新側行的 findings,讓作者在原始碼那一行
+  就地消音,而非寫在集中式檔案。
+* **finding 去重**\ （\ ``--dedupe-findings``\ ）——收斂近似重複（同 path+
+  line、訊息等價；保留最高嚴重度）。
+* **公開 API 影響**\ （\ ``--api-impact``\ ）——以啟發式掃描 diff 中新增/
+  移除/變更之公開 ``def``/``class`` 簽章，於摘要附上 semver 影響行
+  （major/minor/patch）。
+* **Gitea 平台**\ （\ ``--platform gitea``\ ）——與 GitHub/GitLab 共用同一
+  ``PlatformAdapter`` strategy 之 ``GiteaAdapter``\ 。
+* **commit message 審查**\ （\ ``prthinker review-commits``\ ）——對自 stdin
+  讀入之訊息評估品質（conventional-commits、祈使語氣、清晰度）。
+* **額外推論 backend**\ （\ ``--backend gemini|cohere|mistral``\ ）——
+  與 OpenAI/Anthropic 共用同一 ``InferenceBackend`` factory 之 HTTP
+  backend，各有 ``--<provider>-model`` / ``-api-key`` / ``-base-url`` flag。
+* **backend 組合**\ （library API）——``RouterBackend(primary, fallbacks)``
+  失敗時升級；\ ``EnsembleBackend(backends, policy)`` 查詢多個並依
+  ``longest`` / ``first`` / ``majority`` 擇一。兩者皆為 ``InferenceBackend``
+  decorator，可與 caching / telemetry wrapper 組合。
+* **self-consistency 取樣**\ （library API）——``self_consistent_generate
+  (backend, prompt, k=…)`` 取樣 k 次回傳多數（正規化後）輸出。
+* **第三方 step plugin**\ ——``prthinker.plugins.load_plugin_steps`` 探索
+  發佈於 ``prthinker.steps`` entry-point group 之 step，於 CLI 啟動時呼叫，
+  外部套件無需改 core 即可註冊 step（Open/Closed）\ 。
+* **信心棄權**\ （\ ``--min-confidence``\ ）——丟棄 ``provenance`` 信心低於
+  門檻之 finding（搭配 ``--provenance``\ ）；無信心值者一律保留\ 。
+* **citation 驗證**\ （library：\ ``citation_verify``\ ）——標記 rule/example
+  索引越界或 diff-evidence 行不在 diff 內之引用\ 。
+* **prompt-injection guard**\ （library：\ ``injection_guard``\ ）——對新增行
+  之啟發式 ``scan_diff`` / ``redact_injection``\ （direct injection、role
+  hijack、encoded blob）；best-effort，補充 adversarial 語料\ 。
+* **在地化 finding**\ （library：\ ``localize``\ ）——prompt+parse 將 finding
+  comment 翻成目標語言\ 。
+* **golden-set 快照**\ （library：\ ``golden``\ ）——寫入/比對 finding 穩定
+  快照以偵測 prompt/行為漂移（無分數）\ 。
+* **評估 harness 骨架**\ （library：\ ``benchmark``\ ）——把 case 語料跑過
+  backend 只記錄原始輸出；依 ``paper_rule.md`` 不輸出分數或彙總數字\ 。
+* **成本估算 + 預算**\ （library：\ ``cost``\ ）——由 ``pricing`` 估每次
+  USD 成本，並以 ``CostBudget`` 為 PR 設上限\ 。
+* **聚焦審查模式**\ （\ ``--review-modes security,performance,…``\ ）——
+  註冊於 ``prthinker.review_modes``\ （Registry pattern）之 opt-in 全 diff
+  pass：security/SAST、performance、test-coverage、IaC、DB-migration、
+  accessibility、secret-scan、PII。各啟用模式之輸出附於彙整摘要；未知名稱
+  略過。prompt 為各模式模組內之 source of truth。
+
+monitoring overlay 另附 **Prometheus alerting 規則**\ （\
+``docker/monitoring/alerts.yml``\ ）；詳見 Docker 概念頁。
+
+僅設計（尚未實作）
+------------------
+
+兩個機制僅以設計形式記載而\ **刻意不實作**\ ，因為粗糙版本會不安全或屬大型
+重寫——依 ``paper_rule.md`` 帶「本論文未予評估」免責且不附程式碼：
+
+* **per-file 平行審查**\ ——並行審查可縮短 wall-clock，但 in-process GPU
+  backend（\ ``LocalHFBackend``\ ）序列化生成、不可多執行緒呼叫；正確設計
+  需 per-backend 並行能力旗標 + 有界 worker pool（HTTP backend opt-in、
+  local backend 不）。未來工作\ 。
+* **可設定 step DAG**\ ——pipeline 目前跑固定線性 step 序列；分支/條件 DAG
+  （依 PR 類型跳步、獨立步驟 fan out）屬 ``CoTPipeline`` 與 step 解析之較大
+  重寫。未來工作\ 。
+* **依作者校準** / **自動調整 RAG 門檻** / **embedding 漂移監測**\ ——需累積
+  accept/dismiss 歷史與線上回饋迴路；語料 store 已存在，但學習迴路僅設計\ 。
+  未來工作\ 。
+* **server queue + rate-limiting** 與 **per-model 指標標籤**\ ——server 端
+  並行控制與更細遙測標籤；為保 boot path 與指標基數穩定，僅設計\ 。未來工作\ 。
+
 狀態
 ----
 
-十七個機制皆已交付為框架程式碼、單元測試與 prompt 樣板\ 。依
-``paper_rule.md``\ ，本專案有意不在此頁提供 benchmark 數字；語料與
-outcome 儲存體均已就位\ ，量測之時\ ，將以可審計之方式為之\ 。
+十七個研究機制皆已交付為框架程式碼、單元測試與 prompt 樣板；上述營運整合
+則交付為程式碼 + 測試\ 。依 ``paper_rule.md``\ ，本專案有意不在此頁提供
+benchmark 數字；語料與 outcome 儲存體均已就位\ ，量測之時\ ，將以可審計之
+方式為之\ 。

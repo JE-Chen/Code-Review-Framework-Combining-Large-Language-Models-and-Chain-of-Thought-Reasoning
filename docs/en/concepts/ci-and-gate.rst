@@ -130,6 +130,165 @@ Failure modes
   summary comment still shows the empty result so authors know the
   reviewer ran.
 
+Posting the review: comments and inline suggestions
+---------------------------------------------------
+
+With ``--pr-overview`` (env ``PRTHINKER_PR_OVERVIEW``) the summary opens
+with a model-free **What this PR does (preliminary)** block, built
+deterministically from the PR's commit messages and changed files: a
+file/directory/extension breakdown, a conventional-commit type tally
+(``feat (3) · fix (1)``), and the commit-subject list. It is context, not
+a verdict — it answers "what changed" while the digest below answers "is
+it any good" — and like the digest it is pinned to the upserted part-1
+comment and refreshed on every review.
+
+``--impact-map`` (env ``PRTHINKER_IMPACT_MAP``) adds an **Impacted areas**
+note listing the *downstream importers* of the changed files — files that
+import a changed module but were not themselves touched — read from the
+repo knowledge graph (``repo-kg.sqlite``). It flags ripple effects the
+diff alone does not show. Matching is heuristic (module name vs import
+target), so it is a hint, and it degrades silently when the KG is absent.
+
+Every per-file summary opens with a **Review at a glance** digest — a
+plain-language status (🔴 changes requested / 🟡 review suggested /
+🔵 minor notes / ✅ looks good), the finding counts by severity, the
+reviewed / with-findings / clean file split, and the *hotspot* files
+that carry the most findings. It is pinned to the top of the upserted
+part-1 comment, so it is rewritten in place on every re-review and always
+reflects the latest run.
+
+When any error-severity findings exist, a **🚨 Must fix** list is pinned
+above everything else — the error findings as one-liners with deep links,
+so the blocking issues are unmissable without expanding a single block.
+Files that contain errors then render expanded (``<details open>``) while
+clean / warning / info files stay collapsed, and each file block surfaces
+a ``Signal:`` line tallying sandbox-verified suggestions (``✓``) and
+low-reproducibility findings (``⚠️``) so high-trust findings stand out.
+
+Each file is its own expandable ``<details>`` entry whose summary opens
+with a worst-severity status glyph (``🔴`` / ``🟡`` / ``🔵``) before the
+file name, so the whole review is one scannable menu of files. The
+per-file blocks are ordered most-severe first (files with errors, then
+warnings, then info, ties broken by finding count), each badged with
+severity icons (``🔴2 🟡1``) instead of a bare count. With
+``--findings-only`` (on by default in CI) files with no findings are
+skipped rather than listed. ``--summary-table``
+(env ``PRTHINKER_SUMMARY_TABLE``) swaps the collapsible blocks for one
+compact ``severity | location | finding`` table — faster to scan when a
+PR has many findings. On GitHub every
+file name — in the hotspots line and the block headers — is a deep link
+straight to that file's first finding in the Files-changed tab (set
+``PRTHINKER_PR_FILES_URL`` for GitHub Enterprise hosts).
+
+With ``--review-delta`` (env ``PRTHINKER_REVIEW_DELTA``) the digest adds a
+``Since last review: +2 new · 3 resolved · 5 carried`` line. Findings are
+fingerprinted by ``(path, severity, comment)`` — not line number, which
+shifts between pushes — and the set is persisted in the per-PR state
+(``--delta-state``, default ``.prthinker/pr-state/findings-fp.json``) that
+CI already restores across pushes, so a re-push shows progress at a
+glance. The same line appends ``💬 N author reply(ies)`` when the author
+has responded since the last review, and the findings that disappeared
+are listed struck-through in a collapsed **✅ Resolved since last review**
+block at the top — so authors get credit and reviewers see exactly what
+was addressed.
+
+A full per-file review can run to hundreds of KB — far past GitHub's
+65 536-character limit on a single comment. Rather than truncate, the
+summary is **paginated across multiple comments**: it is split between
+whole file blocks (never inside one), and every page after the first
+carries a ``Part k/N`` label. Across re-pushes the pages are reconciled
+by marker — existing comments are updated in place, extra pages are
+created, and any leftover pages from a longer previous run are deleted,
+so stale parts never linger. Platforms other than GitHub fall back to a
+single comment (the overflow stays in the job logs).
+
+With ``--findings-only`` (env ``PRTHINKER_FINDINGS_ONLY``) the summary
+lists *only* files that have findings; clean files are collapsed into a
+``N file(s) reviewed with no findings — hidden`` line, and a PR with zero
+findings collapses to a one-line ``✅ No findings`` confirmation instead
+of a full empty result. On a large but mostly-clean PR this often brings
+a multi-page summary back down to a single comment.
+
+``--hide-info`` (env ``PRTHINKER_HIDE_INFO``) omits ``info``-severity
+findings from the rendered summary — the count badges, the at-a-glance
+tally, and the hotspot ranking all ignore them, and a file whose only
+findings are info is treated as clean. This is display-only: the inline
+review on the diff and the merge gate still see every finding.
+
+``--summary-min-confidence`` (env ``PRTHINKER_SUMMARY_MIN_CONFIDENCE``, a
+0–1 float) additionally drops findings whose model confidence is below
+the floor; findings without a confidence score are kept (drop nothing on
+unknown). Also display-only.
+
+With ``--pr-labels`` (env ``PRTHINKER_PR_LABELS``) the reviewer also
+applies two managed labels to the PR — a size bucket
+(``prthinker/size-xs`` … ``size-xl``, by reviewed file count) and a
+status (``prthinker/changes-requested`` / ``review-suggested`` /
+``clean``) — so the PR list is scannable without opening each one. Only
+labels under the ``prthinker/`` prefix are reconciled across runs;
+human-applied labels are never touched.
+
+Inline suggestions — the one-click *Apply suggestion* blocks on the
+diff — are posted as a separate PR review. The new review is submitted
+**before** the previous run's inline comments are dismissed, and the
+dismissal excludes the review just posted. Posting before dismissing
+means a rejected submission (GitHub 422s the *whole* review if any
+single comment targets a line outside the diff hunks) leaves the prior
+run's suggestions intact instead of wiping them ahead of a failed
+re-post.
+
+With ``--check-annotations`` (env ``PRTHINKER_CHECK_ANNOTATIONS``) the
+gate's Check Run also carries per-line annotations (one per finding,
+``failure`` / ``warning`` / ``notice`` by severity). They render on the
+Files-changed and Checks tabs and are a robust *parallel* channel to the
+inline review: a single bad line is dropped individually rather than
+422-ing the whole batch, and GitHub appends them across requests so a
+review with more than 50 findings is sent over several updates.
+
+Other output channels
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The review is not confined to the PR conversation. The aggregate job
+writes the merged findings as **SARIF** (``--sarif-out`` /
+``PRTHINKER_SARIF_OUT``) and the workflow uploads it with
+``github/codeql-action/upload-sarif``, so findings also appear in the
+**Security tab** and as native diff annotations — dismissable and
+deduped by GitHub across PRs. Separately, when ``$GITHUB_STEP_SUMMARY``
+is set (every Actions run), the at-a-glance summary is appended to the
+**run summary page**, visible straight from the Checks tab without
+opening the PR. Both the SARIF and the HTML report
+(``PRTHINKER_HTML_REPORT``) are uploaded as run artifacts, and the
+summary comment closes with a **Reports** footer linking back to the
+workflow run (to download them) and to code scanning — so the rendered
+report files are always one click from the review.
+
+With ``--pr-body-summary`` (env ``PRTHINKER_PR_BODY_SUMMARY``) the
+at-a-glance digest is also upserted into the **PR description** itself,
+between markers, so the verdict sits at the very top of the PR rather
+than only in the comment thread. Only the marked block is rewritten;
+the author's description is preserved.
+
+No partial reports
+~~~~~~~~~~~~~~~~~~~
+
+With ``--require-full-scan`` (env ``PRTHINKER_REQUIRE_FULL_SCAN``) the
+aggregate publishes the report **only when every PR file has a result**.
+It compares the PR's changed files (minus ``--exclude-globs``) against the
+files covered by the merged partials; if any are missing — a shard failed,
+say — it posts a ``⏳ Review in progress — N/M files scanned`` notice and
+withholds the menu, gate, and inline review until a later run covers them
+all. The check fails open if the file list cannot be fetched.
+
+Review in progress
+~~~~~~~~~~~~~~~~~~~
+
+A GPU review of a large PR takes minutes, during which the PR shows
+nothing. The ``post-status`` command upserts a ``⏳ Review in progress…``
+placeholder under the summary marker; the CI ``enumerate`` job runs it
+first (best-effort), and the later aggregate run reconciles it into the
+real summary through the same marker — so reviewers see the review has
+started instead of an empty PR.
+
 Combining CI signals + gate
 ---------------------------
 

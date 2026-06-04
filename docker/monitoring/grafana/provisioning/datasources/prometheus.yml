@@ -7,7 +7,14 @@ datasources:
   - name: Prometheus
     type: prometheus
     access: proxy
-    url: http://prometheus:9090
+    # Prometheus runs with --web.route-prefix=/prometheus, which moves its
+    # whole HTTP surface (including the query API) under that path. Without
+    # the prefix here Grafana queries /api/v1/* and gets 404s — empty panels.
+    url: http://prometheus:9090/prometheus
+    # Pin the uid so the bundled dashboard's datasource refs resolve. Without
+    # it Grafana assigns a random uid and the dashboard points at a
+    # datasource that does not exist.
+    uid: prometheus
     isDefault: true
     editable: true
     jsonData:

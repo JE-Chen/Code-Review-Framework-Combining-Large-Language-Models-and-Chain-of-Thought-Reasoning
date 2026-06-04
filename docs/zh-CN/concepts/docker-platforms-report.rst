@@ -143,15 +143,23 @@ monitoring overlay 观测什么
 Prometheus scrape 四个 job——``prthinker-fastapi``\ （\ ``/metrics``
 endpoint）、\ ``dcgm-gpu``\ （各 GPU 遥测）、\ ``cadvisor-containers``\
 （各容器资源用量）与 ``prometheus-self``\ ——并保留 30 天历史。预先置备之
-``prthinker-overview`` Grafana 仪表板把它们渲染为十个 panel：
+``prthinker-overview`` Grafana 仪表板把它们渲染为十四个 panel：
 
 * **服务**\ ──各 endpoint 请求率、延迟 p50 / p95 / p99、HTTP 5xx 率
   （来自 FastAPI ``/metrics`` histogram）\ 。
+* **审查**\ ──完成审查率（依 outcome）、审查耗时 p50 / p95、进行中审查数、
+  每次审查平均 findings（来自服务器每跑完一次审查就输出之
+  ``prthinker_reviews_total`` / ``prthinker_review_duration_seconds`` /
+  ``prthinker_review_findings`` / ``prthinker_reviews_in_progress``
+  series——所以 HTTP 流量空闲时仪表板仍有审查数据）\ 。
 * **GPU**\ ──使用率、已用显存、功耗、温度（来自 DCGM）\ 。
 * **容器**\ ──prthinker CPU cores、RAM、网络 RX/TX（来自 cAdvisor）\ 。
 
-未置备 alerting——请在 ``monitoring/prometheus.yml`` 加 rule（或用同一
-datasource 配置 Grafana alerting），对应你部署在意之阈值\ 。
+alerting 规则随附于 ``monitoring/alerts.yml``\ （经 ``prometheus.yml`` 之
+``rule_files`` 加载)——backend 掉线、5xx 超过 5%、审查 p95 超过 10 分钟、
+审查错误、GPU 超过 85 °C。它们会以 ``ALERTS`` series 显示在 Prometheus UI
+与 Grafana；需要路由/呼叫请加一个 Alertmanager(于 ``prometheus.yml`` 加
+``alerting:`` 区块指向它)。阈值请依流量与 SLO 自行调整\ 。
 
 安全重建 image（``rebuild-server.sh``）
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

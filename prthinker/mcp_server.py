@@ -37,6 +37,85 @@ from prthinker.config import (
 
 log = logging.getLogger(__name__)
 
+_DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
+_DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com"
+
+
+def _read_timeout() -> float:
+    """Resolve the shared remote/provider request timeout in seconds."""
+    return float(env_str("PRTHINKER_REMOTE_TIMEOUT", "600") or 600)
+
+
+def _local_config() -> LocalBackendConfig:
+    """Build the local-backend config from environment variables."""
+    return LocalBackendConfig(
+        model_name=env_str("PRTHINKER_MODEL_NAME",
+                            "Qwen/Qwen3-Coder-30B-A3B-Instruct") or "",
+        lora_path=env_str("PRTHINKER_LORA_PATH"),
+    )
+
+
+def _remote_config(timeout: float) -> RemoteBackendConfig:
+    """Build the remote-backend config; require an explicit URL."""
+    url = env_str("PRTHINKER_REMOTE_URL")
+    if not url:
+        raise RuntimeError("PRTHINKER_REMOTE_URL is required for remote backend")
+    return RemoteBackendConfig(
+        url=url, timeout_seconds=timeout,
+        api_key=env_str("PRTHINKER_REMOTE_API_KEY"),
+    )
+
+
+def _openai_config(timeout: float) -> OpenAICompatConfig:
+    """Build the OpenAI-compatible backend config; require an API key."""
+    key = env_str("PRTHINKER_OPENAI_API_KEY") or env_str("OPENAI_API_KEY")
+    if not key:
+        raise RuntimeError("OPENAI_API_KEY is required for openai backend")
+    return OpenAICompatConfig(
+        model=env_str("PRTHINKER_OPENAI_MODEL", "gpt-4o-mini") or "gpt-4o-mini",
+        api_key=key,
+        base_url=env_str("PRTHINKER_OPENAI_BASE_URL",
+                          _DEFAULT_OPENAI_BASE_URL) or _DEFAULT_OPENAI_BASE_URL,
+        organization=env_str("PRTHINKER_OPENAI_ORGANIZATION")
+                          or env_str("OPENAI_ORG_ID"),
+        timeout_seconds=timeout,
+    )
+
+
+def _anthropic_config(timeout: float) -> AnthropicConfig:
+    """Build the Anthropic backend config; require an API key."""
+    key = env_str("PRTHINKER_ANTHROPIC_API_KEY") or env_str("ANTHROPIC_API_KEY")
+    if not key:
+        raise RuntimeError("ANTHROPIC_API_KEY is required for anthropic backend")
+    return AnthropicConfig(
+        model=env_str("PRTHINKER_ANTHROPIC_MODEL", "claude-opus-4-7")
+                   or "claude-opus-4-7",
+        api_key=key,
+        base_url=env_str("PRTHINKER_ANTHROPIC_BASE_URL",
+                          _DEFAULT_ANTHROPIC_BASE_URL) or _DEFAULT_ANTHROPIC_BASE_URL,
+        anthropic_version=env_str("PRTHINKER_ANTHROPIC_VERSION",
+                                   "2023-06-01") or "2023-06-01",
+        timeout_seconds=timeout,
+    )
+
+
+def _cache_config() -> CacheConfig:
+    """Build the prompt-cache config from environment variables."""
+    return CacheConfig(
+        enabled=env_bool("PRTHINKER_CACHE_ENABLED", False),
+        path=env_str("PRTHINKER_CACHE_PATH", ".prthinker/cache.sqlite")
+              or ".prthinker/cache.sqlite",
+    )
+
+
+def _telemetry_config() -> TelemetryConfig:
+    """Build the telemetry config from environment variables."""
+    return TelemetryConfig(
+        enabled=env_bool("PRTHINKER_TELEMETRY_ENABLED", False),
+        path=env_str("PRTHINKER_TELEMETRY_PATH", ".prthinker/telemetry.sqlite")
+              or ".prthinker/telemetry.sqlite",
+    )
+
 
 def _config_from_env() -> Config:
     """Replicate the CLI's environment-driven Config construction.
@@ -47,76 +126,33 @@ def _config_from_env() -> Config:
     """
     backend_str = env_str("PRTHINKER_BACKEND", BackendKind.REMOTE.value) or "remote"
     backend = BackendKind(backend_str)
+    timeout = _read_timeout()
 
-    local_cfg: LocalBackendConfig | None = None
-    remote_cfg: RemoteBackendConfig | None = None
-    openai_cfg: OpenAICompatConfig | None = None
-    anthropic_cfg: AnthropicConfig | None = None
-
-    timeout = float(env_str("PRTHINKER_REMOTE_TIMEOUT", "600") or 600)
-
-    if backend is BackendKind.LOCAL:
-        local_cfg = LocalBackendConfig(
-            model_name=env_str("PRTHINKER_MODEL_NAME",
-                                "Qwen/Qwen3-Coder-30B-A3B-Instruct") or "",
-            lora_path=env_str("PRTHINKER_LORA_PATH"),
-        )
-    elif backend is BackendKind.REMOTE:
-        url = env_str("PRTHINKER_REMOTE_URL")
-        if not url:
-            raise RuntimeError("PRTHINKER_REMOTE_URL is required for remote backend")
-        remote_cfg = RemoteBackendConfig(
-            url=url, timeout_seconds=timeout,
-            api_key=env_str("PRTHINKER_REMOTE_API_KEY"),
-        )
-    elif backend is BackendKind.OPENAI:
-        key = env_str("PRTHINKER_OPENAI_API_KEY") or env_str("OPENAI_API_KEY")
-        if not key:
-            raise RuntimeError("OPENAI_API_KEY is required for openai backend")
-        openai_cfg = OpenAICompatConfig(
-            model=env_str("PRTHINKER_OPENAI_MODEL", "gpt-4o-mini") or "gpt-4o-mini",
-            api_key=key,
-            base_url=env_str("PRTHINKER_OPENAI_BASE_URL",
-                              "https://api.openai.com/v1") or "https://api.openai.com/v1",
-            organization=env_str("PRTHINKER_OPENAI_ORGANIZATION")
-                              or env_str("OPENAI_ORG_ID"),
-            timeout_seconds=timeout,
-        )
-    elif backend is BackendKind.ANTHROPIC:
-        key = env_str("PRTHINKER_ANTHROPIC_API_KEY") or env_str("ANTHROPIC_API_KEY")
-        if not key:
-            raise RuntimeError("ANTHROPIC_API_KEY is required for anthropic backend")
-        anthropic_cfg = AnthropicConfig(
-            model=env_str("PRTHINKER_ANTHROPIC_MODEL", "claude-opus-4-7")
-                       or "claude-opus-4-7",
-            api_key=key,
-            base_url=env_str("PRTHINKER_ANTHROPIC_BASE_URL",
-                              "https://api.anthropic.com")
-                              or "https://api.anthropic.com",
-            anthropic_version=env_str("PRTHINKER_ANTHROPIC_VERSION",
-                                       "2023-06-01") or "2023-06-01",
-            timeout_seconds=timeout,
-        )
+    builders = {
+        BackendKind.LOCAL: lambda: ("local", _local_config()),
+        BackendKind.REMOTE: lambda: ("remote", _remote_config(timeout)),
+        BackendKind.OPENAI: lambda: ("openai", _openai_config(timeout)),
+        BackendKind.ANTHROPIC: lambda: ("anthropic", _anthropic_config(timeout)),
+    }
+    kwargs: dict[str, object] = {
+        "local": None, "remote": None, "openai": None, "anthropic": None,
+    }
+    builder = builders.get(backend)
+    if builder is not None:
+        field, cfg = builder()
+        kwargs[field] = cfg
 
     return Config(
         backend=backend,
-        local=local_cfg,
-        remote=remote_cfg,
-        openai=openai_cfg,
-        anthropic=anthropic_cfg,
+        local=kwargs["local"],
+        remote=kwargs["remote"],
+        openai=kwargs["openai"],
+        anthropic=kwargs["anthropic"],
         rag_enabled=env_bool("PRTHINKER_RAG_ENABLED", True),
         rag_threshold=float(env_str("PRTHINKER_RAG_THRESHOLD", "0.7") or 0.7),
         max_new_tokens=int(env_str("PRTHINKER_MAX_NEW_TOKENS", "32768") or 32768),
-        cache=CacheConfig(
-            enabled=env_bool("PRTHINKER_CACHE_ENABLED", False),
-            path=env_str("PRTHINKER_CACHE_PATH", ".prthinker/cache.sqlite")
-                  or ".prthinker/cache.sqlite",
-        ),
-        telemetry=TelemetryConfig(
-            enabled=env_bool("PRTHINKER_TELEMETRY_ENABLED", False),
-            path=env_str("PRTHINKER_TELEMETRY_PATH", ".prthinker/telemetry.sqlite")
-                  or ".prthinker/telemetry.sqlite",
-        ),
+        cache=_cache_config(),
+        telemetry=_telemetry_config(),
     )
 
 

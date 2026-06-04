@@ -5,9 +5,53 @@
      Reformatting them to restart at 1 would lose the cross-section
      numbering that the paper itself uses. -->
 
-# 論文補充內容（drop-in 段落集 — v3.1 修正版）
+# 論文補充內容（drop-in 段落集 — v3.3 修正版）
 
 ## 修正聲明
+
+本版相對於 v3.2 之關鍵差異（v3.3）：
+
+- **新增 §3.7.20 可操作性與輸出整合**：對應隨附框架近期之 operability
+  整合（SARIF / HTML 報告 / finding 抑制 / 去重 / 公開 API 影響 / Gitea
+  平台 / commit message 審查 / Gemini・Cohere・Mistral 後端 / Router・
+  Ensemble 組合 / self-consistency / step 外掛 / confidence 棄權 / 引用
+  驗證 / injection 防護 / 在地化 / golden 快照 / benchmark 骨架 / 成本
+  預算 / 聚焦審查模式 / Prometheus 告警規則）。皆為 runner-safe 純轉換
+  或轉接器、隨附單元測試，\ **不計入 §3.7 之十七項研究級機制**\ ；其對
+  審查品質之效益本論文均\ **未予評估**\ 。
+- **新增 §3.7.21 僅設計、尚未實作之機制**：平行 per-file 審查、可配置
+  step DAG、per-author 校準 / 自動調校 RAG 閾值 / embedding 漂移監測、
+  server queue + rate-limiting 與 per-model 指標標籤。此類\ **不隨附
+  程式碼**\ ，列為未來工作並標示\ **未予評估**\ 。
+- **§1.5 第六項貢獻**\ 之後端清單補列 Gemini / Cohere / Mistral 與
+  ``RouterBackend`` / ``EnsembleBackend`` 組合層。
+- **研究級機制計數維持十七項**：與 docs 之 ``research-extensions.rst``
+  「All seventeen research mechanisms」一致；新增之 §3.7.20 / §3.7.21
+  分屬「operability 整合（已實作）」與「design-only（未實作）」兩類，
+  均不計入十七項。
+- 不變項目（沿用 v3.2）：仍\ **不謊造、不新增 RQ、不新增參考文獻**\ ；
+  既有 §5 之表 1 / 表 2 / 表 3 不更動；§3.7.1–§3.7.19 之既有內容沿用。
+
+本版相對於 v3.1 之關鍵差異（v3.2）：
+
+- **§3.7.17 由單一 ``/kg/`` 路由精修為每倉 ``/kg/<name>/`` 路由**：
+  v3.1 之知識圖譜視覺化僅服務單一 ``/kg/`` 靜態頁；隨附框架現以
+  ``visualize-kg --name <name>`` 輸出 ``repo-kg-<name>.html``，並於
+  nginx 以 ``^/kg/(?<repo>[A-Za-z0-9._-]+)/?$`` 正則路由，使單一主機
+  得同時託管多倉之圖譜。此為 §3.7.17 之就地精修。
+- **新增 §3.7.19 推論伺服器之指標端點與監控可觀測層**：將自架 FastAPI
+  推論伺服器之 ``/metrics`` 端點（經 ``prometheus_fastapi_instrumentator``）
+  與 ``docker-compose.monitoring.yml`` 之 Prometheus / Grafana /
+  dcgm-exporter / cAdvisor 監控疊加層納入框架設計貢獻。此層與 §3.7.14
+  同屬部署 / 可觀測層工程，\ **不計入 §3.7 之十七項研究級擴充機制**\ ；
+  其端到端營運效益本論文均\ **未予評估**\ ，於 §6.4.5 補上對應未來工作
+  骨架 (r)。對應 docs 之 ``research-extensions.rst`` 維持「seventeen
+  mechanisms」，監控層之文件歸於 ``docker-platforms-report.rst``。
+- **機制計數維持十七項**：§1.5 第七項貢獻、§1.3、§3.7 引言、§6.4.5 與
+  self-audit 清單之研究級機制數沿用「十七項」，與 docs 對齊。
+- 不變項目（沿用 v3.1）：仍\ **不謊造、不新增 RQ、不新增參考文獻**\ ；
+  既有 §5 之表 1 / 表 2 / 表 3 不更動；§3.7.1–§3.7.18 之既有內容沿用
+  （§3.7.17 除上述路由精修外不變）。
 
 本版相對於 v3 之關鍵差異（v3.1）：
 
@@ -181,9 +225,11 @@
 >    研究尚未對該機制之累積效益進行量化評估。
 > 6. **可替換之推論後端與 IDE 整合層之設計**：以 Strategy 介面提供本
 >    機 Hugging Face（含 LoRA + 量化）、自架 FastAPI、OpenAI-相容
->    端點與 Anthropic Messages API 四種具體後端，並以 MCP server 將
->    審查管線暴露為 IDE 可直接調用之 tool。本論文 §5 之實驗以本機後端
->    為主，跨後端比較與 IDE 內審查觸發率之評估屬未來工作。
+>    端點、Anthropic Messages API 與 Gemini / Cohere / Mistral 等具體
+>    後端，另以 ``RouterBackend``（失敗逐級回退）與 ``EnsembleBackend``
+>    （多後端表決）提供組合層，並以 MCP server 將審查管線暴露為 IDE
+>    可直接調用之 tool。本論文 §5 之實驗以本機後端為主，跨後端比較與
+>    IDE 內審查觸發率之評估屬未來工作。
 > 7. **十七項研究級擴充機制之設計**（見 §3.7 詳述）：包含 prompt-injection
 >    robustness 之 corpus + bypass detection、closed-loop 多輪對話、
 >    counterfactual / mutation-style 審查、provenance 稽核、force-push
@@ -309,7 +355,10 @@
 > 測試與設計文件（`docs/en/concepts/research-extensions.rst`），可
 > 直接於工程上使用，僅缺學術評估。子節編號 §3.7.1–§3.7.13 為 v3 既有
 > 之十三項；§3.7.14 為部署層之工程設計；§3.7.15–§3.7.18 為 v3.1 新增
-> 之四項機制。
+> 之四項機制；§3.7.19 為 v3.2 新增之可觀測層工程，與 §3.7.14 同屬部署
+> 層、不計入上述十七項研究級機制；§3.7.20 為 v3.3 新增之可操作性與輸出
+> 整合（已實作並附單元測試，亦不計入十七項），§3.7.21 為僅設計、尚未
+> 實作之機制骨架。
 >
 > 3.7.1  Prompt-injection robustness 與 `adversarial-eval` 子指令
 >
@@ -703,11 +752,15 @@
 > hallucinate)」前置區塊，並明示「finding 內若引用符號，該符號必須
 > 出現於表中」。``rebuild()`` 採整批替換（先 delete 該 workdir 之
 > 舊 rows 再插入），確保 store 與 HEAD 對齊；增量更新列為未來工作。
-> 框架另提供 ``kg_visualize`` 子模組將該 SQLite 表輸出為單頁 D3
-> HTML 互動視圖，並於監控 overlay 之 nginx 加 ``/kg/`` 路由直接服務
-> 該頁，使團隊可線上瀏覽框架對 repo 之符號理解。本機制屬框架設計
-> 貢獻；其 grounded prompt 對符號虛構率之降幅與對 inline finding
-> 精確率之影響本論文未予評估。
+> 框架另提供 ``visualize-kg`` 子指令將該 SQLite 表輸出為單頁 D3
+> HTML 互動視圖；``visualize-kg --name <name>`` 將其寫為
+> ``repo-kg-<name>.html``，並於監控疊加層之 nginx 以
+> ``^/kg/(?<repo>[A-Za-z0-9._-]+)/?$`` 正則路由 ``/kg/<name>/``，預設
+> ``/kg/`` 則服務單倉之 ``repo-kg.html``；``<name>`` 之合法字元集與
+> nginx 路由一致，故不可路徑穿越。單一主機由此得同時託管多倉之圖譜，
+> 使團隊可線上瀏覽框架對各 repo 之符號理解。本機制屬框架設計貢獻；其
+> grounded prompt 對符號虛構率之降幅與對 inline finding 精確率之影響
+> 本論文未予評估。
 >
 > 3.7.18  每檔遞增存檔與崩潰安全部分結果（crash-safe partial review）
 >
@@ -737,6 +790,107 @@
 > per-file 增量在伺服端不適用，``--output-json`` 仍為其對應之單檔
 > 落盤路徑）。本機制屬框架設計貢獻；其於真實 CI 流量上之「中斷
 > -recovery 收益」量化評估本論文未予進行。
+>
+> 3.7.19  推論伺服器之指標端點與監控可觀測層（observability）
+>
+> 自架之 FastAPI 推論伺服器以 ``prometheus_fastapi_instrumentator``
+> （Prometheus 之 FastAPI 中介層）將每端點之請求數、延遲與狀態碼以
+> Prometheus 文字格式暴露於 ``/metrics``。本機制與 §3.7.14 同屬部署 /
+> 可觀測層工程，不計入本節之十七項研究級擴充機制。該相依採延遲匯入（lazy
+> import），未安裝時僅記錄一行 log 並停用該端點，故 runner-profile
+> 安裝（``httpx + pydantic + PyYAML``）不受影響。隨附之
+> ``docker-compose.monitoring.yml`` 監控疊加層另編排 Prometheus（抓取
+> ``/metrics``）、Grafana（儀表板）、dcgm-exporter（GPU 指標）與
+> cAdvisor（容器指標）四個服務，並由 nginx 以 ``/grafana/`` /
+> ``/prometheus/`` / ``/cadvisor/`` / ``/kg/`` 之路徑反向代理。本機制
+> 屬框架之可觀測性與部署工程設計貢獻；其對營運者故障定位時間之助益
+> 與指標蒐集之執行期額外開銷本論文未予評估。
+>
+> 3.7.20  可操作性與輸出整合（operability and output integrations）
+>
+> 除上述十七項研究級機制外，隨附框架另提供一組 opt-in 旗標／子指令，
+> 將審查結果與外部工具鏈整合。此類功能皆為純轉換或轉接器（不含推論），
+> 故於 runner profile（``httpx + pydantic + PyYAML``）即可執行，且皆
+> 隨附單元測試；其對審查品質或實務採納率之效益不在本論文評估範圍：
+>
+> - **SARIF 匯出**（``--sarif-out``）：以 SARIF（Static Analysis Results
+>   Interchange Format，靜態分析結果交換格式）2.1.0 輸出 finding，供
+>   GitHub code-scanning 或任何 SARIF 檢視器使用。
+> - **HTML 報告**（``--html-report``）：產生獨立、防 XSS（cross-site
+>   scripting，跨站腳本）之 HTML 審查報告（嚴重度摘要 + 每檔 finding）。
+> - **finding 抑制**（``--ignore-file`` / ``.prthinkerignore``）：以路徑
+>   glob、``severity:<level>`` 或 ``rule:<id>`` 丟棄 finding；缺檔即 no-op。
+> - **finding 去重**（``--dedupe-findings``）：合併近似重複之 finding
+>   （同 path+line、等義訊息，保留最高嚴重度）。
+> - **公開 API 影響**（``--api-impact``）：以對 diff 內公開 ``def`` /
+>   ``class`` 簽章增刪改之啟發式掃描，於摘要附 semver（Semantic
+>   Versioning，語意化版本）影響（major / minor / patch）一行。
+> - **Gitea 平台**（``--platform gitea``）：與 GitHub / GitLab 同走
+>   ``PlatformAdapter`` 策略之 ``GiteaAdapter``。
+> - **commit message 審查**（``review-commits``）：就 stdin 讀入之 commit
+>   message 評估其品質（conventional-commits、祈使語氣、清晰度）。
+> - **額外推論後端**（``--backend gemini|cohere|mistral``）：與 OpenAI /
+>   Anthropic 同走 ``InferenceBackend`` 工廠之 HTTP 後端。
+> - **後端組合**（library API）：``RouterBackend`` 於失敗時逐級回退、
+>   ``EnsembleBackend`` 查詢多後端並依 ``longest`` / ``first`` /
+>   ``majority`` 選取；二者皆為 ``InferenceBackend`` 裝飾器，可與快取／
+>   telemetry 包裝層組合。
+> - **self-consistency 取樣**（library：``self_consistent_generate``）：
+>   對同一 prompt 取樣 k 次後回傳多數（正規化）輸出。
+> - **第三方 step 外掛**（``load_plugin_steps``）：以 ``prthinker.steps``
+>   entry-point group 探索外部套件所註冊之審查 step，於 CLI 啟動時載入，
+>   使外部套件無需改動核心即可註冊 step（Open/Closed 原則）。
+> - **confidence 棄權**（``--min-confidence``）：丟棄 ``provenance``
+>   confidence 低於閾值之 finding（須搭配 ``--provenance``）；無
+>   confidence 者一律保留。
+> - **引用驗證**（library：``citation_verify``）：標記 provenance 引用之
+>   rule / example 索引越界、或 diff 證據行落在 diff 之外者。
+> - **prompt-injection 防護**（library：``injection_guard``）：對新增行
+>   啟發式掃描（直接注入、role-hijack、編碼 blob），補強對抗語料。
+> - **finding 在地化**（library：``localize``）：以 prompt + parse 將
+>   finding 留言翻譯為目標語言。
+> - **golden-set 快照**（library：``golden``）：寫入／比對 finding 之
+>   穩定快照以偵測 prompt／行為漂移（不含任何分數）。
+> - **評估 harness 骨架**（library：``benchmark``）：將 case 語料跑過
+>   後端並僅記錄原始輸出；依 ``paper_rule.md`` 不輸出任何分數或聚合數字。
+> - **成本估算與預算**（library：``cost``）：自 ``pricing`` 估每次呼叫
+>   之 USD，並以 ``CostBudget`` 為單一 PR 設定上限。
+> - **聚焦審查模式**（``--review-modes security,performance,…``）：以
+>   Registry 模式註冊於 ``prthinker.review_modes`` 之 opt-in 全 diff
+>   pass──security / SAST（Static Application Security Testing，靜態
+>   應用程式安全測試）、performance、test-coverage、IaC（Infrastructure
+>   as Code，基礎設施即程式碼）、DB-migration、accessibility、
+>   secret-scan、PII（personally identifiable information，個人可識別
+>   資訊）；未知名稱略過。
+> - **Prometheus 告警規則**（``docker/monitoring/alerts.yml``）：監控疊
+>   加層隨附之告警規則（詳見 Docker 概念頁與 §3.7.19）。
+>
+> 上列整合屬部署 / 輸出層工程，\ **不計入 §3.7 之十七項研究級擴充
+> 機制**\ ；各功能皆以單元測試覆蓋，惟其對審查品質或實務採納率之
+> 量化效益本論文未予評估。
+>
+> 3.7.21  僅設計、尚未實作之機制（design-only, not yet implemented）
+>
+> 下列機制於隨附框架中\ **僅以設計描述存在、未隨附程式碼**\ ，因其素樸
+> 實作將不安全或需大幅重寫；依 ``paper_rule.md`` 皆標示「本論文未予
+> 評估」並列為未來工作：
+>
+> - **平行 per-file 審查**：併行審查各檔可縮短 wall-clock，惟行內 GPU
+>   後端（``LocalHFBackend``）序列化生成、不可由多執行緒安全呼叫；正確
+>   設計需 per-backend 併發能力旗標加上有界 worker pool（僅 HTTP 後端
+>   opt-in、本機後端不參與）。
+> - **可配置 step DAG（directed acyclic graph，有向無環圖）**：管線目前
+>   為固定線性 step 序列；分支／條件式 DAG（依 PR 類型跳過 step、獨立
+>   step 扇出）需重構 ``CoTPipeline`` 與 step 解析。
+> - **per-author 校準 / 自動調校 RAG 閾值 / embedding 漂移監測**：均需
+>   累積 accept / dismiss 歷史與線上回饋迴路；語料庫已存在，惟學習迴路
+>   僅止於設計。
+> - **server queue + rate-limiting 與 per-model 指標標籤**：伺服端併發
+>   控制與更細之 telemetry 標籤；為維持 boot path 與指標基數穩定，目前
+>   僅止於設計。
+>
+> 本子節所列皆\ **不隨附程式碼**\ ，與 §3.7.1–§3.7.20 之「已實作」性質
+> 不同，純屬未來工作之設計骨架。
 
 ---
 
@@ -844,7 +998,8 @@
 > 真實 PR 流量驗證。為避免日後補實驗時設計分歧，本節為各機制標示最
 > 小可驗證實驗骨架；所列指標皆為公開可重現之量度，避免引入新主觀
 > 量表。v3 既有之 (a)–(m) 對應 §3.7.1–§3.7.13；v3.1 新增之 (n)–(q)
-> 對應 §3.7.15–§3.7.18。
+> 對應 §3.7.15–§3.7.18；(r) 對應 §3.7.19 之可觀測層（屬部署工程，不計
+> 入十七項，列此便於對照）。
 >
 > (a) Prompt-injection robustness（§3.7.1）：擴充 `seed.jsonl` 至每
 > 攻擊類別 ≥ 30 例，於四類後端各跑一遍，以 SQLite 表格內之
@@ -932,7 +1087,16 @@
 > 之 GPU-second 總開銷」之減幅。本項屬可靠性工程量化評估，與品質
 > 研究分流。
 >
-> 上列十七組實驗皆需累積實際語料；本論文之主要貢獻仍為 §5.1 / §5.2
+> (r) 推論伺服器指標端點與監控疊加層（§3.7.19）：以固定之合成負載
+> （固定 PR 集合連續送審）量測啟用 ``/metrics`` instrumentation 前後
+> 之每請求延遲差與伺服器吞吐差，作為觀測開銷之上界；並以 ≥ 50 次注入
+> 之故障情境（GPU OOM、後端重啟、502）量測「自告警觸發至營運者定位
+> 根因」之時間，比較有無 Grafana 儀表板兩組之 MTTR（平均修復時間，
+> mean time to repair）。本項屬可觀測性
+> 工程量化評估，與品質研究分流。
+>
+> 上列十七組研究級實驗與 (r) 之可觀測層工程實驗皆需累積實際語料；
+> 本論文之主要貢獻仍為 §5.1 / §5.2
 > 所述之多階段 CoT + LoRA 微調 + RAG 之整合設計與驗證，§3.7 與
 > §6.4.5 之內容明示為框架設計貢獻與後續工作之承接介面，不影響本論
 > 文之核心主張。
@@ -953,10 +1117,13 @@
       引入 `[23]+`。
 - [ ] 兩篇引文格式統一為 IEEE `[N]`，未殘留 `(Author, Year)`。
 - [ ] 每個新增之技術名詞於首次出現處附括弧解釋。
-- [ ] 新增之子章節（§3.5.1–4、§3.6.1–2、**§3.7.1–18**、§5.3.1–3、
+- [ ] 新增之子章節（§3.5.1–4、§3.6.1–2、**§3.7.1–21**、§5.3.1–3、
       §6.4.1–5）在 docx 內已以加粗 + 略大字級之段落呈現，不僅以段落
       換行示意。子節編號：§3.7.1–§3.7.13 為原 13 項機制、§3.7.14 為
-      部署層含 (a)–(p)、§3.7.15–§3.7.18 為 v3.1 新增之四項機制。
+      部署層含 (a)–(p)、§3.7.15–§3.7.18 為 v3.1 新增之四項機制、§3.7.19
+      為 v3.2 新增之可觀測層工程（部署層，不計入十七項研究級機制）、
+      §3.7.20 為 v3.3 新增之可操作性與輸出整合（已實作 + 測試）、§3.7.21
+      為僅設計未實作之機制骨架；後三者皆不計入十七項。
 - [ ] §1.5 條列之七項貢獻：前三項已對應 §5 表 1 / 表 2 / 表 3 之實驗
       結果；第 4–7 項已明示為「框架設計貢獻、量化驗證屬未來工作」。
       第 7 項已更新為「十七項」並包含 lessons / clusters / KG /
@@ -965,7 +1132,8 @@
       免責標示；§3.7 內提及「框架設計貢獻」之頻次 ≥ 17 次（每子節
       至少一次）。
 - [ ] **§3.7 之十七項機制每項皆對應 §6.4.5 之一個未來工作骨架
-      (a)–(m) ∪ (n)–(q)**，不漏項；§6.4.5 內每項皆給出具體之
+      (a)–(m) ∪ (n)–(q)**，不漏項（(r) 為 §3.7.19 可觀測層之額外骨架，
+      屬部署工程，不計入十七項）；§6.4.5 內每項皆給出具體之
       ground-truth 來源、語料規模下限、與不依賴人類主觀量表之量化
       指標。
 - [ ] §5.3 之三段分析所引之每個數字皆可於表 1 / 表 2 / 表 3 中找到。
@@ -981,7 +1149,9 @@
       research-extensions.rst` 完全一致**（避免 `--reply-to-author`
       於論文內被翻為「多輪對話」、於 docs 內被翻為「閉環對話」之
       不一致；新增之 `--lessons` / `discover-rules` / `--kg-ground` /
-      `--incremental-save-dir` 之中譯亦需與 docs 對齊）。
+      `--incremental-save-dir` 之中譯需與 research-extensions.rst 對齊；
+      另 §3.7.19 之 `/metrics` 指標端點與監控疊加層之中譯需與
+      docker-platforms-report.rst 對齊）。
 - [ ] 已驗證每個 `<w:rPr>` 之 `<w:rFonts>` 元素四個 slot 皆設為標楷體 /
       Times New Roman。
 - [ ] TCSE v2.3 之插入後總字元數仍可控制於 6 頁 Word 上限內；§3.7

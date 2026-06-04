@@ -31,11 +31,13 @@
   causal-LM（Qwen、Llama、Mistral、CodeLlama …，支援 LoRA + 量化）、
   自架 FastAPI 推論伺服器、任何 OpenAI-Chat-Completions 相容端點
   （OpenAI、Azure、vLLM、Ollama `/v1`、LM Studio、Together、Groq、
-  DeepInfra、OpenRouter …）、或 Anthropic Claude Messages API。
+  DeepInfra、OpenRouter …）、Anthropic Claude Messages API、或
+  Gemini / Cohere / Mistral；`RouterBackend`（故障轉移）與
+  `EnsembleBackend`（表決）可組合上述任一後端。
 
 ### 研究級擴充（opt-in）
 
-十三個多數 LLM code review 系統未實作的機制。大多需搭配 `--inline-review`；
+十七個多數 LLM code review 系統未實作的機制。大多需搭配 `--inline-review`；
 依本專案不謊造原則，我們只交付框架，量化 benchmark 數字屬未來工作。
 
 - **對抗強健性**（`prthinker adversarial-eval`）──針對四種攻擊類型跑
@@ -68,6 +70,24 @@
   history（從 `git log` 抓）算每檔風險分，按比例縮放 finding budget。
 - **Diff 熵 /「Diff bomb」偵測**（`--diff-entropy`）──算 PR size +
   目錄分布 Shannon entropy；熵高時於留言頂端貼「Consider splitting this PR」警示。
+- **主動學習衍生規則**（`derive-lessons` + `--lessons`）──把 dismissed /
+  accepted 語料蒸餾為可重用規則，下次審查注入最近 top-K。
+- **跨 PR finding 聚類**（`discover-rules`）──對累積 finding 跑貪婪
+  cosine 聚類，把重複問題顯化為候選專案規則。
+- **Repo 知識圖譜**（`build-kg` + `--kg-ground`）──把 repo 符號持久化至
+  SQLite 並接地，使模型引用真實符號而非虛構；附 D3 視覺化，於
+  `/kg/<name>/` 逐倉服務。
+- **每檔遞增存檔**（`--incremental-save-dir`）──逐檔 atomic 寫盤，run
+  中斷／崩潰仍留下可讀之部分結果。
+
+**可操作性與輸出整合**（opt-in、runner-safe）：SARIF 與獨立 HTML 報告、
+finding 抑制（`.prthinkerignore`）與去重、公開 API / semver 影響、Gitea
+平台轉接器、commit message 審查、額外 HTTP 後端（Gemini / Cohere /
+Mistral）含 `RouterBackend` 故障轉移與 `EnsembleBackend` 表決、
+self-consistency 取樣、第三方 step 外掛、confidence 棄權、引用驗證、
+prompt-injection 防護、finding 在地化、golden-set 快照、評估 harness
+骨架、成本估算與預算，以及聚焦審查模式（security / performance /
+test-coverage / IaC / DB-migration / accessibility / secret-scan / PII）。
 
 設計細節見 [`docs/zh-TW/concepts/research-extensions.rst`](../docs/zh-TW/concepts/research-extensions.rst)。
 

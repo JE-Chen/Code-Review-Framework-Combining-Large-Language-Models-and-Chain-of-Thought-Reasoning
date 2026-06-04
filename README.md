@@ -33,7 +33,9 @@ exemplars — and can act as a required status check before merges.
   quantization; the project's own FastAPI inference server; any
   OpenAI-Chat-Completions endpoint (OpenAI, Azure OpenAI, vLLM,
   Ollama `/v1`, LM Studio, Together, Groq, DeepInfra, OpenRouter, …);
-  or Anthropic Claude (Messages API).
+  Anthropic Claude (Messages API); or Gemini / Cohere / Mistral.
+  `RouterBackend` (failover) and `EnsembleBackend` (voting) compose any
+  of these.
 - **Cost + latency telemetry** — SQLite-backed prompt cache (`--cache`)
   with content-hash invalidation, plus per-call telemetry (`--telemetry`)
   that records tokens, latency, cache-hit status and estimated USD cost.
@@ -50,7 +52,7 @@ exemplars — and can act as a required status check before merges.
 
 ### Research-grade extensions (opt-in)
 
-Thirteen mechanisms most LLM-code-review systems do not ship. Most
+Seventeen mechanisms most LLM-code-review systems do not ship. Most
 require `--inline-review`; per the project's no-fabrication rule we
 publish the framework only — measured benchmark numbers are future
 work.
@@ -102,6 +104,30 @@ work.
 - **Diff entropy / "diff bomb" detector** (`--diff-entropy`) — scores
   the PR's size + dispersion entropy; high-entropy PRs get a
   "Consider splitting this PR" warning at the top of the comment.
+- **Active-learning derived lessons** (`derive-lessons` + `--lessons`) —
+  distils the dismissed / accepted corpora into reusable rules and
+  injects the most recent top-K into the next review.
+- **Cross-PR finding clustering** (`discover-rules`) — greedy cosine
+  clustering over accumulated findings surfaces recurring issues as
+  candidate project rules.
+- **Repo knowledge graph** (`build-kg` + `--kg-ground`) — persists repo
+  symbols to SQLite and grounds findings so the model cites real
+  symbols, not hallucinated ones; ships a D3 visualization served
+  per-repo at `/kg/<name>/`.
+- **Incremental per-file save** (`--incremental-save-dir`) — atomic
+  per-file result writes so a cancelled or crashed run still leaves
+  readable partial results.
+
+**Operability & output integrations** (opt-in, runner-safe): SARIF and
+standalone HTML reports, finding suppression (`.prthinkerignore`) and
+de-duplication, public-API / semver impact, a Gitea platform adapter,
+commit-message review, extra HTTP backends (Gemini / Cohere / Mistral)
+with `RouterBackend` failover and `EnsembleBackend` voting,
+self-consistency sampling, third-party step plugins, confidence-based
+abstention, citation verification, a prompt-injection guard, finding
+localization, golden-set snapshots, an evaluation-harness skeleton, cost
+estimation + budget, and focused review modes (security / performance /
+test-coverage / IaC / DB-migration / accessibility / secret-scan / PII).
 
 See [`docs/en/concepts/research-extensions.rst`](docs/en/concepts/research-extensions.rst)
 for the design write-up.

@@ -23,13 +23,13 @@ from prthinker import (
     risk_score,
 )
 from prthinker.accepted import AcceptedExamplesRetriever, format_examples_block
+from prthinker.review_modes import run_review_modes
 from prthinker.backends.base import InferenceBackend
 from prthinker.counterfactual import parse_counterfactuals
 from prthinker.diff import FileDiff, parse_unified_diff
 from prthinker.dismissed import DismissedFilter
 from prthinker.findings import build_provenance_block, parse_inline_findings
 from prthinker.judge import parse_verdict
-from prthinker.pr_classifier import ReviewBudget
 from prthinker.rag import RAGRetriever
 from prthinker.review_cache import CacheKey, ReviewCache
 from prthinker.schemas import (
@@ -132,6 +132,49 @@ def _invoke_on_file_done(
 # prompt + RAG docs + final generation. Tune via the
 # ``PRTHINKER_MAX_STEP_RESULT_CHARS`` env var (server side).
 _DEFAULT_MAX_STEP_RESULT_CHARS = 6000
+
+
+@dataclass(frozen=True)
+class _ClassifyOutcome:
+    """Optional PR-type classification plus the budget-adjusted knobs."""
+
+    classification: "PRClassification | None"
+    inline_review: bool
+    max_findings_per_file: int
+    dialogue_block: str
+
+
+@dataclass(frozen=True)
+class _PerFileOptions:
+    """Per-file review knobs threaded through the per-file loop."""
+
+    all_steps: tuple[type[ReviewStep], ...]
+    max_findings_per_file: int
+    output_dir: Path | None
+    self_correct: bool
+    dialogue_block: str
+    provenance: bool
+    reproducibility_check: bool
+    skip_binary: bool
+    inline_review: bool
+    review_cache: "ReviewCache | None"
+    cache_repo: str
+    cache_pr_number: int
+    risk_by_path: dict
+    verify_suggestions: bool
+    verify_workdir: Path | None
+    verify_cmd: str
+    verify_timeout: float
+
+
+@dataclass
+class _AggregatedFiles:
+    """Per-file results accumulated across one run of the per-file loop."""
+
+    per_file_results: list["FileReviewResult"] = field(default_factory=list)
+    inline_findings: list[InlineFinding] = field(default_factory=list)
+    counterfactuals: list[CounterfactualBlock] = field(default_factory=list)
+    step_outputs: dict[str, str] = field(default_factory=dict)
 
 
 class CoTPipeline:
@@ -270,6 +313,7 @@ class CoTPipeline:
         risk_weighted: bool = False,
         risk_workdir: Path | None = None,
         diff_entropy_check: bool = False,
+        review_modes: tuple[str, ...] = (),
         on_file_done: "object | None" = None,
     ) -> ReviewResult:
         """Run the full step sequence once per file in the diff.
@@ -282,235 +326,74 @@ class CoTPipeline:
             log.warning("Diff had no parseable files")
             return ReviewResult(code_diff=diff_text, rag_docs=[])
 
-        # ---------- optional PR-type classification ------------------------
-        classification: PRClassification | None = None
-        budget: ReviewBudget | None = None
-        if pr_classify:
-            log.info("Classifying PR type")
-            classify_prompt = pr_classifier.build_prompt(
-                diff_text=diff_text, title=pr_title, body=pr_body,
+        outcome = (
+            self._classify_pr(
+                diff_text, pr_title, pr_body,
+                inline_review, max_findings_per_file, dialogue_block,
             )
-            raw_classify = self._backend.generate(
-                classify_prompt, max_new_tokens=self._max_new_tokens,
+            if pr_classify
+            else _ClassifyOutcome(
+                None, inline_review, max_findings_per_file, dialogue_block,
             )
-            parsed = pr_classifier.parse_classification(raw_classify)
-            classification = PRClassification(
-                pr_type=parsed.pr_type.value, reason=parsed.reason,
-            )
-            budget = pr_classifier.budget_for(parsed.pr_type)
-            log.info(
-                "PR classified as %s -> inline=%s, max_findings=%d",
-                parsed.pr_type.value, budget.run_inline_findings,
-                budget.max_findings_per_file,
-            )
-            # Override caller-supplied flags with classifier's budget
-            # (caller can still pass --no-pr-classify to bypass).
-            inline_review = inline_review and budget.run_inline_findings
-            max_findings_per_file = (
-                budget.max_findings_per_file
-                if budget.max_findings_per_file > 0
-                else max_findings_per_file
-            )
-            if budget.focus_hint:
-                # Append to the dialogue block — it's already a free-form
-                # injection slot for inline-findings.
-                dialogue_block = (
-                    dialogue_block + "\n\n" + budget.focus_hint
-                ).strip()
+        )
+        classification = outcome.classification
+        inline_review = outcome.inline_review
+        max_findings_per_file = outcome.max_findings_per_file
+        dialogue_block = outcome.dialogue_block
 
-        extra: tuple[type[ReviewStep], ...] = ()
-        if inline_review:
-            extra += (InlineFindingsStep,)
-        if counterfactual:
-            if not inline_review:
-                raise ValueError(
-                    "counterfactual step requires inline_review (it operates "
-                    "on the findings list)"
-                )
-            extra += (CounterfactualStep,)
-        if judge:
-            extra += (JudgeStep,)
-        all_steps = self._step_classes + extra
+        all_steps = self._build_step_sequence(inline_review, counterfactual, judge)
+        entropy_summary = (
+            self._compute_entropy_summary(file_diffs) if diff_entropy_check else None
+        )
+        risk_by_path = (
+            self._compute_risk_by_path(file_diffs, risk_workdir)
+            if risk_weighted and risk_workdir is not None
+            else {}
+        )
 
-        entropy_summary: DiffEntropySummary | None = None
-        if diff_entropy_check:
-            e = diff_entropy.compute_entropy(file_diffs)
-            entropy_summary = DiffEntropySummary(
-                file_count=e.file_count,
-                added_lines=e.added_lines,
-                removed_lines=e.removed_lines,
-                dispersion_entropy=e.dispersion_entropy,
-                score=e.score,
-                verdict=e.verdict,
-            )
-            log.info(
-                "diff_entropy: %d file(s) +%d/-%d score=%.2f verdict=%s",
-                e.file_count, e.added_lines, e.removed_lines,
-                e.score, e.verdict,
-            )
+        opts = _PerFileOptions(
+            all_steps=all_steps,
+            max_findings_per_file=max_findings_per_file,
+            output_dir=output_dir,
+            self_correct=self_correct,
+            dialogue_block=dialogue_block,
+            provenance=provenance,
+            reproducibility_check=reproducibility_check,
+            skip_binary=skip_binary,
+            inline_review=inline_review,
+            review_cache=review_cache,
+            cache_repo=cache_repo,
+            cache_pr_number=cache_pr_number,
+            risk_by_path=risk_by_path,
+            verify_suggestions=verify_suggestions,
+            verify_workdir=verify_workdir,
+            verify_cmd=verify_cmd,
+            verify_timeout=verify_timeout,
+        )
 
-        risk_by_path: dict[str, risk_score.RiskScore] = {}
-        if risk_weighted and risk_workdir is not None:
-            paths = [fd.path for fd in file_diffs if not fd.is_binary and not fd.is_deleted]
-            scores = risk_score.compute_risk_scores(paths, workdir=risk_workdir)
-            risk_by_path = {s.path: s for s in scores}
-            log.info(
-                "risk_score: computed for %d file(s); top: %s",
-                len(scores),
-                [(s.path, round(s.score, 2))
-                 for s in sorted(scores, key=lambda x: -x.score)[:3]],
-            )
+        agg = self._review_each_file(file_diffs, opts, on_file_done)
+        per_file_results = agg.per_file_results
+        aggregated_findings = agg.inline_findings
+        aggregated_counterfactuals = agg.counterfactuals
+        aggregated_steps = agg.step_outputs
 
-        per_file_results: list[FileReviewResult] = []
-        aggregated_findings: list[InlineFinding] = []
-        aggregated_counterfactuals: list[CounterfactualBlock] = []
-        aggregated_steps: dict[str, str] = {}
-
-        for fd in file_diffs:
-            # Binary / deleted files are not reviewed, but they MUST still
-            # appear in the result so every file the PR touched is
-            # accounted for in the summary comment (an absent file reads
-            # as "never looked at"). Emit a marked, finding-less entry
-            # instead of dropping it; the formatter renders it as skipped.
-            if (skip_binary and fd.is_binary) or fd.is_deleted:
-                reason = "binary" if fd.is_binary else "deleted"
-                log.info("Recording %s file %s as skipped", reason, fd.path)
-                skipped_fr = FileReviewResult(
-                    path=fd.path,
-                    rag_docs=[],
-                    step_outputs={},
-                    inline_findings=[],
-                    is_binary=fd.is_binary,
-                    is_deleted=fd.is_deleted,
+        dep_upgrades = (
+            self._run_dep_upgrades(file_diffs, aggregated_steps)
+            if dep_upgrade_check else []
+        )
+        persona_reviews, persona_conflicts = (
+            self._run_personas(persona_set, diff_text, aggregated_steps)
+            if persona_set else ([], [])
+        )
+        api_drift = (
+            self._run_api_consistency(file_diffs, aggregated_steps)
+            if api_consistency_check else []
+        )
+        if review_modes:
+            aggregated_steps.update(
+                run_review_modes(
+                    self._backend, diff_text, review_modes, self._max_new_tokens,
                 )
-                per_file_results.append(skipped_fr)
-                _invoke_on_file_done(on_file_done, skipped_fr)
-                continue
-
-            cache_key: CacheKey | None = None
-            if review_cache is not None and cache_pr_number > 0 and inline_review:
-                cache_key = CacheKey(
-                    pr_number=cache_pr_number,
-                    repo=cache_repo,
-                    file_path=fd.path,
-                    hunk_sha256=fd.content_sha256(),
-                )
-                cached = review_cache.get(cache_key)
-                if cached is not None:
-                    log.info(
-                        "Differential review: reusing %d cached finding(s) for %s",
-                        len(cached), fd.path,
-                    )
-                    file_result = FileReviewResult(
-                        path=fd.path,
-                        rag_docs=[],
-                        step_outputs={},
-                        inline_findings=cached,
-                        is_binary=fd.is_binary,
-                        is_deleted=fd.is_deleted,
-                    )
-                    per_file_results.append(file_result)
-                    aggregated_findings.extend(cached)
-                    _invoke_on_file_done(on_file_done, file_result)
-                    continue
-
-            file_out_dir = (
-                output_dir / _sanitize(fd.path) if output_dir else None
-            )
-            effective_max = max_findings_per_file
-            if fd.path in risk_by_path:
-                effective_max = risk_score.budget_for_file(
-                    risk_by_path[fd.path].score,
-                    base_budget=max_findings_per_file,
-                )
-                log.debug(
-                    "risk_score: %s score=%.2f budget=%d",
-                    fd.path, risk_by_path[fd.path].score, effective_max,
-                )
-            file_result = self._run_one_file(
-                fd,
-                all_steps,
-                max_findings_per_file=effective_max,
-                output_dir=file_out_dir,
-                self_correct=self_correct,
-                dialogue_block=dialogue_block,
-                provenance=provenance,
-                reproducibility_check=reproducibility_check,
-            )
-            if cache_key is not None:
-                review_cache.put(
-                    cache_key,
-                    file_result.inline_findings,
-                    backend=self._backend.backend_kind(),
-                    model=self._backend.model_name(),
-                )
-            if verify_suggestions and verify_workdir is not None and verify_cmd:
-                file_result = self._verify_suggestions(
-                    file_result,
-                    workdir=verify_workdir,
-                    verify_cmd=verify_cmd,
-                    timeout_seconds=verify_timeout,
-                )
-            per_file_results.append(file_result)
-            aggregated_findings.extend(file_result.inline_findings)
-            aggregated_counterfactuals.extend(file_result.counterfactuals)
-            for name, output in file_result.step_outputs.items():
-                # Concatenate per-file outputs for the consolidated comment.
-                key = f"{fd.path}::{name}"
-                aggregated_steps[key] = output
-            _invoke_on_file_done(on_file_done, file_result)
-
-        dep_upgrades: list[DependencyUpgradeFinding] = []
-        if dep_upgrade_check:
-            upgrades = dep_upgrade.detect_upgrades(file_diffs)
-            for up in upgrades:
-                log.info(
-                    "dep-upgrade: %s %s %s -> %s",
-                    up.ecosystem, up.package, up.old_version, up.new_version,
-                )
-                prompt = dep_upgrade.build_prompt(up, file_diffs)
-                raw = self._backend.generate(
-                    prompt, max_new_tokens=self._max_new_tokens,
-                )
-                key = f"dep_upgrade::{up.package}::{up.new_version}"
-                aggregated_steps[key] = raw
-                dep_upgrades.extend(dep_upgrade.parse_impact(raw, upgrade=up))
-
-        persona_reviews: list[PersonaReview] = []
-        persona_conflicts: list[PersonaConflict] = []
-        if persona_set:
-            selected = self._resolve_personas(persona_set)
-            log.info("personas: running %s", [p.value for p in selected])
-            persona_outputs: dict[personas.Persona, str] = {}
-            for p in selected:
-                parts = personas.build_persona_prompt(p, diff_text=diff_text)
-                raw = self._backend.generate(
-                    parts.prompt, max_new_tokens=self._max_new_tokens,
-                )
-                persona_outputs[p] = raw
-                aggregated_steps[f"persona::{p.value}"] = raw
-                persona_reviews.append(
-                    PersonaReview(persona=p.value, output=raw)
-                )
-            if len(selected) >= 2:
-                conflict_prompt = personas.build_conflict_prompt(persona_outputs)
-                conflict_raw = self._backend.generate(
-                    conflict_prompt, max_new_tokens=self._max_new_tokens,
-                )
-                aggregated_steps["persona::conflicts"] = conflict_raw
-                persona_conflicts = personas.parse_conflicts(
-                    conflict_raw, valid_personas=set(selected),
-                )
-
-        api_drift: list[ApiDriftFinding] = []
-        if api_consistency_check and api_consistency.is_mixed_language(file_diffs):
-            log.info("Mixed-language PR detected → running api-consistency step")
-            prompt = api_consistency.build_prompt(file_diffs)
-            raw = self._backend.generate(prompt, max_new_tokens=self._max_new_tokens)
-            aggregated_steps["api_consistency"] = raw
-            allowed = {fd.path for fd in file_diffs}
-            api_drift = api_consistency.parse_drift_findings(
-                raw, allowed_paths=allowed,
             )
 
         return ReviewResult(
@@ -530,6 +413,376 @@ class CoTPipeline:
 
     # ---------- internals ---------------------------------------------------
 
+    def _review_each_file(
+        self,
+        file_diffs: list[FileDiff],
+        opts: _PerFileOptions,
+        on_file_done: "object | None",
+    ) -> _AggregatedFiles:
+        """Review every file in the diff and accumulate the aggregated state."""
+        agg = _AggregatedFiles()
+        for fd in file_diffs:
+            fr = self._review_single_file(fd, opts)
+            agg.per_file_results.append(fr)
+            agg.inline_findings.extend(fr.inline_findings)
+            agg.counterfactuals.extend(fr.counterfactuals)
+            for name, output in fr.step_outputs.items():
+                # Namespace each per-file output for the consolidated comment.
+                agg.step_outputs[f"{fd.path}::{name}"] = output
+            _invoke_on_file_done(on_file_done, fr)
+        return agg
+
+    def _classify_pr(
+        self,
+        diff_text: str,
+        pr_title: str,
+        pr_body: str,
+        inline_review: bool,
+        max_findings_per_file: int,
+        dialogue_block: str,
+    ) -> _ClassifyOutcome:
+        """Classify the PR type and fold the classifier's budget into the knobs."""
+        log.info("Classifying PR type")
+        classify_prompt = pr_classifier.build_prompt(
+            diff_text=diff_text, title=pr_title, body=pr_body,
+        )
+        raw_classify = self._backend.generate(
+            classify_prompt, max_new_tokens=self._max_new_tokens,
+        )
+        parsed = pr_classifier.parse_classification(raw_classify)
+        budget = pr_classifier.budget_for(parsed.pr_type)
+        log.info(
+            "PR classified as %s -> inline=%s, max_findings=%d",
+            parsed.pr_type.value, budget.run_inline_findings,
+            budget.max_findings_per_file,
+        )
+        # Override caller knobs with the classifier's budget; caller can
+        # still pass --no-pr-classify to bypass entirely.
+        if budget.max_findings_per_file > 0:
+            max_findings_per_file = budget.max_findings_per_file
+        if budget.focus_hint:
+            dialogue_block = (dialogue_block + "\n\n" + budget.focus_hint).strip()
+        return _ClassifyOutcome(
+            classification=PRClassification(
+                pr_type=parsed.pr_type.value, reason=parsed.reason,
+            ),
+            inline_review=inline_review and budget.run_inline_findings,
+            max_findings_per_file=max_findings_per_file,
+            dialogue_block=dialogue_block,
+        )
+
+    def _build_step_sequence(
+        self, inline_review: bool, counterfactual: bool, judge: bool,
+    ) -> tuple[type[ReviewStep], ...]:
+        """Append the optional inline / counterfactual / judge steps."""
+        extra: tuple[type[ReviewStep], ...] = ()
+        if inline_review:
+            extra += (InlineFindingsStep,)
+        if counterfactual:
+            if not inline_review:
+                raise ValueError(
+                    "counterfactual step requires inline_review (it operates "
+                    "on the findings list)"
+                )
+            extra += (CounterfactualStep,)
+        if judge:
+            extra += (JudgeStep,)
+        return self._step_classes + extra
+
+    def _compute_entropy_summary(
+        self, file_diffs: list[FileDiff],
+    ) -> DiffEntropySummary:
+        """Compute the diff-entropy ("diff bomb") summary for the PR."""
+        e = diff_entropy.compute_entropy(file_diffs)
+        log.info(
+            "diff_entropy: %d file(s) +%d/-%d score=%.2f verdict=%s",
+            e.file_count, e.added_lines, e.removed_lines, e.score, e.verdict,
+        )
+        return DiffEntropySummary(
+            file_count=e.file_count,
+            added_lines=e.added_lines,
+            removed_lines=e.removed_lines,
+            dispersion_entropy=e.dispersion_entropy,
+            score=e.score,
+            verdict=e.verdict,
+        )
+
+    def _compute_risk_by_path(
+        self, file_diffs: list[FileDiff], risk_workdir: Path,
+    ) -> dict[str, risk_score.RiskScore]:
+        """Score reviewable files by change risk, keyed by path."""
+        paths = [
+            fd.path for fd in file_diffs if not fd.is_binary and not fd.is_deleted
+        ]
+        scores = risk_score.compute_risk_scores(paths, workdir=risk_workdir)
+        log.info(
+            "risk_score: computed for %d file(s); top: %s",
+            len(scores),
+            [(s.path, round(s.score, 2))
+             for s in sorted(scores, key=lambda x: -x.score)[:3]],
+        )
+        return {s.path: s for s in scores}
+
+    def _cache_key_for(
+        self, fd: FileDiff, opts: _PerFileOptions,
+    ) -> "CacheKey | None":
+        """Differential-review cache key for a file, or None if not cacheable."""
+        if opts.review_cache is None or opts.cache_pr_number <= 0 or not opts.inline_review:
+            return None
+        return CacheKey(
+            pr_number=opts.cache_pr_number,
+            repo=opts.cache_repo,
+            file_path=fd.path,
+            hunk_sha256=fd.content_sha256(),
+        )
+
+    def _effective_max(self, fd: FileDiff, opts: _PerFileOptions) -> int:
+        """Risk-weighted per-file findings budget."""
+        if fd.path not in opts.risk_by_path:
+            return opts.max_findings_per_file
+        budget = risk_score.budget_for_file(
+            opts.risk_by_path[fd.path].score,
+            base_budget=opts.max_findings_per_file,
+        )
+        log.debug(
+            "risk_score: %s score=%.2f budget=%d",
+            fd.path, opts.risk_by_path[fd.path].score, budget,
+        )
+        return budget
+
+    def _skipped_file_result(self, fd: FileDiff) -> FileReviewResult:
+        """Marked, finding-less result for a binary/deleted skipped file."""
+        reason = "binary" if fd.is_binary else "deleted"
+        log.info("Recording %s file %s as skipped", reason, fd.path)
+        return FileReviewResult(
+            path=fd.path, rag_docs=[], step_outputs={}, inline_findings=[],
+            is_binary=fd.is_binary, is_deleted=fd.is_deleted,
+        )
+
+    def _cached_file_result(
+        self, fd: FileDiff, cache_key: "CacheKey", opts: _PerFileOptions,
+    ) -> "FileReviewResult | None":
+        """Differential-review cache hit for a file, or None on a miss."""
+        cached = opts.review_cache.get(cache_key)
+        if cached is None:
+            return None
+        log.info(
+            "Differential review: reusing %d cached finding(s) for %s",
+            len(cached), fd.path,
+        )
+        return FileReviewResult(
+            path=fd.path, rag_docs=[], step_outputs={},
+            inline_findings=cached,
+            is_binary=fd.is_binary, is_deleted=fd.is_deleted,
+        )
+
+    def _run_and_cache_file(
+        self, fd: FileDiff, cache_key: "CacheKey | None", opts: _PerFileOptions,
+    ) -> FileReviewResult:
+        """Run the steps for a file, persist to cache, then verify suggestions."""
+        file_out_dir = opts.output_dir / _sanitize(fd.path) if opts.output_dir else None
+        file_result = self._run_one_file(
+            fd,
+            opts.all_steps,
+            max_findings_per_file=self._effective_max(fd, opts),
+            output_dir=file_out_dir,
+            self_correct=opts.self_correct,
+            dialogue_block=opts.dialogue_block,
+            provenance=opts.provenance,
+            reproducibility_check=opts.reproducibility_check,
+        )
+        if cache_key is not None:
+            opts.review_cache.put(
+                cache_key, file_result.inline_findings,
+                backend=self._backend.backend_kind(),
+                model=self._backend.model_name(),
+            )
+        return self._maybe_verify(file_result, opts)
+
+    def _maybe_verify(
+        self, file_result: FileReviewResult, opts: _PerFileOptions,
+    ) -> FileReviewResult:
+        """Verify suggestions in a sandbox when verification is configured."""
+        verify_enabled = (
+            opts.verify_suggestions
+            and opts.verify_workdir is not None
+            and bool(opts.verify_cmd)
+        )
+        if not verify_enabled:
+            return file_result
+        return self._verify_suggestions(
+            file_result,
+            workdir=opts.verify_workdir,
+            verify_cmd=opts.verify_cmd,
+            timeout_seconds=opts.verify_timeout,
+        )
+
+    def _review_single_file(
+        self, fd: FileDiff, opts: _PerFileOptions,
+    ) -> FileReviewResult:
+        """Review one file: skip binary/deleted, reuse cache, else run steps.
+
+        Binary / deleted files still yield a marked, finding-less result so
+        every touched file appears in the summary (an absent file reads as
+        "never looked at").
+        """
+        if (opts.skip_binary and fd.is_binary) or fd.is_deleted:
+            return self._skipped_file_result(fd)
+
+        cache_key = self._cache_key_for(fd, opts)
+        if cache_key is not None:
+            cached = self._cached_file_result(fd, cache_key, opts)
+            if cached is not None:
+                return cached
+
+        return self._run_and_cache_file(fd, cache_key, opts)
+
+    def _run_dep_upgrades(
+        self,
+        file_diffs: list[FileDiff],
+        aggregated_steps: dict[str, str],
+    ) -> list[DependencyUpgradeFinding]:
+        """Run the dependency-upgrade impact step, recording raw outputs."""
+        dep_upgrades: list[DependencyUpgradeFinding] = []
+        for up in dep_upgrade.detect_upgrades(file_diffs):
+            log.info(
+                "dep-upgrade: %s %s %s -> %s",
+                up.ecosystem, up.package, up.old_version, up.new_version,
+            )
+            prompt = dep_upgrade.build_prompt(up, file_diffs)
+            raw = self._backend.generate(
+                prompt, max_new_tokens=self._max_new_tokens,
+            )
+            aggregated_steps[f"dep_upgrade::{up.package}::{up.new_version}"] = raw
+            dep_upgrades.extend(dep_upgrade.parse_impact(raw, upgrade=up))
+        return dep_upgrades
+
+    def _run_personas(
+        self,
+        persona_set: tuple[str, ...],
+        diff_text: str,
+        aggregated_steps: dict[str, str],
+    ) -> tuple[list[PersonaReview], list[PersonaConflict]]:
+        """Run the selected reviewer personas and surface their conflicts."""
+        selected = self._resolve_personas(persona_set)
+        log.info("personas: running %s", [p.value for p in selected])
+        persona_outputs: dict[personas.Persona, str] = {}
+        reviews: list[PersonaReview] = []
+        for p in selected:
+            parts = personas.build_persona_prompt(p, diff_text=diff_text)
+            raw = self._backend.generate(
+                parts.prompt, max_new_tokens=self._max_new_tokens,
+            )
+            persona_outputs[p] = raw
+            aggregated_steps[f"persona::{p.value}"] = raw
+            reviews.append(PersonaReview(persona=p.value, output=raw))
+        conflicts: list[PersonaConflict] = []
+        if len(selected) >= 2:
+            conflict_prompt = personas.build_conflict_prompt(persona_outputs)
+            conflict_raw = self._backend.generate(
+                conflict_prompt, max_new_tokens=self._max_new_tokens,
+            )
+            aggregated_steps["persona::conflicts"] = conflict_raw
+            conflicts = personas.parse_conflicts(
+                conflict_raw, valid_personas=set(selected),
+            )
+        return reviews, conflicts
+
+    def _run_api_consistency(
+        self,
+        file_diffs: list[FileDiff],
+        aggregated_steps: dict[str, str],
+    ) -> list[ApiDriftFinding]:
+        """Run the cross-language API-drift step on mixed-language diffs."""
+        if not api_consistency.is_mixed_language(file_diffs):
+            return []
+        log.info("Mixed-language PR detected → running api-consistency step")
+        prompt = api_consistency.build_prompt(file_diffs)
+        raw = self._backend.generate(prompt, max_new_tokens=self._max_new_tokens)
+        aggregated_steps["api_consistency"] = raw
+        return api_consistency.parse_drift_findings(
+            raw, allowed_paths={fd.path for fd in file_diffs},
+        )
+
+    def _accepted_examples(self, fd: FileDiff) -> tuple[int, str]:
+        """Retrieve positive examples for a file; return (count, block)."""
+        if self._accepted_retriever is None:
+            return 0, ""
+        examples = list(self._accepted_retriever.top_k(fd.raw, path=fd.path))
+        return len(examples), format_examples_block(examples)
+
+    def _parse_findings(
+        self,
+        raw: str,
+        fd: FileDiff,
+        rag_docs: list[str],
+        n_accepted_examples: int,
+        provenance: bool,
+    ) -> list[InlineFinding]:
+        """Parse a raw inline-findings response with provenance bookkeeping."""
+        return parse_inline_findings(
+            raw,
+            path=fd.path,
+            allowed_lines=fd.commentable_lines(),
+            n_rag_rules=len(rag_docs) if provenance else 0,
+            n_accepted_examples=n_accepted_examples if provenance else 0,
+        )
+
+    def _reproducibility_label(
+        self,
+        findings: list[InlineFinding],
+        ctx: ReviewContext,
+        fd: FileDiff,
+        rag_docs: list[str],
+        n_accepted_examples: int,
+        provenance: bool,
+    ) -> list[InlineFinding]:
+        """Re-query the inline step once and label findings by agreement."""
+        from reviewmind import reproducibility
+
+        # Rebuild the same prompt and re-query the model. With
+        # non-deterministic backends we get a second sample; with
+        # temperature=0 backends the two passes agree and everything is
+        # labelled "stable" — also the right answer.
+        inline_prompt = InlineFindingsStep().build_prompt(ctx)
+        second_raw = self._backend.generate(
+            inline_prompt, max_new_tokens=self._max_new_tokens,
+        )
+        second = self._parse_findings(
+            second_raw, fd, rag_docs, n_accepted_examples, provenance,
+        )
+        return reproducibility.label_findings(findings, second)
+
+    def _collect_findings(
+        self,
+        fd: FileDiff,
+        ctx: ReviewContext,
+        rag_docs: list[str],
+        n_accepted_examples: int,
+        *,
+        provenance: bool,
+        reproducibility_check: bool,
+        self_correct: bool,
+    ) -> list[InlineFinding]:
+        """Parse, reproducibility-label, dismiss-filter and self-correct findings."""
+        if "inline_findings" not in ctx.results:
+            return []
+        findings = self._parse_findings(
+            ctx.results["inline_findings"], fd, rag_docs,
+            n_accepted_examples, provenance,
+        )
+        if reproducibility_check:
+            findings = self._reproducibility_label(
+                findings, ctx, fd, rag_docs, n_accepted_examples, provenance,
+            )
+        if self._dismissed_filter is not None and findings:
+            findings = self._dismissed_filter.filter(findings)
+        if self_correct and findings:
+            # Stash the self-review raw output for traceability; the
+            # ``self_review`` step output is already inside ``ctx.results``.
+            findings = self._self_correct(fd, findings, ctx)
+        return findings
+
     def _run_one_file(
         self,
         fd: FileDiff,
@@ -543,14 +796,7 @@ class CoTPipeline:
         reproducibility_check: bool = False,
     ) -> FileReviewResult:
         rag_docs = self._merge_rules(self._retriever.retrieve(fd.raw))
-        positive_examples_block = ""
-        n_accepted_examples = 0
-        if self._accepted_retriever is not None:
-            examples = list(
-                self._accepted_retriever.top_k(fd.raw, path=fd.path)
-            )
-            n_accepted_examples = len(examples)
-            positive_examples_block = format_examples_block(examples)
+        n_accepted_examples, positive_examples_block = self._accepted_examples(fd)
 
         provenance_block = ""
         if provenance:
@@ -570,38 +816,12 @@ class CoTPipeline:
         )
         self._run_steps(ctx, step_classes, output_dir)
 
-        findings: list[InlineFinding] = []
-        if "inline_findings" in ctx.results:
-            findings = parse_inline_findings(
-                ctx.results["inline_findings"],
-                path=fd.path,
-                allowed_lines=fd.commentable_lines(),
-                n_rag_rules=len(rag_docs) if provenance else 0,
-                n_accepted_examples=n_accepted_examples if provenance else 0,
-            )
-            if reproducibility_check:
-                from reviewmind import reproducibility
-                # Rebuild the same prompt and re-query the model. With
-                # non-deterministic backends we get a second sample;
-                # with temperature=0 backends the two passes agree and
-                # everything is labelled "stable" — also the right answer.
-                inline_prompt = InlineFindingsStep().build_prompt(ctx)
-                second_raw = self._backend.generate(
-                    inline_prompt, max_new_tokens=self._max_new_tokens,
-                )
-                second = parse_inline_findings(
-                    second_raw, path=fd.path,
-                    allowed_lines=fd.commentable_lines(),
-                    n_rag_rules=len(rag_docs) if provenance else 0,
-                    n_accepted_examples=n_accepted_examples if provenance else 0,
-                )
-                findings = reproducibility.label_findings(findings, second)
-            if self._dismissed_filter is not None and findings:
-                findings = self._dismissed_filter.filter(findings)
-            if self_correct and findings:
-                findings = self._self_correct(fd, findings, ctx)
-                # Stash the self-review raw output for traceability.
-                # ``self_review`` step output is already inside ``ctx.results``.
+        findings = self._collect_findings(
+            fd, ctx, rag_docs, n_accepted_examples,
+            provenance=provenance,
+            reproducibility_check=reproducibility_check,
+            self_correct=self_correct,
+        )
 
         verdict: JudgeVerdict | None = None
         if "judge" in ctx.results:

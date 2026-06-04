@@ -17,6 +17,9 @@ class BackendKind(str, Enum):
     REMOTE = "remote"
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
+    GEMINI = "gemini"
+    COHERE = "cohere"
+    MISTRAL = "mistral"
 
 
 @dataclass(frozen=True)
@@ -84,6 +87,54 @@ class AnthropicConfig:
 
 
 @dataclass(frozen=True)
+class GeminiConfig:
+    """Google Generative Language (Gemini) REST API."""
+
+    model: str
+    api_key: str
+    base_url: str = "https://generativelanguage.googleapis.com/v1beta"
+    timeout_seconds: float = 3600.0
+
+    def __post_init__(self) -> None:
+        if not self.model:
+            raise ValueError("GeminiConfig.model is required")
+        if not self.api_key:
+            raise ValueError("GeminiConfig.api_key is required")
+
+
+@dataclass(frozen=True)
+class CohereConfig:
+    """Cohere Chat API v2."""
+
+    model: str
+    api_key: str
+    base_url: str = "https://api.cohere.com"
+    timeout_seconds: float = 3600.0
+
+    def __post_init__(self) -> None:
+        if not self.model:
+            raise ValueError("CohereConfig.model is required")
+        if not self.api_key:
+            raise ValueError("CohereConfig.api_key is required")
+
+
+@dataclass(frozen=True)
+class MistralConfig:
+    """Mistral chat-completions API (OpenAI-shaped)."""
+
+    model: str
+    api_key: str
+    base_url: str = "https://api.mistral.ai/v1"
+    timeout_seconds: float = 3600.0
+
+    def __post_init__(self) -> None:
+        if not self.model:
+            raise ValueError("MistralConfig.model is required")
+        if not self.api_key:
+            raise ValueError("MistralConfig.api_key is required")
+
+
+@dataclass(frozen=True)
 class GitHubConfig:
     repo: str
     pr_number: int
@@ -119,6 +170,9 @@ class Config:
     remote: RemoteBackendConfig | None = None
     openai: OpenAICompatConfig | None = None
     anthropic: AnthropicConfig | None = None
+    gemini: GeminiConfig | None = None
+    cohere: CohereConfig | None = None
+    mistral: MistralConfig | None = None
     rag_enabled: bool = True
     rag_threshold: float = 0.7
     max_new_tokens: int = 32768
@@ -132,6 +186,9 @@ class Config:
             BackendKind.REMOTE: ("remote", self.remote),
             BackendKind.OPENAI: ("openai", self.openai),
             BackendKind.ANTHROPIC: ("anthropic", self.anthropic),
+            BackendKind.GEMINI: ("gemini", self.gemini),
+            BackendKind.COHERE: ("cohere", self.cohere),
+            BackendKind.MISTRAL: ("mistral", self.mistral),
         }
         name, value = required[self.backend]
         if value is None:

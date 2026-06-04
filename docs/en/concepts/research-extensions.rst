@@ -1,8 +1,10 @@
 Research extensions: adversarial robustness, multi-turn dialogue, counterfactual review
 ========================================================================================
 
-Three mechanisms that go beyond the one-shot reviewer most of the
-LLM-code-review literature has shipped to date. Each is a **framework
+Seventeen research mechanisms that go beyond the one-shot reviewer most
+of the LLM-code-review literature has shipped to date, plus a set of
+operability / output integrations and a few design-only future-work
+items (see the sections below). Each shipped mechanism is a **framework
 contribution** — the code is in this package and unit-tested — but per
 the project's no-fabrication rule, this page reports no measured
 detection rates, no precision deltas, and no benchmark tables. Numbers
@@ -562,10 +564,111 @@ response, so per-file streaming is N/A there. ``--output-json`` is the
 existing tool for that path.
 
 
+Operability and output integrations
+-----------------------------------
+
+Beyond the review mechanisms above, these opt-in flags/commands integrate
+prthinker with external tooling. They are pure transforms or adapters —
+no inference — so they run on the runner profile.
+
+* **SARIF export** (``--sarif-out PATH``) — write findings as SARIF
+  2.1.0 for GitHub code-scanning or any SARIF viewer.
+* **HTML report** (``--html-report PATH``) — a standalone, XSS-safe HTML
+  review report (severity summary + per-file findings).
+* **Finding suppression** (``--ignore-file`` / ``.prthinkerignore``) —
+  drop findings by path glob, ``severity:<level>``, or ``rule:<id>``
+  (substring match on the comment). Missing file is a no-op.
+* **Inline ignore directives** — a changed line carrying
+  ``# prthinker: ignore`` (any comment syntax; only the token is matched)
+  suppresses findings on that new-side line, letting authors silence a
+  finding at the exact source line instead of in a central file.
+* **Finding de-duplication** (``--dedupe-findings``) — collapse
+  near-duplicate findings (same path+line, equivalent message; keeps the
+  highest severity).
+* **Public-API impact** (``--api-impact``) — append a semver-impact line
+  (major/minor/patch) to the summary, from a heuristic scan of
+  added/removed/changed public ``def``/``class`` signatures in the diff.
+* **Gitea platform** (``--platform gitea``) — a ``GiteaAdapter`` behind
+  the same ``PlatformAdapter`` strategy as GitHub/GitLab.
+* **Commit-message review** (``prthinker review-commits``) — assess
+  commit-message quality (conventional-commits, imperative mood,
+  clarity) for messages read from stdin.
+* **Additional inference backends** (``--backend gemini|cohere|mistral``)
+  — HTTP backends behind the same ``InferenceBackend`` factory as
+  OpenAI/Anthropic, each with ``--<provider>-model`` / ``-api-key`` /
+  ``-base-url`` flags.
+* **Backend composition** (library API) — ``RouterBackend(primary,
+  fallbacks)`` escalates on failure; ``EnsembleBackend(backends, policy)``
+  queries several and selects by ``longest`` / ``first`` / ``majority``.
+  Both are ``InferenceBackend`` decorators, composable with the caching /
+  telemetry wrappers.
+* **Self-consistency sampling** (library API) — ``self_consistent_generate
+  (backend, prompt, k=…)`` samples k times and returns the majority
+  (normalized) output.
+* **Third-party step plugins** — ``prthinker.plugins.load_plugin_steps``
+  discovers review steps published under the ``prthinker.steps``
+  entry-point group and is called at CLI startup, so external packages can
+  register steps without editing the core (Open/Closed).
+* **Confidence abstention** (``--min-confidence``) — drop findings whose
+  ``provenance`` confidence is below a threshold (use with
+  ``--provenance``); findings without a confidence are always kept.
+* **Citation verification** (library: ``citation_verify``) — flag
+  provenance citations whose rule/example index is out of range or whose
+  diff-evidence line is outside the diff.
+* **Prompt-injection guard** (library: ``injection_guard``) — heuristic
+  ``scan_diff`` / ``redact_injection`` over added lines (direct injection,
+  role-hijack, encoded blobs); best-effort, complements the adversarial
+  corpus.
+* **Localized findings** (library: ``localize``) — prompt+parse to
+  translate finding comments into a target language.
+* **Golden-set snapshots** (library: ``golden``) — write/diff a stable
+  snapshot of findings to catch prompt/behaviour drift (no scores).
+* **Evaluation harness skeleton** (library: ``benchmark``) — run a case
+  corpus through a backend and record raw outputs only; per
+  ``paper_rule.md`` it emits no scores or aggregate numbers.
+* **Cost estimation + budget** (library: ``cost``) — per-call USD
+  estimate from ``pricing`` and a ``CostBudget`` to cap a PR.
+* **Focused review modes** (``--review-modes security,performance,…``) —
+  opt-in whole-diff passes registered in ``prthinker.review_modes``
+  (Registry pattern): security/SAST, performance, test-coverage, IaC,
+  DB-migration, accessibility, secret-scan, PII. Each enabled mode's
+  output is appended to the consolidated summary; unknown names are
+  skipped. Prompts are the source of truth in each mode module.
+
+The monitoring overlay also ships **Prometheus alerting rules**
+(``docker/monitoring/alerts.yml``); see the Docker concepts page.
+
+Design-only (not yet implemented)
+---------------------------------
+
+Two mechanisms are documented as designs but **deliberately not
+implemented**, because a naive version would be unsafe or a large
+rewrite — per ``paper_rule.md`` they carry a "本論文未予評估" disclaimer
+and ship no code:
+
+* **Parallel per-file review** — concurrently reviewing files would cut
+  wall-clock, but the in-process GPU backend (``LocalHFBackend``)
+  serializes generation and is not safe to call from multiple threads;
+  a correct design needs a per-backend concurrency capability flag plus a
+  bounded worker pool that the HTTP backends opt into and the local
+  backend does not. Future work.
+* **Configurable step DAG** — the pipeline runs a fixed linear step
+  sequence; a branching/conditional DAG (skip steps by PR type, fan out
+  independent steps) is a larger redesign of ``CoTPipeline`` and step
+  resolution. Future work.
+* **Per-author calibration** / **auto-tuned RAG threshold** /
+  **embedding-drift monitor** — these need accumulated accept/dismiss
+  history and an online feedback loop; the corpora stores exist, but the
+  learning loop is design-only. Future work.
+* **Server queue + rate-limiting** and **per-model metric labels** —
+  server-side concurrency control and finer telemetry labels; design-only
+  to keep the boot path and the metrics cardinality stable. Future work.
+
 Status
 ------
 
-All seventeen mechanisms ship as framework code, unit tests, and prompt
-templates. Per ``paper_rule.md`` the project intentionally publishes
-no benchmark numbers here; the corpora and outcome stores exist so
-that measurements can be taken honestly when they are taken.
+All seventeen research mechanisms ship as framework code, unit tests, and
+prompt templates; the operability integrations above ship as code +
+tests. Per ``paper_rule.md`` the project intentionally publishes no
+benchmark numbers here; the corpora and outcome stores exist so that
+measurements can be taken honestly when they are taken.

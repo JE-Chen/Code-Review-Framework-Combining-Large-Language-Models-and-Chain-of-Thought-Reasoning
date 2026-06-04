@@ -12,7 +12,7 @@
       "type": "timeseries",
       "id": 1,
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
-      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [{
         "expr": "sum by (handler) (rate(http_requests_total{job=\"prthinker-fastapi\"}[5m]))",
         "legendFormat": "{{handler}}",
@@ -25,7 +25,7 @@
       "type": "timeseries",
       "id": 2,
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
-      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {"expr": "histogram_quantile(0.50, sum by (le, handler) (rate(http_request_duration_seconds_bucket{job=\"prthinker-fastapi\"}[5m])))", "legendFormat": "p50 {{handler}}", "refId": "A"},
         {"expr": "histogram_quantile(0.95, sum by (le, handler) (rate(http_request_duration_seconds_bucket{job=\"prthinker-fastapi\"}[5m])))", "legendFormat": "p95 {{handler}}", "refId": "B"},
@@ -38,7 +38,7 @@
       "type": "timeseries",
       "id": 3,
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
-      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [{
         "expr": "sum by (handler) (rate(http_requests_total{job=\"prthinker-fastapi\", status=~\"5..\"}[5m]))",
         "legendFormat": "{{handler}}",
@@ -51,7 +51,7 @@
       "type": "timeseries",
       "id": 4,
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
-      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [{
         "expr": "DCGM_FI_DEV_GPU_UTIL",
         "legendFormat": "GPU {{gpu}} ({{modelName}})",
@@ -64,7 +64,7 @@
       "type": "timeseries",
       "id": 5,
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
-      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [{
         "expr": "DCGM_FI_DEV_FB_USED",
         "legendFormat": "GPU {{gpu}}",
@@ -77,7 +77,7 @@
       "type": "timeseries",
       "id": 6,
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
-      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [{
         "expr": "DCGM_FI_DEV_POWER_USAGE",
         "legendFormat": "GPU {{gpu}}",
@@ -90,7 +90,7 @@
       "type": "timeseries",
       "id": 7,
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
-      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [{
         "expr": "DCGM_FI_DEV_GPU_TEMP",
         "legendFormat": "GPU {{gpu}}",
@@ -103,7 +103,7 @@
       "type": "timeseries",
       "id": 8,
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
-      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [{
         "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\".*prthinker.*\"}[5m]))",
         "legendFormat": "{{name}}",
@@ -116,7 +116,7 @@
       "type": "timeseries",
       "id": 9,
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
-      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [{
         "expr": "container_memory_working_set_bytes{name=~\".*prthinker.*\"}",
         "legendFormat": "{{name}}",
@@ -129,12 +129,63 @@
       "type": "timeseries",
       "id": 10,
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
-      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {"expr": "rate(container_network_receive_bytes_total{name=~\".*prthinker.*\"}[5m])", "legendFormat": "rx {{interface}}", "refId": "A"},
         {"expr": "rate(container_network_transmit_bytes_total{name=~\".*prthinker.*\"}[5m])", "legendFormat": "tx {{interface}}", "refId": "B"}
       ],
       "fieldConfig": {"defaults": {"unit": "Bps"}}
+    },
+    {
+      "title": "Reviews completed (rate by outcome)",
+      "type": "timeseries",
+      "id": 11,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 40},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{
+        "expr": "sum by (outcome) (rate(prthinker_reviews_total[5m]))",
+        "legendFormat": "{{outcome}}",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    },
+    {
+      "title": "Review duration p50 / p95 (s)",
+      "type": "timeseries",
+      "id": 12,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 40},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum by (le, mode) (rate(prthinker_review_duration_seconds_bucket[5m])))", "legendFormat": "p50 {{mode}}", "refId": "A"},
+        {"expr": "histogram_quantile(0.95, sum by (le, mode) (rate(prthinker_review_duration_seconds_bucket[5m])))", "legendFormat": "p95 {{mode}}", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "title": "Reviews in progress",
+      "type": "stat",
+      "id": 13,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 48},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{
+        "expr": "prthinker_reviews_in_progress",
+        "legendFormat": "in progress",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "none"}}
+    },
+    {
+      "title": "Findings per review (avg)",
+      "type": "timeseries",
+      "id": 14,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 48},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{
+        "expr": "rate(prthinker_review_findings_sum[15m]) / clamp_min(rate(prthinker_review_findings_count[15m]), 1)",
+        "legendFormat": "avg findings",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "none"}}
     }
   ],
   "refresh": "30s",

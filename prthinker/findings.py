@@ -20,7 +20,7 @@ from typing import Iterable
 
 from pydantic import ValidationError
 
-from prthinker.schemas import InlineFinding
+from prthinker.schemas import InlineFinding, ProvenanceCitation
 
 log = logging.getLogger(__name__)
 
@@ -101,6 +101,45 @@ def _coerce_objects(text: str) -> list[dict]:
     return items
 
 
+def _extract_findings_objects(body: str) -> list[dict]:
+    """Parse the model body into a list of finding dicts (best effort)."""
+    array_text = _extract_array(body)
+    if array_text is not None:
+        try:
+            data = json.loads(array_text)
+        except json.JSONDecodeError:
+            data = None
+        if isinstance(data, list):
+            return [item for item in data if isinstance(item, dict)]
+    return _coerce_objects(body)
+
+
+def _validate_finding(item: dict, path: str) -> "InlineFinding | None":
+    """Validate one finding dict, retrying once without a bad provenance block.
+
+    A malformed ``provenance`` citation must never lose a real finding, so
+    on validation failure we strip it and retry before giving up.
+    """
+    item["path"] = path  # Always pin to the file we're reviewing.
+    if "provenance" in item and not isinstance(item["provenance"], dict):
+        item.pop("provenance")
+    try:
+        return InlineFinding.model_validate(item)
+    except ValidationError as exc:
+        if "provenance" not in item:
+            log.debug("Dropped malformed finding %r: %s", item, exc)
+            return None
+    stripped = {k: v for k, v in item.items() if k != "provenance"}
+    try:
+        finding = InlineFinding.model_validate(stripped)
+    except ValidationError as exc2:
+        log.debug("Dropped malformed finding %r: %s", item, exc2)
+        return None
+    log.debug("Stripped bad provenance from finding on %s:%s",
+              path, item.get("line"))
+    return finding
+
+
 def parse_inline_findings(
     raw_output: str,
     *,
@@ -120,20 +159,7 @@ def parse_inline_findings(
     if not body or body == "[]":
         return []
 
-    parsed: list[dict] | None = None
-
-    array_text = _extract_array(body)
-    if array_text is not None:
-        try:
-            data = json.loads(array_text)
-            if isinstance(data, list):
-                parsed = [item for item in data if isinstance(item, dict)]
-        except json.JSONDecodeError:
-            parsed = None
-
-    if parsed is None:
-        parsed = _coerce_objects(body)
-
+    parsed = _extract_findings_objects(body)
     if not parsed:
         log.warning("No JSON findings could be extracted for %s", path)
         return []
@@ -142,48 +168,86 @@ def parse_inline_findings(
 
     findings: list[InlineFinding] = []
     for item in parsed:
-        item.setdefault("path", path)
-        item["path"] = path  # Always pin to the file we're reviewing.
-        # Pre-clean a malformed provenance block so it does not blow up
-        # the whole finding. ``provenance`` is optional; on any parse
-        # failure we strip it and keep the finding.
-        if "provenance" in item and not isinstance(item["provenance"], dict):
-            item.pop("provenance")
-        try:
-            finding = InlineFinding.model_validate(item)
-        except ValidationError as exc:
-            # One more try without provenance, on the principle that a
-            # bad citation should never lose a real finding.
-            if "provenance" in item:
-                stripped = {k: v for k, v in item.items() if k != "provenance"}
-                try:
-                    finding = InlineFinding.model_validate(stripped)
-                except ValidationError as exc2:
-                    log.debug("Dropped malformed finding %r: %s", item, exc2)
-                    continue
-                log.debug("Stripped bad provenance from finding on %s:%s (%s)",
-                          path, item.get("line"), exc)
-            else:
-                log.debug("Dropped malformed finding %r: %s", item, exc)
-                continue
-
-        if allowed is not None and finding.line not in allowed:
-            log.debug(
-                "Dropping finding on %s:%d — line not in diff",
-                finding.path, finding.line,
-            )
-            continue
-
-        finding = _sanitize_suggestion(finding, allowed)
-        finding = _sanitize_provenance(
-            finding,
+        finding = _process_finding_item(
+            item,
+            path=path,
             allowed=allowed,
             n_rag_rules=n_rag_rules,
             n_accepted_examples=n_accepted_examples,
         )
-        findings.append(finding)
+        if finding is not None:
+            findings.append(finding)
 
     return findings
+
+
+def _process_finding_item(
+    item: dict,
+    *,
+    path: str,
+    allowed: set[int] | None,
+    n_rag_rules: int,
+    n_accepted_examples: int,
+) -> "InlineFinding | None":
+    """Validate, line-filter, and sanitize one finding dict; ``None`` drops it."""
+    finding = _validate_finding(item, path)
+    if finding is None:
+        return None
+    if allowed is not None and finding.line not in allowed:
+        log.debug(
+            "Dropping finding on %s:%d — line not in diff",
+            finding.path, finding.line,
+        )
+        return None
+    finding = _sanitize_suggestion(finding, allowed)
+    return _sanitize_provenance(
+        finding,
+        allowed=allowed,
+        n_rag_rules=n_rag_rules,
+        n_accepted_examples=n_accepted_examples,
+    )
+
+
+def _index_in_range(index: int | None, available: int) -> bool:
+    """Return whether a 1-based citation index falls within the available count."""
+    return index is not None and 1 <= index <= available
+
+
+def _sanitize_citation(
+    cite: ProvenanceCitation,
+    *,
+    allowed: set[int] | None,
+    n_rag_rules: int,
+    n_accepted_examples: int,
+) -> "ProvenanceCitation | None":
+    """Return the (possibly trimmed) citation, or ``None`` to drop it."""
+    if cite.kind == "rag_rule":
+        if not _index_in_range(cite.index, n_rag_rules):
+            log.debug("Dropping rag_rule citation index=%s (have %d)",
+                      cite.index, n_rag_rules)
+            return None
+    elif cite.kind == "accepted_example":
+        if not _index_in_range(cite.index, n_accepted_examples):
+            log.debug("Dropping accepted_example citation index=%s (have %d)",
+                      cite.index, n_accepted_examples)
+            return None
+    elif cite.kind == "diff_evidence":
+        return _sanitize_diff_evidence(cite, allowed)
+    return cite
+
+
+def _sanitize_diff_evidence(
+    cite: ProvenanceCitation, allowed: set[int] | None
+) -> "ProvenanceCitation | None":
+    """Filter diff-evidence lines to those in the diff, or drop if none remain."""
+    # Same constraint we use for the finding's anchor line.
+    if allowed is None or not cite.lines:
+        return cite
+    cite_lines = [ln for ln in cite.lines if ln in allowed]
+    if not cite_lines:
+        log.debug("Dropping diff_evidence citation; no lines in diff")
+        return None
+    return cite.model_copy(update={"lines": cite_lines})
 
 
 def _sanitize_provenance(
@@ -199,32 +263,59 @@ def _sanitize_provenance(
 
     kept = []
     for cite in finding.provenance.citations:
-        if cite.kind == "rag_rule":
-            if cite.index is None or not (1 <= cite.index <= n_rag_rules):
-                log.debug("Dropping rag_rule citation index=%s (have %d)",
-                          cite.index, n_rag_rules)
-                continue
-        elif cite.kind == "accepted_example":
-            if cite.index is None or not (1 <= cite.index <= n_accepted_examples):
-                log.debug("Dropping accepted_example citation index=%s (have %d)",
-                          cite.index, n_accepted_examples)
-                continue
-        elif cite.kind == "diff_evidence":
-            # Filter evidence lines to only those that appear in the diff
-            # — same constraint we use for the finding's anchor line.
-            if allowed is not None and cite.lines:
-                cite_lines = [ln for ln in cite.lines if ln in allowed]
-                if not cite_lines:
-                    log.debug("Dropping diff_evidence citation; no lines in diff")
-                    continue
-                cite = cite.model_copy(update={"lines": cite_lines})
-        kept.append(cite)
+        sanitized = _sanitize_citation(
+            cite,
+            allowed=allowed,
+            n_rag_rules=n_rag_rules,
+            n_accepted_examples=n_accepted_examples,
+        )
+        if sanitized is not None:
+            kept.append(sanitized)
 
     if not kept and finding.provenance.confidence is None:
         return finding.model_copy(update={"provenance": None})
     return finding.model_copy(update={
         "provenance": finding.provenance.model_copy(update={"citations": kept})
     })
+
+
+def _suggestion_range_reason(
+    finding: InlineFinding, allowed: set[int] | None
+) -> str | None:
+    """Return why the suggestion's line range is invalid, or ``None`` if valid."""
+    if finding.start_line is not None and finding.start_line > finding.line:
+        return "start_line > line"
+    if (
+        finding.start_line is not None
+        and allowed is not None
+        and finding.start_line not in allowed
+    ):
+        return f"start_line {finding.start_line} not in diff"
+    return _multiline_length_reason(finding)
+
+
+def _multiline_length_reason(finding: InlineFinding) -> str | None:
+    """Return why a multiline suggestion's line count is wrong, or ``None``."""
+    if not finding.is_multiline:
+        return None
+    expected = finding.line - (finding.start_line or finding.line) + 1
+    actual = len(finding.suggestion.splitlines())
+    if actual != expected:
+        return f"suggestion has {actual} lines, expected {expected}"
+    return None
+
+
+def _suggestion_drop_reasons(
+    finding: InlineFinding, allowed: set[int] | None
+) -> list[str]:
+    """Collect every reason the suggestion violates the prompt contract."""
+    reasons: list[str] = []
+    if finding.severity == "info":
+        reasons.append("severity=info forbids suggestion")
+    range_reason = _suggestion_range_reason(finding, allowed)
+    if range_reason is not None:
+        reasons.append(range_reason)
+    return reasons
 
 
 def _sanitize_suggestion(
@@ -238,29 +329,7 @@ def _sanitize_suggestion(
     if finding.suggestion is None:
         return finding
 
-    reasons: list[str] = []
-    if finding.severity == "info":
-        reasons.append("severity=info forbids suggestion")
-
-    range_invalid = (
-        finding.start_line is not None and finding.start_line > finding.line
-    )
-    if range_invalid:
-        reasons.append("start_line > line")
-    elif (
-        finding.start_line is not None
-        and allowed is not None
-        and finding.start_line not in allowed
-    ):
-        reasons.append(f"start_line {finding.start_line} not in diff")
-    elif finding.is_multiline:
-        expected = finding.line - (finding.start_line or finding.line) + 1
-        actual = len(finding.suggestion.splitlines())
-        if actual != expected:
-            reasons.append(
-                f"suggestion has {actual} lines, expected {expected}"
-            )
-
+    reasons = _suggestion_drop_reasons(finding, allowed)
     if reasons:
         log.warning(
             "Dropping suggestion on %s:%d (%s)",

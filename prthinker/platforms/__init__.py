@@ -38,6 +38,15 @@ def create_platform_adapter(
             base_url=base_url or "https://gitlab.com/api/v4",
         )
 
+    if kind is PlatformKind.GITEA:
+        from prthinker.platforms.gitea import GiteaAdapter
+
+        return GiteaAdapter(
+            repo=repo, token=token, pr_number=pr_number,
+            comment_marker=comment_marker,
+            base_url=base_url or "https://gitea.com/api/v1",
+        )
+
     raise ValueError(f"Unsupported platform: {kind!r}")
 
 

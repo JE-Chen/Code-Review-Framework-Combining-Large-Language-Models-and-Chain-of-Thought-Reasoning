@@ -350,11 +350,13 @@ eager attention — see the next section — but eager would also OOM, so the gu
 ### GPU Server: bf16, no flash-attn, no dependency pins
 
 The FastAPI server (`Qwen/Qwen3-Coder-30B-A3B-Instruct` + the unmerged 13 GB LoRA) is
-only fast in **bf16**, which it reaches by letting bitsandbytes 4-bit *silently fall
-back*: `load_qwen3_model()` requests `load_in_4bit=True`, but on the supported deploy
-that quantization does not engage, so the model loads bf16 — ~75 GB across the two
-46 GB L40S with `device_map="auto"` (the "~32 GB used on each card" signature),
-~14 tok/s.
+only fast in **bf16**, and now loads it **deterministically**: `load_qwen3_model()`
+requests bf16 directly for the A3B models (`torch_dtype=torch.bfloat16`, no
+`BitsAndBytesConfig`) instead of relying on 4-bit *silently* not engaging — ~75 GB
+across the two 46 GB L40S with `device_map="auto"` (the "~32 GB used on each card"
+signature), ~14 tok/s. `_verify_quant_safe()` refuses to boot if 4-bit somehow
+engaged on transformers ≥ 5 (the densification-OOM combo); override only with
+`PRTHINKER_ALLOW_DENSIFYING_QUANT=1`.
 
 On this hardware, do **NOT**:
 

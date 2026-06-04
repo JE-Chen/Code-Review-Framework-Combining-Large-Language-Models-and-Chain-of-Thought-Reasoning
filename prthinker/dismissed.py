@@ -119,30 +119,36 @@ class DismissedFilter:
             (ex, get_embedding(ex.comment)) for ex in self._store
         ]
 
+    def _best_match(
+        self, finding: InlineFinding, candidate: "np.ndarray"
+    ) -> tuple[float, str]:
+        """Return the max cosine similarity and reason against stored examples."""
+        import numpy as np
+
+        best_score = 0.0
+        best_reason = ""
+        for ex, emb in self._example_embeddings:
+            if self._path_scoped and ex.path != finding.path:
+                continue
+            score = float(np.dot(candidate, emb))
+            if score > best_score:
+                best_score = score
+                best_reason = ex.reason
+        return best_score, best_reason
+
     def filter(self, findings: Iterable[InlineFinding]) -> list[InlineFinding]:
         items = list(findings)
         if not items or len(self._store) == 0:
             return items
 
         self._ensure_embeddings()
-        # Lazy imports keep the runner profile (httpx + pydantic only)
+        # Lazy import keeps the runner profile (httpx + pydantic only)
         # importable on machines without numpy / faiss.
-        import numpy as np
         from codes.util.faiss_util import get_embedding
 
         kept: list[InlineFinding] = []
         for f in items:
-            candidate = get_embedding(f.comment)
-            best_score = 0.0
-            best_reason = ""
-            for ex, emb in self._example_embeddings:
-                if self._path_scoped and ex.path != f.path:
-                    continue
-                score = float(np.dot(candidate, emb))
-                if score > best_score:
-                    best_score = score
-                    best_reason = ex.reason
-
+            best_score, best_reason = self._best_match(f, get_embedding(f.comment))
             if best_score >= self._threshold:
                 log.info(
                     "Dropping finding on %s:%d (sim=%.3f, reason=%s)",

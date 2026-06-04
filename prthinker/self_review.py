@@ -23,12 +23,8 @@ _FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
 _OBJ_RE = re.compile(r"\{[\s\S]*\}")
 
 
-def parse_drop_indices(raw: str, *, total: int) -> set[int]:
-    """Return the 0-based indices to drop, validated against the count.
-
-    ``total`` is the number of findings the model was asked to review.
-    Indices ≤ 0 or > total are silently ignored.
-    """
+def _extract_json_payload(raw: str) -> object | None:
+    """Return the parsed JSON object from raw model output, or None."""
     body = raw.strip()
     fence = _FENCE_RE.search(body)
     if fence:
@@ -36,18 +32,18 @@ def parse_drop_indices(raw: str, *, total: int) -> set[int]:
     obj_match = _OBJ_RE.search(body)
     if obj_match is None:
         log.warning("self-review output had no JSON object: %r", raw[:200])
-        return set()
-
+        return None
     try:
-        data = json.loads(obj_match.group(0))
+        return json.loads(obj_match.group(0))
     except json.JSONDecodeError as exc:
         log.warning("self-review JSON decode failed: %s", exc)
-        return set()
+        return None
 
-    raw_indices = data.get("drop") if isinstance(data, dict) else None
-    if not isinstance(raw_indices, list):
-        return set()
 
+def _validated_zero_based_indices(
+    raw_indices: list[object], *, total: int
+) -> set[int]:
+    """Return 1-based ints from raw_indices as in-range 0-based indices."""
     out: set[int] = set()
     for value in raw_indices:
         if not isinstance(value, int):
@@ -57,6 +53,19 @@ def parse_drop_indices(raw: str, *, total: int) -> set[int]:
         if 0 <= zero_based < total:
             out.add(zero_based)
     return out
+
+
+def parse_drop_indices(raw: str, *, total: int) -> set[int]:
+    """Return the 0-based indices to drop, validated against the count.
+
+    ``total`` is the number of findings the model was asked to review.
+    Indices ≤ 0 or > total are silently ignored.
+    """
+    data = _extract_json_payload(raw)
+    raw_indices = data.get("drop") if isinstance(data, dict) else None
+    if not isinstance(raw_indices, list):
+        return set()
+    return _validated_zero_based_indices(raw_indices, total=total)
 
 
 def apply_self_review(

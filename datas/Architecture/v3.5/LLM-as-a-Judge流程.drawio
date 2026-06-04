@@ -1,0 +1,96 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="LLM-as-a-Judge 流程" id="v35-judge-flow">
+    <mxGraphModel dx="1440" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="1300" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=24;fontStyle=1;" value="LLM-as-a-Judge Flow (v3.5)" vertex="1">
+          <mxGeometry x="160" y="10" width="580" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s-src" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=20;" value="Load source code &amp; diff" vertex="1">
+          <mxGeometry x="330" y="70" width="240" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s-review" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=20;" value="Load review results&#10;(step_outputs · inline_findings)" vertex="1">
+          <mxGeometry x="330" y="160" width="240" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s-prompt" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=20;" value="Build LLM-as-a-Judge prompt&#10;(5 dimensions:&#10;readability · constructiveness · correctness&#10;coverage · comprehensiveness)" vertex="1">
+          <mxGeometry x="280" y="270" width="340" height="130" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s-llm" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=20;fillColor=#e1d5e7;strokeColor=#9673a6;" value="Input judge prompt to external LLM&#10;(OpenAI-compat / Anthropic / Gemini / Cohere / Mistral / local)" vertex="1">
+          <mxGeometry x="280" y="430" width="340" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s-score" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=20;" value="Generate JSON verdict&#10;{verdict, score 1–100 per dimension, reasons}" vertex="1">
+          <mxGeometry x="280" y="550" width="340" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s-self" parent="1" style="rhombus;whiteSpace=wrap;html=1;fontSize=20;" value="Self-correct&#10;triggered?" vertex="1">
+          <mxGeometry x="320" y="670" width="260" height="140" as="geometry" />
+        </mxCell>
+
+        <mxCell id="lbl-self-yes" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=18;fontStyle=2;" value="Yes" vertex="1">
+          <mxGeometry x="600" y="720" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl-self-no" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=18;fontStyle=2;" value="No" vertex="1">
+          <mxGeometry x="430" y="810" width="60" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s-revise" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=20;fillColor=#e1d5e7;strokeColor=#9673a6;" value="Drop / revise low-confidence findings&#10;(self_review pass)" vertex="1">
+          <mxGeometry x="650" y="700" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s-map" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=20;fillColor=#fff2cc;strokeColor=#d6b656;" value="Map verdict → GitHub review event&#10;(APPROVE · REQUEST_CHANGES · COMMENT)" vertex="1">
+          <mxGeometry x="280" y="850" width="340" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s-gate" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=20;fillColor=#fff2cc;strokeColor=#d6b656;" value="Compute pre-merge gate&#10;(severity floor · check-run conclusion)" vertex="1">
+          <mxGeometry x="280" y="960" width="340" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s-submit" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=20;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Submit to PR&#10;summary (upsert) · inline review · Check Run" vertex="1">
+          <mxGeometry x="280" y="1070" width="340" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" parent="1" edge="1" source="s-src" target="s-review" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" parent="1" edge="1" source="s-review" target="s-prompt" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" parent="1" edge="1" source="s-prompt" target="s-llm" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" parent="1" edge="1" source="s-llm" target="s-score" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" parent="1" edge="1" source="s-score" target="s-self" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6-self-yes" parent="1" edge="1" source="s-self" target="s-revise" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6-revise-back" parent="1" edge="1" source="s-revise" target="s-map" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;html=1;exitX=0.5;exitY=1;entryX=1;entryY=0.5;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="760" y="890" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e6-self-no" parent="1" edge="1" source="s-self" target="s-map" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" parent="1" edge="1" source="s-map" target="s-gate" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" parent="1" edge="1" source="s-gate" target="s-submit" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -191,44 +191,59 @@ def build_derive_prompt(
     )
 
 
-def parse_lessons(raw_output: str, *, source_prs: tuple[int, ...]) -> list[LessonRule]:
-    """Best-effort parse of the model's JSON-array reply.
-
-    Bad rows are dropped silently; never crashes the derive job.
-    ``source_prs`` is recorded on each rule for traceability.
-    """
+def _extract_lessons_json_array(raw_output: str) -> list | None:
+    """Pull the JSON array out of the model reply, or ``None`` on failure."""
     import re
     body = raw_output.strip()
     fence = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", body, re.IGNORECASE)
     if fence:
         body = fence.group(1).strip()
     if not body or body == "[]":
-        return []
+        return None
     match = re.search(r"\[[\s\S]*\]", body)
     if match is None:
         log.warning("lessons parser: no JSON array found")
-        return []
+        return None
     try:
         data = json.loads(match.group(0))
     except json.JSONDecodeError as exc:
         log.warning("lessons parser: JSON decode failed (%s)", exc)
+        return None
+    return data if isinstance(data, list) else None
+
+
+def _lesson_from_entry(
+    entry: object, *, source_prs: tuple[int, ...], now: float,
+) -> LessonRule | None:
+    """Build one rule from a raw entry, or ``None`` if it is incomplete."""
+    if not isinstance(entry, dict):
+        return None
+    name = str(entry.get("name", "")).strip()
+    trigger = str(entry.get("trigger", "")).strip()
+    action = str(entry.get("action", "")).strip()
+    if not name or not trigger or not action:
+        return None
+    return LessonRule(
+        name=name, trigger=trigger, action=action,
+        derived_from_pr_numbers=source_prs, ts=now,
+    )
+
+
+def parse_lessons(raw_output: str, *, source_prs: tuple[int, ...]) -> list[LessonRule]:
+    """Best-effort parse of the model's JSON-array reply.
+
+    Bad rows are dropped silently; never crashes the derive job.
+    ``source_prs`` is recorded on each rule for traceability.
+    """
+    data = _extract_lessons_json_array(raw_output)
+    if data is None:
         return []
-    if not isinstance(data, list):
-        return []
-    out: list[LessonRule] = []
     now = time.time()
+    out: list[LessonRule] = []
     for entry in data:
-        if not isinstance(entry, dict):
-            continue
-        name = str(entry.get("name", "")).strip()
-        trigger = str(entry.get("trigger", "")).strip()
-        action = str(entry.get("action", "")).strip()
-        if not name or not trigger or not action:
-            continue
-        out.append(LessonRule(
-            name=name, trigger=trigger, action=action,
-            derived_from_pr_numbers=source_prs, ts=now,
-        ))
+        rule = _lesson_from_entry(entry, source_prs=source_prs, now=now)
+        if rule is not None:
+            out.append(rule)
     return out
 
 

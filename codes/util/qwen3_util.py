@@ -4,6 +4,7 @@ import logging
 import os
 
 import torch
+import transformers
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -13,6 +14,7 @@ from transformers import (
 )
 from peft import PeftModel
 
+from codes.util.quant_guard import densification_risk
 from prthinker.pipeline import ReviewCancelledError
 
 log = logging.getLogger(__name__)
@@ -102,12 +104,33 @@ def _probe_generation(model, tokenizer) -> None:
         raise RuntimeError(
             f"Boot probe OOM: a {actual}-token prompt could not run an "
             f"8-token generation ({_describe_load(model)}). The server "
-            "would OOM on the first real review. Most likely "
-            "transformers>=5 MoE densification or 4-bit quantization not "
-            "applied — pin transformers<5 and verify load_in_4bit. "
-            "Bypass with PRTHINKER_SKIP_BOOT_PROBE=1. Original: " + str(exc)
+            "would OOM on the first real review. The supported deploy is "
+            "bf16 (no 4-bit); if quant shows 4bit here, transformers>=5 is "
+            "densifying the MoE — rebuild without 4-bit (see CLAUDE.md "
+            "'GPU Server: bf16'). Bypass with PRTHINKER_SKIP_BOOT_PROBE=1. "
+            "Original: " + str(exc)
         ) from exc
     log.info("Boot probe passed: %d-token prompt generated without OOM.", actual)
+
+
+def _verify_quant_safe(model) -> None:
+    """Refuse to serve the known-OOM 4-bit + transformers>=5 MoE combo.
+
+    The supported deploy loads bf16; if a rebuild ever lets bitsandbytes
+    4-bit engage on transformers>=5 the model densifies its MoE forward and
+    OOMs on the first multi-thousand-token review. Fail loudly at boot
+    instead. Override with ``PRTHINKER_ALLOW_DENSIFYING_QUANT=1``.
+    """
+    is_4bit = bool(getattr(model, "is_loaded_in_4bit", False))
+    risk = densification_risk(is_4bit, transformers.__version__)
+    if risk is None:
+        return
+    if os.environ.get(
+        "PRTHINKER_ALLOW_DENSIFYING_QUANT", ""
+    ).strip().lower() in ("1", "true", "yes"):
+        log.warning("PRTHINKER_ALLOW_DENSIFYING_QUANT set; %s", risk)
+        return
+    raise RuntimeError("Refusing to start: " + risk)
 
 
 def _verify_non_eager_attention(model) -> None:
@@ -172,16 +195,14 @@ def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3
     attn_impl = _pick_attn_implementation()
     print(f"Attention implementation: {attn_impl}")
     if model_name in ["Qwen/Qwen3-30B-A3B-Thinking-2507", "Qwen/Qwen3-Coder-30B-A3B-Instruct"]:
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.bfloat16,  # bf16 compute if supported
-        )
+        # bf16, NOT 4-bit. On transformers>=5 a 4-bit A3B MoE densifies its
+        # forward (allocation linear in input length) and OOMs the L40S.
+        # bf16 across both cards (device_map="auto") avoids that entirely;
+        # see CLAUDE.md "GPU Server: bf16, no flash-attn".
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             device_map="auto",
-            quantization_config=bnb_config,
+            torch_dtype=torch.bfloat16,
             attn_implementation=attn_impl,
         )
     elif not quantization:
@@ -208,6 +229,9 @@ def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3
     # attention (e.g. flash_attn imported but the model class doesn't
     # use it). Better a loud boot failure than a 269 GiB OOM mid-review.
     _verify_non_eager_attention(model)
+    # Refuse the 4-bit + transformers>=5 densification combo (this deploy
+    # is bf16); a rebuild that re-engages 4-bit would OOM mid-review.
+    _verify_quant_safe(model)
 
     # === 一次載入模型與 tokenizer ===
     print("Loading tokenizer...")

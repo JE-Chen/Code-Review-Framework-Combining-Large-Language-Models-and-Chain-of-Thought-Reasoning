@@ -37,6 +37,84 @@ def test_redact_secrets_flag_parses() -> None:
     assert ns.redact_secrets is True
 
 
+def test_findings_only_flag_parses() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote",
+        "--remote-url", "http://x", "--findings-only",
+    ])
+    assert ns.findings_only is True
+
+
+def test_findings_only_defaults_false() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote", "--remote-url", "http://x",
+    ])
+    assert ns.findings_only is False
+
+
+def test_hide_info_flag_parses() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote",
+        "--remote-url", "http://x", "--hide-info",
+    ])
+    assert ns.hide_info is True
+
+
+def test_pr_overview_flag_parses() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote",
+        "--remote-url", "http://x", "--pr-overview",
+    ])
+    assert ns.pr_overview is True
+
+
+def test_impact_map_flag_parses() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote",
+        "--remote-url", "http://x", "--impact-map",
+    ])
+    assert ns.impact_map is True
+
+
+def test_summary_table_flag_parses() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote",
+        "--remote-url", "http://x", "--summary-table",
+    ])
+    assert ns.summary_table is True
+
+
+def test_summary_min_confidence_flag_parses() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote",
+        "--remote-url", "http://x", "--summary-min-confidence", "0.4",
+    ])
+    assert ns.summary_min_confidence == 0.4
+
+
+def test_pr_files_url_github_default() -> None:
+    import argparse as _argparse
+
+    from prthinker.cli_review import _pr_files_url
+    ns = _argparse.Namespace(platform="github", repo="o/r", pr_number=7)
+    assert _pr_files_url(ns) == "https://github.com/o/r/pull/7/files"
+
+
+def test_pr_files_url_none_for_non_github() -> None:
+    import argparse as _argparse
+
+    from prthinker.cli_review import _pr_files_url
+    ns = _argparse.Namespace(platform="gitlab", repo="o/r", pr_number=7)
+    assert _pr_files_url(ns) is None
+
+
 def test_each_backend_choice_is_accepted() -> None:
     p = _build_parser()
     for kind in BackendKind:

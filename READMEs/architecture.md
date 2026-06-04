@@ -234,7 +234,10 @@ Code-Review-Framework/
 ├── prthinker/                        # Standalone Python package
 │   ├── __init__.py
 │   ├── __main__.py                   # python -m prthinker
-│   ├── cli.py                        # argparse subcommands
+│   ├── cli.py                        # entry point: handler registry + main()
+│   ├── cli_parser.py                 # argparse construction (shared + per-cmd)
+│   ├── cli_review.py                 # review-file / review-pr handlers
+│   ├── cli_commands.py               # corpora / KG / maintenance handlers
 │   ├── config.py                     # dataclass-based runtime config
 │   ├── pipeline.py                   # CoTPipeline orchestrator
 │   ├── steps.py                      # ReviewStep ABC + 5 registered steps
@@ -288,7 +291,7 @@ Code-Review-Framework/
 ├── codes/                            # Research / training scripts (legacy)
 │   ├── run/                          #   cot.py / skills.py / fastapi_server.py
 │   ├── train/                        #   LoRA fine-tuning entry points
-│   └── util/                         #   qwen3_util.py + faiss_util.py
+│   └── util/                         #   qwen3_util.py + faiss_util.py + server_metrics.py
 ├── datas/                            # RAG rules + experiment fixtures
 ├── docs/                             # Sphinx (en + zh-TW + zh-CN, single tree)
 ├── docker/                           # Self-host: Dockerfile + compose (port 9000)

@@ -16,6 +16,7 @@ interprets in its own way.
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any
@@ -24,10 +25,13 @@ from prthinker.checks import CheckResult
 from prthinker.dialogue import AuthorReply
 from prthinker.schemas import InlineFinding
 
+log = logging.getLogger(__name__)
+
 
 class PlatformKind(str, Enum):
     GITHUB = "github"
     GITLAB = "gitlab"
+    GITEA = "gitea"
 
 
 class PlatformAdapter(ABC):
@@ -54,6 +58,40 @@ class PlatformAdapter(ABC):
         """
         return ("", "")
 
+    def fetch_commit_messages(self) -> list[str]:
+        """Return the PR's commit messages, oldest first.
+
+        Default returns ``[]`` so adapters without commit access degrade
+        to a files-only preliminary overview. Concrete adapters override.
+        """
+        return []
+
+    def fetch_changed_paths(self) -> list[str]:
+        """Return every changed file path on the PR.
+
+        Default returns ``[]`` so adapters that cannot enumerate files
+        skip the full-scan coverage check. Concrete adapters override.
+        """
+        return []
+
+    def set_labels(self, labels: list[str]) -> None:
+        """Apply the prthinker-managed labels to the PR.
+
+        Default is a no-op so adapters without label support simply skip
+        labelling. Concrete adapters override to reconcile labels.
+        """
+        log.info("%s does not support PR labels; skipping", type(self).__name__)
+
+    def update_body_section(self, section: str) -> None:
+        """Insert / replace a prthinker section in the PR description.
+
+        Default is a no-op; adapters that support editing the PR body
+        override to upsert a marker-delimited block.
+        """
+        log.info(
+            "%s does not support PR body editing; skipping", type(self).__name__
+        )
+
     # ----- summary comment (one per PR) ---------------------------------
 
     @abstractmethod
@@ -63,6 +101,25 @@ class PlatformAdapter(ABC):
         The marker comes from the adapter's ``comment_marker`` field; the
         body must already contain it.
         """
+
+    def upsert_summary_comments(self, bodies: list[str]) -> list[int]:
+        """Create / update / reconcile one-or-more summary comment pages.
+
+        A long review is paginated across several comments. The default
+        implementation supports a single comment only: it upserts the
+        first page and warns that any overflow pages are dropped.
+        Adapters that can reconcile multiple comments (e.g. GitHub)
+        override this. Returns the comment ids in page order.
+        """
+        if not bodies:
+            return []
+        if len(bodies) > 1:
+            log.warning(
+                "%s posts a single summary comment; %d overflow page(s) "
+                "dropped — full review is in the job logs",
+                type(self).__name__, len(bodies) - 1,
+            )
+        return [self.upsert_summary_comment(bodies[0])]
 
     # ----- inline review (per-line comments) ----------------------------
 
