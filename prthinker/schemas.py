@@ -76,6 +76,18 @@ class Provenance(BaseModel):
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
+FindingCategory = Literal[
+    "correctness",
+    "security",
+    "performance",
+    "design",
+    "test",
+    "docs",
+    "style",
+    "other",
+]
+
+
 VerificationStatus = Literal["pass", "fail", "skip", "error"]
 
 
@@ -114,6 +126,11 @@ class InlineFinding(BaseModel):
     provenance: Provenance | None = None
     verification: SuggestionVerification | None = None
     reproducibility: Literal["stable", "low"] | None = None
+    # Optional thematic bucket (security / correctness / …) used only to
+    # group findings in the summary. Backward-compatible: a model that
+    # never emits it leaves the field None and the By-category index is
+    # simply omitted.
+    category: FindingCategory | None = None
 
     @property
     def is_multiline(self) -> bool:
@@ -344,6 +361,7 @@ __all__ = [
     "CounterfactualOption",
     "DependencyUpgradeFinding",
     "DiffEntropySummary",
+    "FindingCategory",
     "InlineFinding",
     "JudgeVerdict",
     "PRClassification",

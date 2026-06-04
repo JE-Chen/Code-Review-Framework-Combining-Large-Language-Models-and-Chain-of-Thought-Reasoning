@@ -86,6 +86,7 @@ from codes.run.CoT_Prompts.inline_findings import INLINE_FINDINGS_TEMPLATE  # no
 from codes.run.CoT_Prompts.judge_step import JUDGE_STEP_TEMPLATE  # noqa: E402
 from codes.run.CoT_Prompts.linter import LINTER_TEMPLATE  # noqa: E402
 from codes.run.CoT_Prompts.total_summary import TOTAL_SUMMARY_TEMPLATE  # noqa: E402
+from codes.run.CoT_Prompts.walkthrough import WALKTHROUGH_TEMPLATE  # noqa: E402
 
 
 def _wrap(prompt: str, rag_docs: list[str]) -> str:
@@ -190,6 +191,28 @@ class InlineFindingsStep(ReviewStep):
         )
 
 
+class WalkthroughStep(ReviewStep):
+    """Per-file step: a short narrative of what the change does and why.
+
+    Orientation, not judgement — it produces the model-generated
+    counterpart to the deterministic, commit-message-based PR overview, so
+    a reviewer can read *what each file change means* before diving into
+    the findings. Not auto-registered: the per-file pipeline opts in via
+    the ``--walkthrough`` flag. It depends on nothing but the diff, so it
+    can run with or without inline review.
+    """
+
+    name = "walkthrough"
+
+    def build_prompt(self, ctx: ReviewContext) -> str:
+        if not ctx.file_path:
+            raise ValueError("WalkthroughStep requires ctx.file_path")
+        return WALKTHROUGH_TEMPLATE.format(
+            file_path=ctx.file_path,
+            code_diff=ctx.code_diff,
+        )
+
+
 class CounterfactualStep(ReviewStep):
     """Per-file step: surface competing alternative implementations for
     findings that look like design choices.
@@ -254,6 +277,7 @@ __all__ = [
     "InlineFindingsStep",
     "CounterfactualStep",
     "JudgeStep",
+    "WalkthroughStep",
     "register_step",
     "registered_steps",
     "resolve_steps",

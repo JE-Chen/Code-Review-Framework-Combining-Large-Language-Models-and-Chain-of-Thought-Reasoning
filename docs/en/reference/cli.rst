@@ -89,6 +89,15 @@ Research-grade flags (opt-in, ``--inline-review`` required):
    are silently dropped; a bad citation never drops a real finding.
    Env: ``PRTHINKER_PROVENANCE``.
 
+.. option:: --walkthrough
+
+   Add a per-file ``WalkthroughStep`` that writes a short two-to-four
+   sentence narrative of what the file's change does and why, pinned to
+   the top of that file's block — the inference-backed counterpart to the
+   model-free commit-message PR overview. It only describes the change
+   (no review or criticism), depends on nothing but the diff, and so runs
+   with or without ``--inline-review``. Env: ``PRTHINKER_WALKTHROUGH``.
+
 .. option:: --judge
 
    Per-file self-assessment step that emits an ``approve`` /
@@ -167,6 +176,9 @@ Research-grade flags (opt-in, ``--inline-review`` required):
    Scales ``max_findings_per_file`` proportional to the score between
    ``floor`` (default 2) and ``ceiling`` (default ``2 ×
    base_budget``). Set ``--risk-workdir`` to point at the git repo.
+   It also surfaces a collapsible "high-risk files" note (the score and
+   its churn / bug-fix / line-count breakdown) in the summary, so the
+   reviewer sees which files history says are most likely to break.
    Env: ``PRTHINKER_RISK_WEIGHTED``.
 
 .. option:: --diff-entropy
@@ -175,6 +187,22 @@ Research-grade flags (opt-in, ``--inline-review`` required):
    "Consider splitting this PR" warning at the top of the comment
    when the score crosses the ``bomb`` threshold. Pure local CPU; no
    backend call. Env: ``PRTHINKER_DIFF_ENTROPY``.
+
+.. option:: --review-order
+
+   Add a "Suggested review order" note that ranks the changed files
+   most-depended-upon first (using the repo knowledge graph's import
+   edges), with the most foundational file marked "start here", so the
+   reviewer reads base changes before their call sites. Best-effort:
+   omitted when the KG store is absent. Env: ``PRTHINKER_REVIEW_ORDER``.
+
+.. option:: --change-map
+
+   Embed a small Mermaid graph of the import edges *between the changed
+   files* (from the repo knowledge graph), so the structure of the
+   change is visible inline. GitHub renders the ```mermaid`` block
+   natively. Omitted when the change has no internal import edges.
+   Env: ``PRTHINKER_CHANGE_MAP``.
 
 review-file
 -----------

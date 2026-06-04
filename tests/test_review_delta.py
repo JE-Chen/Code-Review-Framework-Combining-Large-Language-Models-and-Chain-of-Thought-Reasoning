@@ -91,6 +91,31 @@ def test_format_resolved_block_empty():
     assert review_delta.format_resolved_block([]) == ""
 
 
+def test_new_records_returns_only_unseen():
+    prev = set(review_delta.fingerprints([_f("a.py", "old")]))
+    current = [_f("a.py", "old"), _f("b.py", "fresh")]
+    new = review_delta.new_records(prev, current)
+    assert len(new) == 1
+    assert new[0]["path"] == "b.py" and new[0]["comment"] == "fresh"
+
+
+def test_new_records_empty_when_all_carried():
+    prev = set(review_delta.fingerprints([_f("a.py", "keep")]))
+    assert review_delta.new_records(prev, [_f("a.py", "keep")]) == []
+
+
+def test_format_new_block_lists_findings():
+    block = review_delta.format_new_block(
+        [{"path": "b.py", "comment": "fresh bug", "fp": "y"}]
+    )
+    assert "🆕 New since last review (1)" in block
+    assert "- 🆕 `b.py` — fresh bug" in block
+
+
+def test_format_new_block_empty():
+    assert review_delta.format_new_block([]) == ""
+
+
 # --- cli wiring: _review_progress (delta + dialogue + resolved) --------------
 
 import argparse  # noqa: E402
@@ -138,10 +163,13 @@ def test_review_progress_second_run_reports_delta_and_resolved(tmp_path: Path):
     adapter = _ReplyAdapter([AuthorReply(author="u", body="thanks")])
     a = _args(tmp_path)
     _review_progress(a, adapter, _result(["old", "keep"]))      # baseline
-    line, resolved = _review_progress(a, adapter, _result(["keep", "new"]))
+    line, progress = _review_progress(a, adapter, _result(["keep", "new"]))
     assert "+1 new" in line and "1 resolved" in line
     assert "💬 1 author reply(ies)" in line
-    assert resolved is not None and "old" in resolved
+    # The progress block bundles both the new-since-last and resolved lists.
+    assert progress is not None
+    assert "🆕 New since last review" in progress and "new" in progress
+    assert "Resolved since last review" in progress and "old" in progress
 
 
 def test_review_progress_disabled_returns_none(tmp_path: Path):

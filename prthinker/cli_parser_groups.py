@@ -384,6 +384,17 @@ def _add_dialogue_feature_args(common: argparse.ArgumentParser) -> None:
             "PR comment. Requires --inline-review."
         ),
     )
+    common.add_argument(
+        "--walkthrough",
+        action="store_true",
+        default=env_bool("PRTHINKER_WALKTHROUGH", False),
+        help=(
+            "Generate a short model-written narrative of what each file "
+            "change does and why, pinned to the top of that file's block — "
+            "the inference-backed counterpart to the commit-message PR "
+            "overview. Independent of --inline-review."
+        ),
+    )
 
 
 def _add_kg_lessons_args(common: argparse.ArgumentParser) -> None:
@@ -437,6 +448,26 @@ def _add_kg_lessons_args(common: argparse.ArgumentParser) -> None:
         help=(
             "Add an 'Impacted areas' note to the overview listing downstream "
             "importers of the changed files (from the repo knowledge graph)."
+        ),
+    )
+    common.add_argument(
+        "--review-order",
+        action="store_true",
+        default=env_bool("PRTHINKER_REVIEW_ORDER", False),
+        help=(
+            "Add a 'Suggested review order' note that ranks the changed files "
+            "most-depended-upon first (from the repo knowledge graph), so the "
+            "reviewer reads foundational changes before their call sites."
+        ),
+    )
+    common.add_argument(
+        "--change-map",
+        action="store_true",
+        default=env_bool("PRTHINKER_CHANGE_MAP", False),
+        help=(
+            "Embed a small Mermaid graph of the import edges between the "
+            "changed files (from the repo knowledge graph) so the shape of "
+            "the change is visible inline."
         ),
     )
     common.add_argument(

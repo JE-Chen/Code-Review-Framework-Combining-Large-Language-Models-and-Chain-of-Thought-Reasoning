@@ -149,38 +149,87 @@ diff 本身看不到的波及面。比對是啟發式（模組名 vs import targ
 每份逐檔總結最上方都有一個 **Review at a glance** 摘要──白話的狀態
 （🔴 changes requested／🟡 review suggested／🔵 minor notes／✅ looks good）、
 依嚴重度分類的 finding 數量、已審查／有 finding／乾淨的檔案分佈，以及
-finding 最多的\ *熱點*\ 檔案。它固定在會被原地更新的 part-1 留言最上方，所以
-每次重新審查都會原地改寫，永遠反映最新一次的結果。
+finding 最多的\ *熱點*\ 檔案。當任何 finding 附帶一鍵 ``suggestion`` 時，摘要
+會在一行 **Suggestions** 統計它們的數量（跑過 ``--verify-suggestions`` 時還會
+標出沙箱驗證過的數量）；另有一行 **Review effort** 給出粗略的 ``~N min`` 估計
+（依檔案數與 finding 嚴重度加權）以及有幾個檔案需要注意，讓人不必展開任何
+區塊就能掌握工作量。有開 gate 時還會顯示一行 **Gate**\ （✅ pass / ❌ failure
+與 error／warning／info 數）；結算為 failure 時，這行會連結第一個觸發 floor 的
+finding 作為\ *第一個阻擋點*\ ，讓原因一鍵可達。此摘要固定在會被原地更新的
+part-1 留言最上方，所以每次重新審查都會原地改寫，永遠反映最新一次的結果。
+
+摘要下方有一個可展開的 **By severity** 索引，依最嚴重度把檔案分組。當 finding
+帶有 ``category``\ （security／correctness／performance／design／test／docs／
+style／other）時，旁邊還會有一個可展開的 **By category** 索引，依主題把 finding
+分組，讓審查者一次只處理一類關注點；沒有任何 finding 被分類時則整段省略。每則
+留言結尾則有中繼資料 footer（commit、後端/模型、檔案覆蓋、prthinker 版本、
+時間戳）以及一個可展開的 **Legend** 解釋所有圖示。
 
 當存在 error 嚴重度的 finding 時，最上方會釘一個 **🚨 Must fix** 清單──把
-error finding 以單行加深層連結列出，讓阻擋性問題不必展開任何區塊就看得到。
-含 error 的檔案會展開呈現（``<details open>``），乾淨／warning／info 維持
-收合；每個檔案區塊還會有一行 ``Signal:``\ ，統計 sandbox 驗證過的 suggestion
-（``✓``）與低再現性 finding（``⚠️``），讓高可信的 finding 更突出。
+error finding 以單行加深層連結列出，並引用出問題的那行原始碼（從 diff 解析），
+讓阻擋性問題不必展開任何區塊、也不必開 Files-changed 分頁就讀得到。含 error
+的檔案會展開呈現（``<details open>``），乾淨／warning／info 維持收合；每個檔案
+區塊還會有一行 ``Signal:``\ ，統計 sandbox 驗證過的 suggestion（``✓``）與低
+再現性 finding（``⚠️``），讓高可信的 finding 更突出。
+
+若想要一條橫跨整個 PR 的優先佇列，可展開的 **🔝 Top findings** 清單會把每一條
+finding 依嚴重度再依模型信心排序──比只含 error 的 Must-fix 更廣、比檔案層級的
+熱點更扁平──讓審查者有一個\ 「\ 先看這些\ 」\ 的順序。逐檔區塊已能看出優先序的
+小型審查則略過。
+
+加上 ``--walkthrough`` 時，每個檔案區塊最上方會有一段 **📝 Walkthrough**\ ──
+模型寫的、關於該檔變更\ 「\ 做了什麼、為何\ 」\ 的簡短敘事，釘在審查 summary
+之上，因為它是\ *定位*\ （變更\ *是什麼*\ ）、要在\ *評斷*\ （\ *哪裡有問題*\ ）
+之前讀。它是無推論之 commit-message PR 概覽之推論側對應物，只描述、不評斷。
 
 每個檔案都是自己的可展開 ``<details>`` 項，summary 在檔名前以最嚴重度的狀態
 圖示（``🔴`` / ``🟡`` / ``🔵``）開頭，讓整份審查成為一份可掃描的檔案選單。
 逐檔區塊會\ **依嚴重度排序**\ （有 error 的檔案在前，再來 warning、info，
 同級再比 finding 數），每個檔案的徽章改用嚴重度圖示（``🔴2 🟡1``）而非單純
-數字。加上 ``--findings-only``\ （CI 預設開啟）時，沒有 finding 的檔案會被
-跳過而不列出。``--summary-table``\ （環境變數 ``PRTHINKER_SUMMARY_TABLE``）會把收合
-區塊換成一個緊湊的 ``severity | location | finding`` 表格──finding 很多時
-更快掃。在 GitHub 上，每個檔名──熱點列與區塊標頭──都是\ **深層連結**\ ，
-直接跳到該檔在 Files-changed 分頁的第一個 finding（GitHub Enterprise 主機
-請設定 ``PRTHINKER_PR_FILES_URL``）。
+數字，並附上變更規模徽章（``+12 −3 · 2 hunks``\ ，直接從 diff 解析），讓選單
+在展開前就顯示每個變更\ *有多大*\ 。加上 ``--findings-only``\ （CI 預設開啟）時，
+沒有 finding 的檔案會被跳過而不列出。``--summary-table``\ （環境變數
+``PRTHINKER_SUMMARY_TABLE``）會把收合區塊換成一個緊湊的
+``severity | location | finding`` 表格──finding 很多時更快掃。在 GitHub 上，
+每個檔名──熱點列與區塊標頭──都是\ **深層連結**\ ，直接跳到該檔在
+Files-changed 分頁的第一個 finding（GitHub Enterprise 主機請設定
+``PRTHINKER_PR_FILES_URL``）。
+
+在索引區塊與逐檔細節之間，會放一組可選的\ *定位*\ 區塊，每個都是 best-effort、
+會自我省略（只有有話可說時才呈現）：
+
+* 一個 **Suggested review order** 註記（``--review-order``）用 repo knowledge
+  graph 的 import 邊把變更檔案按\ 「\ 被最多其他變更檔案依賴\ 」\ 排前面，最地基
+  的檔案標上\ 「\ start here\ 」\ ──讓審查者先讀基礎變更再讀其呼叫端。
+* 一個 **high-risk files** 註記（``--risk-weighted``）把預算分配器本來就算出的
+  每檔風險分（churn＋複雜度＋bug 歷史）秀出來，讓審查者知道歷史上哪些檔案最
+  脆弱──不論本次 PR 是否在它們上面提出 finding。
+* 一個 **🧪 changed without a matching test change** 區塊，列出同名測試未一併
+  變更的 production ``.py`` 檔──一個便宜、確定性的提示（不需推論），永遠開啟
+  且永不作為 gate，因為 docs-only 或純重構的變更本來就不需要動測試。
+* 一個 **🗺️ Change map**\ （``--change-map``\ ）在留言內嵌一張小的 Mermaid 圖，
+  畫出變更檔案之間的 import 邊，讓改動的結構一眼可見。
+* 一個 **✅ Reviewer checklist** 收集一鍵 suggestion 無法自行了結的項目──未驗證
+  的 error 修正、低再現性 finding、跨語言 API drift──以 ``- [ ]`` 方框呈現，給
+  審查者一份明確的把關清單，而不必自己重新推導。
 
 加上 ``--review-delta``\ （環境變數 ``PRTHINKER_REVIEW_DELTA``）時，摘要會多一行
 ``Since last review: +2 new · 3 resolved · 5 carried``\ 。finding 以
 ``(path, severity, comment)`` 取指紋──而非會隨 push 位移的行號──並把這組
 指紋持久化在 CI 本來就會跨 push 還原的 per-PR 狀態（``--delta-state``\ ，預設
 ``.prthinker/pr-state/findings-fp.json``）裡，因此重推時一眼就能看到進展。
-同一行在作者於上次審查後有回覆時會接上 ``💬 N author reply(ies)``\ ；消失的
-finding 則以刪除線列在最上方收合的 **✅ Resolved since last review** 區塊──
-讓作者有成就感、審查者清楚看到哪些已處理。
+同一行在作者於上次審查後有回覆時會接上 ``💬 N author reply(ies)``\ 。接著由
+兩個收合清單把差異具體呈現：本次 run 才首度出現的 finding 會收進一個
+**🆕 New since last review** 區塊，消失的 finding 則以刪除線列在 **✅ Resolved
+since last review** 區塊──讓重新審查只需讀新增的條目、作者有成就感、審查者
+清楚看到哪些已處理。
 
 完整的逐檔審查可能達數百 KB，遠超過 GitHub 單則留言 65 536 字元的上限。
-與其截斷，總結會\ **切分成多則留言**\ ：只在整個檔案區塊之間切（絕不切在
-區塊中間），第一則之後的每一則都帶有 ``Part k/N`` 標記。跨多次 push 時，
+與其截斷，總結會\ **切分成多則留言**\ ：在整個檔案區塊之間切，第一則之後的
+每一則都帶有 ``Part k/N`` 標記。單一檔案區塊若本身就超過一頁，會在它的巢狀
+子區塊邊界切分──每一片都是自我閉合、可獨立成立的 ``<details>``\ ，所以標記
+不會跨留言斷裂，續接的片段會標上 ``(continued)``\ ──而不是被單則留言上限
+截斷。跨多次 push 時，
 這些分頁會以 marker 對齊\ ──既有留言原地更新、不足的分頁新增、上一輪較長
 留言殘留的多餘分頁刪除，殘缺的舊分頁不會留下。GitHub 以外的平台則退回
 單則留言（溢出的內容留在 job log 裡）。
@@ -200,17 +249,35 @@ review 與合併 gate 仍會看到所有 finding。
 0–1 浮點數）會進一步把模型信心低於門檻的 finding 從總結中丟掉；沒有信心
 分數的 finding 一律保留（未知不丟）。同樣只影響顯示。
 
+由於這兩者會悄悄縮小摘要計數（否則讀者會看到 ``🔵 0 info`` 而誤以為本來就
+沒有），摘要會多一行 **Filtered from view**\ ──``2 info · 1 low-confidence
+hidden``\ ──以\ *未過濾*\ 的結果計算，使摘要永不隱藏它隱藏了多少
+（no-silent-caps 原則）。
+
 加上 ``--pr-labels``\ （環境變數 ``PRTHINKER_PR_LABELS``）時，reviewer 還會
 在 PR 上貼兩個受管理的標籤──規模（``prthinker/size-xs`` … ``size-xl``\ ，
 依審查檔案數）與狀態（``prthinker/changes-requested`` / ``review-suggested``
 / ``clean``）──讓 PR 列表不必逐一點開就能掃描。只有 ``prthinker/`` 前綴的
 標籤會跨 run 對齊，人工貼的標籤完全不動。
 
+每則 inline 留言體都以一個 `Conventional Comments
+<https://conventionalcomments.org>`_ 標籤開頭，由 finding 的嚴重度與 category
+推得──``🔴 issue (security):``\ 、``🟡 suggestion:``\ 、``🔵 nitpick:``\ ──
+讓讀者（與工具）一眼分流阻擋性與可選項。同一個共用 formatter 在每個平台
+（GitHub、Gitea）渲染留言體，所以標籤與一鍵 suggestion 區塊在各 host 上完全
+一致。
+
 inline 建議\ ──diff 上一鍵 *Apply suggestion* 的區塊\ ──會以另一個 PR
 review 貼出。新的 review 會\ **先**\ 送出，之後才移除上一輪的 inline 留言，
 而且移除時會排除剛剛送出的 review。先貼再移除代表：當送出被拒（只要有任何
 一則留言指到 diff hunk 範圍外的行，GitHub 會 422 拒絕\ *整個*\ review）時，
 上一輪的建議仍會保留，而不是在失敗的重貼之前就被清掉。
+
+行落在 diff hunk 範圍外的 finding 無法 inline 貼出，否則就會憑空消失。為了讓
+總結誠實，這些 finding 會收進一個收合的 **⚠️ Outside the diff** 區塊，逐一列出
+（位置＋留言）：inline finding 的數量已經說明\ *丟了幾個*\ ，而這個區塊說明\
+*是哪些*\ ，讓審查者仍能手動處理。當每個 finding 都落在 diff 上時，這個區塊
+會省略。
 
 加上 ``--check-annotations``\ （環境變數 ``PRTHINKER_CHECK_ANNOTATIONS``）時，
 gate 的 Check Run 還會帶逐行標註（每個 finding 一筆，依嚴重度為

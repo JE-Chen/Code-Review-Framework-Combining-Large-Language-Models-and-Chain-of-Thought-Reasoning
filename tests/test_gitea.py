@@ -267,7 +267,7 @@ def test_submit_inline_review_posts(monkeypatch: pytest.MonkeyPatch) -> None:
     assert payload["comments"] == [{
         "path": "a.py",
         "new_position": 3,
-        "body": "🟡 **warning** — bug here\n\n```suggestion\nfixed\n```",
+        "body": "🟡 **suggestion:** bug here\n\n```suggestion\nfixed\n```",
     }]
 
 

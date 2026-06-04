@@ -115,6 +115,29 @@ def format_delta(delta: ReviewDelta) -> str:
     )
 
 
+def new_records(
+    previous: set[str], current_findings: list[InlineFinding]
+) -> list[dict]:
+    """De-duplicated records for findings absent from the previous run."""
+    return [r for r in records(current_findings) if r.get("fp") not in previous]
+
+
+def format_new_block(new: list[dict]) -> str:
+    """Collapsed list of findings that first appeared in this run."""
+    if not new:
+        return ""
+    lines = [
+        f"<details><summary>🆕 New since last review ({len(new)})</summary>",
+        "",
+    ]
+    for rec in new:
+        path = rec.get("path", "?")
+        comment = rec.get("comment", "")
+        lines.append(f"- 🆕 `{path}` — {comment}")
+    lines += ["", "</details>"]
+    return "\n".join(lines)
+
+
 def format_resolved_block(resolved: list[dict]) -> str:
     """Collapsed, struck-through list of findings resolved since last run."""
     if not resolved:
@@ -138,9 +161,11 @@ __all__ = [
     "fingerprint",
     "fingerprints",
     "format_delta",
+    "format_new_block",
     "format_resolved_block",
     "load_fingerprints",
     "load_records",
+    "new_records",
     "records",
     "resolved_records",
     "save_fingerprints",

@@ -83,6 +83,14 @@ review-pr
    越界之引用會被靜默丟棄\ ；壞引用絕不拖垮真評論\ 。環境變數：
    ``PRTHINKER_PROVENANCE``\ 。
 
+.. option:: --walkthrough
+
+   新增一個每檔 ``WalkthroughStep``\ ，就該檔變更寫出二至四句\
+   「\ 做了什麼、為何\ 」\ 之敘事\ ，釘於該檔區塊最上方──為無推論之
+   commit-message PR 概覽之推論側對應物\ 。它只描述（不評斷）\ ，只依賴
+   diff\ ，故開不開 ``--inline-review`` 皆可執行\ 。環境變數：
+   ``PRTHINKER_WALKTHROUGH``\ 。
+
 .. option:: --judge
 
    每檔自評步驟\ ，輸出 ``approve`` / ``request_changes`` / ``comment``
@@ -152,7 +160,9 @@ review-pr
    bug history（commit message 命中 ``fix:`` / ``bug`` / ``revert``）算
    每檔風險分\ ；按分數線性縮放 ``max_findings_per_file`` 於 ``floor``
    （預設 2）到 ``ceiling``（預設 ``2 × base_budget``）之間\ 。
-   ``--risk-workdir`` 指向 git repo\ 。環境變數：
+   ``--risk-workdir`` 指向 git repo\ 。另外會在總結中附一個可展開的
+   「\ high-risk files\ 」\ 註記（分數及其 churn／bug-fix／行數拆解）\ ，
+   讓審查者看到歷史上最容易壞的檔案\ 。環境變數：
    ``PRTHINKER_RISK_WEIGHTED``\ 。
 
 .. option:: --diff-entropy
@@ -160,6 +170,20 @@ review-pr
    計算 diff 之 size + 目錄分布 Shannon entropy\ ；分數越過 ``bomb``
    閾值時於留言頂端貼\ 「\ Consider splitting this PR\ 」\ 警示\ 。純本機 CPU\ 、
    無 backend 呼叫\ 。環境變數：``PRTHINKER_DIFF_ENTROPY``\ 。
+
+.. option:: --review-order
+
+   加一個\ 「\ Suggested review order\ 」\ 註記\ ，用 repo knowledge graph
+   的 import 邊把變更檔案按\ 「\ 被最多其他變更檔案依賴\ 」\ 排前面\ ，最
+   地基的檔案標上\ 「\ start here\ 」\ ，讓審查者先讀基礎變更再讀其呼叫端\ 。
+   Best-effort：KG store 不存在時略過\ 。環境變數：``PRTHINKER_REVIEW_ORDER``\ 。
+
+.. option:: --change-map
+
+   在留言內嵌一張小的 Mermaid 圖\ ，畫出\ *變更檔案之間*\ 的 import 邊
+   （來自 repo knowledge graph）\ ，讓改動的結構一眼可見\ 。GitHub 原生
+   渲染 ```mermaid`` 區塊\ 。變更檔案之間沒有 import 邊時略過\ 。
+   環境變數：``PRTHINKER_CHANGE_MAP``\ 。
 
 review-file
 -----------

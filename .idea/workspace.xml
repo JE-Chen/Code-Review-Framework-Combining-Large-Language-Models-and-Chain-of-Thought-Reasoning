@@ -5,59 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="c7802227-67ad-4e04-beaf-4bd7338f9cbd" name="Changes" comment="Rename qwen2.5-coder folder to qwen2.5-coder-7b">
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/avg_score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_bad_data_1/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_bad_data_2/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_code_diff_1/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_code_diff_2/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_code_diff_3/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_code_diff_4/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_code_diff_5/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_code_diff_6/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_only_code_1/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_only_code_10/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_only_code_11/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_only_code_12/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_only_code_13/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_only_code_14/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_only_code_2/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_only_code_3/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_only_code_4/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_only_code_5/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_only_code_6/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_only_code_7/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_only_code_8/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_only_code_9/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_bad_data_1/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_bad_data_2/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_code_diff_1/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_code_diff_2/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_code_diff_3/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_code_diff_4/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_code_diff_5/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_code_diff_6/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_only_code_1/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_only_code_10/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_only_code_11/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_only_code_12/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_only_code_13/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_only_code_14/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_only_code_2/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_only_code_3/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_only_code_4/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_only_code_5/crscore.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_only_code_6/crscore.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_only_code_7/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_only_code_8/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_copilot_only_code_9/score.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/total_score.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/LLM_Research.iml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_only_code_2/crscore_llm_judge.md" beforeDir="false" afterPath="$PROJECT_DIR$/datas/Results/2026-02-11-qwen2_5-coder-7b/cot/cot_chatgpt_only_code_2/crscore_llm_judge.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -176,27 +124,27 @@
       <window_info id="Merge Requests" />
       <window_info id="AI Playground" side_tool="true" />
       <window_info id="Backup and Sync History" />
+      <window_info id="Pull Requests" />
       <window_info id="Learn" show_stripe_button="false" />
-      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.34537762" />
-      <window_info id="Commit" order="1" weight="0.2763021" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.19433594" />
+      <window_info id="Commit" order="1" weight="0.25" />
       <window_info id="Structure" order="2" side_tool="true" weight="0.25" />
-      <window_info id="Pull Requests" order="3" weight="0.2763021" />
       <window_info anchor="bottom" id="Database Changes" />
       <window_info anchor="bottom" id="TypeScript" />
       <window_info anchor="bottom" id="TODO" />
       <window_info anchor="bottom" id="File Transfer" />
+      <window_info anchor="bottom" id="HfCacheToolWindow" />
       <window_info anchor="bottom" id="PythonProcessOutput" />
       <window_info anchor="bottom" id="Find" />
-      <window_info anchor="bottom" id="Version Control" order="0" weight="0.32994187" />
+      <window_info anchor="bottom" id="Version Control" order="0" />
       <window_info anchor="bottom" id="Problems" order="1" />
       <window_info anchor="bottom" id="Problems View" order="2" />
-      <window_info active="true" anchor="bottom" id="Terminal" order="3" visible="true" weight="0.38664216" />
+      <window_info active="true" anchor="bottom" id="Terminal" order="3" visible="true" weight="0.44669116" />
       <window_info anchor="bottom" id="Services" order="4" />
       <window_info anchor="bottom" id="Python Packages" order="5" weight="0.1" />
       <window_info anchor="bottom" id="Python Console" order="6" weight="0.1" />
       <window_info anchor="bottom" id="Run" order="7" weight="0.32994187" />
       <window_info anchor="bottom" id="Debug" order="8" weight="0.33029515" />
-      <window_info anchor="bottom" id="HfCacheToolWindow" order="9" weight="0.38664216" />
       <window_info anchor="right" id="Endpoints" />
       <window_info anchor="right" id="Remote Host" />
       <window_info anchor="right" id="Coverage" side_tool="true" />
@@ -520,8 +468,8 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-js-predefined-d6986cc7102b-3bd3a6803838-JavaScript-PY-261.22158.340" />
-        <option value="bundled-python-sdk-b63d5a1f7c97-b61e75351b1f-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-261.22158.340" />
+        <option value="bundled-js-predefined-d6986cc7102b-9b0f141eb926-JavaScript-PY-253.29346.142" />
+        <option value="bundled-python-sdk-f2b7a9f6281b-6e1f45a539f7-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-253.29346.142" />
       </set>
     </attachedChunks>
   </component>
@@ -584,6 +532,7 @@
       <workItem from="1774891724940" duration="4561000" />
       <workItem from="1776230645152" duration="6760000" />
       <workItem from="1776255699287" duration="659000" />
+      <workItem from="1780552459858" duration="7594000" />
     </task>
     <task id="LOCAL-00001" summary="Edit rag rules">
       <option name="closed" value="true" />

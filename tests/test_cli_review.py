@@ -247,5 +247,101 @@ def test_resolve_base_branch_fetch_returns_none_on_error(monkeypatch):
     assert cli_review._resolve_auto_fix_base_branch(_gh(), args) is None
 
 
+# --------------------------------------------------------------------------
+# _gate_line (#2): info count + first-blocker link
+# --------------------------------------------------------------------------
+
+def _f(severity: str, path: str = "a.py", line: int = 1) -> InlineFinding:
+    return InlineFinding(path=path, line=line, severity=severity, comment="c")
+
+
+def test_gate_line_none_when_not_gating():
+    assert cli_review._gate_line(Namespace(gate_on="none"), _result()) is None
+
+
+def test_gate_line_reports_all_three_severity_counts():
+    result = _result(_f("error"), _f("warning"), _f("info"))
+    line = cli_review._gate_line(Namespace(gate_on="error"), result)
+    assert "1 error, 1 warning, 1 info" in line
+    assert "❌ failure" in line
+
+
+def test_gate_line_links_first_blocker_on_failure():
+    result = _result(_f("warning", line=4), _f("error", path="b.py", line=8))
+    line = cli_review._gate_line(
+        Namespace(gate_on="error"), result, files_url="https://x/files"
+    )
+    # error floor: the error finding is the blocker, not the earlier warning.
+    assert "first blocker:" in line
+    assert "b.py:8" in line
+
+
+def test_gate_line_no_blocker_when_passing():
+    result = _result(_f("warning"))
+    line = cli_review._gate_line(Namespace(gate_on="error"), result)
+    assert "✅ success" in line
+    assert "first blocker" not in line
+
+
+def test_gate_line_warning_floor_blocker_prefers_error():
+    result = _result(_f("warning", line=3), _f("error", line=9))
+    line = cli_review._gate_line(Namespace(gate_on="warning"), result)
+    assert "first blocker:" in line
+    assert "a.py:9" in line  # error outranks warning in priority order
+
+
+# --------------------------------------------------------------------------
+# _extra_sections: orientation blocks below the digest
+# --------------------------------------------------------------------------
+
+def _per_file(path: str) -> object:
+    from prthinker.pipeline import FileReviewResult
+
+    return FileReviewResult(
+        path=path, rag_docs=[], step_outputs={}, inline_findings=[]
+    )
+
+
+def _result_with_files(*paths) -> ReviewResult:
+    files = [_per_file(p) for p in paths]
+    return ReviewResult(code_diff="", rag_docs=[], per_file=files)
+
+
+def test_extra_sections_coverage_gap_always_on():
+    # No flags enabled, but a prod file without a test still surfaces.
+    args = Namespace()
+    result = _result_with_files("prthinker/x.py")
+    sections = cli_review._extra_sections(args, result, None)
+    assert any("without a matching test change" in s for s in sections)
+
+
+def test_extra_sections_gated_features_off_by_default():
+    args = Namespace()
+    result = _result_with_files("prthinker/x.py")
+    sections = cli_review._extra_sections(args, result, None)
+    blob = "\n".join(sections)
+    assert "Suggested review order" not in blob   # --review-order off
+    assert "high-risk file" not in blob           # --risk-weighted off
+    assert "Change map" not in blob               # --change-map off
+
+
+def test_extra_sections_review_order_gated_off_without_kg():
+    # Flag on but no KG store present → still empty (best-effort).
+    args = Namespace(review_order=True, kg_store="/nonexistent/kg.sqlite")
+    result = _result_with_files("a/foo.py", "a/bar.py")
+    sections = cli_review._extra_sections(args, result, None)
+    assert all("Suggested review order" not in s for s in sections)
+
+
+def test_extra_sections_includes_checklist_for_error_finding():
+    fr = _per_file("a.py")
+    fr.inline_findings.append(
+        InlineFinding(path="a.py", line=2, severity="error", comment="boom")
+    )
+    result = ReviewResult(code_diff="", rag_docs=[], per_file=[fr])
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("Reviewer checklist" in s for s in sections)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))

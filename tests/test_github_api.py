@@ -199,6 +199,35 @@ def test_count_findings_on_diff_all_outside():
 
 
 # --------------------------------------------------------------------------
+# findings_off_diff
+# --------------------------------------------------------------------------
+
+def test_findings_off_diff_returns_only_unpostable():
+    on_a = _finding(line=2)
+    on_b = _finding(path="b.py", line=5)
+    off_line = _finding(line=99, comment="ghost")
+    off_file = _finding(path="z.py", line=1)
+    off = github_api.findings_off_diff([on_a, off_line, on_b, off_file], _DIFF)
+    assert off == [off_line, off_file]
+
+
+def test_findings_off_diff_is_complement_of_count():
+    findings = [_finding(line=1), _finding(line=99), _finding(path="b.py", line=5)]
+    off = github_api.findings_off_diff(findings, _DIFF)
+    on = github_api.count_findings_on_diff(findings, _DIFF)
+    assert len(off) + on == len(findings)
+
+
+def test_findings_off_diff_empty_diff_drops_all():
+    findings = [_finding(line=1), _finding(line=2)]
+    assert github_api.findings_off_diff(findings, "") == findings
+
+
+def test_findings_off_diff_empty_findings():
+    assert github_api.findings_off_diff([], _DIFF) == []
+
+
+# --------------------------------------------------------------------------
 # upsert_pr_comments — multi-comment reconcile
 # --------------------------------------------------------------------------
 
