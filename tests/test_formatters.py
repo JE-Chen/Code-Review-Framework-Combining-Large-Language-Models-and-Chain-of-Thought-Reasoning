@@ -76,14 +76,23 @@ def test_provenance_block_all_citation_kinds():
     assert "model confidence" not in text
 
 
-def test_provenance_block_empty_when_no_payload():
+def test_provenance_block_flags_empty_payload_as_model_judgement():
+    # A finding whose provenance ran but produced no citation is surfaced
+    # as model judgement rather than dropped (so nothing is hidden).
     finding = _finding(provenance=Provenance(citations=[], confidence=None))
-    assert formatters._format_provenance_block([finding]) == []
+    text = "\n".join(formatters._format_provenance_block([finding]))
+    assert "Audit trail (provenance)" in text
+    assert "model judgement — no external citation" in text
 
 
 def test_provenance_block_empty_when_provenance_none():
     finding = _finding(provenance=None)
     assert formatters._format_provenance_block([finding]) == []
+
+
+def test_provenance_block_empty_when_all_provenance_none():
+    findings = [_finding(provenance=None), _finding(provenance=None)]
+    assert formatters._format_provenance_block(findings) == []
 
 
 def test_provenance_block_confidence_only_no_citations():
@@ -675,3 +684,155 @@ def test_per_file_ends_with_newline_and_no_trailing_blank():
     out = formatters.format_pr_comment(result, _MARKER)
     assert out.endswith("\n")
     assert not out.endswith("\n\n")
+
+
+# --------------------------------------------------------------------------
+# Suggestions aggregate (digest)
+# --------------------------------------------------------------------------
+
+def test_suggestions_line_counts_one_click_and_verified():
+    from prthinker.schemas import SuggestionVerification
+
+    verified = _finding(
+        path="a.py", suggestion="x = 1",
+        verification=SuggestionVerification(status="pass", verify_cmd="pytest"),
+    )
+    plain = _finding(path="a.py", line=20, suggestion="y = 2")
+    fr = _file_result(path="a.py", inline_findings=[verified, plain])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "- **Suggestions:** 2 one-click fix(es) · 1 sandbox-verified" in out
+
+
+def test_suggestions_line_absent_when_no_suggestions():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "**Suggestions:**" not in out
+
+
+def test_suggestions_line_omits_verified_when_none():
+    fr = _file_result(
+        path="a.py", inline_findings=[_finding(path="a.py", suggestion="z = 3")]
+    )
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "- **Suggestions:** 1 one-click fix(es)" in out
+    assert "sandbox-verified" not in out
+
+
+# --------------------------------------------------------------------------
+# Review-effort estimate (digest)
+# --------------------------------------------------------------------------
+
+def test_effort_estimate_present_and_scales_with_severity():
+    clean = _review(per_file=[_file_result(path="a.py")])
+    out_clean = formatters.format_pr_comment(clean, _MARKER)
+    assert "- **Review effort:** ~" in out_clean
+    # error weight (5) > info weight (1): an error PR estimates more time.
+    err = _review(per_file=[
+        _file_result(path="a.py", inline_findings=[_finding(severity="error")])
+    ])
+    assert (
+        formatters._effort_estimate_minutes(err)
+        > formatters._effort_estimate_minutes(clean)
+    )
+
+
+def test_effort_line_reports_files_needing_attention():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "file(s) need attention" in out
+
+
+# --------------------------------------------------------------------------
+# By-category index (#3)
+# --------------------------------------------------------------------------
+
+def test_category_index_groups_by_bucket():
+    sec = _finding(path="a.py", line=5, category="security")
+    perf = _finding(path="b.py", line=7, category="performance")
+    fr = _file_result(path="a.py", inline_findings=[sec])
+    fr2 = _file_result(path="b.py", inline_findings=[perf])
+    out = formatters.format_pr_comment(_review(per_file=[fr, fr2]), _MARKER)
+    assert "<details><summary>By category (2 group(s))</summary>" in out
+    assert "🛡️ **security** (1):" in out
+    assert "⚡ **performance** (1):" in out
+
+
+def test_category_index_absent_when_uncategorised():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "By category" not in out
+
+
+def test_category_index_caps_refs():
+    findings = [
+        _finding(path="a.py", line=i, category="style") for i in range(1, 12)
+    ]
+    fr = _file_result(path="a.py", inline_findings=findings)
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "🎨 **style** (11):" in out
+    assert "+3 more" in out  # 11 findings, 8 shown
+
+
+# --------------------------------------------------------------------------
+# Off-diff findings block (#1)
+# --------------------------------------------------------------------------
+
+def test_off_diff_block_lists_unposted_findings():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    off = (_finding(path="z.py", line=99, comment="ghost line"),)
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr]), _MARKER, off_diff_findings=off
+    )
+    assert "1 finding(s) outside the diff (not posted inline)" in out
+    assert "ghost line" in out
+
+
+def test_off_diff_block_absent_when_empty():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "outside the diff (not posted inline)" not in out
+
+
+# --------------------------------------------------------------------------
+# first_finding_ref (#2 helper)
+# --------------------------------------------------------------------------
+
+def test_first_finding_ref_picks_priority_severity():
+    findings = [
+        _finding(path="a.py", line=3, severity="warning"),
+        _finding(path="b.py", line=8, severity="error"),
+    ]
+    ref = formatters.first_finding_ref(findings, ("error", "warning"))
+    assert ref == "`b.py:8`"
+
+
+def test_first_finding_ref_none_when_no_match():
+    findings = [_finding(severity="info")]
+    assert formatters.first_finding_ref(findings, ("error",)) is None
+
+
+# --------------------------------------------------------------------------
+# Oversized-block pagination split (#7)
+# --------------------------------------------------------------------------
+
+def test_oversized_single_block_split_across_pages():
+    # One file whose block alone dwarfs the page budget must be split into
+    # several self-contained <details> blocks rather than truncated.
+    big = _file_result(
+        path="huge.py",
+        inline_findings=[_finding(path="huge.py")],
+        step_outputs={"total_summary": "s", "first_code_review": "q" * 4000},
+    )
+    pages = formatters.format_pr_comment_pages(
+        _review(per_file=[big]), _MARKER, max_chars=1200
+    )
+    assert len(pages) > 1
+    # Every page that opens a details block also closes one (valid markup).
+    for page in pages:
+        assert page.count("<details") <= page.count("</details>")
+    assert any("(continued)" in page for page in pages)
+
+
+def test_split_file_block_passthrough_when_small():
+    block = "<details><summary>x</summary>\n\nbody\n</details>\n"
+    assert formatters._split_file_block(block, 10_000) == [block]

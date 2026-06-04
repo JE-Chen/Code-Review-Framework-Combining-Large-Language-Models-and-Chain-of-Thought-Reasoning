@@ -29,6 +29,19 @@ _SEVERITY_ICON: tuple[tuple[str, str], ...] = (
 _SEVERITY_RANK: dict[str, int] = {"error": 3, "warning": 2, "info": 1}
 _SEVERITY_ICON_BY_NAME: dict[str, str] = dict(_SEVERITY_ICON)
 
+# Category presentation for the optional "By category" index. Order here is
+# the display order (most reviewer-critical buckets first).
+_CATEGORY_ICON: tuple[tuple[str, str], ...] = (
+    ("security", "🛡️"),
+    ("correctness", "🎯"),
+    ("performance", "⚡"),
+    ("design", "📐"),
+    ("test", "🧪"),
+    ("docs", "📝"),
+    ("style", "🎨"),
+    ("other", "🔖"),
+)
+
 
 @dataclasses.dataclass(frozen=True)
 class _RenderOpts:
@@ -41,6 +54,7 @@ class _RenderOpts:
     delta: str | None = None
     table: bool = False
     gate: str | None = None
+    off_diff: tuple[InlineFinding, ...] = ()
 
 
 def _diff_anchor(path: str, line: int) -> str:
@@ -178,6 +192,51 @@ def _format_must_fix_block(
     return lines
 
 
+# Review-effort heuristic: a flat base, a minute per reviewed file, and a
+# severity-weighted minute budget per finding. Deliberately rough — the "~"
+# in the rendered line signals it is an estimate, not a measurement.
+_EFFORT_BASE_MIN = 2
+_EFFORT_PER_FILE_MIN = 1
+_EFFORT_SEVERITY_MIN: dict[str, int] = {"error": 5, "warning": 3, "info": 1}
+
+
+def _suggestion_counts(result: ReviewResult) -> tuple[int, int]:
+    """(one-click suggestions, sandbox-verified) across every finding."""
+    suggestions = 0
+    verified = 0
+    for fr in result.per_file:
+        for finding in fr.inline_findings:
+            if finding.suggestion:
+                suggestions += 1
+            verification = finding.verification
+            if verification is not None and verification.status == "pass":
+                verified += 1
+    return suggestions, verified
+
+
+def _effort_estimate_minutes(result: ReviewResult) -> int:
+    """Rough review-time estimate from file count and finding severity."""
+    minutes = _EFFORT_BASE_MIN + _reviewed_file_count(result) * _EFFORT_PER_FILE_MIN
+    for fr in result.per_file:
+        for finding in fr.inline_findings:
+            minutes += _EFFORT_SEVERITY_MIN.get(finding.severity, 1)
+    return minutes
+
+
+def _overview_extra_lines(result: ReviewResult, with_findings: int) -> list[str]:
+    """Suggestion-aggregate and review-effort digest lines."""
+    lines: list[str] = []
+    suggestions, verified = _suggestion_counts(result)
+    if suggestions:
+        extra = f" · {verified} sandbox-verified" if verified else ""
+        lines.append(f"- **Suggestions:** {suggestions} one-click fix(es){extra}")
+    attention = f" · {with_findings} file(s) need attention" if with_findings else ""
+    lines.append(
+        f"- **Review effort:** ~{_effort_estimate_minutes(result)} min{attention}"
+    )
+    return lines
+
+
 def _format_overview_block(
     result: ReviewResult,
     files_url: str | None = None,
@@ -207,6 +266,7 @@ def _format_overview_block(
         f"- **Files:** {reviewed} reviewed · {with_findings} with findings · "
         f"{reviewed - with_findings} clean",
     ]
+    lines += _overview_extra_lines(result, with_findings)
     if delta:
         lines.append(f"- **Since last review:** {delta}")
     hotspots = _hotspots_line(result, files_url)
@@ -277,6 +337,7 @@ def format_pr_comment(
     min_confidence: float = 0.0,
     table: bool = False,
     gate: str | None = None,
+    off_diff_findings: tuple[InlineFinding, ...] = (),
 ) -> str:
     """Render the consolidated PR comment.
 
@@ -307,7 +368,7 @@ def format_pr_comment(
         opts = _RenderOpts(
             posted_count=posted_count, findings_only=findings_only,
             preliminary=preliminary, files_url=files_url, delta=delta,
-            table=table, gate=gate,
+            table=table, gate=gate, off_diff=off_diff_findings,
         )
         return _format_per_file(result, marker, opts)
     return _format_single(result, marker)
@@ -476,6 +537,90 @@ def _format_severity_groups(
     ]
 
 
+_CATEGORY_REF_LIMIT = 8
+
+
+def _findings_by_category(
+    result: ReviewResult,
+) -> dict[str, list[InlineFinding]]:
+    """Group every categorised finding by its category bucket."""
+    groups: dict[str, list[InlineFinding]] = {}
+    for fr in result.per_file:
+        for finding in fr.inline_findings:
+            if finding.category:
+                groups.setdefault(finding.category, []).append(finding)
+    return groups
+
+
+def _category_row(
+    icon: str, category: str, items: list[InlineFinding], files_url: str | None
+) -> str:
+    """One '- icon **category** (n): refs' line for the category index."""
+    shown = items[:_CATEGORY_REF_LIMIT]
+    refs = " · ".join(_loc_ref(f.path, f.line, files_url) for f in shown)
+    more = len(items) - len(shown)
+    suffix = f" · +{more} more" if more > 0 else ""
+    return f"- {icon} **{category}** ({len(items)}): {refs}{suffix}"
+
+
+def _format_category_groups(
+    result: ReviewResult, files_url: str | None = None
+) -> list[str]:
+    """Collapsible 'By category' index, omitted when nothing is categorised."""
+    groups = _findings_by_category(result)
+    rows = [
+        _category_row(icon, category, groups[category], files_url)
+        for category, icon in _CATEGORY_ICON
+        if groups.get(category)
+    ]
+    if not rows:
+        return []
+    return [
+        f"<details><summary>By category ({len(rows)} group(s))</summary>",
+        "", *rows, "", "</details>", "",
+    ]
+
+
+def _format_off_diff_block(
+    off_diff: tuple[InlineFinding, ...], files_url: str | None = None
+) -> list[str]:
+    """List findings that fall outside the diff hunks and so are not posted.
+
+    Surfacing these keeps the summary honest: the inline-findings counts
+    say *how many* were dropped, and this block says *which ones*, so a
+    reviewer can still act on them by hand instead of them vanishing.
+    """
+    if not off_diff:
+        return []
+    rows = [
+        f"- {_loc_ref(f.path, f.line, files_url)} — {_first_line(f.comment)}"
+        for f in off_diff
+    ]
+    return [
+        f"<details><summary>⚠️ {len(off_diff)} finding(s) outside the diff "
+        "(not posted inline)</summary>",
+        "", *rows, "", "</details>", "",
+    ]
+
+
+def first_finding_ref(
+    findings: list[InlineFinding],
+    severities: tuple[str, ...],
+    files_url: str | None = None,
+) -> str | None:
+    """Diff deep-link to the first finding matching ``severities`` (in order).
+
+    ``severities`` is a priority list (e.g. ``("error", "warning")``); the
+    first finding of the first severity present wins. Returns ``None`` when
+    no finding matches — used by the gate line to point at its first blocker.
+    """
+    for severity in severities:
+        for finding in findings:
+            if finding.severity == severity:
+                return _loc_ref(finding.path, finding.line, files_url)
+    return None
+
+
 def _per_file_head_parts(
     result: ReviewResult, marker: str, opts: _RenderOpts
 ) -> list[str]:
@@ -490,6 +635,8 @@ def _per_file_head_parts(
         parts.append(opts.preliminary)
     parts += _format_overview_block(result, opts.files_url, opts.delta, opts.gate)
     parts += _format_severity_groups(result, opts.files_url)
+    parts += _format_category_groups(result, opts.files_url)
+    parts += _format_off_diff_block(opts.off_diff, opts.files_url)
     parts.append(_per_file_header(result))
     parts.append("")
     parts += _format_per_file_intro(result, opts.posted_count)
@@ -544,27 +691,93 @@ def _continuation_head(marker: str) -> str:
     return f"{marker}\n## CoT Code Review (per-file, continued)\n"
 
 
+def _continued_header(header: str) -> str:
+    """A file block's ``<summary>`` line tagged ``(continued)``."""
+    return header.replace("</summary>", " (continued)</summary>", 1)
+
+
+def _adjust_depth(depth: int, line: str) -> int:
+    """Track ``<details>`` nesting so splits never cut inside a sub-block."""
+    if line.startswith("<details"):
+        return depth + 1
+    if line.strip() == "</details>":
+        return max(depth - 1, 0)
+    return depth
+
+
+def _pack_inner(
+    first_header: str, cont_header: str, body: list[str], budget: int
+) -> list[str]:
+    """Pack a file block's inner lines into self-contained ``<details>`` pages.
+
+    A page break is only taken at depth 0 (between whole nested sub-blocks),
+    so the outer file block and every nested ``<details>`` stay balanced on
+    each page. A single nested sub-block larger than the budget rides on its
+    own page oversized rather than being cut mid-tag.
+    """
+    closer_overhead = len("\n</details>\n")
+    pages: list[str] = []
+    header = first_header
+    chunk: list[str] = []
+    size = len(header) + closer_overhead
+    depth = 0
+    for line in body:
+        if chunk and depth == 0 and size + len(line) + 1 > budget:
+            pages.append("\n".join([header, *chunk, "</details>", ""]))
+            header, chunk, size = cont_header, [], len(cont_header) + closer_overhead
+        chunk.append(line)
+        size += len(line) + 1
+        depth = _adjust_depth(depth, line)
+    pages.append("\n".join([header, *chunk, "</details>", ""]))
+    return pages
+
+
+def _split_file_block(block: str, budget: int) -> list[str]:
+    """Split one oversized file ``<details>`` block into per-page pieces.
+
+    Each piece is an independently-opened-and-closed ``<details>`` block so
+    the HTML never spans a comment boundary (which GitHub would render as
+    broken markup). Blocks within budget — the common case — pass through
+    unchanged. An unrecognised (non-details) block is left intact for the
+    comment cap to truncate as a last resort.
+    """
+    if len(block) <= budget:
+        return [block]
+    lines = block.split("\n")
+    if not lines or not lines[0].startswith("<details"):
+        return [block]
+    header = lines[0]
+    body = lines[1:]
+    while body and body[-1] == "":
+        body = body[:-1]
+    if body and body[-1] == "</details>":
+        body = body[:-1]
+    return _pack_inner(header, _continued_header(header), body, budget)
+
+
 def _paginate_blocks(
     head: str, blocks: list[str], marker: str, max_chars: int
 ) -> list[str]:
     """Pack file blocks into pages, splitting only between whole blocks.
 
-    At least one block lands on each page even if it alone exceeds the
-    budget (an oversized single file is truncated later by the comment
-    cap rather than dropped).
+    A block larger than a single page is first split into self-contained
+    ``<details>`` pieces (see :func:`_split_file_block`) so an oversized
+    file is preserved across pages rather than truncated by the comment cap.
     """
     budget = max_chars - _PART_LABEL_OVERHEAD
+    block_budget = budget - len(_continuation_head(marker)) - 1
     pages: list[str] = []
     current = head
     has_block = False
-    for block in blocks:
-        candidate = f"{current}\n{block}"
-        if has_block and len(candidate) > budget:
-            pages.append(current)
-            current = f"{_continuation_head(marker)}\n{block}"
-        else:
-            current = candidate
-        has_block = True
+    for raw in blocks:
+        for block in _split_file_block(raw, block_budget):
+            candidate = f"{current}\n{block}"
+            if has_block and len(candidate) > budget:
+                pages.append(current)
+                current = f"{_continuation_head(marker)}\n{block}"
+            else:
+                current = candidate
+            has_block = True
     pages.append(current)
     return pages
 
@@ -596,6 +809,7 @@ def format_pr_comment_pages(
     min_confidence: float = 0.0,
     table: bool = False,
     gate: str | None = None,
+    off_diff_findings: tuple[InlineFinding, ...] = (),
 ) -> list[str]:
     """Render the PR comment, paginated so no page exceeds ``max_chars``.
 
@@ -620,6 +834,7 @@ def format_pr_comment_pages(
         result, marker, posted_count=posted_count,
         findings_only=findings_only, preliminary=preliminary,
         files_url=files_url, delta=delta, table=table, gate=gate,
+        off_diff_findings=off_diff_findings,
     )
     # The table layout is compact; never block-paginate it.
     if len(single) <= max_chars or not result.per_file or table:
@@ -627,6 +842,7 @@ def format_pr_comment_pages(
     opts = _RenderOpts(
         posted_count=posted_count, findings_only=findings_only,
         preliminary=preliminary, files_url=files_url, delta=delta, gate=gate,
+        off_diff=off_diff_findings,
     )
     head = "\n".join(_per_file_head_parts(result, marker, opts))
     blocks = [
@@ -942,42 +1158,39 @@ def _format_provenance_entry(finding: InlineFinding) -> list[str]:
     if prov.confidence is not None:
         header += f" — model confidence {prov.confidence:.2f}"
     lines: list[str] = [header, ""]
-    for cite in prov.citations:
-        note = (" — " + cite.note.strip()) if cite.note.strip() else ""
-        lines.append(f"- {_citation_label(cite)}{note}")
+    if prov.citations:
+        for cite in prov.citations:
+            note = (" — " + cite.note.strip()) if cite.note.strip() else ""
+            lines.append(f"- {_citation_label(cite)}{note}")
+    else:
+        # The provenance step ran for this finding but produced no
+        # citation. Saying so is more honest than hiding it: the reviewer
+        # learns the call rests on model judgement alone.
+        lines.append("- _model judgement — no external citation_")
     lines.append("")
     return lines
 
 
-def _has_provenance_payload(finding: InlineFinding) -> bool:
-    """Return True when a finding has citations or a confidence score."""
-    prov = finding.provenance
-    if prov is None:
-        return False
-    return bool(prov.citations) or prov.confidence is not None
-
-
 def _format_provenance_block(findings: list[InlineFinding]) -> list[str]:
-    """Render an audit-trail summary listing the citations behind each
-    finding that carries a non-empty :class:`Provenance` payload.
+    """Render an audit-trail summary for every finding that carries a
+    :class:`Provenance` object.
 
-    Findings without provenance never show up here — the caller filters
-    them in. Findings whose provenance has no citations and no
-    confidence are not rendered (they would be empty noise).
+    Every finding that carries provenance is accounted for: those with
+    citations list them, those without are flagged as resting on model
+    judgement rather than being silently dropped. Findings with no
+    provenance object at all (the feature never ran for them) are skipped,
+    and an all-skipped list renders nothing.
     """
+    relevant = [f for f in findings if f.provenance is not None]
+    if not relevant:
+        return []
     block: list[str] = [
         "<details><summary>Audit trail (provenance)</summary>",
         "",
     ]
-    rendered_any = False
-    for finding in findings:
-        if not _has_provenance_payload(finding):
-            continue
-        rendered_any = True
+    for finding in relevant:
         block += _format_provenance_entry(finding)
     block += ["</details>", ""]
-    if not rendered_any:
-        return []  # caller appended the opener; signal nothing to render
     return block
 
 
@@ -1076,6 +1289,7 @@ def format_digest(result: ReviewResult, files_url: str | None = None) -> str:
 
 
 __all__ = [
+    "first_finding_ref",
     "format_digest",
     "format_pr_comment",
     "format_pr_comment_pages",

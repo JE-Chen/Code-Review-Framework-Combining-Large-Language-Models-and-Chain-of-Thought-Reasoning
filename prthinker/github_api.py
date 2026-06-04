@@ -638,6 +638,19 @@ def count_findings_on_diff(
     return sum(1 for f in findings if _finding_diff_miss(f, valid) is None)
 
 
+def findings_off_diff(
+    findings: Iterable[InlineFinding], diff_text: str
+) -> list[InlineFinding]:
+    """Return findings whose line(s) fall outside any diff hunk.
+
+    The mirror of :func:`count_findings_on_diff`: instead of counting the
+    postable findings it returns the *un*-postable ones, so the summary can
+    list which findings were dropped rather than only how many.
+    """
+    valid = _new_side_lines(diff_text)
+    return [f for f in findings if _finding_diff_miss(f, valid) is not None]
+
+
 def _prefilter_inline_findings(
     config: GitHubConfig, items: list[InlineFinding]
 ) -> list[InlineFinding]:
@@ -781,4 +794,5 @@ __all__ = [
     "upsert_pr_comments",
     "submit_inline_review",
     "count_findings_on_diff",
+    "findings_off_diff",
 ]

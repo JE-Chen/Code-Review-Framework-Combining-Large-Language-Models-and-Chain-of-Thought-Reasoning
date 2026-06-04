@@ -247,5 +247,48 @@ def test_resolve_base_branch_fetch_returns_none_on_error(monkeypatch):
     assert cli_review._resolve_auto_fix_base_branch(_gh(), args) is None
 
 
+# --------------------------------------------------------------------------
+# _gate_line (#2): info count + first-blocker link
+# --------------------------------------------------------------------------
+
+def _f(severity: str, path: str = "a.py", line: int = 1) -> InlineFinding:
+    return InlineFinding(path=path, line=line, severity=severity, comment="c")
+
+
+def test_gate_line_none_when_not_gating():
+    assert cli_review._gate_line(Namespace(gate_on="none"), _result()) is None
+
+
+def test_gate_line_reports_all_three_severity_counts():
+    result = _result(_f("error"), _f("warning"), _f("info"))
+    line = cli_review._gate_line(Namespace(gate_on="error"), result)
+    assert "1 error, 1 warning, 1 info" in line
+    assert "❌ failure" in line
+
+
+def test_gate_line_links_first_blocker_on_failure():
+    result = _result(_f("warning", line=4), _f("error", path="b.py", line=8))
+    line = cli_review._gate_line(
+        Namespace(gate_on="error"), result, files_url="https://x/files"
+    )
+    # error floor: the error finding is the blocker, not the earlier warning.
+    assert "first blocker:" in line
+    assert "b.py:8" in line
+
+
+def test_gate_line_no_blocker_when_passing():
+    result = _result(_f("warning"))
+    line = cli_review._gate_line(Namespace(gate_on="error"), result)
+    assert "✅ success" in line
+    assert "first blocker" not in line
+
+
+def test_gate_line_warning_floor_blocker_prefers_error():
+    result = _result(_f("warning", line=3), _f("error", line=9))
+    line = cli_review._gate_line(Namespace(gate_on="warning"), result)
+    assert "first blocker:" in line
+    assert "a.py:9" in line  # error outranks warning in priority order
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))

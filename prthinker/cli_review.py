@@ -39,12 +39,13 @@ from prthinker.confidence import filter_by_confidence
 from prthinker.diff import parse_unified_diff
 from prthinker.finding_dedup import dedupe_findings
 from prthinker.formatters import (
+    first_finding_ref,
     format_digest,
     format_pr_comment,
     format_pr_comment_pages,
     format_review_footer,
 )
-from prthinker.github_api import count_findings_on_diff
+from prthinker.github_api import count_findings_on_diff, findings_off_diff
 from prthinker.impact_map import format_impact_note, impacted_files
 from prthinker.inline_ignore import filter_inline_ignored
 from prthinker.repo_kg import KnowledgeGraphStore
@@ -53,9 +54,11 @@ from prthinker.pr_overview import build_overview_text
 from prthinker.review_delta import (
     compute_delta,
     format_delta,
+    format_new_block,
     format_resolved_block,
     load_fingerprints,
     load_records,
+    new_records,
     resolved_records,
     save_fingerprints,
 )
@@ -797,13 +800,27 @@ def _author_reply_note(adapter: object) -> str:
     return f"💬 {len(replies)} author reply(ies)" if replies else ""
 
 
+def _progress_blocks(
+    previous: set[str], path: Path, result: ReviewResult
+) -> str | None:
+    """Render the 'new since last' + 'resolved since last' detail blocks."""
+    findings = result.inline_findings
+    new_block = format_new_block(new_records(previous, findings))
+    resolved = resolved_records(load_records(path), findings)
+    resolved_block = format_resolved_block(resolved)
+    joined = "\n\n".join(b for b in (new_block, resolved_block) if b)
+    return joined or None
+
+
 def _review_progress(
     args: argparse.Namespace, adapter: object, result: ReviewResult
 ) -> tuple[str | None, str | None]:
-    """Return (since-last-review line, resolved-block) and persist the run.
+    """Return (since-last-review line, progress-block) and persist the run.
 
     Both are None on the first run (no baseline) or when disabled; the
-    finding set is still written so the next run has a baseline.
+    finding set is still written so the next run has a baseline. The
+    progress block bundles the new-since-last and resolved-since-last
+    detail lists.
     """
     if not getattr(args, "review_delta", False) or args.dry_run:
         return None, None
@@ -812,20 +829,19 @@ def _review_progress(
     )
     previous = load_fingerprints(path)
     line: str | None = None
-    resolved_block: str | None = None
+    progress_block: str | None = None
     if previous is not None:
         bits = [format_delta(compute_delta(previous, result.inline_findings))]
         note = _author_reply_note(adapter)
         if note:
             bits.append(note)
         line = " · ".join(bits)
-        resolved = resolved_records(load_records(path), result.inline_findings)
-        resolved_block = format_resolved_block(resolved) or None
+        progress_block = _progress_blocks(previous, path, result)
     try:
         save_fingerprints(path, result.inline_findings)
     except OSError as exc:
         log.warning("Could not persist finding fingerprints (%s)", exc)
-    return line, resolved_block
+    return line, progress_block
 
 
 def _join_overview(*sections: str | None) -> str | None:
@@ -873,17 +889,39 @@ _GATE_CONCLUSION_ICON: dict[str, str] = {
 }
 
 
-def _gate_line(args: argparse.Namespace, result: ReviewResult) -> str | None:
+# Severities (most-severe first) that trip each gate floor — used to point
+# the gate line at the first finding that actually caused a failure.
+_GATE_FLOOR_SEVERITIES: dict[str, tuple[str, ...]] = {
+    "warning": ("error", "warning"),
+    "error": ("error",),
+}
+
+
+def _gate_line(
+    args: argparse.Namespace,
+    result: ReviewResult,
+    files_url: str | None = None,
+) -> str | None:
     """A pass/fail gate line for the digest, or None when not gating."""
     gate_on = getattr(args, "gate_on", "none")
     if gate_on == "none":
         return None
     gate = evaluate_gate(result.inline_findings, gate_on=gate_on)
     icon = _GATE_CONCLUSION_ICON.get(gate.conclusion, "")
-    return (
+    line = (
         f"{icon} {gate.conclusion} (gate-on: {gate_on}; "
-        f"{gate.error_count} error, {gate.warning_count} warning)"
+        f"{gate.error_count} error, {gate.warning_count} warning, "
+        f"{gate.info_count} info)"
     )
+    if gate.conclusion == "failure":
+        blocker = first_finding_ref(
+            result.inline_findings,
+            _GATE_FLOOR_SEVERITIES.get(gate_on, ()),
+            files_url,
+        )
+        if blocker:
+            line += f" — first blocker: {blocker}"
+    return line
 
 
 def _prthinker_version() -> str:
@@ -1021,24 +1059,28 @@ def _publish_review_result(
     # it when inline review is enabled; otherwise nothing is posted inline
     # and the breakdown would be misleading.
     posted_count: int | None = None
+    off_diff: tuple[InlineFinding, ...] = ()
     if getattr(args, "inline_review", False):
         posted_count = count_findings_on_diff(
             result.inline_findings, result.code_diff
         )
-    delta_line, resolved_block = _review_progress(args, adapter, result)
+        off_diff = tuple(findings_off_diff(result.inline_findings, result.code_diff))
+    delta_line, progress_block = _review_progress(args, adapter, result)
+    files_url = _pr_files_url(args)
     pages = format_pr_comment_pages(
         result, marker=args.marker, posted_count=posted_count,
         findings_only=getattr(args, "findings_only", False),
         hide_info=getattr(args, "hide_info", False),
         preliminary=_join_overview(
             _build_preliminary_overview(args, adapter, result),
-            _impact_note(args, result), resolved_block,
+            _impact_note(args, result), progress_block,
         ),
-        files_url=_pr_files_url(args),
+        files_url=files_url,
         delta=delta_line,
         min_confidence=getattr(args, "summary_min_confidence", 0.0),
         table=getattr(args, "summary_table", False),
-        gate=_gate_line(args, result),
+        gate=_gate_line(args, result, files_url),
+        off_diff_findings=off_diff,
     )
     _append_report_links(args, pages)
     _append_review_footer(args, result, pages)
