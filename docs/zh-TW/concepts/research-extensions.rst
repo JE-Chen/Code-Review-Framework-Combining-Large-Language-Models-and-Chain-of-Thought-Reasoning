@@ -581,6 +581,12 @@ sweep、GPU OOM、runner 逾時、人工 ``ask/cancel``\ ）\ ，現有之
   子句與其後一行配對,標記其 body 為裸 ``pass`` / ``...`` 之情形(亦含單行
   ``except X: pass``\ )。屬啟發式提示,故僅鎖定明確之空 body\ 。
 
+* **Trojan-Source 訊號**\ （library：\ ``bidi_guard``\ ）——掃描新增行中
+  Trojan-Source 攻擊（CVE-2021-42574）所用之 Unicode 雙向覆寫與零寬/不可見
+  控制字元(此攻擊使程式碼之顯示與實際執行不一致),以警示開頭並逐行列出
+  違規碼位。補充 prompt-injection guard——後者針對 diff 中之攻擊\ *文字*\ ,
+  而非程式碼本身之顯示層欺騙\ 。
+
 monitoring overlay 另附 **Prometheus alerting 規則**\ （\
 ``docker/monitoring/alerts.yml``\ ）；詳見 Docker 概念頁。
 

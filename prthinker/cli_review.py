@@ -69,6 +69,7 @@ from prthinker.empty_except import (
     find_swallowed_excepts,
     format_swallowed_note,
 )
+from prthinker.bidi_guard import find_bidi_hits, format_bidi_note
 from prthinker.inline_ignore import filter_inline_ignored
 from prthinker.repo_kg import KnowledgeGraphStore
 from prthinker.pr_labels import compute_labels
@@ -1062,6 +1063,7 @@ def _extra_sections(
     changed = [fr.path for fr in result.per_file]
     diff = result.code_diff or ""
     sections = (
+        format_bidi_note(find_bidi_hits(diff)),
         format_conflict_note(find_conflict_markers(diff)),
         _review_order_note(args, result),
         _risk_note(args, result),

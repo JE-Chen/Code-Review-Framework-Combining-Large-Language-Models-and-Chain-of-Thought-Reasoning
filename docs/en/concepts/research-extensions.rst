@@ -694,6 +694,14 @@ no inference — so they run on the runner profile.
   ``except X: pass`` form too). A heuristic hint, so it sticks to the
   unambiguous empty body.
 
+* **Trojan-Source signal** (library: ``bidi_guard``) — scans added lines
+  for the Unicode bidirectional-override and zero-width / invisible
+  control characters behind the Trojan-Source attack (CVE-2021-42574),
+  where code renders one way and executes another. It leads with a
+  warning and names the offending code points per line. Complements the
+  prompt-injection guard, which targets attacker *text* rather than
+  rendering-level deception in the code itself.
+
 The monitoring overlay also ships **Prometheus alerting rules**
 (``docker/monitoring/alerts.yml``); see the Docker concepts page.
 

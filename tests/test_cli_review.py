@@ -389,6 +389,20 @@ def test_extra_sections_clean_diff_adds_no_new_blocks():
     assert "debug statement(s)" not in blob
     assert "large contiguous block" not in blob
     assert "swallowed exception(s)" not in blob
+    assert "hidden bidi" not in blob
+
+
+def test_extra_sections_bidi_note_from_diff():
+    diff = (
+        "diff --git a/a.py b/a.py\n"
+        "--- a/a.py\n"
+        "+++ b/a.py\n"
+        "@@ -0,0 +1,1 @@\n"
+        f"+x = 1  # {chr(0x202E)}hidden\n"
+    )
+    result = ReviewResult(code_diff=diff, rag_docs=[], per_file=[_per_file("a.py")])
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("hidden bidi" in s for s in sections)
 
 
 def test_extra_sections_swallowed_except_from_diff():
