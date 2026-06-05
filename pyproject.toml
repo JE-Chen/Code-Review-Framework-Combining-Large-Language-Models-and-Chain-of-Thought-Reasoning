@@ -48,10 +48,13 @@ server = [
     "pydantic>=2.11",
     "prometheus-fastapi-instrumentator>=7.1",
 ]
-# NOTE: flash-attn is installed separately in docker/Dockerfile.server
-# because its setup.py imports torch at build-isolation time, which
-# pip cannot satisfy before the rest of [server] is installed. See
-# the Dockerfile for the --no-build-isolation step.
+# NOTE: flash-attn is intentionally NOT a dependency and is NOT installed
+# in docker/Dockerfile.server. On the supported deploy the 30B-A3B model
+# runs bf16 + SDPA; installing flash-attn (or re-pinning transformers<5)
+# nudges bitsandbytes 4-bit back into effect, which densifies the A3B MoE
+# forward (an allocation linear in input length) and OOMs the L40S. See
+# CLAUDE.md "GPU Server: bf16, no flash-attn, no dependency pins". Do not
+# add a flash-attn install step.
 mcp = [
     "mcp>=1.9",
 ]

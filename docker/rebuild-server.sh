@@ -2,12 +2,12 @@
 # Rebuild the prthinker server container without taking the GPU host
 # down with it. Encodes the operational sequence behind the
 # attention-impl boot guard (codes/util/qwen3_util._verify_non_eager_
-# attention) and the flash-attn MAX_JOBS cap (docker/Dockerfile.server):
+# attention):
 #
 #   1. Stop the running model container so its ~25 GiB host RAM is
-#      free before the flash-attn nvcc build starts. Skipping this is
-#      the #1 cause of OOM-killer killing cloudflared / sshd mid-build
-#      and producing the "GPU server disconnects during build" symptom.
+#      free before the build starts. Skipping this is a common cause of
+#      the OOM-killer killing cloudflared / sshd mid-build and producing
+#      the "GPU server disconnects during build" symptom.
 #   2. Pull origin/dev so the build uses the latest Dockerfile.server.
 #   3. Run docker compose build with --progress=plain | tee to a log,
 #      while a background loop snapshots `free -h` every 2 seconds so
@@ -15,14 +15,13 @@
 #   4. After the build, scan dmesg for the oom-killer's fingerprint
 #      and warn loudly if it fired during this run.
 #   5. Bring the server back up and tail the log until /healthz answers
-#      200, then verify the boot guard saw flash_attention_2 or sdpa.
+#      200, then verify the boot guard dispatched SDPA. This is a bf16
+#      deploy; flash-attn is deliberately NOT installed and 4-bit is
+#      never requested for the A3B model (see CLAUDE.md "GPU Server:
+#      bf16, no flash-attn, no dependency pins").
 #
 # Run on the GPU host from the repo root:
 #   ./docker/rebuild-server.sh
-#
-# Default is 16, sized for this host's 503 GiB RAM (~10 min build).
-# On a smaller host (<=128 GiB) drop the cap to avoid the OOM killer:
-#   FLASH_ATTN_MAX_JOBS=4 ./docker/rebuild-server.sh
 
 set -euo pipefail
 
@@ -37,8 +36,6 @@ MEM_LOG="$LOG_DIR/mem-${TS}.log"
 # dmesg cursor: record the kernel ringbuffer position BEFORE the build
 # so the post-mortem scan only sees messages from this build run.
 DMESG_MARK="$(dmesg -T 2>/dev/null | tail -1 || true)"
-
-FLASH_ATTN_MAX_JOBS="${FLASH_ATTN_MAX_JOBS:-16}"
 
 # Compose files. The monitoring overlay (Prometheus / Grafana / DCGM /
 # cAdvisor + the nginx that fronts host:9000 and serves /prometheus/,
@@ -58,7 +55,7 @@ $COMPOSE stop prthinker || true
 echo ">>> [2/5] git pull origin dev"
 git pull --ff-only origin dev
 
-echo ">>> [3/5] Building server image (MAX_JOBS=${FLASH_ATTN_MAX_JOBS})"
+echo ">>> [3/5] Building server image"
 echo "        build log: ${BUILD_LOG}"
 echo "        mem log:   ${MEM_LOG}"
 
@@ -78,7 +75,6 @@ BUILD_RC=0
 $COMPOSE build \
     --no-cache \
     --progress=plain \
-    --build-arg "FLASH_ATTN_MAX_JOBS=${FLASH_ATTN_MAX_JOBS}" \
     prthinker 2>&1 | tee "$BUILD_LOG" || BUILD_RC=$?
 
 kill "$MEM_PID" 2>/dev/null || true
@@ -94,9 +90,8 @@ if [ -n "$OOM_HITS" ]; then
     # expansion (avoids the extra sed process; shellcheck SC2001).
     echo "    ${OOM_HITS//$'\n'/$'\n    '}"
     echo "!!! Common victims (cloudflared, sshd, dockerd, server container)"
-    echo "!!! mean the host RAM ceiling was breached. Reduce"
-    echo "!!! FLASH_ATTN_MAX_JOBS (current=${FLASH_ATTN_MAX_JOBS}) or stop"
-    echo "!!! other workloads before the next rebuild."
+    echo "!!! mean the host RAM ceiling was breached. Stop other"
+    echo "!!! workloads before the next rebuild."
 else
     echo "    No oom-killer entries since the build started."
 fi
@@ -134,8 +129,9 @@ elif echo "$ATTN_LINE" | grep -qE 'Attention implementation: *eager'; then
     exit 1
 elif echo "$ATTN_LINE" | grep -q "Refusing to start"; then
     echo "!!! Boot guard refused to start: ${ATTN_LINE}"
-    echo "!!! Image build succeeded but flash-attn / SDPA is not"
-    echo "!!! actually dispatched. Container will not serve reviews."
+    echo "!!! Image build succeeded but SDPA is not actually dispatched"
+    echo "!!! (or 4-bit re-engaged on transformers>=5). Container will"
+    echo "!!! not serve reviews."
     exit 1
 elif [ -z "$ATTN_LINE" ]; then
     echo "??? Could not find an attention-impl line in the last 200"
