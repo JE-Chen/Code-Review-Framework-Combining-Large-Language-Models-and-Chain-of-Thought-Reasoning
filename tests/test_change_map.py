@@ -27,7 +27,7 @@ def test_edges_empty_when_no_internal_imports():
 
 def test_format_mermaid_renders_graph_block():
     edges = [("pkg/app.py", "pkg/core.py")]
-    block = format_change_map_mermaid(edges, ["pkg/app.py", "pkg/core.py"])
+    block = format_change_map_mermaid(edges)
     assert "```mermaid" in block
     assert "graph LR" in block
     assert "pkg/app.py" in block and "pkg/core.py" in block
@@ -36,4 +36,4 @@ def test_format_mermaid_renders_graph_block():
 
 
 def test_format_mermaid_empty_for_no_edges():
-    assert format_change_map_mermaid([], ["a.py"]) == ""
+    assert format_change_map_mermaid([]) == ""

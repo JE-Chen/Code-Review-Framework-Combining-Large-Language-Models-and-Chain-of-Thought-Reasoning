@@ -941,7 +941,7 @@ def _append_review_footer(
     args: argparse.Namespace, result: ReviewResult, pages: list[str]
 ) -> None:
     """Append the metadata + legend footer to the last summary page."""
-    generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    generated = datetime.now(timezone.utc).isoformat(timespec="minutes")
     footer = format_review_footer(
         result,
         head_sha=os.environ.get("GITHUB_SHA", ""),
@@ -1017,7 +1017,7 @@ def _change_map_note(args: argparse.Namespace, result: ReviewResult) -> str:
     if imports is None:
         return ""
     changed = [fr.path for fr in result.per_file]
-    return format_change_map_mermaid(change_map_edges(imports, changed), changed)
+    return format_change_map_mermaid(change_map_edges(imports, changed))
 
 
 def _risk_note(args: argparse.Namespace, result: ReviewResult) -> str:

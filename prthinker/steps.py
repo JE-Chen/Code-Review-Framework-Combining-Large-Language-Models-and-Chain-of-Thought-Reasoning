@@ -86,7 +86,7 @@ from codes.run.CoT_Prompts.inline_findings import INLINE_FINDINGS_TEMPLATE  # no
 from codes.run.CoT_Prompts.judge_step import JUDGE_STEP_TEMPLATE  # noqa: E402
 from codes.run.CoT_Prompts.linter import LINTER_TEMPLATE  # noqa: E402
 from codes.run.CoT_Prompts.total_summary import TOTAL_SUMMARY_TEMPLATE  # noqa: E402
-from codes.run.CoT_Prompts.walkthrough import WALKTHROUGH_TEMPLATE  # noqa: E402
+from codes.run.CoT_Prompts.walkthrough import WALKTHROUGH_TEMPLATE  # noqa: E402  # pylint: disable=wrong-import-position  # registry must exist first (see above)
 
 
 def _wrap(prompt: str, rag_docs: list[str]) -> str:

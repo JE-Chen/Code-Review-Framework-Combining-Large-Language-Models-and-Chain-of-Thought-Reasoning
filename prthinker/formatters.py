@@ -117,6 +117,11 @@ def _reviewed_file_count(result: ReviewResult) -> int:
     )
 
 
+def _skipped_file_count(result: ReviewResult) -> int:
+    """Number of binary / deleted files that were skipped, not reviewed."""
+    return sum(1 for fr in result.per_file if fr.is_binary or fr.is_deleted)
+
+
 def _format_clean_comment(
     result: ReviewResult, marker: str, preliminary: str | None = None
 ) -> str:
@@ -358,6 +363,21 @@ def _without_low_confidence(
     return dataclasses.replace(result, per_file=per_file, inline_findings=inline)
 
 
+def _count_hidden(
+    result: ReviewResult, hide_info: bool, min_confidence: float
+) -> tuple[int, int]:
+    """Tally (info_hidden, low_confidence_hidden) across all per-file findings."""
+    info_hidden = 0
+    low_conf_hidden = 0
+    for fr in result.per_file:
+        for finding in fr.inline_findings:
+            if hide_info and finding.severity == "info":
+                info_hidden += 1
+            elif min_confidence > 0 and not _confident_enough(finding, min_confidence):
+                low_conf_hidden += 1
+    return info_hidden, low_conf_hidden
+
+
 def _filtered_note(
     result: ReviewResult, hide_info: bool, min_confidence: float
 ) -> str | None:
@@ -369,14 +389,7 @@ def _filtered_note(
     hidden tallies keeps the summary honest (the project's no-silent-caps
     rule). A finding hidden as ``info`` is not also counted as low-confidence.
     """
-    info_hidden = 0
-    low_conf_hidden = 0
-    for fr in result.per_file:
-        for finding in fr.inline_findings:
-            if hide_info and finding.severity == "info":
-                info_hidden += 1
-            elif min_confidence > 0 and not _confident_enough(finding, min_confidence):
-                low_conf_hidden += 1
+    info_hidden, low_conf_hidden = _count_hidden(result, hide_info, min_confidence)
     bits: list[str] = []
     if info_hidden:
         bits.append(f"{info_hidden} info")
@@ -1019,7 +1032,7 @@ def format_review_footer(
     Surfaces the review's context — commit, backend/model, time, file
     coverage, tool version — so a reader knows exactly what produced it.
     """
-    skipped = sum(1 for fr in result.per_file if fr.is_binary or fr.is_deleted)
+    skipped = _skipped_file_count(result)
     reviewed = _reviewed_file_count(result)
     bits: list[str] = []
     if head_sha:

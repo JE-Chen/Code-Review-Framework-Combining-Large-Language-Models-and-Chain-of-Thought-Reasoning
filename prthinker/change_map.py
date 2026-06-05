@@ -55,9 +55,7 @@ def _node_id(path: str, ids: dict[str, str]) -> str:
     return ids[path]
 
 
-def format_change_map_mermaid(
-    edges: list[tuple[str, str]], changed_paths: list[str]
-) -> str:
+def format_change_map_mermaid(edges: list[tuple[str, str]]) -> str:
     """A collapsible ```mermaid graph of the change's import edges, or ``""``.
 
     Renders nothing when there are no intra-change edges (the diff has no
