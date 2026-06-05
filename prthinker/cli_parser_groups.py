@@ -754,6 +754,18 @@ def _add_report_output_args(common: argparse.ArgumentParser) -> None:
              "severity / signal, diff totals) to this path.",
     )
     common.add_argument(
+        "--markdown-out",
+        default=env_str("PRTHINKER_MARKDOWN_OUT"),
+        help="Write a standalone Markdown review report to this path.",
+    )
+    common.add_argument(
+        "--gha-annotations",
+        action="store_true",
+        default=env_bool("PRTHINKER_GHA_ANNOTATIONS", False),
+        help="Emit findings + signals as GitHub Actions workflow commands "
+             "on stdout (inline ::error / ::warning / ::notice annotations).",
+    )
+    common.add_argument(
         "--ignore-file",
         default=env_str("PRTHINKER_IGNORE_FILE", ".prthinkerignore"),
         help="Path to a .prthinkerignore file (glob / rule: / severity: "

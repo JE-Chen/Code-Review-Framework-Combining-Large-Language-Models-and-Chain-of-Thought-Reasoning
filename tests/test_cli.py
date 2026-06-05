@@ -84,6 +84,25 @@ def test_csv_and_metrics_default_none() -> None:
     assert ns.metrics_out is None
 
 
+def test_markdown_out_and_gha_annotations_parse() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote", "--remote-url", "http://x",
+        "--markdown-out", "r.md", "--gha-annotations",
+    ])
+    assert ns.markdown_out == "r.md"
+    assert ns.gha_annotations is True
+
+
+def test_markdown_and_gha_defaults() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote", "--remote-url", "http://x",
+    ])
+    assert ns.markdown_out is None
+    assert ns.gha_annotations is False
+
+
 def test_findings_only_defaults_false() -> None:
     p = _build_parser()
     ns = p.parse_args([

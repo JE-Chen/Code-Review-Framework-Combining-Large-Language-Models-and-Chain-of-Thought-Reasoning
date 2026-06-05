@@ -72,6 +72,8 @@ from prthinker.codequality import write_codequality
 from prthinker.junit_report import write_junit
 from prthinker.csv_report import write_csv
 from prthinker.metrics import write_metrics
+from prthinker.markdown_report import write_markdown
+from prthinker.gha_annotations import print_gha_annotations
 from prthinker.ignore import filter_findings, load_ignore
 from prthinker.sarif import write_sarif
 from prthinker.incremental_save import (
@@ -806,6 +808,12 @@ def _emit_review_artifacts(args: argparse.Namespace, result: ReviewResult) -> No
     if metrics_out:
         write_metrics(result, metrics_out)
         log.info("Wrote metrics to %s", metrics_out)
+    markdown_out = getattr(args, "markdown_out", "") or ""
+    if markdown_out:
+        write_markdown(result, markdown_out)
+        log.info("Wrote Markdown report to %s", markdown_out)
+    if getattr(args, "gha_annotations", False):
+        print_gha_annotations(result)
 
 
 def _append_api_impact(body: str, result: ReviewResult) -> str:

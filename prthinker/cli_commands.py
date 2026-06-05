@@ -48,6 +48,8 @@ from prthinker.codequality import write_codequality
 from prthinker.junit_report import write_junit
 from prthinker.csv_report import write_csv
 from prthinker.metrics import write_metrics
+from prthinker.markdown_report import write_markdown
+from prthinker.gha_annotations import print_gha_annotations
 from prthinker.cli_commands_helpers import (
     _close_aggregate_gate,
     _open_aggregate_gate,
@@ -123,6 +125,23 @@ def _maybe_write_metrics(args: argparse.Namespace, result: ReviewResult) -> None
         return
     write_metrics(result, out)
     log.info("Wrote metrics to %s", out)
+
+
+def _maybe_write_markdown(args: argparse.Namespace, result: ReviewResult) -> None:
+    """Write the standalone Markdown report when requested."""
+    out = getattr(args, "markdown_out", "") or ""
+    if not out:
+        return
+    write_markdown(result, out)
+    log.info("Wrote Markdown report to %s", out)
+
+
+def _maybe_emit_gha_annotations(
+    args: argparse.Namespace, result: ReviewResult
+) -> None:
+    """Emit GitHub Actions inline annotations on stdout when requested."""
+    if getattr(args, "gha_annotations", False):
+        print_gha_annotations(result)
 
 
 def _exclude_glob_patterns(args: argparse.Namespace) -> list[str]:
@@ -254,6 +273,8 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
     _maybe_write_junit(args, merged)
     _maybe_write_csv(args, merged)
     _maybe_write_metrics(args, merged)
+    _maybe_write_markdown(args, merged)
+    _maybe_emit_gha_annotations(args, merged)
     if args.dry_run:
         sys.stdout.write("\n\n".join(pages))
         if merged.inline_findings:

@@ -605,6 +605,15 @@ no inference — so they run on the runner profile.
   record per review (findings by severity, signals by rule + level, diff
   totals, files reviewed) for dashboards / trend tracking, versioned by
   ``schema_version``.
+* **Markdown report** (``--markdown-out PATH``) — write a self-contained
+  Markdown document (summary + diff totals + orientation signals +
+  per-file findings) for a downloadable CI artifact or a wiki paste; same
+  content as the HTML report without the platform plumbing.
+* **GitHub Actions annotations** (``--gha-annotations``) — emit findings +
+  located signals as workflow commands on stdout
+  (``::error`` / ``::warning`` / ``::notice`` with ``file`` + ``line``) so
+  they render as inline annotations on the PR's Files-changed tab. Strict
+  workflow-command escaping is applied; complementary to the SARIF upload.
 * **Finding suppression** (``--ignore-file`` / ``.prthinkerignore``) —
   drop findings by path glob, ``severity:<level>``, or ``rule:<id>``
   (substring match on the comment). Missing file is a no-op.

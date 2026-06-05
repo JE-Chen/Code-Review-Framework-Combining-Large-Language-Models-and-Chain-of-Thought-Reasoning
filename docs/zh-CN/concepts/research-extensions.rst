@@ -512,6 +512,13 @@ sweep、GPU OOM、runner 超时、人工 ``ask/cancel``\ ）\ ，现有之
 * **Metrics 汇总**\ （\ ``--metrics-out PATH``\ ）——每次 review 输出一条精简
   JSON(按严重度之 findings、按 rule + level 之 signals、diff 总计、已审
   文件数),供仪表板/趋势追踪,并以 ``schema_version`` 版本化\ 。
+* **Markdown 报告**\ （\ ``--markdown-out PATH``\ ）——输出独立 Markdown 文档
+  (摘要 + diff 总计 + orientation signals + 各文件 findings),供下载式 CI
+  artifact 或 wiki 粘贴;内容同 HTML 报告但不含平台 plumbing\ 。
+* **GitHub Actions 注解**\ （\ ``--gha-annotations``\ ）——将 findings 与有定位
+  之信号以 workflow command 打印到 stdout（\ ``::error`` / ``::warning`` /
+  ``::notice``\ ,含 ``file`` + ``line``\ ),使其在 PR Files-changed 标签页以
+  行内注解呈现。套用严格之 workflow-command 转义;与 SARIF 上传互补\ 。
 * **finding 抑制**\ （\ ``--ignore-file`` / ``.prthinkerignore``\ ）——依
   路径 glob、\ ``severity:<level>``\ 、或 ``rule:<id>``\ （对 comment 子串
   匹配）丢弃 findings。缺文件即 no-op。
