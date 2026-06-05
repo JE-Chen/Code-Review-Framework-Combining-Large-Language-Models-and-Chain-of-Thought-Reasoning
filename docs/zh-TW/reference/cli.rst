@@ -215,6 +215,34 @@ review-file
 
 ``--steps`` 是逗號分隔的 step 名稱清單；空（預設）就跑全部已註冊的 step。
 
+triage
+------
+
+對一份 diff 跑完所有\ *無需模型*\ 的 orientation 訊號並印出非空區塊。不載入
+任何 backend,故瞬間完成且僅需 runner profile——可作為 push 前的本機檢查,
+或 GPU-free 的 CI gate,在完整 review 排程前先抓出衝突標記、Trojan-Source
+字元、吞錯、重新命名、刪除、mode 變更、大段貼上、純格式變更、覆蓋缺口、
+殘留 debug 與延遲工作標記\ 。
+
+.. code-block:: text
+
+   prthinker triage
+       [--diff-file PATH | --staged | --against REF]
+       [--exit-nonzero-on-signal]
+
+預設從 stdin 讀 diff;\ ``--diff-file`` 從檔案讀,\ ``--staged`` 跑
+``git diff --cached``\ ,\ ``--against REF`` 跑 ``git diff REF``\ （如
+``origin/main``\ ）。加上 ``--exit-nonzero-on-signal`` 時,只要有任一訊號
+觸發即 exit 1,可用以 gate CI 步驟;否則一律 exit 0(僅供參考)\ 。
+
+.. code-block:: bash
+
+   git diff origin/main | prthinker triage
+   prthinker triage --staged --exit-nonzero-on-signal
+
+此訊號集即 PR 留言摘要下方所呈現者;各區塊偵測內容見
+:doc:`../concepts/research-extensions`\ 。
+
 aggregate
 ---------
 

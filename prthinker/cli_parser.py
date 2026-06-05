@@ -117,8 +117,42 @@ def _build_parser() -> argparse.ArgumentParser:
     add_discover_rules_parser(sub, common)
     add_derive_lessons_parser(sub, common)
     add_hook_parser(sub, common)
+    add_triage_parser(sub)
 
     return parser
+
+
+def add_triage_parser(sub) -> None:
+    """Register the ``triage`` subcommand (no-model static signals)."""
+    p_triage = sub.add_parser(
+        "triage",
+        help="Run all no-model orientation signals over a diff (no backend, "
+             "no GPU). Reads stdin by default; or --diff-file / --staged / "
+             "--against REF.",
+    )
+    source = p_triage.add_argument_group("diff source")
+    source.add_argument(
+        "--diff-file",
+        type=Path,
+        default=None,
+        help="Read the unified diff from this file (default: stdin).",
+    )
+    source.add_argument(
+        "--staged",
+        action="store_true",
+        help="Use `git diff --cached` (staged changes) instead of stdin.",
+    )
+    source.add_argument(
+        "--against",
+        default=None,
+        metavar="REF",
+        help="Use `git diff REF` (e.g. origin/main) instead of stdin.",
+    )
+    p_triage.add_argument(
+        "--exit-nonzero-on-signal",
+        action="store_true",
+        help="Exit 1 if any signal fires, so the command can gate CI.",
+    )
 
 
 def add_review_pr_parser(sub, common: argparse.ArgumentParser) -> None:

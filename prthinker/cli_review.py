@@ -48,28 +48,10 @@ from prthinker.formatters import (
     format_reviewer_checklist,
 )
 from prthinker.github_api import count_findings_on_diff, findings_off_diff
-from prthinker.coverage_gap import coverage_gaps, format_coverage_gap_note
 from prthinker.review_order import format_review_order_note, suggested_order
 from prthinker.risk_score import compute_risk_scores, format_risk_note
 from prthinker.impact_map import format_impact_note, impacted_files
-from prthinker.rename_map import detect_renames, format_rename_note
-from prthinker.noise_files import format_noise_note, noise_files
-from prthinker.new_markers import format_new_markers_note, new_markers
-from prthinker.whitespace_only import (
-    format_whitespace_note,
-    whitespace_only_files,
-)
-from prthinker.binary_changes import binary_changed_files, format_binary_note
-from prthinker.merge_markers import find_conflict_markers, format_conflict_note
-from prthinker.mode_changes import detect_mode_changes, format_mode_note
-from prthinker.deleted_files import deleted_files, format_deleted_note
-from prthinker.debug_left import find_debug_statements, format_debug_note
-from prthinker.large_hunk import format_large_block_note, large_blocks
-from prthinker.empty_except import (
-    find_swallowed_excepts,
-    format_swallowed_note,
-)
-from prthinker.bidi_guard import find_bidi_hits, format_bidi_note
+from prthinker.orientation import build_static_signal_sections
 from prthinker.inline_ignore import filter_inline_ignored
 from prthinker.repo_kg import KnowledgeGraphStore
 from prthinker.pr_labels import compute_labels
@@ -1063,21 +1045,9 @@ def _extra_sections(
     changed = [fr.path for fr in result.per_file]
     diff = result.code_diff or ""
     sections = (
-        format_bidi_note(find_bidi_hits(diff)),
-        format_conflict_note(find_conflict_markers(diff)),
+        *build_static_signal_sections(diff, changed),
         _review_order_note(args, result),
         _risk_note(args, result),
-        format_rename_note(detect_renames(diff)),
-        format_deleted_note(deleted_files(diff)),
-        format_mode_note(detect_mode_changes(diff)),
-        format_noise_note(noise_files(changed)),
-        format_whitespace_note(whitespace_only_files(diff)),
-        format_binary_note(binary_changed_files(diff)),
-        format_large_block_note(large_blocks(diff)),
-        format_coverage_gap_note(coverage_gaps(changed)),
-        format_new_markers_note(new_markers(diff)),
-        format_debug_note(find_debug_statements(diff)),
-        format_swallowed_note(find_swallowed_excepts(diff)),
         _change_map_note(args, result),
         format_reviewer_checklist(result, files_url),
     )

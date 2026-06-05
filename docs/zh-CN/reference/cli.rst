@@ -215,6 +215,34 @@ review-file
 
 ``--steps`` 是逗号分隔的 step 名称列表；空（默认）就跑全部已注册的 step。
 
+triage
+------
+
+对一份 diff 跑完所有\ *无需模型*\ 的 orientation 信号并打印非空区块。不加载
+任何 backend,故瞬间完成且仅需 runner profile——可作为 push 前的本机检查,
+或 GPU-free 的 CI gate,在完整 review 排程前先抓出冲突标记、Trojan-Source
+字符、吞错、重命名、删除、mode 变更、大段粘贴、纯格式变更、覆盖缺口、
+残留 debug 与延迟工作标记\ 。
+
+.. code-block:: text
+
+   prthinker triage
+       [--diff-file PATH | --staged | --against REF]
+       [--exit-nonzero-on-signal]
+
+默认从 stdin 读 diff;\ ``--diff-file`` 从文件读,\ ``--staged`` 跑
+``git diff --cached``\ ,\ ``--against REF`` 跑 ``git diff REF``\ （如
+``origin/main``\ ）。加上 ``--exit-nonzero-on-signal`` 时,只要有任一信号
+触发即 exit 1,可用以 gate CI 步骤;否则一律 exit 0(仅供参考)\ 。
+
+.. code-block:: bash
+
+   git diff origin/main | prthinker triage
+   prthinker triage --staged --exit-nonzero-on-signal
+
+此信号集即 PR 评论摘要下方所呈现者;各区块检测内容见
+:doc:`../concepts/research-extensions`\ 。
+
 aggregate
 ---------
 
