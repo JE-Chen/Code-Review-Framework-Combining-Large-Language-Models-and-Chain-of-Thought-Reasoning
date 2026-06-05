@@ -519,6 +519,15 @@ sweep、GPU OOM、runner 超时、人工 ``ask/cancel``\ ）\ ，现有之
   之信号以 workflow command 打印到 stdout（\ ``::error`` / ``::warning`` /
   ``::notice``\ ,含 ``file`` + ``line``\ ),使其在 PR Files-changed 标签页以
   行内注解呈现。套用严格之 workflow-command 转义;与 SARIF 上传互补\ 。
+* **SonarQube 导出**\ （\ ``--sonar-out PATH``\ ）——将 findings 与有定位之信号
+  输出为 SonarQube Generic Issue Data JSON（\ ``engineId`` / ``ruleId`` /
+  ``severity`` / ``type`` / ``primaryLocation``\ ),供
+  ``sonar.externalIssuesReportPaths``\ ;error → ``CRITICAL`` + ``BUG``\ ,
+  其余 ``CODE_SMELL``\ 。
+* **全格式目录**\ （\ ``--report-dir DIR``\ ）——将所有文件式报告（SARIF、
+  HTML、Markdown、Code Quality、Sonar、JUnit、CSV、metrics）以标准文件名写入
+  单一目录,使 CI 一个 flag 即可发布全套。由格式 registry
+  （\ ``report_formats.REPORT_FORMATS``\ ）驱动\ 。
 * **finding 抑制**\ （\ ``--ignore-file`` / ``.prthinkerignore``\ ）——依
   路径 glob、\ ``severity:<level>``\ 、或 ``rule:<id>``\ （对 comment 子串
   匹配）丢弃 findings。缺文件即 no-op。

@@ -103,6 +103,25 @@ def test_markdown_and_gha_defaults() -> None:
     assert ns.gha_annotations is False
 
 
+def test_sonar_out_and_report_dir_parse() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote", "--remote-url", "http://x",
+        "--sonar-out", "s.json", "--report-dir", "reports/",
+    ])
+    assert ns.sonar_out == "s.json"
+    assert ns.report_dir == "reports/"
+
+
+def test_sonar_and_report_dir_default_none() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote", "--remote-url", "http://x",
+    ])
+    assert ns.sonar_out is None
+    assert ns.report_dir is None
+
+
 def test_findings_only_defaults_false() -> None:
     p = _build_parser()
     ns = p.parse_args([

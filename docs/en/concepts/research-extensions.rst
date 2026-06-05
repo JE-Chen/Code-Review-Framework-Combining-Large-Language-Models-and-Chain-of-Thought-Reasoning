@@ -614,6 +614,16 @@ no inference — so they run on the runner profile.
   (``::error`` / ``::warning`` / ``::notice`` with ``file`` + ``line``) so
   they render as inline annotations on the PR's Files-changed tab. Strict
   workflow-command escaping is applied; complementary to the SARIF upload.
+* **SonarQube export** (``--sonar-out PATH``) — write findings + located
+  signals as SonarQube Generic Issue Data JSON
+  (``engineId`` / ``ruleId`` / ``severity`` / ``type`` /
+  ``primaryLocation``) for ``sonar.externalIssuesReportPaths``; error →
+  ``CRITICAL`` + ``BUG``, otherwise ``CODE_SMELL``.
+* **All-formats directory** (``--report-dir DIR``) — write every
+  file-based report (SARIF, HTML, Markdown, Code Quality, Sonar, JUnit,
+  CSV, metrics) into one directory with standard filenames, so a CI job
+  publishes the full set with a single flag. Backed by a format registry
+  (``report_formats.REPORT_FORMATS``).
 * **Finding suppression** (``--ignore-file`` / ``.prthinkerignore``) —
   drop findings by path glob, ``severity:<level>``, or ``rule:<id>``
   (substring match on the comment). Missing file is a no-op.

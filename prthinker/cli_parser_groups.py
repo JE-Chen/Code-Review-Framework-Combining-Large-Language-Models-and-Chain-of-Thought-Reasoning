@@ -759,6 +759,19 @@ def _add_report_output_args(common: argparse.ArgumentParser) -> None:
         help="Write a standalone Markdown review report to this path.",
     )
     common.add_argument(
+        "--sonar-out",
+        default=env_str("PRTHINKER_SONAR_OUT"),
+        help="Write findings + signals as SonarQube Generic Issue Data "
+             "JSON to this path.",
+    )
+    common.add_argument(
+        "--report-dir",
+        default=env_str("PRTHINKER_REPORT_DIR"),
+        help="Write every file-based report format (SARIF / HTML / "
+             "Markdown / Code Quality / Sonar / JUnit / CSV / metrics) "
+             "into this directory with standard filenames.",
+    )
+    common.add_argument(
         "--gha-annotations",
         action="store_true",
         default=env_bool("PRTHINKER_GHA_ANNOTATIONS", False),

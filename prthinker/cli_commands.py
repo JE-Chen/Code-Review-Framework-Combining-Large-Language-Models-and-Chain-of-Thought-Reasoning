@@ -50,6 +50,8 @@ from prthinker.csv_report import write_csv
 from prthinker.metrics import write_metrics
 from prthinker.markdown_report import write_markdown
 from prthinker.gha_annotations import print_gha_annotations
+from prthinker.sonar_report import write_sonar
+from prthinker.report_formats import write_report_dir
 from prthinker.cli_commands_helpers import (
     _close_aggregate_gate,
     _open_aggregate_gate,
@@ -134,6 +136,24 @@ def _maybe_write_markdown(args: argparse.Namespace, result: ReviewResult) -> Non
         return
     write_markdown(result, out)
     log.info("Wrote Markdown report to %s", out)
+
+
+def _maybe_write_sonar(args: argparse.Namespace, result: ReviewResult) -> None:
+    """Write the SonarQube generic-issue JSON when requested."""
+    out = getattr(args, "sonar_out", "") or ""
+    if not out:
+        return
+    write_sonar(result, out)
+    log.info("Wrote Sonar report to %s", out)
+
+
+def _maybe_write_report_dir(args: argparse.Namespace, result: ReviewResult) -> None:
+    """Write every file-based report into --report-dir when requested."""
+    out = getattr(args, "report_dir", "") or ""
+    if not out:
+        return
+    written = write_report_dir(result, out)
+    log.info("Wrote %d reports to %s", len(written), out)
 
 
 def _maybe_emit_gha_annotations(
@@ -274,6 +294,8 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
     _maybe_write_csv(args, merged)
     _maybe_write_metrics(args, merged)
     _maybe_write_markdown(args, merged)
+    _maybe_write_sonar(args, merged)
+    _maybe_write_report_dir(args, merged)
     _maybe_emit_gha_annotations(args, merged)
     if args.dry_run:
         sys.stdout.write("\n\n".join(pages))

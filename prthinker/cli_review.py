@@ -74,6 +74,8 @@ from prthinker.csv_report import write_csv
 from prthinker.metrics import write_metrics
 from prthinker.markdown_report import write_markdown
 from prthinker.gha_annotations import print_gha_annotations
+from prthinker.sonar_report import write_sonar
+from prthinker.report_formats import write_report_dir
 from prthinker.ignore import filter_findings, load_ignore
 from prthinker.sarif import write_sarif
 from prthinker.incremental_save import (
@@ -812,6 +814,14 @@ def _emit_review_artifacts(args: argparse.Namespace, result: ReviewResult) -> No
     if markdown_out:
         write_markdown(result, markdown_out)
         log.info("Wrote Markdown report to %s", markdown_out)
+    sonar_out = getattr(args, "sonar_out", "") or ""
+    if sonar_out:
+        write_sonar(result, sonar_out)
+        log.info("Wrote Sonar report to %s", sonar_out)
+    report_dir = getattr(args, "report_dir", "") or ""
+    if report_dir:
+        written = write_report_dir(result, report_dir)
+        log.info("Wrote %d reports to %s", len(written), report_dir)
     if getattr(args, "gha_annotations", False):
         print_gha_annotations(result)
 
