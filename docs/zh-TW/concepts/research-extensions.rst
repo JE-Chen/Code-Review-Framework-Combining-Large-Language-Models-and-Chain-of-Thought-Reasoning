@@ -574,6 +574,13 @@ sweep、GPU OOM、runner 逾時、人工 ``ask/cancel``\ ）\ ，現有之
   ``var_dump`` / ``dd``\ ）,並列出各 ``path:line``\ 。刻意排除裸 ``print(``
   以維持此提示之可信度\ 。
 
+* **大區塊訊號**\ （library：\ ``large_hunk``\ ）——量測各檔案連續新增行之
+  最長區段,標記超過門檻者（預設 80）,使單一大段貼上/生成表格被標示為
+  需明確「略讀或細讀」之判斷,而非誤認為分散於小編輯之手寫程式碼\ 。
+* **吞錯訊號**\ （library：\ ``empty_except``\ ）——將新增之 ``except ...:``
+  子句與其後一行配對,標記其 body 為裸 ``pass`` / ``...`` 之情形(亦含單行
+  ``except X: pass``\ )。屬啟發式提示,故僅鎖定明確之空 body\ 。
+
 monitoring overlay 另附 **Prometheus alerting 規則**\ （\
 ``docker/monitoring/alerts.yml``\ ）；詳見 Docker 概念頁。
 

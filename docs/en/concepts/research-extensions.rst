@@ -683,6 +683,17 @@ no inference — so they run on the runner profile.
   each ``path:line``. Bare ``print(`` is deliberately excluded so the
   note stays trustworthy.
 
+* **Large-block signal** (library: ``large_hunk``) — measures the
+  longest run of consecutive added lines per file and flags those past a
+  threshold (default 80), so a single big paste / generated table is
+  marked for a deliberate skim-or-read decision rather than mistaken for
+  hand-written work spread across small edits.
+* **Swallowed-exception signal** (library: ``empty_except``) — pairs an
+  added ``except ...:`` clause with the added line after it and flags the
+  case where that body is a bare ``pass`` / ``...`` (the single-line
+  ``except X: pass`` form too). A heuristic hint, so it sticks to the
+  unambiguous empty body.
+
 The monitoring overlay also ships **Prometheus alerting rules**
 (``docker/monitoring/alerts.yml``); see the Docker concepts page.
 

@@ -64,6 +64,11 @@ from prthinker.merge_markers import find_conflict_markers, format_conflict_note
 from prthinker.mode_changes import detect_mode_changes, format_mode_note
 from prthinker.deleted_files import deleted_files, format_deleted_note
 from prthinker.debug_left import find_debug_statements, format_debug_note
+from prthinker.large_hunk import format_large_block_note, large_blocks
+from prthinker.empty_except import (
+    find_swallowed_excepts,
+    format_swallowed_note,
+)
 from prthinker.inline_ignore import filter_inline_ignored
 from prthinker.repo_kg import KnowledgeGraphStore
 from prthinker.pr_labels import compute_labels
@@ -1066,9 +1071,11 @@ def _extra_sections(
         format_noise_note(noise_files(changed)),
         format_whitespace_note(whitespace_only_files(diff)),
         format_binary_note(binary_changed_files(diff)),
+        format_large_block_note(large_blocks(diff)),
         format_coverage_gap_note(coverage_gaps(changed)),
         format_new_markers_note(new_markers(diff)),
         format_debug_note(find_debug_statements(diff)),
+        format_swallowed_note(find_swallowed_excepts(diff)),
         _change_map_note(args, result),
         format_reviewer_checklist(result, files_url),
     )
