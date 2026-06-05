@@ -48,14 +48,14 @@ jobs:
       # Checkout first so its working-tree clean does not wipe the
       # restored .prthinker/ state cache that follows.
       - name: Check out PR head
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
 
       - name: Restore prthinker state cache
         id: state-restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
@@ -63,7 +63,7 @@ jobs:
             prthinker-state-pr-${{ github.event.pull_request.number }}-
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -178,7 +178,7 @@ jobs:
 
       - name: Upload reused partials for skipped files
         if: steps.list.outputs.skipped != '0' && steps.list.outputs.skipped != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: partial-skipped
           path: ${{ runner.temp }}/skipped/
@@ -189,7 +189,7 @@ jobs:
       # into the aggregate so the comment lists them as skipped (deleted).
       - name: Upload deleted-file partial
         if: steps.list.outputs.deleted != '0' && steps.list.outputs.deleted != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: partial-deleted
           path: ${{ runner.temp }}/deleted/
@@ -213,13 +213,13 @@ jobs:
         file: ${{ fromJSON(needs.enumerate.outputs.files) }}
     steps:
       - name: Check out PR head
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: "pip"
@@ -237,7 +237,7 @@ jobs:
       # remembers, the CoT pipeline short-circuits before any GPU
       # work. Only the aggregate job writes back to this key.
       - name: Restore prthinker state cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
@@ -319,7 +319,7 @@ jobs:
         # artifact collection — the upload step itself just no-ops if
         # the file is missing.
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: partial-${{ strategy.job-index }}
           path: ${{ runner.temp }}/partial.json
@@ -398,7 +398,7 @@ jobs:
 
       - name: Save shard state checkpoint
         if: success() && steps.shard-state.outputs.updated == 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-shard-${{ strategy.job-index }}
@@ -422,13 +422,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out PR head
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: "pip"
@@ -443,7 +443,7 @@ jobs:
       # known baseline (defends against half-written state from a run
       # that died mid-aggregate).
       - name: Restore prthinker state cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
@@ -451,7 +451,7 @@ jobs:
             prthinker-state-pr-${{ github.event.pull_request.number }}-
 
       - name: Download all partial review artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: ${{ runner.temp }}/partials
           pattern: partial-*
@@ -536,7 +536,7 @@ jobs:
       - name: Upload review reports
         if: ${{ always() }}
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: prthinker-reports
           path: |
@@ -703,7 +703,7 @@ jobs:
 
       - name: Save prthinker state cache
         if: always() && steps.write-state.outcome == 'success'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
