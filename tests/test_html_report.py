@@ -219,3 +219,34 @@ def test_no_diff_totals_when_no_diff() -> None:
     result = ReviewResult(code_diff="", rag_docs=[])
     out = render_report(result)
     assert "file(s) changed" not in out
+
+
+def _pf(path: str) -> FileReviewResult:
+    return FileReviewResult(
+        path=path, rag_docs=[], step_outputs={}, inline_findings=[]
+    )
+
+
+def test_toc_links_to_each_file_anchor() -> None:
+    result = ReviewResult(
+        code_diff="", rag_docs=[], per_file=[_pf("a.py"), _pf("b.py")]
+    )
+    out = render_report(result)
+    assert '<nav class="toc">' in out
+    assert 'href="#file-0"' in out
+    assert 'href="#file-1"' in out
+    assert 'id="file-0"' in out
+    assert 'id="file-1"' in out
+
+
+def test_toc_omitted_for_single_file() -> None:
+    result = ReviewResult(code_diff="", rag_docs=[], per_file=[_pf("only.py")])
+    out = render_report(result)
+    assert '<nav class="toc">' not in out
+    # The lone section is still rendered (with its anchor).
+    assert 'id="file-0"' in out
+
+
+def test_toc_omitted_when_no_per_file() -> None:
+    result = ReviewResult(code_diff="", rag_docs=[])
+    assert '<nav class="toc">' not in render_report(result)

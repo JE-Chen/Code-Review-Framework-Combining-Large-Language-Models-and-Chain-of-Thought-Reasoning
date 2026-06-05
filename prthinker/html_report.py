@@ -147,8 +147,30 @@ def _file_label(file_result: FileReviewResult) -> str:
     return label
 
 
-def _render_file_section(file_result: FileReviewResult) -> str:
-    """Render one per-file section with its findings."""
+def _anchor(index: int) -> str:
+    """Stable, collision-free section id for the per-file anchor + TOC link."""
+    return f"file-{index}"
+
+
+def _render_toc(result: ReviewResult) -> str:
+    """Render a table of contents linking to each per-file section.
+
+    Self-omitting below two files — a TOC for a single file is noise.
+    """
+    if len(result.per_file) < 2:
+        return ""
+    items = [
+        f'<li><a href="#{_anchor(i)}">{_file_label(fr)}</a></li>'
+        for i, fr in enumerate(result.per_file)
+    ]
+    return (
+        '<nav class="toc"><h2>Files</h2>'
+        f'<ul>{"".join(items)}</ul></nav>'
+    )
+
+
+def _render_file_section(file_result: FileReviewResult, index: int) -> str:
+    """Render one per-file section with its findings, anchored for the TOC."""
     if file_result.inline_findings:
         body = "<ul>" + "".join(
             _render_finding(f) for f in file_result.inline_findings
@@ -156,7 +178,7 @@ def _render_file_section(file_result: FileReviewResult) -> str:
     else:
         body = f"<p>{_NO_FINDINGS}</p>"
     return (
-        '<section class="file">'
+        f'<section class="file" id="{_anchor(index)}">'
         f"<h3>{_file_label(file_result)}</h3>"
         f"{body}"
         "</section>"
@@ -182,7 +204,9 @@ def _render_files(result: ReviewResult) -> str:
     if not result.per_file:
         sections = top or f"<p>{_NO_FINDINGS}</p>"
         return f'<section class="files">{sections}</section>'
-    file_sections = "".join(_render_file_section(fr) for fr in result.per_file)
+    file_sections = "".join(
+        _render_file_section(fr, i) for i, fr in enumerate(result.per_file)
+    )
     return f'<section class="files">{top}{file_sections}</section>'
 
 
@@ -235,6 +259,7 @@ def render_report(result: ReviewResult, *, title: str = "prthinker review") -> s
         f"<h1>{safe_title}</h1>"
         f"{_render_summary(counts, len(findings), result)}"
         f"{_render_signals(result)}"
+        f"{_render_toc(result)}"
         f"{_render_files(result)}"
         f"{_FOOTER}"
         "</body></html>\n"
