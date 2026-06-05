@@ -235,6 +235,38 @@ incrementally — useful for batch experiments and debugging long runs.
 ``--steps`` accepts a comma-separated list of step names; empty (the
 default) runs every registered step.
 
+triage
+------
+
+Run every no-model orientation signal over a diff and print the
+non-empty blocks. No backend is loaded, so it is instant and runs on the
+runner profile alone — a pre-push check on a laptop, or a GPU-free CI
+gate that catches conflict markers, Trojan-Source glyphs, swallowed
+exceptions, renames, deletions, mode changes, large pastes, formatting-
+only churn, coverage gaps, debug leftovers, and deferred-work markers
+before a full review is scheduled.
+
+.. code-block:: text
+
+   prthinker triage
+       [--diff-file PATH | --staged | --against REF]
+       [--exit-nonzero-on-signal]
+
+The diff is read from stdin by default; ``--diff-file`` reads it from a
+file, ``--staged`` runs ``git diff --cached``, and ``--against REF`` runs
+``git diff REF`` (e.g. ``origin/main``). With
+``--exit-nonzero-on-signal`` the command exits 1 when any signal fires,
+so it can gate a CI step; otherwise it always exits 0 (advisory).
+
+.. code-block:: bash
+
+   git diff origin/main | prthinker triage
+   prthinker triage --staged --exit-nonzero-on-signal
+
+The signal set is the same one the live PR comment renders below its
+digest; see :doc:`../concepts/research-extensions` for what each block
+detects.
+
 aggregate
 ---------
 

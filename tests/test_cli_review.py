@@ -343,5 +343,159 @@ def test_extra_sections_includes_checklist_for_error_finding():
     assert any("Reviewer checklist" in s for s in sections)
 
 
+def test_extra_sections_rename_note_from_diff():
+    diff = (
+        "diff --git a/old.py b/new.py\n"
+        "similarity index 100%\n"
+        "rename from old.py\n"
+        "rename to new.py\n"
+    )
+    result = ReviewResult(code_diff=diff, rag_docs=[], per_file=[_per_file("new.py")])
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("renamed or moved" in s for s in sections)
+
+
+def test_extra_sections_noise_note_always_on():
+    result = _result_with_files("poetry.lock")
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("low-attention file(s)" in s for s in sections)
+
+
+def test_extra_sections_new_marker_note_from_diff():
+    diff = (
+        "diff --git a/a.py b/a.py\n"
+        "--- a/a.py\n"
+        "+++ b/a.py\n"
+        "@@ -0,0 +1,1 @@\n"
+        "+# TODO: wire this up\n"
+    )
+    result = ReviewResult(code_diff=diff, rag_docs=[], per_file=[_per_file("a.py")])
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("deferred-work marker(s) added" in s for s in sections)
+
+
+def test_extra_sections_clean_diff_adds_no_new_blocks():
+    # An empty diff + handwritten file: rename/noise/marker notes self-omit.
+    result = _result_with_files("prthinker/cli.py")
+    blob = "\n".join(cli_review._extra_sections(Namespace(), result, None))
+    assert "renamed or moved" not in blob
+    assert "low-attention file(s)" not in blob
+    assert "deferred-work marker(s)" not in blob
+    assert "formatting only" not in blob
+    assert "binary file(s) changed" not in blob
+    assert "merge-conflict marker(s)" not in blob
+    assert "file mode change(s)" not in blob
+    assert "file(s) deleted" not in blob
+    assert "debug statement(s)" not in blob
+    assert "large contiguous block" not in blob
+    assert "swallowed exception(s)" not in blob
+    assert "hidden bidi" not in blob
+
+
+def test_extra_sections_bidi_note_from_diff():
+    diff = (
+        "diff --git a/a.py b/a.py\n"
+        "--- a/a.py\n"
+        "+++ b/a.py\n"
+        "@@ -0,0 +1,1 @@\n"
+        f"+x = 1  # {chr(0x202E)}hidden\n"
+    )
+    result = ReviewResult(code_diff=diff, rag_docs=[], per_file=[_per_file("a.py")])
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("hidden bidi" in s for s in sections)
+
+
+def test_extra_sections_swallowed_except_from_diff():
+    diff = (
+        "diff --git a/a.py b/a.py\n"
+        "--- a/a.py\n"
+        "+++ b/a.py\n"
+        "@@ -0,0 +1,2 @@\n"
+        "+except Exception:\n"
+        "+    pass\n"
+    )
+    result = ReviewResult(code_diff=diff, rag_docs=[], per_file=[_per_file("a.py")])
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("swallowed exception(s)" in s for s in sections)
+
+
+def test_extra_sections_debug_note_from_diff():
+    diff = (
+        "diff --git a/a.py b/a.py\n"
+        "--- a/a.py\n"
+        "+++ b/a.py\n"
+        "@@ -0,0 +1,1 @@\n"
+        "+    breakpoint()\n"
+    )
+    result = ReviewResult(code_diff=diff, rag_docs=[], per_file=[_per_file("a.py")])
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("debug statement(s)" in s for s in sections)
+
+
+def test_extra_sections_conflict_note_from_diff():
+    diff = (
+        "diff --git a/a.py b/a.py\n"
+        "--- a/a.py\n"
+        "+++ b/a.py\n"
+        "@@ -0,0 +1,1 @@\n"
+        "+<<<<<<< HEAD\n"
+    )
+    result = ReviewResult(code_diff=diff, rag_docs=[], per_file=[_per_file("a.py")])
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("merge-conflict marker(s)" in s for s in sections)
+
+
+def test_extra_sections_mode_note_from_diff():
+    diff = "diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n"
+    result = ReviewResult(
+        code_diff=diff, rag_docs=[], per_file=[_per_file("run.sh")]
+    )
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("file mode change(s)" in s for s in sections)
+
+
+def test_extra_sections_deleted_note_from_diff():
+    diff = (
+        "diff --git a/old.py b/old.py\n"
+        "deleted file mode 100644\n"
+        "--- a/old.py\n"
+        "+++ /dev/null\n"
+        "@@ -1 +0,0 @@\n"
+        "-x = 1\n"
+    )
+    result = ReviewResult(
+        code_diff=diff, rag_docs=[], per_file=[_per_file("old.py")]
+    )
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("file(s) deleted" in s for s in sections)
+
+
+def test_extra_sections_whitespace_note_from_diff():
+    diff = (
+        "diff --git a/a.py b/a.py\n"
+        "--- a/a.py\n"
+        "+++ b/a.py\n"
+        "@@ -1,1 +1,1 @@\n"
+        "-x=1\n"
+        "+x = 1\n"
+    )
+    result = ReviewResult(code_diff=diff, rag_docs=[], per_file=[_per_file("a.py")])
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("formatting only" in s for s in sections)
+
+
+def test_extra_sections_binary_note_from_diff():
+    diff = (
+        "diff --git a/logo.png b/logo.png\n"
+        "index abc..def 100644\n"
+        "Binary files a/logo.png and b/logo.png differ\n"
+    )
+    result = ReviewResult(
+        code_diff=diff, rag_docs=[], per_file=[_per_file("logo.png")]
+    )
+    sections = cli_review._extra_sections(Namespace(), result, None)
+    assert any("binary file(s) changed" in s for s in sections)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))

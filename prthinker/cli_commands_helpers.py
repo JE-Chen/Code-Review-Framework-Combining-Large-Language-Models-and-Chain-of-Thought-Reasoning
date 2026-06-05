@@ -30,6 +30,7 @@ class _MergeAccumulator:
     rag_docs: list[str] = field(default_factory=list)
     rag_docs_seen: set[str] = field(default_factory=set)
     paths_seen: set[str] = field(default_factory=set)
+    code_diff: str = ""
 
 
 def _load_partial_payload(jp: Path) -> dict | None:
@@ -48,6 +49,12 @@ def _absorb_partial(partial: ReviewResult, acc: _MergeAccumulator) -> None:
     BEFORE this run's shard partials so matrix output overrides prior.
     """
     acc.step_outputs.update(partial.step_outputs)
+    # Each matrix shard's partial carries the full PR diff; prior-state
+    # and deleted/skipped partials carry "". Keep the last non-empty one
+    # (last-write-wins, like per_file) so the aggregate can still derive
+    # the no-model orientation signals for SARIF / HTML.
+    if partial.code_diff:
+        acc.code_diff = partial.code_diff
     for d in partial.rag_docs:
         if d not in acc.rag_docs_seen:
             acc.rag_docs_seen.add(d)
@@ -82,7 +89,7 @@ def merge_partial_reviews(json_paths: list[Path]) -> ReviewResult:
         f for fr in acc.per_file for f in fr.inline_findings
     ]
     return ReviewResult(
-        code_diff="",  # the aggregate doesn't need the raw diff
+        code_diff=acc.code_diff,  # preserved so SARIF/HTML can derive signals
         rag_docs=acc.rag_docs,
         step_outputs=acc.step_outputs,
         inline_findings=merged_findings,

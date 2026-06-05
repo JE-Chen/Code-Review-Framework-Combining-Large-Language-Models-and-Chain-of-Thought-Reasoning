@@ -576,9 +576,15 @@ prthinker with external tooling. They are pure transforms or adapters —
 no inference — so they run on the runner profile.
 
 * **SARIF export** (``--sarif-out PATH``) — write findings as SARIF
-  2.1.0 for GitHub code-scanning or any SARIF viewer.
+  2.1.0 for GitHub code-scanning or any SARIF viewer. The no-model
+  orientation signals are emitted too, each under its own
+  ``prthinker/<rule>`` rule id (``prthinker/trojan-source``,
+  ``prthinker/merge-conflict``, …) so a viewer can filter them apart from
+  the model findings.
 * **HTML report** (``--html-report PATH``) — a standalone, XSS-safe HTML
-  review report (severity summary + per-file findings).
+  review report (severity summary + per-file findings) with an
+  *Orientation signals* section listing the no-model signals; every
+  signal's path is escaped like the rest of the document.
 * **Finding suppression** (``--ignore-file`` / ``.prthinkerignore``) —
   drop findings by path glob, ``severity:<level>``, or ``rule:<id>``
   (substring match on the comment). Missing file is a no-op.
@@ -638,6 +644,69 @@ no inference — so they run on the runner profile.
   DB-migration, accessibility, secret-scan, PII. Each enabled mode's
   output is appended to the consolidated summary; unknown names are
   skipped. Prompts are the source of truth in each mode module.
+
+* **Renamed/moved file signal** (library: ``rename_map``) — pulls
+  ``rename from`` / ``rename to`` pairs (with the ``similarity index``)
+  straight from the diff and renders a self-omitting "renamed or moved"
+  note, so a pure move is not re-reviewed as a new file plus a deletion.
+* **Low-attention file signal** (library: ``noise_files``) — classifies
+  changed lock files, minified/generated bundles, vendored trees, and
+  committed snapshots into a "safe to skim" note. Advisory only — it
+  never drops a file or gates the verdict.
+* **Deferred-work markers** (library: ``new_markers``) — scans only the
+  *added* diff lines for ``TODO`` / ``FIXME`` / ``XXX`` / ``HACK`` /
+  ``BUG`` markers and lists each ``path:line`` so newly-shipped debt is
+  visible at submission time; pre-existing markers on context lines do
+  not register.
+
+* **Formatting-only signal** (library: ``whitespace_only``) — collapses
+  each file's added vs removed lines with all whitespace stripped; when
+  the two match, the change is reindentation / reflow only and is flagged
+  "formatting only" so a behaviour reviewer can skip it. Genuinely new
+  content never collapses, so it is never mis-flagged.
+* **Binary-change signal** (library: ``binary_changes``) — lists the
+  binary files a PR touches (no textual hunk exists for them) so the
+  reviewer inspects the rendered asset and its provenance out of band
+  rather than silently waving an opaque blob through.
+
+* **Leftover conflict markers** (library: ``merge_markers``) — scans the
+  added diff lines for ``<<<<<<<`` / ``>>>>>>>`` / diff3 ``|||||||``
+  markers (the ``=======`` separator is ignored to avoid RST/Markdown
+  underline false positives) and leads with a warning, since a leftover
+  marker is almost always a botched conflict resolution.
+* **File-mode changes** (library: ``mode_changes``) — extracts ``old
+  mode`` / ``new mode`` transitions and flags a file that newly gains the
+  execute bit (``644`` → ``755``), which can change what CI or a deploy
+  runs.
+* **Deleted-file signal** (library: ``deleted_files``) — lists files the
+  PR removes outright so a dropped test or security guard is not lost in
+  a wall of removed lines.
+
+* **Leftover debug statements** (library: ``debug_left``) — scans added
+  lines for a conservative, high-precision set of debug constructs
+  (``breakpoint()`` / ``pdb`` / ``ipdb`` ``set_trace`` / ``console.log``
+  / ``console.debug`` / ``debugger`` / ``var_dump`` / ``dd``) and lists
+  each ``path:line``. Bare ``print(`` is deliberately excluded so the
+  note stays trustworthy.
+
+* **Large-block signal** (library: ``large_hunk``) — measures the
+  longest run of consecutive added lines per file and flags those past a
+  threshold (default 80), so a single big paste / generated table is
+  marked for a deliberate skim-or-read decision rather than mistaken for
+  hand-written work spread across small edits.
+* **Swallowed-exception signal** (library: ``empty_except``) — pairs an
+  added ``except ...:`` clause with the added line after it and flags the
+  case where that body is a bare ``pass`` / ``...`` (the single-line
+  ``except X: pass`` form too). A heuristic hint, so it sticks to the
+  unambiguous empty body.
+
+* **Trojan-Source signal** (library: ``bidi_guard``) — scans added lines
+  for the Unicode bidirectional-override and zero-width / invisible
+  control characters behind the Trojan-Source attack (CVE-2021-42574),
+  where code renders one way and executes another. It leads with a
+  warning and names the offending code points per line. Complements the
+  prompt-injection guard, which targets attacker *text* rather than
+  rendering-level deception in the code itself.
 
 The monitoring overlay also ships **Prometheus alerting rules**
 (``docker/monitoring/alerts.yml``); see the Docker concepts page.

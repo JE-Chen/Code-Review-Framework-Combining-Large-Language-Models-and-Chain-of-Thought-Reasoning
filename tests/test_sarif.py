@@ -186,3 +186,71 @@ def test_write_sarif_accepts_str_path(tmp_path):
     write_sarif(_result(), str(out))
     assert out.exists()
     assert json.loads(out.read_text(encoding="utf-8"))["runs"][0]["results"] == []
+
+
+# ---------- orientation signals --------------------------------------------
+
+_CONFLICT_DIFF = (
+    "diff --git a/a.py b/a.py\n"
+    "--- a/a.py\n"
+    "+++ b/a.py\n"
+    "@@ -0,0 +1,1 @@\n"
+    "+<<<<<<< HEAD\n"
+)
+
+
+def test_signal_emitted_as_result_with_namespaced_rule():
+    result = ReviewResult(code_diff=_CONFLICT_DIFF, rag_docs=[], inline_findings=[])
+    results = to_sarif(result)["runs"][0]["results"]
+    rule_ids = {r["ruleId"] for r in results}
+    assert "prthinker/merge-conflict" in rule_ids
+
+
+def test_signal_result_has_location_and_level():
+    result = ReviewResult(code_diff=_CONFLICT_DIFF, rag_docs=[], inline_findings=[])
+    res = next(
+        r for r in to_sarif(result)["runs"][0]["results"]
+        if r["ruleId"] == "prthinker/merge-conflict"
+    )
+    assert res["level"] == "error"
+    loc = res["locations"][0]["physicalLocation"]
+    assert loc["artifactLocation"]["uri"] == "a.py"
+    assert loc["region"]["startLine"] == 1
+
+
+def test_signal_rule_registered_in_driver():
+    result = ReviewResult(code_diff=_CONFLICT_DIFF, rag_docs=[], inline_findings=[])
+    rules = to_sarif(result)["runs"][0]["tool"]["driver"]["rules"]
+    assert any(r["id"] == "prthinker/merge-conflict" for r in rules)
+
+
+def test_findings_and_signals_coexist():
+    result = ReviewResult(
+        code_diff=_CONFLICT_DIFF, rag_docs=[],
+        inline_findings=[_finding(severity="error", comment="boom")],
+    )
+    rule_ids = [r["ruleId"] for r in to_sarif(result)["runs"][0]["results"]]
+    assert "prthinker/error" in rule_ids
+    assert "prthinker/merge-conflict" in rule_ids
+
+
+def test_pathless_navigation_signal_still_a_result():
+    diff = (
+        "diff --git a/old.py b/new.py\n"
+        "similarity index 100%\n"
+        "rename from old.py\n"
+        "rename to new.py\n"
+    )
+    result = ReviewResult(code_diff=diff, rag_docs=[], inline_findings=[])
+    res = next(
+        r for r in to_sarif(result)["runs"][0]["results"]
+        if r["ruleId"] == "prthinker/rename"
+    )
+    assert "locations" in res  # rename carries the new path
+    assert res["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] == "new.py"
+
+
+def test_signal_json_round_trips():
+    result = ReviewResult(code_diff=_CONFLICT_DIFF, rag_docs=[], inline_findings=[])
+    sarif = to_sarif(result)
+    assert json.loads(json.dumps(sarif)) == sarif

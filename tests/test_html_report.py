@@ -144,6 +144,43 @@ def test_write_report_roundtrip(tmp_path: Path) -> None:
     assert "written-finding" in written
 
 
+_CONFLICT_DIFF = (
+    "diff --git a/a.py b/a.py\n"
+    "--- a/a.py\n"
+    "+++ b/a.py\n"
+    "@@ -0,0 +1,1 @@\n"
+    "+<<<<<<< HEAD\n"
+)
+
+
+def test_orientation_signals_section_rendered() -> None:
+    result = ReviewResult(code_diff=_CONFLICT_DIFF, rag_docs=[])
+    out = render_report(result)
+    assert "Orientation signals" in out
+    assert "Leftover merge-conflict marker" in out
+    assert "a.py:1" in out
+
+
+def test_no_signals_section_when_clean() -> None:
+    result = ReviewResult(code_diff="", rag_docs=[])
+    out = render_report(result)
+    assert "Orientation signals" not in out
+
+
+def test_signal_path_is_escaped() -> None:
+    diff = (
+        "diff --git a/x b/<b>x</b>.py\n"
+        "--- a/x\n"
+        "+++ b/<b>x</b>.py\n"
+        "@@ -0,0 +1,1 @@\n"
+        "+<<<<<<< HEAD\n"
+    )
+    result = ReviewResult(code_diff=diff, rag_docs=[])
+    out = render_report(result)
+    assert "<b>x</b>.py" not in out
+    assert "&lt;b&gt;x&lt;/b&gt;.py" in out
+
+
 def test_unknown_severity_buckets_into_info() -> None:
     # The schema constrains severity, but the counter must not KeyError
     # on a value outside the known ladder.

@@ -487,9 +487,13 @@ sweep、GPU OOM、runner 超时、人工 ``ask/cancel``\ ）\ ，现有之
 它们皆为纯转换或 adapter——不做推理——因此可在 runner profile 上运行。
 
 * **SARIF 导出**\ （\ ``--sarif-out PATH``\ ）——以 SARIF 2.1.0 输出
-  findings，接 GitHub code-scanning 或任何 SARIF viewer。
+  findings，接 GitHub code-scanning 或任何 SARIF viewer。无需模型之导航信号
+  亦一并输出,各自挂在专属 ``prthinker/<rule>`` rule id（\
+  ``prthinker/trojan-source``\ 、\ ``prthinker/merge-conflict``\ …）,使
+  viewer 能与模型 findings 区分过滤\ 。
 * **HTML 报告**\ （\ ``--html-report PATH``\ ）——独立、XSS-safe 之 HTML
-  审查报告（严重度摘要 + 各文件 findings）。
+  审查报告（严重度摘要 + 各文件 findings）,并含\ *Orientation signals*\ 区段
+  列出无需模型之信号;每个信号之路径与文件其余部分一样经转义处理\ 。
 * **finding 抑制**\ （\ ``--ignore-file`` / ``.prthinkerignore``\ ）——依
   路径 glob、\ ``severity:<level>``\ 、或 ``rule:<id>``\ （对 comment 子串
   匹配）丢弃 findings。缺文件即 no-op。
@@ -537,6 +541,55 @@ sweep、GPU OOM、runner 超时、人工 ``ask/cancel``\ ）\ ，现有之
   pass：security/SAST、performance、test-coverage、IaC、DB-migration、
   accessibility、secret-scan、PII。各启用模式之输出附于汇整摘要；未知名称
   跳过。prompt 为各模式模块内之 source of truth。
+
+* **重命名/移动文件信号**\ （library：\ ``rename_map``\ ）——直接从 diff
+  取出 ``rename from`` / ``rename to`` 配对（含 ``similarity index``\ ），
+  输出可自我省略的「renamed or moved」提示,使纯移动不会被当成新增文件
+  加删除而重复审查\ 。
+* **低关注文件信号**\ （library：\ ``noise_files``\ ）——将变更的 lock 文件、
+  minified/generated bundle、vendored 目录与提交的 snapshot 归类为「safe to
+  skim」提示。仅供参考——不丢弃任何文件,也不左右结论\ 。
+* **延迟工作标记**\ （library：\ ``new_markers``\ ）——仅扫描\ *新增*\ 的 diff
+  行中的 ``TODO`` / ``FIXME`` / ``XXX`` / ``HACK`` / ``BUG`` 标记,并列出各
+  ``path:line``\ ,使新引入的技术债在提交时即可见;context 行上的既有标记不
+  计入\ 。
+
+* **纯格式变更信号**\ （library：\ ``whitespace_only``\ ）——将各文件的新增
+  与删除行去除所有空白后比对;若两者相符,则该变更仅为重新缩进/重排,标记
+  为「formatting only」使行为审查者可略过。真正的新内容不会相符,故不会被
+  误标\ 。
+* **二进制变更信号**\ （library：\ ``binary_changes``\ ）——列出 PR 变更的
+  二进制文件（无文本 hunk 可读）,使审查者在他处检视 rendered asset 与其
+  provenance,而非默默放行不透明 blob\ 。
+
+* **残留冲突标记**\ （library：\ ``merge_markers``\ ）——扫描新增 diff 行中的
+  ``<<<<<<<`` / ``>>>>>>>`` / diff3 ``|||||||`` 标记（忽略 ``=======``
+  分隔线以避免 RST/Markdown 下划线误判）,并以警示开头,因残留标记几乎必为
+  失败的冲突解决\ 。
+* **文件 mode 变更**\ （library：\ ``mode_changes``\ ）——提取 ``old mode`` /
+  ``new mode`` 转换,并标记新获得执行位（\ ``644`` → ``755``\ ）的文件,
+  此可改变 CI 或 deploy 所执行的内容\ 。
+* **删除文件信号**\ （library：\ ``deleted_files``\ ）——列出 PR 直接移除的
+  文件,使被删的测试或安全防护不致淹没于大量删除行中\ 。
+
+* **残留 debug 语句**\ （library：\ ``debug_left``\ ）——扫描新增行中一组
+  保守且高精度的 debug 构造（\ ``breakpoint()`` / ``pdb`` / ``ipdb``
+  ``set_trace`` / ``console.log`` / ``console.debug`` / ``debugger`` /
+  ``var_dump`` / ``dd``\ ）,并列出各 ``path:line``\ 。刻意排除裸 ``print(``
+  以维持此提示的可信度\ 。
+
+* **大区块信号**\ （library：\ ``large_hunk``\ ）——测量各文件连续新增行的
+  最长区段,标记超过阈值者（默认 80）,使单一大段粘贴/生成表格被标示为
+  需明确「略读或细读」的判断,而非误认为分散于小编辑的手写代码\ 。
+* **吞错信号**\ （library：\ ``empty_except``\ ）——将新增的 ``except ...:``
+  子句与其后一行配对,标记其 body 为裸 ``pass`` / ``...`` 的情形(亦含单行
+  ``except X: pass``\ )。属启发式提示,故仅锁定明确的空 body\ 。
+
+* **Trojan-Source 信号**\ （library：\ ``bidi_guard``\ ）——扫描新增行中
+  Trojan-Source 攻击（CVE-2021-42574）所用的 Unicode 双向覆写与零宽/不可见
+  控制字符(此攻击使代码的显示与实际执行不一致),以警示开头并逐行列出
+  违规码位。补充 prompt-injection guard——后者针对 diff 中的攻击\ *文本*\ ,
+  而非代码本身的显示层欺骗\ 。
 
 monitoring overlay 另附 **Prometheus alerting 规则**\ （\
 ``docker/monitoring/alerts.yml``\ ）；详见 Docker 概念页。

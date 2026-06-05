@@ -46,9 +46,21 @@ exemplars — and can act as a required status check before merges.
 - **Secret redaction** — `--redact-secrets` scrubs AWS / GitHub / OpenAI
   / Anthropic / Stripe / Slack / JWT / PEM keys from the diff before any
   paid backend call. Idempotent, cache-friendly, never logs content.
+- **Reviewer orientation signals** — thirteen no-model checks render
+  below every PR digest (and run standalone via `prthinker triage`):
+  Trojan-Source bidi/invisible characters, leftover merge-conflict
+  markers, renames/moves, deletions, file-mode/exec-bit changes,
+  lockfile/vendored/minified noise, formatting-only churn, binary
+  changes, large pasted blocks, test-coverage gaps, new TODO/FIXME
+  markers, leftover debug statements, and swallowed `except: pass`.
+- **`prthinker triage`** — run every orientation signal over a diff with
+  **no backend** (instant, GPU-free): `git diff | prthinker triage`, or
+  `--staged` / `--against REF`. `--exit-nonzero-on-signal` makes it a
+  cheap pre-merge gate; reuse from CI before scheduling a full review.
 - **MCP server** — `prthinker mcp` exposes the pipeline as a Model
   Context Protocol stdio server so Claude Desktop, Cursor, Continue,
-  Cline, and Zed can run reviews from inside the IDE.
+  Cline, and Zed can run reviews from inside the IDE. Tools: `review_diff`
+  (full CoT review), `triage_diff` (model-free signals), and `stats`.
 
 ### Research-grade extensions (opt-in)
 
@@ -177,6 +189,10 @@ prthinker adversarial-eval \
     --corpus prthinker/adversarial_corpus/seed.jsonl \
     --outcomes-path .prthinker/adversarial.sqlite \
     --backend openai --openai-model gpt-4o-mini
+
+# Model-free static triage — no backend, instant, GPU-free
+git diff origin/main | prthinker triage
+prthinker triage --staged --exit-nonzero-on-signal   # cheap pre-merge gate
 ```
 
 To deploy the inference server (requires a GPU and the heavier extras):

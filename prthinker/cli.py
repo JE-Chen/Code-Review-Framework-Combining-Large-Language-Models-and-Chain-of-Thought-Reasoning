@@ -46,6 +46,7 @@ from prthinker.cli_commands import (
 from prthinker.cli_parser import _apply_repo_defaults, _build_parser
 from prthinker.plugins import load_plugin_steps
 from prthinker.cli_review import _build_config, _cmd_review_file, _cmd_review_pr
+from prthinker.cli_triage import _cmd_triage
 
 log = logging.getLogger("prthinker")
 
@@ -67,6 +68,7 @@ _COMMAND_HANDLERS: dict[str, Callable[[argparse.Namespace], int]] = {
     "review-commits": _cmd_review_commits,
     "harvest-dismissed": _cmd_harvest,
     "harvest-accepted": _cmd_harvest_accepted,
+    "triage": _cmd_triage,
 }
 
 

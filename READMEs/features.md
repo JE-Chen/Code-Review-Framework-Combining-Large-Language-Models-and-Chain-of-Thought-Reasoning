@@ -25,6 +25,7 @@ A complete catalog of what prthinker does. For installation steps see
 - [Cache, telemetry, and stats](#cache-telemetry-and-stats)
 - [`.prthinker.yaml` repo config](#prthinkeryaml-repo-config)
 - [Secret redaction](#secret-redaction)
+- [Reviewer orientation signals (no model)](#reviewer-orientation-signals-no-model)
 - [MCP integration for IDEs](#mcp-integration-for-ides)
 - [CLI subcommands](#cli-subcommands)
 - [HTTP API endpoints](#http-api-endpoints)
@@ -443,6 +444,46 @@ surprising the local-only / self-hosted-remote use cases.
 
 ---
 
+## Reviewer orientation signals (no model)
+
+Thirteen pure, deterministic checks run over the diff with **no backend
+call**. In a live review they render as self-omitting blocks below the
+PR digest; standalone they drive `prthinker triage` (and the
+`triage_diff` MCP tool). Ordering is security → navigation → skim
+guidance → code-quality hints, and any block with nothing to say is
+dropped.
+
+| Signal | Module | Flags |
+|---|---|---|
+| Trojan-Source bidi / invisible characters (CVE-2021-42574) | `bidi_guard` | 🚨 security |
+| Leftover merge-conflict markers (`<<<<<<<` / `>>>>>>>` / `\|\|\|\|\|\|\|`) | `merge_markers` | ⛔ security |
+| Renamed / moved files (with similarity %) | `rename_map` | 🔀 navigation |
+| Deleted files | `deleted_files` | 🗑 navigation |
+| File-mode / exec-bit changes (`644` → `755`) | `mode_changes` | 🔑 navigation |
+| Lockfile / vendored / minified noise | `noise_files` | 🗂 skim |
+| Formatting-only churn | `whitespace_only` | 🎨 skim |
+| Binary changes (no textual hunk) | `binary_changes` | 📦 skim |
+| Large contiguous added block (≥ 80 lines) | `large_hunk` | 📜 skim |
+| Test-coverage gaps (prod changed without a test) | `coverage_gap` | 🧪 quality |
+| New deferred-work markers (TODO / FIXME / …) | `new_markers` | 📌 quality |
+| Leftover debug statements (`breakpoint` / `console.log` / …) | `debug_left` | 🐞 quality |
+| Swallowed exceptions (`except: pass`) | `empty_except` | 🤫 quality |
+
+```bash
+# Run them all over a diff — no backend, instant, GPU-free
+git diff origin/main | prthinker triage
+prthinker triage --staged                       # git diff --cached
+prthinker triage --against origin/main          # git diff <ref>
+prthinker triage --diff-file pr.diff --exit-nonzero-on-signal   # CI gate
+```
+
+With `--exit-nonzero-on-signal` the command exits 1 when any signal
+fires, so it can gate a CI step before a full (GPU-backed) review is even
+scheduled; otherwise it always exits 0 (advisory). The same blocks
+appear under the live PR comment, so a reviewer sees them either way.
+
+---
+
 ## MCP integration for IDEs
 
 `prthinker mcp` runs a Model Context Protocol stdio server so Claude
@@ -454,6 +495,7 @@ Tools exposed:
 | Tool | Returns |
 |---|---|
 | `review_diff(diff, file_path?, redact_secrets=True)` | Markdown review (same shape as the PR summary comment) |
+| `triage_diff(diff, redact_secrets=True)` | Markdown report of the no-model orientation signals (no backend call) |
 | `stats(since_days=7)` | Markdown table of recent telemetry |
 
 Install: `pip install -e ".[mcp]"`.
@@ -498,6 +540,7 @@ subprocess); use `PRTHINKER_BACKEND=remote` if RAG matters.
 | `prthinker harvest-dismissed` | Scan past PRs for dismissed findings → JSONL |
 | `prthinker harvest-accepted` | Scan past PRs for applied suggestions → JSONL |
 | `prthinker stats` | Aggregate telemetry into a per-(backend, model) table |
+| `prthinker triage` | Run the no-model orientation signals over a diff (stdin / `--diff-file` / `--staged` / `--against REF`); no backend |
 | `prthinker mcp` | Run the MCP stdio server |
 
 Every flag has a corresponding `PRTHINKER_*` env var; the
