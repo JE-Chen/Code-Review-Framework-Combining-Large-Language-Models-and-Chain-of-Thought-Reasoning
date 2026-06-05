@@ -1,14 +1,18 @@
 # prthinker inference server image.
 #
-# Built on the NVIDIA CUDA runtime so bitsandbytes + the 4-bit Qwen weights
-# load on the GPU; the matching host driver must expose `--gpus all` (set
-# via `runtime: nvidia` in docker-compose).
+# Built on the NVIDIA CUDA runtime so torch + bitsandbytes load on the GPU;
+# the matching host driver must expose `--gpus all` (set via
+# `runtime: nvidia` in docker-compose). The 30B-A3B model loads in bf16
+# across both cards (device_map="auto") — NOT 4-bit. flash-attn is
+# deliberately NOT installed: either 4-bit or flash-attn re-engages the
+# transformers>=5 MoE densification path that OOMs the L40S. See CLAUDE.md
+# "GPU Server: bf16, no flash-attn, no dependency pins".
 #
 # Heavy ML deps (torch, transformers, bitsandbytes, peft, faiss-cpu) come
-# from the `[server]` extra which itself transitively includes `[local]`.
-# Model weights are NOT baked into the image — they are pulled at first
-# run into the mounted HuggingFace cache volume so an image rebuild does
-# not invalidate ~80 GB of weights.
+# from the `[server]` extra which itself transitively includes `[local]`,
+# all intentionally unpinned. Model weights are NOT baked into the image —
+# they are pulled at first run into the mounted HuggingFace cache volume so
+# an image rebuild does not invalidate ~80 GB of weights.
 
 ARG CUDA_VERSION=12.2.0
 FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu22.04 AS base
@@ -18,7 +22,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
     HF_HOME=/cache/huggingface \
-    TRANSFORMERS_CACHE=/cache/huggingface \
+    TRANSFORMERS_CACHE=/cache/huggingface/hub \
     PRTHINKER_DISMISSED_PATH=/data/dismissed.jsonl \
     PRTHINKER_ACCEPTED_PATH=/data/accepted.jsonl
 
