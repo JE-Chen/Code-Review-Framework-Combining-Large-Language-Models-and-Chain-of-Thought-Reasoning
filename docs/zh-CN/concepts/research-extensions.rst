@@ -487,9 +487,13 @@ sweep、GPU OOM、runner 超时、人工 ``ask/cancel``\ ）\ ，现有之
 它们皆为纯转换或 adapter——不做推理——因此可在 runner profile 上运行。
 
 * **SARIF 导出**\ （\ ``--sarif-out PATH``\ ）——以 SARIF 2.1.0 输出
-  findings，接 GitHub code-scanning 或任何 SARIF viewer。
+  findings，接 GitHub code-scanning 或任何 SARIF viewer。无需模型之导航信号
+  亦一并输出,各自挂在专属 ``prthinker/<rule>`` rule id（\
+  ``prthinker/trojan-source``\ 、\ ``prthinker/merge-conflict``\ …）,使
+  viewer 能与模型 findings 区分过滤\ 。
 * **HTML 报告**\ （\ ``--html-report PATH``\ ）——独立、XSS-safe 之 HTML
-  审查报告（严重度摘要 + 各文件 findings）。
+  审查报告（严重度摘要 + 各文件 findings）,并含\ *Orientation signals*\ 区段
+  列出无需模型之信号;每个信号之路径与文件其余部分一样经转义处理\ 。
 * **finding 抑制**\ （\ ``--ignore-file`` / ``.prthinkerignore``\ ）——依
   路径 glob、\ ``severity:<level>``\ 、或 ``rule:<id>``\ （对 comment 子串
   匹配）丢弃 findings。缺文件即 no-op。

@@ -576,9 +576,15 @@ prthinker with external tooling. They are pure transforms or adapters —
 no inference — so they run on the runner profile.
 
 * **SARIF export** (``--sarif-out PATH``) — write findings as SARIF
-  2.1.0 for GitHub code-scanning or any SARIF viewer.
+  2.1.0 for GitHub code-scanning or any SARIF viewer. The no-model
+  orientation signals are emitted too, each under its own
+  ``prthinker/<rule>`` rule id (``prthinker/trojan-source``,
+  ``prthinker/merge-conflict``, …) so a viewer can filter them apart from
+  the model findings.
 * **HTML report** (``--html-report PATH``) — a standalone, XSS-safe HTML
-  review report (severity summary + per-file findings).
+  review report (severity summary + per-file findings) with an
+  *Orientation signals* section listing the no-model signals; every
+  signal's path is escaped like the rest of the document.
 * **Finding suppression** (``--ignore-file`` / ``.prthinkerignore``) —
   drop findings by path glob, ``severity:<level>``, or ``rule:<id>``
   (substring match on the comment). Missing file is a no-op.

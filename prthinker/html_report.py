@@ -14,6 +14,11 @@ from pathlib import Path
 
 from prthinker.pipeline import FileReviewResult, ReviewResult
 from prthinker.schemas import InlineFinding
+from prthinker.signals import SignalFinding, collect_signal_findings
+
+# Map a signal level onto the existing severity CSS classes so signals
+# pick up the same colour ladder as findings.
+_LEVEL_TO_SEV_CLASS = {"error": "error", "warning": "warning", "note": "info"}
 
 # Severity ladder, ordered most→least serious so summary counts and the
 # per-file listing render in a stable, meaningful order. Mirrors the
@@ -127,6 +132,40 @@ def _render_files(result: ReviewResult) -> str:
     return f'<section class="files">{top}{file_sections}</section>'
 
 
+def _render_signal(signal: SignalFinding) -> str:
+    """Render one orientation signal as a list item."""
+    sev_class = _LEVEL_TO_SEV_CLASS.get(signal.level, "info")
+    if signal.path is not None:
+        loc = _esc(signal.path)
+        if signal.line is not None:
+            loc = f"{loc}:{signal.line}"
+        location = f'<span class="loc">{loc}</span> '
+    else:
+        location = ""
+    return (
+        f'<li class="signal sev-{sev_class}">'
+        f'<span class="sev">[{_esc(signal.level)}]</span> '
+        f'<span class="rule">{_esc(signal.name)}</span> '
+        f"{location}"
+        f'<span class="msg">{_esc(signal.message)}</span>'
+        "</li>"
+    )
+
+
+def _render_signals(result: ReviewResult) -> str:
+    """Render the no-model orientation-signal section, or '' when empty."""
+    signals = collect_signal_findings(result.code_diff or "")
+    if not signals:
+        return ""
+    items = "".join(_render_signal(s) for s in signals)
+    return (
+        '<section class="signals">'
+        "<h2>Orientation signals</h2>"
+        f"<ul>{items}</ul>"
+        "</section>"
+    )
+
+
 def render_report(result: ReviewResult, *, title: str = "prthinker review") -> str:
     """Render a self-contained, XSS-safe HTML review document as a string."""
     findings = _all_findings(result)
@@ -140,6 +179,7 @@ def render_report(result: ReviewResult, *, title: str = "prthinker review") -> s
         "</head><body>"
         f"<h1>{safe_title}</h1>"
         f"{_render_summary(counts, len(findings))}"
+        f"{_render_signals(result)}"
         f"{_render_files(result)}"
         "</body></html>\n"
     )

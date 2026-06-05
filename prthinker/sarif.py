@@ -12,6 +12,8 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from prthinker.signals import SignalFinding, collect_signal_findings
+
 if TYPE_CHECKING:
     from prthinker.pipeline import ReviewResult
     from prthinker.schemas import InlineFinding
@@ -83,21 +85,59 @@ def _collect_rules(findings: "list[InlineFinding]") -> list[dict]:
     return list(seen.values())
 
 
+def _signal_to_result(signal: SignalFinding) -> dict:
+    """Build one SARIF ``results[]`` entry from an orientation signal."""
+    entry: dict = {
+        "ruleId": f"{_RULE_ID_PREFIX}/{signal.rule_id}",
+        "level": signal.level,
+        "message": {"text": signal.message},
+    }
+    if signal.path is not None:
+        physical: dict = {"artifactLocation": {"uri": signal.path}}
+        if signal.line is not None:
+            physical["region"] = {"startLine": signal.line}
+        entry["locations"] = [{"physicalLocation": physical}]
+    return entry
+
+
+def _signal_rules(signals: list[SignalFinding]) -> list[dict]:
+    """Derive the deduplicated rule objects for the orientation signals."""
+    seen: dict[str, dict] = {}
+    for signal in signals:
+        rule_id = f"{_RULE_ID_PREFIX}/{signal.rule_id}"
+        if rule_id not in seen:
+            seen[rule_id] = {
+                "id": rule_id,
+                "name": signal.name,
+                "shortDescription": {"text": signal.name},
+                "defaultConfiguration": {"level": signal.level},
+            }
+    return list(seen.values())
+
+
 def to_sarif(
     result: "ReviewResult",
     *,
     tool_name: str = "prthinker",
     tool_version: str = "0",
 ) -> dict:
-    """Convert a :class:`ReviewResult` into a SARIF 2.1.0 log dict."""
+    """Convert a :class:`ReviewResult` into a SARIF 2.1.0 log dict.
+
+    Emits one result per inline finding plus one per no-model orientation
+    signal derived from the diff (Trojan-Source characters, conflict
+    markers, swallowed exceptions, …), each under its own ``prthinker/*``
+    rule id so a viewer can filter them apart.
+    """
     findings = list(result.inline_findings)
+    signals = collect_signal_findings(result.code_diff or "")
     results = [_finding_to_result(f) for f in findings]
+    results += [_signal_to_result(s) for s in signals]
     run = {
         "tool": {
             "driver": {
                 "name": tool_name,
                 "version": tool_version,
-                "rules": _collect_rules(findings),
+                "rules": _collect_rules(findings) + _signal_rules(signals),
             }
         },
         "results": results,
