@@ -114,12 +114,14 @@ def _probe_generation(model, tokenizer) -> None:
 
 
 def _verify_quant_safe(model) -> None:
-    """Refuse to serve the known-OOM 4-bit + transformers>=5 MoE combo.
+    """Refuse to serve a transformers>=5 build that densifies the A3B MoE.
 
-    The supported deploy loads bf16; if a rebuild ever lets bitsandbytes
-    4-bit engage on transformers>=5 the model densifies its MoE forward and
-    OOMs on the first multi-thousand-token review. Fail loudly at boot
-    instead. Override with ``PRTHINKER_ALLOW_DENSIFYING_QUANT=1``.
+    transformers>=5 densifies the Qwen3-A3B MoE forward (~48 MiB per input
+    token, linear) and OOMs on the first multi-thousand-token review — in
+    bf16 AND 4-bit alike (bf16 densification observed on 5.10.2). The
+    supported deploy pins transformers<5, whose MoE forward routes sparsely.
+    Fail loudly at boot instead of OOMing mid-review. Override with
+    ``PRTHINKER_ALLOW_DENSIFYING_QUANT=1``.
     """
     is_4bit = bool(getattr(model, "is_loaded_in_4bit", False))
     risk = densification_risk(is_4bit, transformers.__version__)
