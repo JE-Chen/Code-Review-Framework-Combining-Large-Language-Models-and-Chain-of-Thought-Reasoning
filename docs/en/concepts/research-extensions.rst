@@ -583,8 +583,19 @@ no inference — so they run on the runner profile.
   the model findings.
 * **HTML report** (``--html-report PATH``) — a standalone, XSS-safe HTML
   review report (severity summary + per-file findings) with an
-  *Orientation signals* section listing the no-model signals; every
+  *Orientation signals* section listing the no-model signals; styled with
+  an embedded stylesheet (no network fetch) and showing diff totals; every
   signal's path is escaped like the rest of the document.
+* **GitLab Code Quality** (``--codequality-out PATH``) — write findings +
+  located signals as a CodeClimate-format JSON array (description,
+  severity, stable fingerprint, path + begin line) so a GitLab MR renders
+  them in its Code Quality widget. Severities map error→critical,
+  warning→major, info→info.
+* **JUnit XML report** (``--junit-out PATH``) — write findings + located
+  signals as JUnit XML (one ``testsuite`` per file, one ``testcase`` per
+  finding; error severity → ``error``, otherwise ``failure``) so CI
+  test-report viewers surface them alongside the unit tests. All dynamic
+  text is escaped; the writer never parses XML.
 * **Finding suppression** (``--ignore-file`` / ``.prthinkerignore``) —
   drop findings by path glob, ``severity:<level>``, or ``rule:<id>``
   (substring match on the comment). Missing file is a no-op.

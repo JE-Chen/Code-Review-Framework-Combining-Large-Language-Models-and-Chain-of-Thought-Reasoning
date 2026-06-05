@@ -492,8 +492,18 @@ sweep、GPU OOM、runner 超时、人工 ``ask/cancel``\ ）\ ，现有之
   ``prthinker/trojan-source``\ 、\ ``prthinker/merge-conflict``\ …）,使
   viewer 能与模型 findings 区分过滤\ 。
 * **HTML 报告**\ （\ ``--html-report PATH``\ ）——独立、XSS-safe 之 HTML
-  审查报告（严重度摘要 + 各文件 findings）,并含\ *Orientation signals*\ 区段
-  列出无需模型之信号;每个信号之路径与文件其余部分一样经转义处理\ 。
+  审查报告（严重度摘要 + diff 总计 + 各文件 findings）,并含\
+  *Orientation signals*\ 区段列出无需模型之信号;以内嵌样式表呈现(不发网络
+  请求),每个信号之路径与文件其余部分一样经转义处理\ 。
+* **GitLab Code Quality**\ （\ ``--codequality-out PATH``\ ）——将 findings
+  与有定位之信号输出为 CodeClimate 格式 JSON 数组（description、severity、
+  稳定 fingerprint、path + 起始行）,使 GitLab MR 在 Code Quality widget
+  呈现。severity 映射 error→critical、warning→major、info→info\ 。
+* **JUnit XML 报告**\ （\ ``--junit-out PATH``\ ）——将 findings 与有定位之
+  信号输出为 JUnit XML(每文件一个 ``testsuite``、每条 finding 一个
+  ``testcase``;error 严重度→\ ``error``\ ,其余→\ ``failure``\ ),使 CI
+  test-report 查看器与单元测试并列显示。所有动态文本皆转义,且写入端不解析
+  XML\ 。
 * **finding 抑制**\ （\ ``--ignore-file`` / ``.prthinkerignore``\ ）——依
   路径 glob、\ ``severity:<level>``\ 、或 ``rule:<id>``\ （对 comment 子串
   匹配）丢弃 findings。缺文件即 no-op。

@@ -44,6 +44,8 @@ from prthinker.cli_review import (
 )
 from prthinker.html_report import write_report
 from prthinker.sarif import write_sarif
+from prthinker.codequality import write_codequality
+from prthinker.junit_report import write_junit
 from prthinker.cli_commands_helpers import (
     _close_aggregate_gate,
     _open_aggregate_gate,
@@ -83,6 +85,24 @@ def _maybe_write_html_report(args: argparse.Namespace, result: ReviewResult) -> 
         return
     write_report(result, Path(out))
     log.info("Wrote HTML report to %s", out)
+
+
+def _maybe_write_codequality(args: argparse.Namespace, result: ReviewResult) -> None:
+    """Write the GitLab Code Quality JSON report when requested."""
+    out = getattr(args, "codequality_out", "") or ""
+    if not out:
+        return
+    write_codequality(result, out)
+    log.info("Wrote Code Quality report to %s", out)
+
+
+def _maybe_write_junit(args: argparse.Namespace, result: ReviewResult) -> None:
+    """Write the JUnit XML report when requested."""
+    out = getattr(args, "junit_out", "") or ""
+    if not out:
+        return
+    write_junit(result, out)
+    log.info("Wrote JUnit report to %s", out)
 
 
 def _exclude_glob_patterns(args: argparse.Namespace) -> list[str]:
@@ -210,6 +230,8 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
     _maybe_write_job_summary(pages[0])
     _maybe_write_sarif(args, merged)
     _maybe_write_html_report(args, merged)
+    _maybe_write_codequality(args, merged)
+    _maybe_write_junit(args, merged)
     if args.dry_run:
         sys.stdout.write("\n\n".join(pages))
         if merged.inline_findings:

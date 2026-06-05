@@ -730,6 +730,18 @@ def _add_report_output_args(common: argparse.ArgumentParser) -> None:
         help="Write a standalone HTML review report to this path.",
     )
     common.add_argument(
+        "--codequality-out",
+        default=env_str("PRTHINKER_CODEQUALITY_OUT"),
+        help="Write findings + signals as a GitLab Code Quality "
+             "(CodeClimate) JSON report to this path.",
+    )
+    common.add_argument(
+        "--junit-out",
+        default=env_str("PRTHINKER_JUNIT_OUT"),
+        help="Write findings + signals as a JUnit XML report to this path "
+             "(for CI test-report viewers).",
+    )
+    common.add_argument(
         "--ignore-file",
         default=env_str("PRTHINKER_IGNORE_FILE", ".prthinkerignore"),
         help="Path to a .prthinkerignore file (glob / rule: / severity: "

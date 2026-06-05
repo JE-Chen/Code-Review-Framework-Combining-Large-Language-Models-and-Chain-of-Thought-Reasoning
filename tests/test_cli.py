@@ -46,6 +46,25 @@ def test_findings_only_flag_parses() -> None:
     assert ns.findings_only is True
 
 
+def test_codequality_and_junit_out_flags_parse() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote", "--remote-url", "http://x",
+        "--codequality-out", "cq.json", "--junit-out", "junit.xml",
+    ])
+    assert ns.codequality_out == "cq.json"
+    assert ns.junit_out == "junit.xml"
+
+
+def test_codequality_and_junit_default_none() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote", "--remote-url", "http://x",
+    ])
+    assert ns.codequality_out is None
+    assert ns.junit_out is None
+
+
 def test_findings_only_defaults_false() -> None:
     p = _build_parser()
     ns = p.parse_args([

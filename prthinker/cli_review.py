@@ -68,6 +68,8 @@ from prthinker.review_delta import (
     save_fingerprints,
 )
 from prthinker.html_report import write_report
+from prthinker.codequality import write_codequality
+from prthinker.junit_report import write_junit
 from prthinker.ignore import filter_findings, load_ignore
 from prthinker.sarif import write_sarif
 from prthinker.incremental_save import (
@@ -777,7 +779,7 @@ def _postprocess_findings(args: argparse.Namespace, result: ReviewResult) -> Non
 
 
 def _emit_review_artifacts(args: argparse.Namespace, result: ReviewResult) -> None:
-    """Write optional SARIF / HTML report artifacts when requested."""
+    """Write optional SARIF / HTML / Code Quality / JUnit artifacts."""
     sarif_out = getattr(args, "sarif_out", "") or ""
     if sarif_out:
         write_sarif(result, sarif_out)
@@ -786,6 +788,14 @@ def _emit_review_artifacts(args: argparse.Namespace, result: ReviewResult) -> No
     if html_out:
         write_report(result, Path(html_out))
         log.info("Wrote HTML report to %s", html_out)
+    cq_out = getattr(args, "codequality_out", "") or ""
+    if cq_out:
+        write_codequality(result, cq_out)
+        log.info("Wrote Code Quality report to %s", cq_out)
+    junit_out = getattr(args, "junit_out", "") or ""
+    if junit_out:
+        write_junit(result, junit_out)
+        log.info("Wrote JUnit report to %s", junit_out)
 
 
 def _append_api_impact(body: str, result: ReviewResult) -> str:
