@@ -89,6 +89,13 @@ prompt-injection 防護、finding 在地化、golden-set 快照、評估 harness
 骨架、成本估算與預算，以及聚焦審查模式（security / performance /
 test-coverage / IaC / DB-migration / accessibility / secret-scan / PII）。
 
+**審查導航訊號（無需模型）**：十三個純函式檢查呈現於每則 PR 摘要下方，
+亦可透過 `prthinker triage`（無 backend、瞬間、GPU-free）或 MCP `triage_diff`
+工具獨立執行──Trojan-Source 雙向／不可見字元、殘留合併衝突標記、重新命名／
+搬移、刪除、mode／執行位變更、lockfile／vendored／minified 雜訊、純格式變更、
+二進位變更、大段貼上、覆蓋缺口、新增 TODO/FIXME 標記、殘留 debug 敘述、
+吞錯 `except: pass`。
+
 設計細節見 [`docs/zh-TW/concepts/research-extensions.rst`](../docs/zh-TW/concepts/research-extensions.rst)。
 
 ## 快速開始
@@ -136,6 +143,10 @@ prthinker adversarial-eval \
     --corpus prthinker/adversarial_corpus/seed.jsonl \
     --outcomes-path .prthinker/adversarial.sqlite \
     --backend openai --openai-model gpt-4o-mini
+
+# 無需模型的靜態 triage──不啟動 backend、瞬間、GPU-free
+git diff origin/main | prthinker triage
+prthinker triage --staged --exit-nonzero-on-signal   # 便宜的合併前 gate
 ```
 
 部署推論伺服器（需要 GPU 與較重的相依）：
