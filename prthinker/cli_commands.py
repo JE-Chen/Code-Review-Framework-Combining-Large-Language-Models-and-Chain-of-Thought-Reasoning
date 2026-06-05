@@ -46,6 +46,8 @@ from prthinker.html_report import write_report
 from prthinker.sarif import write_sarif
 from prthinker.codequality import write_codequality
 from prthinker.junit_report import write_junit
+from prthinker.csv_report import write_csv
+from prthinker.metrics import write_metrics
 from prthinker.cli_commands_helpers import (
     _close_aggregate_gate,
     _open_aggregate_gate,
@@ -103,6 +105,24 @@ def _maybe_write_junit(args: argparse.Namespace, result: ReviewResult) -> None:
         return
     write_junit(result, out)
     log.info("Wrote JUnit report to %s", out)
+
+
+def _maybe_write_csv(args: argparse.Namespace, result: ReviewResult) -> None:
+    """Write the flat CSV report when requested."""
+    out = getattr(args, "csv_out", "") or ""
+    if not out:
+        return
+    write_csv(result, out)
+    log.info("Wrote CSV report to %s", out)
+
+
+def _maybe_write_metrics(args: argparse.Namespace, result: ReviewResult) -> None:
+    """Write the metrics-rollup JSON when requested."""
+    out = getattr(args, "metrics_out", "") or ""
+    if not out:
+        return
+    write_metrics(result, out)
+    log.info("Wrote metrics to %s", out)
 
 
 def _exclude_glob_patterns(args: argparse.Namespace) -> list[str]:
@@ -232,6 +252,8 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
     _maybe_write_html_report(args, merged)
     _maybe_write_codequality(args, merged)
     _maybe_write_junit(args, merged)
+    _maybe_write_csv(args, merged)
+    _maybe_write_metrics(args, merged)
     if args.dry_run:
         sys.stdout.write("\n\n".join(pages))
         if merged.inline_findings:

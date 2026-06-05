@@ -65,6 +65,25 @@ def test_codequality_and_junit_default_none() -> None:
     assert ns.junit_out is None
 
 
+def test_csv_and_metrics_out_flags_parse() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote", "--remote-url", "http://x",
+        "--csv-out", "f.csv", "--metrics-out", "m.json",
+    ])
+    assert ns.csv_out == "f.csv"
+    assert ns.metrics_out == "m.json"
+
+
+def test_csv_and_metrics_default_none() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote", "--remote-url", "http://x",
+    ])
+    assert ns.csv_out is None
+    assert ns.metrics_out is None
+
+
 def test_findings_only_defaults_false() -> None:
     p = _build_parser()
     ns = p.parse_args([

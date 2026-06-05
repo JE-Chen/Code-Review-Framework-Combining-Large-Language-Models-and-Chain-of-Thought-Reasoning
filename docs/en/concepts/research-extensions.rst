@@ -598,6 +598,13 @@ no inference — so they run on the runner profile.
   finding; error severity → ``error``, otherwise ``failure``) so CI
   test-report viewers surface them alongside the unit tests. All dynamic
   text is escaped; the writer never parses XML.
+* **CSV export** (``--csv-out PATH``) — write findings + located signals
+  as a flat CSV (``type,rule,severity,path,line,message``) for spreadsheet
+  or ``awk`` triage; the stdlib ``csv`` writer quotes commas / newlines.
+* **Metrics rollup** (``--metrics-out PATH``) — write one compact JSON
+  record per review (findings by severity, signals by rule + level, diff
+  totals, files reviewed) for dashboards / trend tracking, versioned by
+  ``schema_version``.
 * **Finding suppression** (``--ignore-file`` / ``.prthinkerignore``) —
   drop findings by path glob, ``severity:<level>``, or ``rule:<id>``
   (substring match on the comment). Missing file is a no-op.

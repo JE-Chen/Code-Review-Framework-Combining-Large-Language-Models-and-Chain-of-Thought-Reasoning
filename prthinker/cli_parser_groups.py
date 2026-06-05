@@ -742,6 +742,18 @@ def _add_report_output_args(common: argparse.ArgumentParser) -> None:
              "(for CI test-report viewers).",
     )
     common.add_argument(
+        "--csv-out",
+        default=env_str("PRTHINKER_CSV_OUT"),
+        help="Write findings + signals as a flat CSV to this path "
+             "(spreadsheet / awk triage).",
+    )
+    common.add_argument(
+        "--metrics-out",
+        default=env_str("PRTHINKER_METRICS_OUT"),
+        help="Write a machine-readable metrics-rollup JSON (counts by "
+             "severity / signal, diff totals) to this path.",
+    )
+    common.add_argument(
         "--ignore-file",
         default=env_str("PRTHINKER_IGNORE_FILE", ".prthinkerignore"),
         help="Path to a .prthinkerignore file (glob / rule: / severity: "

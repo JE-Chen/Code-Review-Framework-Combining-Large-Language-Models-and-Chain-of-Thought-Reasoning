@@ -70,6 +70,8 @@ from prthinker.review_delta import (
 from prthinker.html_report import write_report
 from prthinker.codequality import write_codequality
 from prthinker.junit_report import write_junit
+from prthinker.csv_report import write_csv
+from prthinker.metrics import write_metrics
 from prthinker.ignore import filter_findings, load_ignore
 from prthinker.sarif import write_sarif
 from prthinker.incremental_save import (
@@ -796,6 +798,14 @@ def _emit_review_artifacts(args: argparse.Namespace, result: ReviewResult) -> No
     if junit_out:
         write_junit(result, junit_out)
         log.info("Wrote JUnit report to %s", junit_out)
+    csv_out = getattr(args, "csv_out", "") or ""
+    if csv_out:
+        write_csv(result, csv_out)
+        log.info("Wrote CSV report to %s", csv_out)
+    metrics_out = getattr(args, "metrics_out", "") or ""
+    if metrics_out:
+        write_metrics(result, metrics_out)
+        log.info("Wrote metrics to %s", metrics_out)
 
 
 def _append_api_impact(body: str, result: ReviewResult) -> str:

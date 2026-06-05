@@ -506,6 +506,12 @@ sweep、GPU OOM、runner 超时、人工 ``ask/cancel``\ ）\ ，现有之
   ``testcase``;error 严重度→\ ``error``\ ,其余→\ ``failure``\ ),使 CI
   test-report 查看器与单元测试并列显示。所有动态文本皆转义,且写入端不解析
   XML\ 。
+* **CSV 导出**\ （\ ``--csv-out PATH``\ ）——将 findings 与有定位之信号输出为
+  扁平 CSV（\ ``type,rule,severity,path,line,message``\ ）,供电子表格或
+  ``awk`` 分流;stdlib ``csv`` writer 会处理逗号/换行之引号\ 。
+* **Metrics 汇总**\ （\ ``--metrics-out PATH``\ ）——每次 review 输出一条精简
+  JSON(按严重度之 findings、按 rule + level 之 signals、diff 总计、已审
+  文件数),供仪表板/趋势追踪,并以 ``schema_version`` 版本化\ 。
 * **finding 抑制**\ （\ ``--ignore-file`` / ``.prthinkerignore``\ ）——依
   路径 glob、\ ``severity:<level>``\ 、或 ``rule:<id>``\ （对 comment 子串
   匹配）丢弃 findings。缺文件即 no-op。
