@@ -490,7 +490,9 @@ sweep、GPU OOM、runner 逾時、人工 ``ask/cancel``\ ）\ ，現有之
   findings，接 GitHub code-scanning 或任何 SARIF viewer。無需模型之導航訊號
   亦一併輸出,各自掛在專屬 ``prthinker/<rule>`` rule id（\
   ``prthinker/trojan-source``\ 、\ ``prthinker/merge-conflict``\ …）,使
-  viewer 能與模型 findings 區分過濾\ 。
+  viewer 能與模型 findings 區分過濾。每筆 result 帶穩定之
+  ``partialFingerprints`` hash(使 code scanning 可跨 run 去重),每條 rule
+  附 ``helpUri`` 與 ``fullDescription``\ 。
 * **HTML 報告**\ （\ ``--html-report PATH``\ ）——獨立、XSS-safe 之 HTML
   審查報告（嚴重度摘要 + diff 總計 + 各檔 findings）,並含\
   *Orientation signals*\ 區段列出無需模型之訊號;以內嵌樣式表呈現(不發網路

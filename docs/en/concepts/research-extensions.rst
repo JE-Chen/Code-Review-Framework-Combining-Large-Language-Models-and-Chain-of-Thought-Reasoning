@@ -580,7 +580,9 @@ no inference — so they run on the runner profile.
   orientation signals are emitted too, each under its own
   ``prthinker/<rule>`` rule id (``prthinker/trojan-source``,
   ``prthinker/merge-conflict``, …) so a viewer can filter them apart from
-  the model findings.
+  the model findings. Every result carries a stable
+  ``partialFingerprints`` hash (so code scanning dedups it across runs)
+  and every rule a ``helpUri`` + ``fullDescription``.
 * **HTML report** (``--html-report PATH``) — a standalone, XSS-safe HTML
   review report (severity summary + per-file findings) with an
   *Orientation signals* section listing the no-model signals; styled with

@@ -254,3 +254,36 @@ def test_signal_json_round_trips():
     result = ReviewResult(code_diff=_CONFLICT_DIFF, rag_docs=[], inline_findings=[])
     sarif = to_sarif(result)
     assert json.loads(json.dumps(sarif)) == sarif
+
+
+# ---------- enrichment: fingerprints + rule help ---------------------------
+
+_FP_KEY = "prthinkerHash/v1"
+
+
+def test_finding_result_has_partial_fingerprint():
+    res = to_sarif(_result([_finding(comment="boom")]))["runs"][0]["results"][0]
+    assert len(res["partialFingerprints"][_FP_KEY]) == 64
+
+
+def test_fingerprint_stable_and_distinct_by_content():
+    f1 = to_sarif(_result([_finding(comment="x", line=1)]))["runs"][0]["results"][0]
+    f2 = to_sarif(_result([_finding(comment="x", line=1)]))["runs"][0]["results"][0]
+    f3 = to_sarif(_result([_finding(comment="y", line=1)]))["runs"][0]["results"][0]
+    assert f1["partialFingerprints"][_FP_KEY] == f2["partialFingerprints"][_FP_KEY]
+    assert f1["partialFingerprints"][_FP_KEY] != f3["partialFingerprints"][_FP_KEY]
+
+
+def test_rules_carry_help_uri_and_full_description():
+    rule = to_sarif(_result([_finding()]))["runs"][0]["tool"]["driver"]["rules"][0]
+    assert rule["helpUri"].startswith("https://")
+    assert rule["fullDescription"]["text"]
+
+
+def test_signal_result_has_fingerprint():
+    result = ReviewResult(code_diff=_CONFLICT_DIFF, rag_docs=[], inline_findings=[])
+    res = next(
+        r for r in to_sarif(result)["runs"][0]["results"]
+        if r["ruleId"] == "prthinker/merge-conflict"
+    )
+    assert len(res["partialFingerprints"][_FP_KEY]) == 64
