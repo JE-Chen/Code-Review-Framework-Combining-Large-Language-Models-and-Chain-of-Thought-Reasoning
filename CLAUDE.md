@@ -347,31 +347,35 @@ actionable error before any review hits the GPU. Override only with
 `PRTHINKER_ALLOW_EAGER_ATTENTION=1`. (The literal "269 GiB" allocation is **not**
 eager attention — see the next section — but eager would also OOM, so the guard stays.)
 
-### GPU Server: bf16, no flash-attn, no dependency pins
+### GPU Server: bf16, no flash-attn, transformers pinned `<5`
 
 The FastAPI server (`Qwen/Qwen3-Coder-30B-A3B-Instruct` + the unmerged 13 GB LoRA) is
 only fast in **bf16**, and now loads it **deterministically**: `load_qwen3_model()`
 requests bf16 directly for the A3B models (`torch_dtype=torch.bfloat16`, no
-`BitsAndBytesConfig`) instead of relying on 4-bit *silently* not engaging — ~75 GB
-across the two 46 GB L40S with `device_map="auto"` (the "~32 GB used on each card"
-signature), ~14 tok/s. `_verify_quant_safe()` refuses to boot if 4-bit somehow
-engaged on transformers ≥ 5 (the densification-OOM combo); override only with
-`PRTHINKER_ALLOW_DENSIFYING_QUANT=1`.
+`BitsAndBytesConfig`) — ~75 GB across the two 46 GB L40S with `device_map="auto"`
+(the "~32 GB used on each card" signature), ~14 tok/s.
 
-On this hardware, do **NOT**:
+**transformers must be pinned `<5`** (`pyproject.toml` `[local]` →
+`transformers>=4.51,<5`). transformers **≥ 5 densifies the Qwen3-A3B MoE forward**
+to a `[seq, hidden, intermediate]` tensor (**~48 MiB per input token, linear in
+length**) and OOMs the L40S on a multi-thousand-token review. This was first seen
+as the 4-bit "269 GiB" OOM, but it is **NOT specific to quantization** — it also
+densifies in plain **bf16**: observed on **5.10.2** a 2357-token file tried to
+allocate **110 GiB** (`quant=none`). The 4.x MoE forward routes sparsely and does
+not densify; 4.51+ carries the Qwen3-MoE architecture the model needs. Because
+`load_qwen3_model()` requests bf16 and never passes a `BitsAndBytesConfig`, the
+`<5` pin does **not** re-engage bitsandbytes 4-bit. `_verify_quant_safe()` refuses
+to boot on transformers ≥ 5 (bf16 or 4-bit), and `_probe_generation()` runs a real
+~4 K-token generate at boot — do **not** set `PRTHINKER_SKIP_BOOT_PROBE`, or a
+densifying build serves and OOMs on the first review. Override the guard only with
+`PRTHINKER_ALLOW_DENSIFYING_QUANT=1` once a fixed 5.x is verified.
 
-- **install flash-attn** (the image must dispatch attention to SDPA), or
-- **pin `transformers<5`**.
-
-Either one makes bnb 4-bit actually engage; per-token nf4 dequant of the MoE then
-crushes decode to ~4.5 tok/s (a single-file CoT review times out past 30 min). The
-flash_attention_2 + 4-bit + transformers-5.x combination is also what produces the
-opaque "Tried to allocate 269 GiB" OOM (a transformers-5.x MoE-densification path,
-linear in input length). Under bf16 + SDPA, transformers 5.x does **not** densify and
-multi-thousand-token prompts run fine (a ~6 K-token prompt completes in ~27 s).
+Also do **NOT install flash-attn** — the image must dispatch attention to SDPA;
+flash-attn nudges bitsandbytes 4-bit back into effect (per-token nf4 dequant of the
+MoE crushes decode to ~4.5 tok/s).
 
 The supported deploy is the `docker/Dockerfile.server` shipped here: CUDA
-`12.2.0-runtime` base, **no** flash-attn step, **unpinned** `[local]` deps,
+`12.2.0-runtime` base, **no** flash-attn step, `[local]` deps with `transformers<5`,
 `device_map="auto"` (dual-card), LoRA left **unmerged**. Keep
 `TRANSFORMERS_CACHE=/cache/huggingface/hub` — without the `/hub` segment transformers
 obeys the deprecated var and looks in an empty dir, hanging (online) or OSErroring

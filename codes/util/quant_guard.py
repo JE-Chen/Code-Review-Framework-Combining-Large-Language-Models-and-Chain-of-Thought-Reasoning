@@ -20,22 +20,26 @@ def major_version(version: str) -> int | None:
 
 
 def densification_risk(is_4bit: bool, transformers_version: str) -> str | None:
-    """Return an error message for the 4-bit + transformers>=5 combo, else None.
+    """Return an error message when transformers>=5 will densify the MoE, else None.
 
-    That combination is the documented Qwen3-A3B MoE densification OOM. A
-    safe load (bf16, or transformers<5) returns ``None``.
+    transformers>=5 densifies the Qwen3-A3B MoE forward to a
+    ``[seq, hidden, intermediate]`` tensor (~48 MiB per input token, linear
+    in length) and OOMs the L40S on a multi-thousand-token review. This
+    happens in **bf16 and 4-bit alike** — the bf16 densification was
+    observed on 5.10.2 (a 2357-token file tried to allocate 110 GiB), so it
+    is not specific to quantization. The 4.x MoE forward routes sparsely and
+    is safe. An unparseable version fails open (cannot prove >=5).
+    ``is_4bit`` only sharpens the message.
     """
-    if not is_4bit:
-        return None
     major = major_version(transformers_version)
     if major is None or major < 5:
         return None
+    quant = "4-bit" if is_4bit else "bf16"
     return (
-        f"bitsandbytes 4-bit engaged on transformers {transformers_version}: "
-        "transformers>=5 densifies the Qwen3-A3B MoE forward (the allocation "
-        "grows linearly with input length) and OOMs the GPU. The supported "
-        "deploy loads bf16 and never requests 4-bit; rebuild without 4-bit "
-        "(or pin transformers<5)."
+        f"transformers {transformers_version} densifies the Qwen3-A3B MoE "
+        f"forward in {quant} (~48 MiB per input token, linear) and OOMs the "
+        "GPU on a multi-thousand-token review. Pin transformers<5 — the 4.x "
+        "MoE forward routes sparsely; the supported deploy loads bf16."
     )
 
 
