@@ -105,6 +105,24 @@ def _render_triage(
     return header + "\n" + "\n\n".join(sections) + "\n"
 
 
+def triage_markdown(diff_text: str) -> str:
+    """Render the full triage report for a diff as markdown.
+
+    The reusable core behind both the ``triage`` command and the MCP
+    ``triage_diff`` tool: parse the changed paths, run every no-model
+    signal, and format the header + non-empty blocks.
+    """
+    changed = [file_diff.path for file_diff in parse_unified_diff(diff_text)]
+    sections = build_static_signal_sections(diff_text, changed)
+    return _render_triage(diff_text, changed, sections)
+
+
+def _has_signal(diff_text: str) -> bool:
+    """True when at least one no-model signal fires for the diff."""
+    changed = [file_diff.path for file_diff in parse_unified_diff(diff_text)]
+    return bool(build_static_signal_sections(diff_text, changed))
+
+
 def _cmd_triage(args: argparse.Namespace) -> int:
     """Run the no-model orientation signals over a diff and print them."""
     diff, code = _resolve_diff(args)
@@ -113,12 +131,10 @@ def _cmd_triage(args: argparse.Namespace) -> int:
     if not diff.strip():
         sys.stdout.write("prthinker triage: empty diff — nothing to check.\n")
         return 0
-    changed = [file_diff.path for file_diff in parse_unified_diff(diff)]
-    sections = build_static_signal_sections(diff, changed)
-    sys.stdout.write(_render_triage(diff, changed, sections))
-    if sections and getattr(args, "exit_nonzero_on_signal", False):
+    sys.stdout.write(triage_markdown(diff))
+    if getattr(args, "exit_nonzero_on_signal", False) and _has_signal(diff):
         return 1
     return 0
 
 
-__all__ = ["_cmd_triage"]
+__all__ = ["_cmd_triage", "triage_markdown"]

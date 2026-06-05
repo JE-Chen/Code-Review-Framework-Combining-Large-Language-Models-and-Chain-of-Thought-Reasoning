@@ -101,6 +101,13 @@ Tools exposed
      - Run the CoT pipeline against a unified diff string. Returns a
        markdown body identical to what would land in the PR summary
        comment. ``redact_secrets`` defaults to ``True``.
+   * - ``triage_diff``
+     - Run the model-free static signals over a unified diff string (no
+       backend call): conflict markers, Trojan-Source glyphs, swallowed
+       exceptions, renames, deletions, mode changes, large pastes,
+       formatting-only churn, coverage gaps, debug leftovers, and
+       deferred-work markers. Instant and free; ``redact_secrets``
+       defaults to ``True``. Same output as the ``triage`` CLI command.
    * - ``stats``
      - Aggregate the local telemetry SQLite over a time window and
        return a markdown table. Useful for "how much did this week of

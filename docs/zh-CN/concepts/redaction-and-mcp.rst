@@ -93,6 +93,11 @@ MCP server 适配器，任何 MCP client 都能在 IDE 内直接驱动 review─
    * - ``review_diff``
      - 对 unified diff 字符串跑完整 CoT pipeline，返回与 PR 评论一样的
        markdown body。\ ``redact_secrets`` 默认 ``True``\ 。
+   * - ``triage_diff``
+     - 对 unified diff 字符串跑无需模型的静态信号（不调用 backend）：冲突标记、
+       Trojan-Source 字符、吞错、重命名、删除、mode 变更、大段粘贴、纯格式
+       变更、覆盖缺口、残留 debug 与延迟工作标记。瞬间且免费;\
+       ``redact_secrets`` 默认 ``True``\ 。输出同 ``triage`` CLI 命令\ 。
    * - ``stats``
      - 对本地 telemetry SQLite 在指定时间区间做聚合，返回 markdown 表。
        适合「这周 review 烧了多少」这类提问。

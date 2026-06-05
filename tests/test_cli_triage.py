@@ -136,6 +136,17 @@ def test_git_missing_returns_error(monkeypatch, capsys):
     assert "git` not found" in capsys.readouterr().err
 
 
+def test_triage_markdown_renders_signal():
+    md = cli_triage.triage_markdown(_CONFLICT_DIFF)
+    assert "prthinker triage —" in md
+    assert "merge-conflict marker(s)" in md
+
+
+def test_triage_markdown_clean_diff():
+    md = cli_triage.triage_markdown(_CLEAN_DIFF)
+    assert "No triage signals" in md
+
+
 def test_triage_registered_in_command_handlers():
     from prthinker import cli
 
