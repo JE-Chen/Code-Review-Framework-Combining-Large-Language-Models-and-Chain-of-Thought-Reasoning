@@ -265,14 +265,17 @@ def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     if lora_path:
-        # low_cpu_mem_usage materialises each adapter tensor straight onto
-        # its base layer's device instead of loading the whole ~16 GiB
-        # adapter onto GPU 0 first (PEFT's safe_load_file otherwise targets
-        # a single device and OOMs the already-loaded card). With the
-        # balanced base split above this keeps both cards well under their
-        # 44 GiB usable ceiling.
+        # Stage the ~13 GiB adapter on CPU, not a GPU. PEFT defaults the
+        # adapter load to cuda:0; from there it either piles the whole
+        # adapter onto GPU 0 (low_cpu_mem_usage=True) or buffers the full
+        # state dict on GPU 0 before redistributing (the default), and
+        # either way the transient peak OOMs the already-loaded card on
+        # this 30B-A3B + r=64 expert LoRA. torch_device="cpu" keeps the
+        # source in host RAM; PEFT then moves each adapter tensor straight
+        # to its base layer's device, so the adapter splits evenly across
+        # both cards (~6.3 GiB each) and neither GPU spikes during load.
         model = PeftModel.from_pretrained(
-            model, lora_path, low_cpu_mem_usage=True
+            model, lora_path, torch_device="cpu"
         )
         print(datetime.datetime.now(), "LoRa loaded")
         # PeftModel wraps the base; re-verify in case the LoRA path
