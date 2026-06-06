@@ -68,6 +68,14 @@ from prthinker.review_delta import (
     save_fingerprints,
 )
 from prthinker.html_report import write_report
+from prthinker.codequality import write_codequality
+from prthinker.junit_report import write_junit
+from prthinker.csv_report import write_csv
+from prthinker.metrics import write_metrics
+from prthinker.markdown_report import write_markdown
+from prthinker.gha_annotations import print_gha_annotations
+from prthinker.sonar_report import write_sonar
+from prthinker.report_formats import write_report_dir
 from prthinker.ignore import filter_findings, load_ignore
 from prthinker.sarif import write_sarif
 from prthinker.incremental_save import (
@@ -777,7 +785,7 @@ def _postprocess_findings(args: argparse.Namespace, result: ReviewResult) -> Non
 
 
 def _emit_review_artifacts(args: argparse.Namespace, result: ReviewResult) -> None:
-    """Write optional SARIF / HTML report artifacts when requested."""
+    """Write optional SARIF / HTML / Code Quality / JUnit artifacts."""
     sarif_out = getattr(args, "sarif_out", "") or ""
     if sarif_out:
         write_sarif(result, sarif_out)
@@ -786,6 +794,36 @@ def _emit_review_artifacts(args: argparse.Namespace, result: ReviewResult) -> No
     if html_out:
         write_report(result, Path(html_out))
         log.info("Wrote HTML report to %s", html_out)
+    cq_out = getattr(args, "codequality_out", "") or ""
+    if cq_out:
+        write_codequality(result, cq_out)
+        log.info("Wrote Code Quality report to %s", cq_out)
+    junit_out = getattr(args, "junit_out", "") or ""
+    if junit_out:
+        write_junit(result, junit_out)
+        log.info("Wrote JUnit report to %s", junit_out)
+    csv_out = getattr(args, "csv_out", "") or ""
+    if csv_out:
+        write_csv(result, csv_out)
+        log.info("Wrote CSV report to %s", csv_out)
+    metrics_out = getattr(args, "metrics_out", "") or ""
+    if metrics_out:
+        write_metrics(result, metrics_out)
+        log.info("Wrote metrics to %s", metrics_out)
+    markdown_out = getattr(args, "markdown_out", "") or ""
+    if markdown_out:
+        write_markdown(result, markdown_out)
+        log.info("Wrote Markdown report to %s", markdown_out)
+    sonar_out = getattr(args, "sonar_out", "") or ""
+    if sonar_out:
+        write_sonar(result, sonar_out)
+        log.info("Wrote Sonar report to %s", sonar_out)
+    report_dir = getattr(args, "report_dir", "") or ""
+    if report_dir:
+        written = write_report_dir(result, report_dir)
+        log.info("Wrote %d reports to %s", len(written), report_dir)
+    if getattr(args, "gha_annotations", False):
+        print_gha_annotations(result)
 
 
 def _append_api_impact(body: str, result: ReviewResult) -> str:

@@ -730,6 +730,55 @@ def _add_report_output_args(common: argparse.ArgumentParser) -> None:
         help="Write a standalone HTML review report to this path.",
     )
     common.add_argument(
+        "--codequality-out",
+        default=env_str("PRTHINKER_CODEQUALITY_OUT"),
+        help="Write findings + signals as a GitLab Code Quality "
+             "(CodeClimate) JSON report to this path.",
+    )
+    common.add_argument(
+        "--junit-out",
+        default=env_str("PRTHINKER_JUNIT_OUT"),
+        help="Write findings + signals as a JUnit XML report to this path "
+             "(for CI test-report viewers).",
+    )
+    common.add_argument(
+        "--csv-out",
+        default=env_str("PRTHINKER_CSV_OUT"),
+        help="Write findings + signals as a flat CSV to this path "
+             "(spreadsheet / awk triage).",
+    )
+    common.add_argument(
+        "--metrics-out",
+        default=env_str("PRTHINKER_METRICS_OUT"),
+        help="Write a machine-readable metrics-rollup JSON (counts by "
+             "severity / signal, diff totals) to this path.",
+    )
+    common.add_argument(
+        "--markdown-out",
+        default=env_str("PRTHINKER_MARKDOWN_OUT"),
+        help="Write a standalone Markdown review report to this path.",
+    )
+    common.add_argument(
+        "--sonar-out",
+        default=env_str("PRTHINKER_SONAR_OUT"),
+        help="Write findings + signals as SonarQube Generic Issue Data "
+             "JSON to this path.",
+    )
+    common.add_argument(
+        "--report-dir",
+        default=env_str("PRTHINKER_REPORT_DIR"),
+        help="Write every file-based report format (SARIF / HTML / "
+             "Markdown / Code Quality / Sonar / JUnit / CSV / metrics) "
+             "into this directory with standard filenames.",
+    )
+    common.add_argument(
+        "--gha-annotations",
+        action="store_true",
+        default=env_bool("PRTHINKER_GHA_ANNOTATIONS", False),
+        help="Emit findings + signals as GitHub Actions workflow commands "
+             "on stdout (inline ::error / ::warning / ::notice annotations).",
+    )
+    common.add_argument(
         "--ignore-file",
         default=env_str("PRTHINKER_IGNORE_FILE", ".prthinkerignore"),
         help="Path to a .prthinkerignore file (glob / rule: / severity: "

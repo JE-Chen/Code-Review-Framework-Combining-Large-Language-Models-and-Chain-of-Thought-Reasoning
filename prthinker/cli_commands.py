@@ -44,6 +44,14 @@ from prthinker.cli_review import (
 )
 from prthinker.html_report import write_report
 from prthinker.sarif import write_sarif
+from prthinker.codequality import write_codequality
+from prthinker.junit_report import write_junit
+from prthinker.csv_report import write_csv
+from prthinker.metrics import write_metrics
+from prthinker.markdown_report import write_markdown
+from prthinker.gha_annotations import print_gha_annotations
+from prthinker.sonar_report import write_sonar
+from prthinker.report_formats import write_report_dir
 from prthinker.cli_commands_helpers import (
     _close_aggregate_gate,
     _open_aggregate_gate,
@@ -83,6 +91,77 @@ def _maybe_write_html_report(args: argparse.Namespace, result: ReviewResult) -> 
         return
     write_report(result, Path(out))
     log.info("Wrote HTML report to %s", out)
+
+
+def _maybe_write_codequality(args: argparse.Namespace, result: ReviewResult) -> None:
+    """Write the GitLab Code Quality JSON report when requested."""
+    out = getattr(args, "codequality_out", "") or ""
+    if not out:
+        return
+    write_codequality(result, out)
+    log.info("Wrote Code Quality report to %s", out)
+
+
+def _maybe_write_junit(args: argparse.Namespace, result: ReviewResult) -> None:
+    """Write the JUnit XML report when requested."""
+    out = getattr(args, "junit_out", "") or ""
+    if not out:
+        return
+    write_junit(result, out)
+    log.info("Wrote JUnit report to %s", out)
+
+
+def _maybe_write_csv(args: argparse.Namespace, result: ReviewResult) -> None:
+    """Write the flat CSV report when requested."""
+    out = getattr(args, "csv_out", "") or ""
+    if not out:
+        return
+    write_csv(result, out)
+    log.info("Wrote CSV report to %s", out)
+
+
+def _maybe_write_metrics(args: argparse.Namespace, result: ReviewResult) -> None:
+    """Write the metrics-rollup JSON when requested."""
+    out = getattr(args, "metrics_out", "") or ""
+    if not out:
+        return
+    write_metrics(result, out)
+    log.info("Wrote metrics to %s", out)
+
+
+def _maybe_write_markdown(args: argparse.Namespace, result: ReviewResult) -> None:
+    """Write the standalone Markdown report when requested."""
+    out = getattr(args, "markdown_out", "") or ""
+    if not out:
+        return
+    write_markdown(result, out)
+    log.info("Wrote Markdown report to %s", out)
+
+
+def _maybe_write_sonar(args: argparse.Namespace, result: ReviewResult) -> None:
+    """Write the SonarQube generic-issue JSON when requested."""
+    out = getattr(args, "sonar_out", "") or ""
+    if not out:
+        return
+    write_sonar(result, out)
+    log.info("Wrote Sonar report to %s", out)
+
+
+def _maybe_write_report_dir(args: argparse.Namespace, result: ReviewResult) -> None:
+    """Write every file-based report into --report-dir when requested."""
+    out = getattr(args, "report_dir", "") or ""
+    if not out:
+        return
+    written = write_report_dir(result, out)
+    log.info("Wrote %d reports to %s", len(written), out)
+
+
+def _maybe_emit_gha_annotations(
+    args: argparse.Namespace, result: ReviewResult
+) -> None:
+    """Emit GitHub Actions inline annotations on stdout when requested."""
+    if getattr(args, "gha_annotations", False):
+        print_gha_annotations(result)
 
 
 def _exclude_glob_patterns(args: argparse.Namespace) -> list[str]:
@@ -210,6 +289,14 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
     _maybe_write_job_summary(pages[0])
     _maybe_write_sarif(args, merged)
     _maybe_write_html_report(args, merged)
+    _maybe_write_codequality(args, merged)
+    _maybe_write_junit(args, merged)
+    _maybe_write_csv(args, merged)
+    _maybe_write_metrics(args, merged)
+    _maybe_write_markdown(args, merged)
+    _maybe_write_sonar(args, merged)
+    _maybe_write_report_dir(args, merged)
+    _maybe_emit_gha_annotations(args, merged)
     if args.dry_run:
         sys.stdout.write("\n\n".join(pages))
         if merged.inline_findings:
