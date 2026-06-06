@@ -941,7 +941,7 @@ class CoTPipeline:
         a wrongly-posted finding is recoverable but a silently-dropped one
         is not.
         """
-        from codes.run.CoT_Prompts.finding_self_review import (
+        from prthinker.prompts.finding_self_review import (
             FINDING_SELF_REVIEW_TEMPLATE,
         )
 
