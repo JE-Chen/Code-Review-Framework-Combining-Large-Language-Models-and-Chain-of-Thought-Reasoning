@@ -158,3 +158,65 @@ def test_invalid_json_is_skipped_not_fatal(tmp_path):
                   _matrix_shard_payload("src/a.py", 1))
     merged = merge_partial_reviews([bad, good])
     assert [fr.path for fr in merged.per_file] == ["src/a.py"]
+
+
+# --------------------------------------------------------------------------
+# code_diff is preserved so the aggregate can derive orientation signals
+# --------------------------------------------------------------------------
+
+_CONFLICT_DIFF = (
+    "diff --git a/a.py b/a.py\n"
+    "--- a/a.py\n"
+    "+++ b/a.py\n"
+    "@@ -0,0 +1,1 @@\n"
+    "+<<<<<<< HEAD\n"
+)
+
+
+def _shard_with_diff(path: str, diff: str) -> dict:
+    payload = _matrix_shard_payload(path, 1)
+    payload["code_diff"] = diff
+    return payload
+
+
+def test_merge_preserves_code_diff_from_shard(tmp_path):
+    paths = [_write(tmp_path, "partial-0.json",
+                    _shard_with_diff("a.py", _CONFLICT_DIFF))]
+    merged = merge_partial_reviews(paths)
+    assert merged.code_diff == _CONFLICT_DIFF
+
+
+def test_merge_prefers_nonempty_code_diff_over_carried(tmp_path):
+    # Prior carried-forward partial has code_diff=""; the shard has the
+    # real diff. The non-empty one must win so signals can be derived.
+    paths = [
+        _write(tmp_path, "aaa-prior.json",
+               _carried_forward_payload("a.py", 12)),
+        _write(tmp_path, "partial-0.json",
+               _shard_with_diff("a.py", _CONFLICT_DIFF)),
+    ]
+    merged = merge_partial_reviews(paths)
+    assert merged.code_diff == _CONFLICT_DIFF
+
+
+def test_aggregate_sarif_includes_signals(tmp_path):
+    from prthinker.sarif import to_sarif
+
+    paths = [_write(tmp_path, "partial-0.json",
+                    _shard_with_diff("a.py", _CONFLICT_DIFF))]
+    merged = merge_partial_reviews(paths)
+    rule_ids = {
+        r["ruleId"] for r in to_sarif(merged)["runs"][0]["results"]
+    }
+    assert "prthinker/merge-conflict" in rule_ids
+
+
+def test_aggregate_html_includes_signals(tmp_path):
+    from prthinker.html_report import render_report
+
+    paths = [_write(tmp_path, "partial-0.json",
+                    _shard_with_diff("a.py", _CONFLICT_DIFF))]
+    merged = merge_partial_reviews(paths)
+    out = render_report(merged)
+    assert "Orientation signals" in out
+    assert "Leftover merge-conflict marker" in out

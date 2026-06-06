@@ -28,8 +28,10 @@ from prthinker.repo_kg import (
 )
 from prthinker.cli_review import (
     _append_report_links,
+    _append_review_footer,
     _build_config,
     _build_preliminary_overview,
+    _gate_line,
     _impact_note,
     _join_overview,
     _maybe_set_labels,
@@ -201,8 +203,10 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
         delta=_agg_delta,
         min_confidence=getattr(args, "summary_min_confidence", 0.0),
         table=getattr(args, "summary_table", False),
+        gate=_gate_line(args, merged),
     )
     _append_report_links(args, pages)
+    _append_review_footer(args, merged, pages)
     _maybe_write_job_summary(pages[0])
     _maybe_write_sarif(args, merged)
     _maybe_write_html_report(args, merged)

@@ -60,7 +60,7 @@ def _starts_file(line: str) -> bool:
     return line.startswith("diff --git ")
 
 
-def _git_header_b_path(line: str) -> str | None:
+def git_header_b_path(line: str) -> str | None:
     """Pull the b-side path from a ``diff --git a/path b/path`` header."""
     parts = line.split(" ", 4)
     if len(parts) >= 4 and parts[3].startswith("b/"):
@@ -97,7 +97,7 @@ class _HeaderState:
 def _apply_path_line(line: str, state: _HeaderState) -> None:
     """Fold a path-bearing header line (``diff``/``+++``/``---``) into `state`."""
     if line.startswith("diff --git "):
-        state.fallback = _git_header_b_path(line) or state.fallback
+        state.fallback = git_header_b_path(line) or state.fallback
     elif line.startswith("+++ "):
         state.new_path = _plus_path(line) or state.new_path
     elif line.startswith("--- ") and state.new_path is None:
@@ -200,4 +200,73 @@ def parse_unified_diff(diff_text: str) -> list[FileDiff]:
     return files
 
 
-__all__ = ["FileDiff", "parse_unified_diff"]
+def _content_from_raw(raw: str) -> dict[int, str]:
+    """Map new-side line numbers to their content within one file's diff."""
+    content: dict[int, str] = {}
+    new_line = 0
+    in_hunk = False
+    for line in raw.splitlines():
+        if line.startswith("@@"):
+            match = _HUNK_RE.match(line)
+            in_hunk = match is not None
+            if match:
+                new_line = int(match.group("new_start")) - 1
+            continue
+        if not in_hunk:
+            continue
+        if line.startswith("+") and not line.startswith("+++"):
+            new_line += 1
+            content[new_line] = line[1:]
+        elif line.startswith(" "):
+            new_line += 1
+            content[new_line] = line[1:]
+        # '-' lines are old-side deletions and do not advance the new side.
+    return content
+
+
+def iter_added_lines(raw: str) -> list[tuple[int, str]]:
+    """Return ``(new_line_no, content)`` for added lines in one file's diff.
+
+    Only lines added on the new side are returned; context lines advance
+    the counter but are not emitted, and removed / metadata lines are
+    skipped. Shared by the orientation scanners that care specifically
+    about what a PR *introduces* (deferred-work markers, conflict markers).
+    """
+    out: list[tuple[int, str]] = []
+    new_line = 0
+    in_hunk = False
+    for line in raw.splitlines():
+        match = _HUNK_RE.match(line)
+        if match:
+            in_hunk = True
+            new_line = int(match.group("new_start")) - 1
+            continue
+        if not in_hunk:
+            continue
+        if line.startswith("+") and not line.startswith("+++"):
+            new_line += 1
+            out.append((new_line, line[1:]))
+        elif line.startswith(" "):
+            new_line += 1
+    return out
+
+
+def new_side_content(diff_text: str) -> dict[str, dict[int, str]]:
+    """Map ``{path: {new_line_no: source_text}}`` across a unified diff.
+
+    Lets the summary quote the actual offending line next to a finding so
+    a reviewer reads it without opening the Files-changed tab. Only new-side
+    (added / context) lines are captured; removed lines have no new number.
+    """
+    return {
+        fd.path: _content_from_raw(fd.raw) for fd in parse_unified_diff(diff_text)
+    }
+
+
+__all__ = [
+    "FileDiff",
+    "git_header_b_path",
+    "iter_added_lines",
+    "new_side_content",
+    "parse_unified_diff",
+]

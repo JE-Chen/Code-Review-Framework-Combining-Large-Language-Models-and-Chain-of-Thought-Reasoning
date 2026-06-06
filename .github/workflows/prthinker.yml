@@ -10,9 +10,16 @@ permissions:
   checks: write
   actions: read
 
+# A single shared GPU backend serves every review, so reviews must NOT run
+# concurrently — two at once OOM the card. Use one repo-wide concurrency
+# group (not per-PR) with cancel-in-progress: false so a second PR's run
+# QUEUES behind the one already running instead of starting alongside it.
+# (Per-PR grouping let different PRs run in parallel and contend for the
+# GPU; cancel-in-progress: true would abort a different PR's in-flight
+# review, which we explicitly do not want — it should wait, not cancel.)
 concurrency:
-  group: prthinker-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: prthinker-gpu-serial
+  cancel-in-progress: false
 
 env:
   # fnmatch patterns (comma-separated) for paths that should not be

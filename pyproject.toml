@@ -21,19 +21,19 @@ runner = []
 dev = [
     "pytest>=8.4",
 ]
-# The heavy ML stack is intentionally UNPINNED — the supported deploy
-# loads the 30B-A3B model in bf16 (see CLAUDE.md "GPU Server: bf16, no
-# flash-attn, no dependency pins" and codes/util/qwen3_util.load_qwen3_model).
-# bf16 + SDPA does NOT trigger the transformers>=5 MoE densification path,
-# so transformers 5.x is fine. The danger is the *4-bit + transformers>=5*
-# combination: 4-bit re-engaging on 5.x densifies the A3B MoE forward (an
-# allocation linear in input length) and OOMs the L40S — the recurring
-# "Tried to allocate NN GiB" failure. load_qwen3_model never requests 4-bit
-# for the A3B models, and _verify_quant_safe() refuses to boot if 4-bit
-# somehow engaged on transformers>=5. Do not re-pin transformers<5 or add
-# flash-attn; either nudges bitsandbytes 4-bit back into effect.
+# transformers is pinned <5 on purpose. transformers>=5 densifies the
+# Qwen3-A3B MoE forward to a [seq, hidden, intermediate] tensor (~48 MiB
+# per input token, linear in length) and OOMs the L40S on a multi-thousand
+# -token review — observed on 5.10.2 in bf16: a 2357-token file tried to
+# allocate 110 GiB. This is NOT specific to 4-bit (an earlier, separate
+# OOM): bf16 + SDPA densifies on >=5 just the same. The 4.x MoE forward
+# routes sparsely and does not densify; 4.51+ has the Qwen3-MoE
+# architecture the model needs. load_qwen3_model loads bf16 and never
+# requests 4-bit, so the <5 pin does NOT re-engage bitsandbytes 4-bit.
+# Validate any change with the qwen3_util boot probe (do NOT set
+# PRTHINKER_SKIP_BOOT_PROBE). See CLAUDE.md "GPU Server: bf16".
 local = [
-    "transformers",
+    "transformers>=4.51,<5",
     "torch",
     "accelerate",
     "bitsandbytes",
@@ -48,10 +48,13 @@ server = [
     "pydantic>=2.11",
     "prometheus-fastapi-instrumentator>=7.1",
 ]
-# NOTE: flash-attn is installed separately in docker/Dockerfile.server
-# because its setup.py imports torch at build-isolation time, which
-# pip cannot satisfy before the rest of [server] is installed. See
-# the Dockerfile for the --no-build-isolation step.
+# NOTE: flash-attn is intentionally NOT a dependency and is NOT installed
+# in docker/Dockerfile.server. On the supported deploy the 30B-A3B model
+# runs bf16 + SDPA; installing flash-attn (or re-pinning transformers<5)
+# nudges bitsandbytes 4-bit back into effect, which densifies the A3B MoE
+# forward (an allocation linear in input length) and OOMs the L40S. See
+# CLAUDE.md "GPU Server: bf16, no flash-attn, no dependency pins". Do not
+# add a flash-attn install step.
 mcp = [
     "mcp>=1.9",
 ]

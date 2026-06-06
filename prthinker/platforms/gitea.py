@@ -32,6 +32,7 @@ from typing import Any
 import httpx
 
 from prthinker.checks import CheckResult
+from prthinker.conventional import format_inline_body
 from prthinker.dialogue import AuthorReply
 from prthinker.platforms.base import PlatformAdapter
 from prthinker.schemas import InlineFinding
@@ -50,11 +51,6 @@ _EVENT_TO_GITEA: dict[str, str] = {
     "COMMENT":         "COMMENT",
 }
 
-_SEVERITY_BADGE: dict[str, str] = {
-    "error":   "🔴 **error**",
-    "warning": "🟡 **warning**",
-    "info":    "🔵 _info_",
-}
 
 
 @dataclass
@@ -304,12 +300,8 @@ def _build_inline_comment(finding: InlineFinding) -> dict[str, Any]:
 
 
 def _format_inline_body(finding: InlineFinding) -> str:
-    """Render a finding's badge + comment, with an optional suggestion fence."""
-    badge = _SEVERITY_BADGE.get(finding.severity, finding.severity)
-    body = f"{badge} — {finding.comment.strip()}"
-    if finding.suggestion is not None:
-        body += "\n\n```suggestion\n" + finding.suggestion.rstrip("\n") + "\n```"
-    return body
+    """Render a finding's Conventional-Comments body (shared across platforms)."""
+    return format_inline_body(finding)
 
 
 __all__ = ["GiteaAdapter"]

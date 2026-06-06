@@ -169,6 +169,7 @@ def run() -> int:
         return 1
 
     from prthinker.backends import create_backend
+    from prthinker.cli_triage import triage_markdown
     from prthinker.formatters import format_pr_comment
     from prthinker.pipeline import CoTPipeline
     from prthinker.rag import NoOpRetriever
@@ -221,6 +222,32 @@ def run() -> int:
                 step_outputs=inner.step_outputs,
             )
         return format_pr_comment(result, marker="<!-- prthinker:mcp -->")
+
+    @mcp.tool()
+    def triage_diff(diff: str, redact_secrets: bool = True) -> str:
+        """Run model-free static review signals over a unified diff.
+
+        No backend is called, so this is instant and free — a fast first
+        pass that flags conflict markers, Trojan-Source glyphs, swallowed
+        exceptions, renames, deletions, mode changes, large pastes,
+        formatting-only churn, coverage gaps, debug leftovers, and
+        deferred-work markers.
+
+        Args:
+            diff: The unified diff text (output of ``git diff``).
+            redact_secrets: If True (default), scrub well-known secret
+                patterns first (cheap insurance even though no third party
+                is called here).
+
+        Returns:
+            A markdown report: a header line plus one collapsible block
+            per signal that fired, or a "no signals" notice.
+        """
+        if redact_secrets:
+            diff, report = redact(diff)
+            if report:
+                log.warning("MCP redaction: %s", report.summary())
+        return triage_markdown(diff)
 
     @mcp.tool()
     def stats(since_days: float | None = 7.0) -> str:

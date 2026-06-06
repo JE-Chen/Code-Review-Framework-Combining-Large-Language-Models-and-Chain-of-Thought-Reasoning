@@ -52,21 +52,31 @@ def _extension(path: str) -> str:
     return name.rsplit(".", 1)[-1] if "." in name else _NO_EXT_LABEL
 
 
-def summarize_changes(paths: list[str]) -> str:
-    """A ``12 file(s) across `a/`, `b/` — .py (8) · .rst (3)`` line."""
-    if not paths:
-        return ""
+def _dir_summary(paths: list[str]) -> str:
+    """Top ``_MAX_GROUPS`` directories as `` `a/`, `b/` ``."""
     dirs = Counter(_top_level_dir(p) for p in paths)
+    return ", ".join(f"`{d}/`" for d, _ in dirs.most_common(_MAX_GROUPS))
+
+
+def _ext_summary(paths: list[str]) -> str:
+    """Top ``_MAX_GROUPS`` extensions as ``.py (8) · .rst (3)``."""
     exts = Counter(_extension(p) for p in paths)
-    dir_str = ", ".join(f"`{d}/`" for d, _ in dirs.most_common(_MAX_GROUPS))
-    ext_str = " · ".join(
+    return " · ".join(
         f".{e} ({n})"
         for e, n in exts.most_common(_MAX_GROUPS)
         if e != _NO_EXT_LABEL
     )
+
+
+def summarize_changes(paths: list[str]) -> str:
+    """A ``12 file(s) across `a/`, `b/` — .py (8) · .rst (3)`` line."""
+    if not paths:
+        return ""
     line = f"{len(paths)} file(s)"
+    dir_str = _dir_summary(paths)
     if dir_str:
         line += f" across {dir_str}"
+    ext_str = _ext_summary(paths)
     if ext_str:
         line += f" — {ext_str}"
     return line

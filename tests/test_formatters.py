@@ -76,14 +76,23 @@ def test_provenance_block_all_citation_kinds():
     assert "model confidence" not in text
 
 
-def test_provenance_block_empty_when_no_payload():
+def test_provenance_block_flags_empty_payload_as_model_judgement():
+    # A finding whose provenance ran but produced no citation is surfaced
+    # as model judgement rather than dropped (so nothing is hidden).
     finding = _finding(provenance=Provenance(citations=[], confidence=None))
-    assert formatters._format_provenance_block([finding]) == []
+    text = "\n".join(formatters._format_provenance_block([finding]))
+    assert "Audit trail (provenance)" in text
+    assert "model judgement — no external citation" in text
 
 
 def test_provenance_block_empty_when_provenance_none():
     finding = _finding(provenance=None)
     assert formatters._format_provenance_block([finding]) == []
+
+
+def test_provenance_block_empty_when_all_provenance_none():
+    findings = [_finding(provenance=None), _finding(provenance=None)]
+    assert formatters._format_provenance_block(findings) == []
 
 
 def test_provenance_block_confidence_only_no_citations():
@@ -331,7 +340,7 @@ def test_overview_block_at_top_with_severity_and_status():
     # The digest sits above the detailed per-file blocks.
     assert glance < out.index("<details>")
     assert "🔴 Changes requested" in out
-    assert "🔴 1 · 🟡 1 · 🔵 1 (3 total)" in out
+    assert "🔴 1 error · 🟡 1 warning · 🔵 1 info (3 total)" in out
     assert "2 reviewed · 2 with findings · 0 clean" in out
     assert "**Hotspots:**" in out and "`a.py` (2)" in out
 
@@ -358,7 +367,7 @@ def test_hide_info_drops_info_findings_from_summary():
     ])
     out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER, hide_info=True)
     # info is excluded from the count badge and the at-a-glance tally.
-    assert "🔴 0 · 🟡 1 · 🔵 0 (1 total)" in out
+    assert "🔴 0 error · 🟡 1 warning · 🔵 0 info (1 total)" in out
     assert "<code>a.py</code> — 🟡1" in out
 
 
@@ -511,7 +520,7 @@ def test_min_confidence_drops_low_and_keeps_unknown():
     )
     # low (0.2) dropped → 2 of 3 remain in the badge / tally.
     assert "🟡2" in out
-    assert "🟡 2" in out  # at-a-glance warning tally
+    assert "🟡 2 warning" in out  # at-a-glance warning tally
 
 
 def test_min_confidence_zero_keeps_all():
@@ -536,8 +545,10 @@ def test_summary_table_renders_rows_not_blocks():
     assert "| | Location | Finding |" in out
     assert "| 🔴 | `a.py:4` | boom |" in out
     assert "| 🟡 | `b.py:9` | meh\\|pipe |"  # pipe escaped
-    # Table mode replaces the collapsible per-file blocks.
-    assert "<details><summary>" not in out and "<details open>" not in out
+    # Table mode replaces the collapsible per-file blocks (no per-file
+    # "**Summary**" sections, no auto-expanded error file blocks).
+    assert "**Summary**" not in out
+    assert "<details open>" not in out
 
 
 def test_summary_table_pages_single():
@@ -559,6 +570,54 @@ def test_format_digest_standalone():
     assert "🔴 Changes requested" in digest
     # Standalone digest carries no file blocks.
     assert "<details>" not in digest
+
+
+def test_gate_line_in_digest():
+    fr = _file_result(path="a.py", inline_findings=[_finding(severity="error")])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr]), _MARKER, gate="❌ failure (gate-on: error; 1 error, 0 warning)"
+    )
+    assert "- **Gate:** ❌ failure (gate-on: error; 1 error, 0 warning)" in out
+
+
+def test_no_gate_line_when_absent():
+    fr = _file_result(path="a.py", inline_findings=[_finding(severity="warning")])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "**Gate:**" not in out
+
+
+def test_severity_groups_block():
+    err = _file_result(path="e.py", inline_findings=[_finding(path="e.py", severity="error")])
+    warn = _file_result(path="w.py", inline_findings=[_finding(path="w.py", severity="warning")])
+    out = formatters.format_pr_comment(_review(per_file=[err, warn]), _MARKER)
+    assert "<details><summary>By severity (2 group(s))</summary>" in out
+    assert "🔴 **error** (1 file(s)):" in out
+    assert "🟡 **warning** (1 file(s)):" in out
+
+
+def test_review_footer_and_legend():
+    fr = _file_result(path="a.py", inline_findings=[_finding()])
+    footer = formatters.format_review_footer(
+        _review(per_file=[fr]),
+        head_sha="abcdef1234", backend="anthropic", model="claude",
+        version="0.1.0", generated_at="2026-06-03 04:00 UTC",
+    )
+    assert "Review metadata:" in footer
+    assert "commit `abcdef12`" in footer
+    assert "anthropic" in footer and "claude" in footer
+    assert "prthinker 0.1.0" in footer
+    assert "2026-06-03 04:00 UTC" in footer
+    assert "1 reviewed / 0 skipped" in footer
+    # Legend explains the glyphs.
+    assert "<details><summary>Legend</summary>" in footer
+    assert "🔴 error · 🟡 warning · 🔵 info" in footer
+
+
+def test_review_footer_minimal_omits_empty_fields():
+    footer = formatters.format_review_footer(_review(per_file=[_file_result(path="a.py")]))
+    assert "Review metadata:" in footer
+    assert "commit" not in footer  # no head_sha given
+    assert "prthinker" not in footer.split("Legend")[0]  # no version given
 
 
 def test_delta_line_in_digest():
@@ -625,3 +684,437 @@ def test_per_file_ends_with_newline_and_no_trailing_blank():
     out = formatters.format_pr_comment(result, _MARKER)
     assert out.endswith("\n")
     assert not out.endswith("\n\n")
+
+
+# --------------------------------------------------------------------------
+# Suggestions aggregate (digest)
+# --------------------------------------------------------------------------
+
+def test_suggestions_line_counts_one_click_and_verified():
+    from prthinker.schemas import SuggestionVerification
+
+    verified = _finding(
+        path="a.py", suggestion="x = 1",
+        verification=SuggestionVerification(status="pass", verify_cmd="pytest"),
+    )
+    plain = _finding(path="a.py", line=20, suggestion="y = 2")
+    fr = _file_result(path="a.py", inline_findings=[verified, plain])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "- **Suggestions:** 2 one-click fix(es) · 1 sandbox-verified" in out
+
+
+def test_suggestions_line_absent_when_no_suggestions():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "**Suggestions:**" not in out
+
+
+def test_suggestions_line_omits_verified_when_none():
+    fr = _file_result(
+        path="a.py", inline_findings=[_finding(path="a.py", suggestion="z = 3")]
+    )
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "- **Suggestions:** 1 one-click fix(es)" in out
+    assert "sandbox-verified" not in out
+
+
+# --------------------------------------------------------------------------
+# Review-effort estimate (digest)
+# --------------------------------------------------------------------------
+
+def test_effort_estimate_present_and_scales_with_severity():
+    clean = _review(per_file=[_file_result(path="a.py")])
+    out_clean = formatters.format_pr_comment(clean, _MARKER)
+    assert "- **Review effort:** ~" in out_clean
+    # error weight (5) > info weight (1): an error PR estimates more time.
+    err = _review(per_file=[
+        _file_result(path="a.py", inline_findings=[_finding(severity="error")])
+    ])
+    assert (
+        formatters._effort_estimate_minutes(err)
+        > formatters._effort_estimate_minutes(clean)
+    )
+
+
+def test_effort_line_reports_files_needing_attention():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "file(s) need attention" in out
+
+
+# --------------------------------------------------------------------------
+# By-category index (#3)
+# --------------------------------------------------------------------------
+
+def test_category_index_groups_by_bucket():
+    sec = _finding(path="a.py", line=5, category="security")
+    perf = _finding(path="b.py", line=7, category="performance")
+    fr = _file_result(path="a.py", inline_findings=[sec])
+    fr2 = _file_result(path="b.py", inline_findings=[perf])
+    out = formatters.format_pr_comment(_review(per_file=[fr, fr2]), _MARKER)
+    assert "<details><summary>By category (2 group(s))</summary>" in out
+    assert "🛡️ **security** (1):" in out
+    assert "⚡ **performance** (1):" in out
+
+
+def test_category_index_absent_when_uncategorised():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "By category" not in out
+
+
+def test_category_index_caps_refs():
+    findings = [
+        _finding(path="a.py", line=i, category="style") for i in range(1, 12)
+    ]
+    fr = _file_result(path="a.py", inline_findings=findings)
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "🎨 **style** (11):" in out
+    assert "+3 more" in out  # 11 findings, 8 shown
+
+
+# --------------------------------------------------------------------------
+# Off-diff findings block (#1)
+# --------------------------------------------------------------------------
+
+def test_off_diff_block_lists_unposted_findings():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    off = (_finding(path="z.py", line=99, comment="ghost line"),)
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr]), _MARKER, off_diff_findings=off
+    )
+    assert "1 finding(s) outside the diff (not posted inline)" in out
+    assert "ghost line" in out
+
+
+def test_off_diff_block_absent_when_empty():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "outside the diff (not posted inline)" not in out
+
+
+# --------------------------------------------------------------------------
+# first_finding_ref (#2 helper)
+# --------------------------------------------------------------------------
+
+def test_first_finding_ref_picks_priority_severity():
+    findings = [
+        _finding(path="a.py", line=3, severity="warning"),
+        _finding(path="b.py", line=8, severity="error"),
+    ]
+    ref = formatters.first_finding_ref(findings, ("error", "warning"))
+    assert ref == "`b.py:8`"
+
+
+def test_first_finding_ref_none_when_no_match():
+    findings = [_finding(severity="info")]
+    assert formatters.first_finding_ref(findings, ("error",)) is None
+
+
+# --------------------------------------------------------------------------
+# Oversized-block pagination split (#7)
+# --------------------------------------------------------------------------
+
+def test_oversized_single_block_split_across_pages():
+    # One file whose block alone dwarfs the page budget must be split into
+    # several self-contained <details> blocks rather than truncated.
+    big = _file_result(
+        path="huge.py",
+        inline_findings=[_finding(path="huge.py")],
+        step_outputs={"total_summary": "s", "first_code_review": "q" * 4000},
+    )
+    pages = formatters.format_pr_comment_pages(
+        _review(per_file=[big]), _MARKER, max_chars=1200
+    )
+    assert len(pages) > 1
+    # Every page that opens a details block also closes one (valid markup).
+    for page in pages:
+        assert page.count("<details") <= page.count("</details>")
+    assert any("(continued)" in page for page in pages)
+
+
+def test_split_file_block_passthrough_when_small():
+    block = "<details><summary>x</summary>\n\nbody\n</details>\n"
+    assert formatters._split_file_block(block, 10_000) == [block]
+
+
+# --------------------------------------------------------------------------
+# Per-file change badge (#3)
+# --------------------------------------------------------------------------
+
+_BADGE_DIFF = (
+    "diff --git a/a.py b/a.py\n"
+    "--- a/a.py\n"
+    "+++ b/a.py\n"
+    "@@ -1,1 +1,2 @@\n"
+    " ctx\n"
+    "+added one\n"
+    "+added two\n"
+)
+
+
+def test_file_block_shows_change_badge():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr], code_diff=_BADGE_DIFF), _MARKER
+    )
+    assert "(+2 −0)" in out
+
+
+def test_file_block_no_badge_without_diff():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    # No diff text → no change badge in the summary line.
+    assert "−0)" not in out and "−1)" not in out
+
+
+# --------------------------------------------------------------------------
+# extra_sections carrier
+# --------------------------------------------------------------------------
+
+def test_extra_sections_render_after_indexes_before_files():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr]), _MARKER,
+        extra_sections=("**Injected section** here",),
+    )
+    assert "**Injected section** here" in out
+    # Sits below the digest and above the per-file detail block.
+    assert out.index("Review at a glance") < out.index("Injected section")
+    assert out.index("Injected section") < out.index("**Summary**")
+
+
+def test_extra_sections_skip_empty_strings():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr]), _MARKER, extra_sections=("", "  ", "real"),
+    )
+    assert "real" in out
+
+
+# --------------------------------------------------------------------------
+# Reviewer checklist (#5)
+# --------------------------------------------------------------------------
+
+def test_checklist_includes_unverified_error_and_low_repro():
+    err = _finding(path="a.py", line=3, severity="error", comment="null deref")
+    low = _finding(path="a.py", line=7, reproducibility="low", comment="maybe racy")
+    fr = _file_result(path="a.py", inline_findings=[err, low])
+    out = formatters.format_reviewer_checklist(_review(per_file=[fr]))
+    assert "Reviewer checklist (2 item(s))" in out
+    assert "- [ ] Verify the fix for `a.py:3`" in out
+    assert "- [ ] Re-confirm (low reproducibility) `a.py:7`" in out
+
+
+def test_checklist_skips_verified_error():
+    from prthinker.schemas import SuggestionVerification
+
+    err = _finding(
+        path="a.py", severity="error", suggestion="x",
+        verification=SuggestionVerification(status="pass", verify_cmd="pytest"),
+    )
+    fr = _file_result(path="a.py", inline_findings=[err])
+    assert formatters.format_reviewer_checklist(_review(per_file=[fr])) == ""
+
+
+def test_checklist_includes_api_drift():
+    from prthinker.schemas import ApiDriftFinding
+
+    drift = ApiDriftFinding(
+        backend_path="api.py", frontend_path="api.ts", summary="diverged",
+    )
+    out = formatters.format_reviewer_checklist(_review(api_drift=[drift]))
+    assert "Confirm cross-language contract `api.py` ↔ `api.ts`" in out
+
+
+def test_checklist_empty_when_nothing_to_verify():
+    fr = _file_result(path="a.py", inline_findings=[_finding(severity="info")])
+    assert formatters.format_reviewer_checklist(_review(per_file=[fr])) == ""
+
+
+# --------------------------------------------------------------------------
+# Must-fix code snippet (#2)
+# --------------------------------------------------------------------------
+
+_SNIPPET_DIFF = (
+    "diff --git a/a.py b/a.py\n"
+    "--- a/a.py\n"
+    "+++ b/a.py\n"
+    "@@ -1,1 +1,2 @@\n"
+    " ctx\n"
+    "+    return user_input  # unsanitised\n"
+)
+
+
+def test_must_fix_quotes_offending_line():
+    err = _finding(path="a.py", line=2, severity="error", comment="injection")
+    fr = _file_result(path="a.py", inline_findings=[err])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr], code_diff=_SNIPPET_DIFF), _MARKER
+    )
+    assert "🚨 Must fix" in out
+    assert "↳ <code>return user_input  # unsanitised</code>" in out
+
+
+def test_must_fix_no_snippet_when_line_off_diff():
+    err = _finding(path="a.py", line=99, severity="error", comment="ghost")
+    fr = _file_result(path="a.py", inline_findings=[err])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr], code_diff=_SNIPPET_DIFF), _MARKER
+    )
+    assert "ghost" in out
+    assert "↳ <code>" not in out
+
+
+def test_must_fix_snippet_html_escaped():
+    diff = (
+        "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n"
+        "@@ -1,0 +1,1 @@\n+x = a < b & c\n"
+    )
+    err = _finding(path="a.py", line=1, severity="error", comment="cmp")
+    fr = _file_result(path="a.py", inline_findings=[err])
+    out = formatters.format_pr_comment(_review(per_file=[fr], code_diff=diff), _MARKER)
+    assert "x = a &lt; b &amp; c" in out
+
+
+# --------------------------------------------------------------------------
+# Top findings queue (#3)
+# --------------------------------------------------------------------------
+
+def test_top_findings_ranks_across_files_by_severity():
+    fr1 = _file_result(path="a.py", inline_findings=[
+        _finding(path="a.py", line=1, severity="info", comment="nit"),
+        _finding(path="a.py", line=2, severity="warning", comment="warn"),
+    ])
+    fr2 = _file_result(path="b.py", inline_findings=[
+        _finding(path="b.py", line=3, severity="error", comment="boom"),
+        _finding(path="b.py", line=4, severity="info", comment="nit2"),
+    ])
+    out = formatters.format_pr_comment(_review(per_file=[fr1, fr2]), _MARKER)
+    assert "🔝 Top 4 of 4 findings" in out
+    # Error ranks first in the queue.
+    assert out.index("boom") < out.index("warn") < out.index("nit")
+
+
+def test_top_findings_skipped_when_few():
+    fr = _file_result(path="a.py", inline_findings=[
+        _finding(path="a.py", line=1, severity="error", comment="one"),
+        _finding(path="a.py", line=2, severity="warning", comment="two"),
+    ])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "Top" not in out.split("Must fix")[0]  # no top-findings header
+    assert "🔝" not in out
+
+
+def test_top_findings_confidence_breaks_severity_ties():
+    from prthinker.schemas import Provenance
+
+    findings = [
+        _finding(path="a.py", line=1, severity="warning", comment="low-conf",
+                 provenance=Provenance(confidence=0.2)),
+        _finding(path="a.py", line=2, severity="warning", comment="high-conf",
+                 provenance=Provenance(confidence=0.9)),
+        _finding(path="a.py", line=3, severity="info", comment="i1"),
+        _finding(path="a.py", line=4, severity="info", comment="i2"),
+    ]
+    fr = _file_result(path="a.py", inline_findings=findings)
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert out.index("high-conf") < out.index("low-conf")
+
+
+# --------------------------------------------------------------------------
+# Walkthrough block (#4)
+# --------------------------------------------------------------------------
+
+def test_walkthrough_rendered_above_summary():
+    fr = _file_result(
+        path="a.py",
+        inline_findings=[_finding(path="a.py")],
+        step_outputs={"walkthrough": "Adds a guard clause.", "total_summary": "ok"},
+    )
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "**📝 Walkthrough**" in out
+    assert "Adds a guard clause." in out
+    # Orientation precedes the review summary inside the file block.
+    assert out.index("Walkthrough") < out.index("**Summary**")
+
+
+def test_walkthrough_not_rendered_as_generic_step_detail():
+    fr = _file_result(
+        path="a.py",
+        inline_findings=[_finding(path="a.py")],
+        step_outputs={"walkthrough": "narrative"},
+    )
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    # Reserved: must not show up as a "Walkthrough" collapsible step block.
+    assert "<details><summary>Walkthrough</summary>" not in out
+
+
+def test_walkthrough_absent_when_step_did_not_run():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "📝 Walkthrough" not in out
+
+
+# --------------------------------------------------------------------------
+# Filtered-from-view transparency note
+# --------------------------------------------------------------------------
+
+def test_hide_info_surfaces_filtered_count():
+    fr = _file_result(path="a.py", inline_findings=[
+        _finding(path="a.py", line=1, severity="warning"),
+        _finding(path="a.py", line=2, severity="info"),
+        _finding(path="a.py", line=3, severity="info"),
+    ])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER, hide_info=True)
+    assert "- **Filtered from view:** 2 info hidden" in out
+    # The hidden info findings are gone from the rendered body.
+    assert "🔵 0 info" in out
+
+
+def test_min_confidence_surfaces_filtered_count():
+    from prthinker.schemas import Provenance
+
+    fr = _file_result(path="a.py", inline_findings=[
+        _finding(path="a.py", line=1, severity="warning",
+                 provenance=Provenance(confidence=0.2)),
+        _finding(path="a.py", line=2, severity="warning",
+                 provenance=Provenance(confidence=0.9)),
+    ])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr]), _MARKER, min_confidence=0.5
+    )
+    assert "1 low-confidence hidden" in out
+
+
+def test_filtered_note_absent_without_filters():
+    fr = _file_result(path="a.py", inline_findings=[
+        _finding(path="a.py", severity="info"),
+    ])
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    assert "Filtered from view" not in out
+
+
+def test_filtered_note_combines_info_and_confidence():
+    from prthinker.schemas import Provenance
+
+    fr = _file_result(path="a.py", inline_findings=[
+        _finding(path="a.py", line=1, severity="info"),
+        _finding(path="a.py", line=2, severity="warning",
+                 provenance=Provenance(confidence=0.1)),
+    ])
+    out = formatters.format_pr_comment(
+        _review(per_file=[fr]), _MARKER, hide_info=True, min_confidence=0.5
+    )
+    assert "1 info · 1 low-confidence hidden" in out
+
+
+def test_filtered_note_shown_on_paginated_single_page():
+    fr = _file_result(path="a.py", inline_findings=[
+        _finding(path="a.py", line=1, severity="info"),
+    ])
+    pages = formatters.format_pr_comment_pages(
+        _review(per_file=[fr]), _MARKER, hide_info=True
+    )
+    assert len(pages) == 1
+    assert "1 info hidden" in pages[0]

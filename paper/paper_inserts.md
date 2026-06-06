@@ -5,9 +5,30 @@
      Reformatting them to restart at 1 would lose the cross-section
      numbering that the paper itself uses. -->
 
-# 論文補充內容（drop-in 段落集 — v3.3 修正版）
+# 論文補充內容（drop-in 段落集 — v3.4 修正版）
 
 ## 修正聲明
+
+本版相對於 v3.3 之關鍵差異（v3.4）：
+
+- **新增 §3.7.22 審查導覽與分流輔助**：對應隨附框架近期之 reviewer
+  orientation 整合。其中唯一使用推論者為\ **模型生成之逐檔變更走查**\
+  （``--walkthrough``）──於 per-file 管線新增一個 ``WalkthroughStep``，
+  產出二至四句「此變更做了什麼、為何」之敘事，釘於該檔區塊最上方，作為
+  既有\ **無推論**\ 之 commit-message PR 概覽（§3.7.20 之 ``pr_overview``）
+  之推論側對應物。其餘導覽／分流輔助皆為 runner-safe 純轉換：inline 留言之
+  Conventional Comments 標籤、跨檔 Top-findings 佇列、Must-fix 之原始碼行
+  引用、每檔變更規模徽章、建議審閱順序（``--review-order``）、變更地圖
+  （``--change-map``）、缺測試啟發式提示、high-risk 檔案註記與 reviewer
+  checklist。皆隨附單元測試；\ **不計入 §3.7 之十七項研究級機制**\ ；其對
+  審查效率或採納率之效益本論文均\ **未予評估**\ ，於 §6.4.5 補上對應未來
+  工作骨架 (s)。
+- **研究級機制計數維持十七項**：與 docs 之 ``research-extensions.rst``
+  「All seventeen research mechanisms」一致；§3.7.22 與 §3.7.20 同屬已實作
+  之 operability／orientation 整合（前者含一項推論 step、後者為純轉換），
+  均不計入十七項。
+- 不變項目（沿用 v3.3）：仍\ **不謊造、不新增 RQ、不新增參考文獻**\ ；
+  既有 §5 之表 1 / 表 2 / 表 3 不更動；§3.7.1–§3.7.21 之既有內容沿用。
 
 本版相對於 v3.2 之關鍵差異（v3.3）：
 
@@ -891,6 +912,36 @@
 >
 > 本子節所列皆\ **不隨附程式碼**\ ，與 §3.7.1–§3.7.20 之「已實作」性質
 > 不同，純屬未來工作之設計骨架。
+>
+> 3.7.22  審查導覽與分流輔助（review orientation and triage aids）
+>
+> 多數審查器僅輸出 finding，卻未協助審查者\ **規劃如何閱讀**\ 一份變更。
+> 隨附框架另提供一組 opt-in 之導覽／分流輔助。其中唯一使用推論者為
+> **逐檔變更走查**（``--walkthrough``）：於 per-file 管線新增一個
+> ``WalkthroughStep``，就每檔 diff 產出二至四句「此變更做了什麼、為何」
+> 之敘事（僅描述、不評斷，亦不得臆造 diff 未顯示之行為），釘於該檔區塊
+> 最上方。此為既有\ **無推論**\ 之 commit-message PR 概覽之推論側對應物，
+> 使審查者於閱讀 finding 前先掌握「變更之意圖」。其餘輔助皆為 runner-safe
+> 純轉換、於 runner profile 即可執行：
+>
+> - **Conventional Comments 標籤**：依嚴重度與 category 為每則 inline 留言
+>   冠以 ``issue`` / ``suggestion`` / ``nitpick`` 標籤（共用 formatter，
+>   GitHub 與 Gitea 一致），使阻擋性與可選項可被人與工具一眼分流。
+> - **跨檔 Top-findings 佇列**：將全部 finding 依嚴重度再依模型 confidence
+>   排序之單一優先清單，較僅含 error 之 Must-fix 為廣。
+> - **Must-fix 原始碼行引用**：自 diff 解析出問題行內容，使阻擋性問題不必
+>   開檔即可閱讀。
+> - **每檔變更規模徽章**（``+a −b · h hunks``）、**建議審閱順序**
+>   （``--review-order``，以 KG import 入度將最被依賴之檔排前）、**變更地圖**
+>   （``--change-map``，以 Mermaid 畫變更檔間之 import 邊）、**缺測試提示**
+>   （改了 production ``.py`` 卻無同名測試變更之啟發式）、**high-risk 檔案
+>   註記**（``--risk-weighted`` 已算之 churn／複雜度／bug 歷史分數）與
+>   **reviewer checklist**（自未驗證 error、低再現性 finding、API drift 生成
+>   之人工把關清單）。
+>
+> 上列導覽／分流輔助屬輸出 / 呈現層，\ **不計入 §3.7 之十七項研究級擴充
+> 機制**\ ；各功能皆以單元測試覆蓋，惟其對審查效率、缺陷遺漏率或實務採納
+> 率之量化效益本論文未予評估；對應未來工作骨架見 §6.4.5 (s)。
 
 ---
 
@@ -1095,7 +1146,13 @@
 > mean time to repair）。本項屬可觀測性
 > 工程量化評估，與品質研究分流。
 >
-> 上列十七組研究級實驗與 (r) 之可觀測層工程實驗皆需累積實際語料；
+> (s) 審查導覽與分流輔助（§3.7.22）：就\ **逐檔變更走查**\ ，以 ≥ 50 個
+> PR 令 ≥ 3 名審查者就「走查是否縮短理解該檔變更之時間、是否準確反映
+> diff 而無臆造」之 Likert 5 點評分與事實性誤判率作為效益與安全指標；
+> 另以開啟與未開啟導覽輔助兩組量測「首條留言前之導覽時間」與缺陷遺漏率
+> 之差。本項屬輸出 / 呈現層量化評估，與核心品質研究分流，不計入十七項。
+>
+> 上列十七組研究級實驗與 (r) 之可觀測層工程實驗、(s) 之導覽層實驗皆需累積實際語料；
 > 本論文之主要貢獻仍為 §5.1 / §5.2
 > 所述之多階段 CoT + LoRA 微調 + RAG 之整合設計與驗證，§3.7 與
 > §6.4.5 之內容明示為框架設計貢獻與後續工作之承接介面，不影響本論

@@ -22,6 +22,7 @@ prthinker 全部能做什麼。設置步驟見 [`setup.zh-TW.md`](setup.zh-TW.md
 - [Cache、telemetry、stats](#cachetelemetrystats)
 - [`.prthinker.yaml` repo 組態](#prthinkeryaml-repo-組態)
 - [Secret 過濾](#secret-過濾)
+- [審查導航訊號（無需模型）](#審查導航訊號無需模型)
 - [IDE 用的 MCP 整合](#ide-用的-mcp-整合)
 - [CLI subcommand](#cli-subcommand)
 - [HTTP API endpoints](#http-api-endpoints)
@@ -416,6 +417,42 @@ call 之前，把已知 secret pattern 換成 `<REDACTED:<kind>>`\ 。
 
 ---
 
+## 審查導航訊號（無需模型）
+
+十三個純函式、決定性的檢查在 diff 上執行，**完全不呼叫 backend**。在 live
+review 中它們以自我省略的區塊呈現於 PR 摘要下方；獨立執行時則驅動
+`prthinker triage`（與 `triage_diff` MCP 工具）。順序為安全 → 導航 → 略讀
+指引 → 程式碼品質提示,沒有內容的區塊一律省略。
+
+| 訊號 | 模組 | 類別 |
+|---|---|---|
+| Trojan-Source 雙向／不可見字元（CVE-2021-42574） | `bidi_guard` | 🚨 安全 |
+| 殘留合併衝突標記（`<<<<<<<` / `>>>>>>>` / `\|\|\|\|\|\|\|`） | `merge_markers` | ⛔ 安全 |
+| 重新命名／搬移檔案（含相似度 %） | `rename_map` | 🔀 導航 |
+| 刪除檔案 | `deleted_files` | 🗑 導航 |
+| 檔案 mode／執行位變更（`644` → `755`） | `mode_changes` | 🔑 導航 |
+| lockfile／vendored／minified 雜訊 | `noise_files` | 🗂 略讀 |
+| 純格式變更 | `whitespace_only` | 🎨 略讀 |
+| 二進位變更（無文字 hunk） | `binary_changes` | 📦 略讀 |
+| 大段連續新增（≥ 80 行） | `large_hunk` | 📜 略讀 |
+| 覆蓋缺口（prod 變更但無對應測試） | `coverage_gap` | 🧪 品質 |
+| 新增延遲工作標記（TODO / FIXME / …） | `new_markers` | 📌 品質 |
+| 殘留 debug 敘述（`breakpoint` / `console.log` / …） | `debug_left` | 🐞 品質 |
+| 吞錯（`except: pass`） | `empty_except` | 🤫 品質 |
+
+```bash
+# 一次跑完所有訊號──無 backend、瞬間、GPU-free
+git diff origin/main | prthinker triage
+prthinker triage --staged                       # git diff --cached
+prthinker triage --against origin/main          # git diff <ref>
+prthinker triage --diff-file pr.diff --exit-nonzero-on-signal   # CI gate
+```
+
+加上 `--exit-nonzero-on-signal` 時,只要有任一訊號觸發即 exit 1,可在完整
+（GPU-backed）review 排程前先 gate CI 步驟;否則一律 exit 0(僅供參考)。
+
+---
+
 ## IDE 用的 MCP 整合
 
 `prthinker mcp` 跑一個 Model Context Protocol stdio server，讓
@@ -427,6 +464,7 @@ review。
 | Tool | 回傳 |
 |---|---|
 | `review_diff(diff, file_path?, redact_secrets=True)` | Markdown review（與 PR summary 留言同樣 shape） |
+| `triage_diff(diff, redact_secrets=True)` | 無需模型之導航訊號 markdown 報告（不呼叫 backend） |
 | `stats(since_days=7)` | 近期 telemetry 的 markdown 表 |
 
 安裝：\ `pip install -e ".[mcp]"`\ 。
@@ -471,6 +509,7 @@ MCP 模式預設 RAG 為 `NoOp`\ （FAISS 不該住在 IDE 子行程裡）；需
 | `prthinker harvest-dismissed` | 掃過去 PR 找被拒 finding → JSONL |
 | `prthinker harvest-accepted` | 掃過去 PR 找應用過的 suggestion → JSONL |
 | `prthinker stats` | 把 telemetry 聚合成 per-(backend, model) 表 |
+| `prthinker triage` | 對 diff 跑無需模型之導航訊號（stdin / `--diff-file` / `--staged` / `--against REF`）；無 backend |
 | `prthinker mcp` | 跑 MCP stdio server |
 
 每個 flag 都有對應的 `PRTHINKER_*` env var；\ `.prthinker.yaml` schema

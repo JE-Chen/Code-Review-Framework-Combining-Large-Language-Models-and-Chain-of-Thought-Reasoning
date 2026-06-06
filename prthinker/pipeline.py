@@ -54,6 +54,7 @@ from prthinker.steps import (
     JudgeStep,
     ReviewContext,
     ReviewStep,
+    WalkthroughStep,
     resolve_steps,
 )
 
@@ -291,6 +292,7 @@ class CoTPipeline:
         judge: bool = False,
         self_correct: bool = False,
         counterfactual: bool = False,
+        walkthrough: bool = False,
         provenance: bool = False,
         api_consistency_check: bool = False,
         max_findings_per_file: int = 10,
@@ -341,7 +343,9 @@ class CoTPipeline:
         max_findings_per_file = outcome.max_findings_per_file
         dialogue_block = outcome.dialogue_block
 
-        all_steps = self._build_step_sequence(inline_review, counterfactual, judge)
+        all_steps = self._build_step_sequence(
+            inline_review, counterfactual, judge, walkthrough
+        )
         entropy_summary = (
             self._compute_entropy_summary(file_diffs) if diff_entropy_check else None
         )
@@ -473,9 +477,12 @@ class CoTPipeline:
 
     def _build_step_sequence(
         self, inline_review: bool, counterfactual: bool, judge: bool,
+        walkthrough: bool = False,
     ) -> tuple[type[ReviewStep], ...]:
-        """Append the optional inline / counterfactual / judge steps."""
+        """Append the optional walkthrough / inline / counterfactual / judge steps."""
         extra: tuple[type[ReviewStep], ...] = ()
+        if walkthrough:
+            extra += (WalkthroughStep,)
         if inline_review:
             extra += (InlineFindingsStep,)
         if counterfactual:

@@ -68,6 +68,36 @@ def test_per_file_with_inline_review_adds_findings_step() -> None:
     assert all(f.severity == "warning" for f in result.inline_findings)
 
 
+def test_per_file_with_walkthrough_adds_step() -> None:
+    # 5 base steps + 1 walkthrough step = 6 calls; the 6th is the walkthrough.
+    backend = FakeBackend(["s1", "s2", "s3", "s4", "s5", "This adds a guard."])
+    pipeline = CoTPipeline(backend=backend, retriever=NoOpRetriever())
+    diff = "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1 +1,2 @@\n x\n+y\n"
+    result = pipeline.run_per_file(diff, walkthrough=True)
+    assert result.per_file[0].step_outputs["walkthrough"] == "This adds a guard."
+    assert len(backend.calls) == 6
+
+
+def test_walkthrough_runs_without_inline_review() -> None:
+    # The walkthrough step has no dependency on inline findings.
+    backend = FakeBackend(["s1", "s2", "s3", "s4", "s5", "narrative"])
+    pipeline = CoTPipeline(backend=backend, retriever=NoOpRetriever())
+    diff = "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1 +1,2 @@\n x\n+y\n"
+    result = pipeline.run_per_file(diff, walkthrough=True, inline_review=False)
+    assert "walkthrough" in result.per_file[0].step_outputs
+    assert not result.inline_findings
+
+
+def test_walkthrough_prompt_includes_file_and_diff() -> None:
+    backend = FakeBackend(["s1", "s2", "s3", "s4", "s5", "ok"])
+    pipeline = CoTPipeline(backend=backend, retriever=NoOpRetriever())
+    diff = "diff --git a/foo.py b/foo.py\n--- a/foo.py\n+++ b/foo.py\n@@ -1 +1,2 @@\n x\n+y\n"
+    pipeline.run_per_file(diff, walkthrough=True)
+    walkthrough_prompt = backend.calls[5][0]  # 6th call is the walkthrough
+    assert "foo.py" in walkthrough_prompt
+    assert "Change Walkthrough" in walkthrough_prompt
+
+
 def test_extra_rules_get_merged_into_context() -> None:
     backend = FakeBackend(["fine"] * 5)
     pipeline = CoTPipeline(

@@ -27,6 +27,32 @@ def test_plain_array_round_trips() -> None:
     assert all(f.path == "x.py" for f in findings)
 
 
+def test_category_is_parsed_when_present() -> None:
+    raw = json.dumps([
+        {"line": 2, "severity": "error", "comment": "sqli", "category": "security"},
+    ])
+    findings = parse_inline_findings(raw, path="x.py", allowed_lines={2})
+    assert findings[0].category == "security"
+
+
+def test_category_defaults_to_none_when_absent() -> None:
+    raw = json.dumps([{"line": 2, "severity": "info", "comment": "nit"}])
+    findings = parse_inline_findings(raw, path="x.py", allowed_lines={2})
+    assert findings[0].category is None
+
+
+def test_category_round_trips_through_model_dump() -> None:
+    from prthinker.schemas import InlineFinding
+
+    original = InlineFinding(
+        path="x.py", line=3, severity="warning",
+        comment="n+1 query", category="performance",
+    )
+    restored = InlineFinding.model_validate(original.model_dump())
+    assert restored == original
+    assert restored.category == "performance"
+
+
 def test_json_fences_are_stripped() -> None:
     raw = (
         "Here are my findings:\n\n"

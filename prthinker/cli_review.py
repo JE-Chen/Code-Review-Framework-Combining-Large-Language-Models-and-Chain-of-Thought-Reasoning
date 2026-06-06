@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import json
 import logging
 import os
@@ -37,13 +38,20 @@ from prthinker.api_surface import compute_api_surface
 from prthinker.confidence import filter_by_confidence
 from prthinker.diff import parse_unified_diff
 from prthinker.finding_dedup import dedupe_findings
+from prthinker.change_map import change_map_edges, format_change_map_mermaid
 from prthinker.formatters import (
+    first_finding_ref,
     format_digest,
     format_pr_comment,
     format_pr_comment_pages,
+    format_review_footer,
+    format_reviewer_checklist,
 )
-from prthinker.github_api import count_findings_on_diff
+from prthinker.github_api import count_findings_on_diff, findings_off_diff
+from prthinker.review_order import format_review_order_note, suggested_order
+from prthinker.risk_score import compute_risk_scores, format_risk_note
 from prthinker.impact_map import format_impact_note, impacted_files
+from prthinker.orientation import build_static_signal_sections
 from prthinker.inline_ignore import filter_inline_ignored
 from prthinker.repo_kg import KnowledgeGraphStore
 from prthinker.pr_labels import compute_labels
@@ -51,9 +59,11 @@ from prthinker.pr_overview import build_overview_text
 from prthinker.review_delta import (
     compute_delta,
     format_delta,
+    format_new_block,
     format_resolved_block,
     load_fingerprints,
     load_records,
+    new_records,
     resolved_records,
     save_fingerprints,
 )
@@ -485,6 +495,7 @@ def _collect_core_kwargs(args: argparse.Namespace) -> dict:
         "judge": bool(getattr(args, "judge", False)),
         "self_correct": bool(getattr(args, "self_correct", False)),
         "counterfactual": bool(getattr(args, "counterfactual", False)),
+        "walkthrough": bool(getattr(args, "walkthrough", False)),
         "provenance": bool(getattr(args, "provenance", False)),
         "max_findings_per_file": args.max_findings_per_file,
     }
@@ -795,13 +806,27 @@ def _author_reply_note(adapter: object) -> str:
     return f"💬 {len(replies)} author reply(ies)" if replies else ""
 
 
+def _progress_blocks(
+    previous: set[str], path: Path, result: ReviewResult
+) -> str | None:
+    """Render the 'new since last' + 'resolved since last' detail blocks."""
+    findings = result.inline_findings
+    new_block = format_new_block(new_records(previous, findings))
+    resolved = resolved_records(load_records(path), findings)
+    resolved_block = format_resolved_block(resolved)
+    joined = "\n\n".join(b for b in (new_block, resolved_block) if b)
+    return joined or None
+
+
 def _review_progress(
     args: argparse.Namespace, adapter: object, result: ReviewResult
 ) -> tuple[str | None, str | None]:
-    """Return (since-last-review line, resolved-block) and persist the run.
+    """Return (since-last-review line, progress-block) and persist the run.
 
     Both are None on the first run (no baseline) or when disabled; the
-    finding set is still written so the next run has a baseline.
+    finding set is still written so the next run has a baseline. The
+    progress block bundles the new-since-last and resolved-since-last
+    detail lists.
     """
     if not getattr(args, "review_delta", False) or args.dry_run:
         return None, None
@@ -810,20 +835,19 @@ def _review_progress(
     )
     previous = load_fingerprints(path)
     line: str | None = None
-    resolved_block: str | None = None
+    progress_block: str | None = None
     if previous is not None:
         bits = [format_delta(compute_delta(previous, result.inline_findings))]
         note = _author_reply_note(adapter)
         if note:
             bits.append(note)
         line = " · ".join(bits)
-        resolved = resolved_records(load_records(path), result.inline_findings)
-        resolved_block = format_resolved_block(resolved) or None
+        progress_block = _progress_blocks(previous, path, result)
     try:
         save_fingerprints(path, result.inline_findings)
     except OSError as exc:
         log.warning("Could not persist finding fingerprints (%s)", exc)
-    return line, resolved_block
+    return line, progress_block
 
 
 def _join_overview(*sections: str | None) -> str | None:
@@ -866,6 +890,69 @@ def _append_report_links(args: argparse.Namespace, pages: list[str]) -> None:
         pages[-1] = pages[-1].rstrip() + "\n\n" + footer + "\n"
 
 
+_GATE_CONCLUSION_ICON: dict[str, str] = {
+    "success": "✅", "failure": "❌", "neutral": "⚪",
+}
+
+
+# Severities (most-severe first) that trip each gate floor — used to point
+# the gate line at the first finding that actually caused a failure.
+_GATE_FLOOR_SEVERITIES: dict[str, tuple[str, ...]] = {
+    "warning": ("error", "warning"),
+    "error": ("error",),
+}
+
+
+def _gate_line(
+    args: argparse.Namespace,
+    result: ReviewResult,
+    files_url: str | None = None,
+) -> str | None:
+    """A pass/fail gate line for the digest, or None when not gating."""
+    gate_on = getattr(args, "gate_on", "none")
+    if gate_on == "none":
+        return None
+    gate = evaluate_gate(result.inline_findings, gate_on=gate_on)
+    icon = _GATE_CONCLUSION_ICON.get(gate.conclusion, "")
+    line = (
+        f"{icon} {gate.conclusion} (gate-on: {gate_on}; "
+        f"{gate.error_count} error, {gate.warning_count} warning, "
+        f"{gate.info_count} info)"
+    )
+    if gate.conclusion == "failure":
+        blocker = first_finding_ref(
+            result.inline_findings,
+            _GATE_FLOOR_SEVERITIES.get(gate_on, ()),
+            files_url,
+        )
+        if blocker:
+            line += f" — first blocker: {blocker}"
+    return line
+
+
+def _prthinker_version() -> str:
+    try:
+        return importlib.metadata.version("prthinker")
+    except importlib.metadata.PackageNotFoundError:
+        return ""
+
+
+def _append_review_footer(
+    args: argparse.Namespace, result: ReviewResult, pages: list[str]
+) -> None:
+    """Append the metadata + legend footer to the last summary page."""
+    generated = datetime.now(timezone.utc).isoformat(timespec="minutes")
+    footer = format_review_footer(
+        result,
+        head_sha=os.environ.get("GITHUB_SHA", ""),
+        backend=getattr(args, "backend", "") or "",
+        model=getattr(args, "model_name", "") or "",
+        version=_prthinker_version(),
+        generated_at=generated,
+    )
+    pages[-1] = pages[-1].rstrip() + "\n\n" + footer
+
+
 def _maybe_write_job_summary(body: str) -> None:
     """Append the summary to the Actions run page when ``$GITHUB_STEP_SUMMARY``
     is set, so it is visible from the Checks tab without opening the PR."""
@@ -895,6 +982,76 @@ def _impact_note(args: argparse.Namespace, result: ReviewResult) -> str | None:
     except Exception as exc:  # noqa: BLE001 — impact map is best-effort
         log.warning("Could not build impact map (%s)", exc)
         return None
+
+
+def _kg_imports(args: argparse.Namespace) -> list | None:
+    """Import edges from the repo KG, or None when unavailable (best-effort)."""
+    kg_path = Path(getattr(args, "kg_store", "") or ".prthinker/repo-kg.sqlite")
+    if not kg_path.exists():
+        return None
+    try:
+        return KnowledgeGraphStore(kg_path).all_imports(
+            Path(getattr(args, "kg_workdir", "") or ".")
+        )
+    except Exception as exc:  # noqa: BLE001 — KG-derived sections are best-effort
+        log.warning("Could not read repo KG (%s)", exc)
+        return None
+
+
+def _review_order_note(args: argparse.Namespace, result: ReviewResult) -> str:
+    """'Suggested review order' note from the KG, or '' (best-effort)."""
+    if not getattr(args, "review_order", False):
+        return ""
+    imports = _kg_imports(args)
+    if imports is None:
+        return ""
+    changed = [fr.path for fr in result.per_file]
+    return format_review_order_note(suggested_order(imports, changed))
+
+
+def _change_map_note(args: argparse.Namespace, result: ReviewResult) -> str:
+    """Inline Mermaid change-map from the KG, or '' (best-effort)."""
+    if not getattr(args, "change_map", False):
+        return ""
+    imports = _kg_imports(args)
+    if imports is None:
+        return ""
+    changed = [fr.path for fr in result.per_file]
+    return format_change_map_mermaid(change_map_edges(imports, changed))
+
+
+def _risk_note(args: argparse.Namespace, result: ReviewResult) -> str:
+    """'High-risk files' note when --risk-weighted is on, or '' (best-effort)."""
+    if not getattr(args, "risk_weighted", False):
+        return ""
+    workdir = Path(getattr(args, "risk_workdir", "") or ".")
+    changed = [fr.path for fr in result.per_file]
+    try:
+        scores = compute_risk_scores(changed, workdir=workdir)
+    except Exception as exc:  # noqa: BLE001 — risk note is best-effort
+        log.warning("Could not compute risk scores (%s)", exc)
+        return ""
+    return format_risk_note(scores)
+
+
+def _extra_sections(
+    args: argparse.Namespace, result: ReviewResult, files_url: str | None
+) -> tuple[str, ...]:
+    """Pre-rendered orientation blocks placed below the digest.
+
+    Each is best-effort and self-omitting (empty string when it has
+    nothing to say); only the non-empty ones survive into the comment.
+    """
+    changed = [fr.path for fr in result.per_file]
+    diff = result.code_diff or ""
+    sections = (
+        *build_static_signal_sections(diff, changed),
+        _review_order_note(args, result),
+        _risk_note(args, result),
+        _change_map_note(args, result),
+        format_reviewer_checklist(result, files_url),
+    )
+    return tuple(s for s in sections if s)
 
 
 def _maybe_set_labels(
@@ -978,25 +1135,32 @@ def _publish_review_result(
     # it when inline review is enabled; otherwise nothing is posted inline
     # and the breakdown would be misleading.
     posted_count: int | None = None
+    off_diff: tuple[InlineFinding, ...] = ()
     if getattr(args, "inline_review", False):
         posted_count = count_findings_on_diff(
             result.inline_findings, result.code_diff
         )
-    delta_line, resolved_block = _review_progress(args, adapter, result)
+        off_diff = tuple(findings_off_diff(result.inline_findings, result.code_diff))
+    delta_line, progress_block = _review_progress(args, adapter, result)
+    files_url = _pr_files_url(args)
     pages = format_pr_comment_pages(
         result, marker=args.marker, posted_count=posted_count,
         findings_only=getattr(args, "findings_only", False),
         hide_info=getattr(args, "hide_info", False),
         preliminary=_join_overview(
             _build_preliminary_overview(args, adapter, result),
-            _impact_note(args, result), resolved_block,
+            _impact_note(args, result), progress_block,
         ),
-        files_url=_pr_files_url(args),
+        files_url=files_url,
         delta=delta_line,
         min_confidence=getattr(args, "summary_min_confidence", 0.0),
         table=getattr(args, "summary_table", False),
+        gate=_gate_line(args, result, files_url),
+        off_diff_findings=off_diff,
+        extra_sections=_extra_sections(args, result, files_url),
     )
     _append_report_links(args, pages)
+    _append_review_footer(args, result, pages)
     _maybe_write_job_summary(pages[0])
     if getattr(args, "api_impact", False):
         pages[-1] = _append_api_impact(pages[-1], result)

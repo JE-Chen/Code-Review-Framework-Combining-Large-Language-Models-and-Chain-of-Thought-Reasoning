@@ -83,6 +83,14 @@ review-pr
    越界之引用会被静默丢弃\ ；坏引用绝不拖垮真评论\ 。环境变量：
    ``PRTHINKER_PROVENANCE``\ 。
 
+.. option:: --walkthrough
+
+   新增一个每文件 ``WalkthroughStep``\ ，就该文件变更写出二至四句\
+   「\ 做了什么、为何\ 」\ 的叙事\ ，钉于该文件区块最上方──为无推论之
+   commit-message PR 概览之推论侧对应物\ 。它只描述（不评断）\ ，只依赖
+   diff\ ，故开不开 ``--inline-review`` 皆可执行\ 。环境变量：
+   ``PRTHINKER_WALKTHROUGH``\ 。
+
 .. option:: --judge
 
    每文件自评步骤\ ，输出 ``approve`` / ``request_changes`` / ``comment``
@@ -152,7 +160,9 @@ review-pr
    bug history（commit message 命中 ``fix:`` / ``bug`` / ``revert``）算
    每文件风险分\ ；按分数线性缩放 ``max_findings_per_file`` 于 ``floor``
    （默认 2）到 ``ceiling``（默认 ``2 × base_budget``）之间\ 。
-   ``--risk-workdir`` 指向 git repo\ 。环境变量：
+   ``--risk-workdir`` 指向 git repo\ 。另外会在总结中附一个可展开的
+   「\ high-risk files\ 」\ 注记（分数及其 churn／bug-fix／行数拆解）\ ，
+   让审查者看到历史上最容易坏的文件\ 。环境变量：
    ``PRTHINKER_RISK_WEIGHTED``\ 。
 
 .. option:: --diff-entropy
@@ -160,6 +170,20 @@ review-pr
    计算 diff 之 size + 目录分布 Shannon entropy\ ；分数越过 ``bomb``
    阈值时于评论顶端贴\ 「\ Consider splitting this PR\ 」\ 警示\ 。纯本机 CPU\ 、
    无 backend 调用\ 。环境变量：``PRTHINKER_DIFF_ENTROPY``\ 。
+
+.. option:: --review-order
+
+   加一个\ 「\ Suggested review order\ 」\ 注记\ ，用 repo knowledge graph
+   的 import 边把变更文件按\ 「\ 被最多其他变更文件依赖\ 」\ 排前面\ ，最
+   地基的文件标上\ 「\ start here\ 」\ ，让审查者先读基础变更再读其调用端\ 。
+   Best-effort：KG store 不存在时略过\ 。环境变量：``PRTHINKER_REVIEW_ORDER``\ 。
+
+.. option:: --change-map
+
+   在评论内嵌一张小的 Mermaid 图\ ，画出\ *变更文件之间*\ 的 import 边
+   （来自 repo knowledge graph）\ ，让改动的结构一眼可见\ 。GitHub 原生
+   渲染 ```mermaid`` 区块\ 。变更文件之间没有 import 边时略过\ 。
+   环境变量：``PRTHINKER_CHANGE_MAP``\ 。
 
 review-file
 -----------
@@ -190,6 +214,34 @@ review-file
 长跑时很有用。
 
 ``--steps`` 是逗号分隔的 step 名称列表；空（默认）就跑全部已注册的 step。
+
+triage
+------
+
+对一份 diff 跑完所有\ *无需模型*\ 的 orientation 信号并打印非空区块。不加载
+任何 backend,故瞬间完成且仅需 runner profile——可作为 push 前的本机检查,
+或 GPU-free 的 CI gate,在完整 review 排程前先抓出冲突标记、Trojan-Source
+字符、吞错、重命名、删除、mode 变更、大段粘贴、纯格式变更、覆盖缺口、
+残留 debug 与延迟工作标记\ 。
+
+.. code-block:: text
+
+   prthinker triage
+       [--diff-file PATH | --staged | --against REF]
+       [--exit-nonzero-on-signal]
+
+默认从 stdin 读 diff;\ ``--diff-file`` 从文件读,\ ``--staged`` 跑
+``git diff --cached``\ ,\ ``--against REF`` 跑 ``git diff REF``\ （如
+``origin/main``\ ）。加上 ``--exit-nonzero-on-signal`` 时,只要有任一信号
+触发即 exit 1,可用以 gate CI 步骤;否则一律 exit 0(仅供参考)\ 。
+
+.. code-block:: bash
+
+   git diff origin/main | prthinker triage
+   prthinker triage --staged --exit-nonzero-on-signal
+
+此信号集即 PR 评论摘要下方所呈现者;各区块检测内容见
+:doc:`../concepts/research-extensions`\ 。
 
 aggregate
 ---------
