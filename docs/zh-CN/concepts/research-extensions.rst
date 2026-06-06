@@ -490,10 +490,44 @@ sweep、GPU OOM、runner 超时、人工 ``ask/cancel``\ ）\ ，现有之
   findings，接 GitHub code-scanning 或任何 SARIF viewer。无需模型之导航信号
   亦一并输出,各自挂在专属 ``prthinker/<rule>`` rule id（\
   ``prthinker/trojan-source``\ 、\ ``prthinker/merge-conflict``\ …）,使
-  viewer 能与模型 findings 区分过滤\ 。
+  viewer 能与模型 findings 区分过滤。每条 result 带稳定之
+  ``partialFingerprints`` hash(使 code scanning 可跨 run 去重),每条 rule
+  附 ``helpUri`` 与 ``fullDescription``\ 。
 * **HTML 报告**\ （\ ``--html-report PATH``\ ）——独立、XSS-safe 之 HTML
-  审查报告（严重度摘要 + 各文件 findings）,并含\ *Orientation signals*\ 区段
-  列出无需模型之信号;每个信号之路径与文件其余部分一样经转义处理\ 。
+  审查报告（严重度摘要 + diff 总计 + 各文件 findings）,并含\
+  *Orientation signals*\ 区段列出无需模型之信号;以内嵌样式表呈现(不发网络
+  请求),每个信号之路径与文件其余部分一样经转义处理\ 。
+* **GitLab Code Quality**\ （\ ``--codequality-out PATH``\ ）——将 findings
+  与有定位之信号输出为 CodeClimate 格式 JSON 数组（description、severity、
+  稳定 fingerprint、path + 起始行）,使 GitLab MR 在 Code Quality widget
+  呈现。severity 映射 error→critical、warning→major、info→info\ 。
+* **JUnit XML 报告**\ （\ ``--junit-out PATH``\ ）——将 findings 与有定位之
+  信号输出为 JUnit XML(每文件一个 ``testsuite``、每条 finding 一个
+  ``testcase``;error 严重度→\ ``error``\ ,其余→\ ``failure``\ ),使 CI
+  test-report 查看器与单元测试并列显示。所有动态文本皆转义,且写入端不解析
+  XML\ 。
+* **CSV 导出**\ （\ ``--csv-out PATH``\ ）——将 findings 与有定位之信号输出为
+  扁平 CSV（\ ``type,rule,severity,path,line,message``\ ）,供电子表格或
+  ``awk`` 分流;stdlib ``csv`` writer 会处理逗号/换行之引号\ 。
+* **Metrics 汇总**\ （\ ``--metrics-out PATH``\ ）——每次 review 输出一条精简
+  JSON(按严重度之 findings、按 rule + level 之 signals、diff 总计、已审
+  文件数),供仪表板/趋势追踪,并以 ``schema_version`` 版本化\ 。
+* **Markdown 报告**\ （\ ``--markdown-out PATH``\ ）——输出独立 Markdown 文档
+  (摘要 + diff 总计 + orientation signals + 各文件 findings),供下载式 CI
+  artifact 或 wiki 粘贴;内容同 HTML 报告但不含平台 plumbing\ 。
+* **GitHub Actions 注解**\ （\ ``--gha-annotations``\ ）——将 findings 与有定位
+  之信号以 workflow command 打印到 stdout（\ ``::error`` / ``::warning`` /
+  ``::notice``\ ,含 ``file`` + ``line``\ ),使其在 PR Files-changed 标签页以
+  行内注解呈现。套用严格之 workflow-command 转义;与 SARIF 上传互补\ 。
+* **SonarQube 导出**\ （\ ``--sonar-out PATH``\ ）——将 findings 与有定位之信号
+  输出为 SonarQube Generic Issue Data JSON（\ ``engineId`` / ``ruleId`` /
+  ``severity`` / ``type`` / ``primaryLocation``\ ),供
+  ``sonar.externalIssuesReportPaths``\ ;error → ``CRITICAL`` + ``BUG``\ ,
+  其余 ``CODE_SMELL``\ 。
+* **全格式目录**\ （\ ``--report-dir DIR``\ ）——将所有文件式报告（SARIF、
+  HTML、Markdown、Code Quality、Sonar、JUnit、CSV、metrics）以标准文件名写入
+  单一目录,使 CI 一个 flag 即可发布全套。由格式 registry
+  （\ ``report_formats.REPORT_FORMATS``\ ）驱动\ 。
 * **finding 抑制**\ （\ ``--ignore-file`` / ``.prthinkerignore``\ ）——依
   路径 glob、\ ``severity:<level>``\ 、或 ``rule:<id>``\ （对 comment 子串
   匹配）丢弃 findings。缺文件即 no-op。

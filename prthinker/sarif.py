@@ -8,6 +8,7 @@ no heavy ML imports.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -40,10 +41,26 @@ _SEVERITY_TO_LEVEL: dict[str, str] = {
 # Stable ruleId prefix so every finding shares a recognisable namespace.
 _RULE_ID_PREFIX = "prthinker"
 
+# Documentation linked from every rule so a code-scanning viewer can deep
+# link to what each rule means.
+_HELP_URI = (
+    "https://code-review-framework.readthedocs.io/en/latest/"
+    "concepts/research-extensions.html"
+)
+# partialFingerprints key — versioned so the hash scheme can evolve without
+# silently colliding with an older run's fingerprints.
+_FINGERPRINT_KEY = "prthinkerHash/v1"
+
 
 def severity_to_level(severity: str) -> str:
     """Map an :class:`InlineFinding` severity onto a SARIF result level."""
     return _SEVERITY_TO_LEVEL.get(severity, _LEVEL_NOTE)
+
+
+def _fingerprint(rule_id: str, path: str, line: int, text: str) -> str:
+    """Stable per-result hash so code scanning can dedup across runs."""
+    raw = f"{rule_id}\0{path}\0{line}\0{text}".encode("utf-8")
+    return hashlib.sha256(raw, usedforsecurity=False).hexdigest()
 
 
 def _finding_to_result(finding: "InlineFinding") -> dict:
@@ -58,11 +75,17 @@ def _finding_to_result(finding: "InlineFinding") -> dict:
             "region": region,
         }
     }
+    rule_id = f"{_RULE_ID_PREFIX}/{finding.severity}"
     return {
-        "ruleId": f"{_RULE_ID_PREFIX}/{finding.severity}",
+        "ruleId": rule_id,
         "level": severity_to_level(finding.severity),
         "message": {"text": finding.comment},
         "locations": [location],
+        "partialFingerprints": {
+            _FINGERPRINT_KEY: _fingerprint(
+                rule_id, finding.path, finding.line, finding.comment
+            )
+        },
     }
 
 
@@ -78,6 +101,11 @@ def _collect_rules(findings: "list[InlineFinding]") -> list[dict]:
                 "shortDescription": {
                     "text": f"prthinker {finding.severity} finding"
                 },
+                "fullDescription": {
+                    "text": f"A {finding.severity}-severity finding raised "
+                    "by the prthinker Chain-of-Thought review."
+                },
+                "helpUri": _HELP_URI,
                 "defaultConfiguration": {
                     "level": severity_to_level(finding.severity)
                 },
@@ -87,10 +115,16 @@ def _collect_rules(findings: "list[InlineFinding]") -> list[dict]:
 
 def _signal_to_result(signal: SignalFinding) -> dict:
     """Build one SARIF ``results[]`` entry from an orientation signal."""
+    rule_id = f"{_RULE_ID_PREFIX}/{signal.rule_id}"
     entry: dict = {
-        "ruleId": f"{_RULE_ID_PREFIX}/{signal.rule_id}",
+        "ruleId": rule_id,
         "level": signal.level,
         "message": {"text": signal.message},
+        "partialFingerprints": {
+            _FINGERPRINT_KEY: _fingerprint(
+                rule_id, signal.path or "", signal.line or 0, signal.message
+            )
+        },
     }
     if signal.path is not None:
         physical: dict = {"artifactLocation": {"uri": signal.path}}
@@ -110,6 +144,11 @@ def _signal_rules(signals: list[SignalFinding]) -> list[dict]:
                 "id": rule_id,
                 "name": signal.name,
                 "shortDescription": {"text": signal.name},
+                "fullDescription": {
+                    "text": f"{signal.name} — a no-model orientation signal "
+                    "derived statically from the diff."
+                },
+                "helpUri": _HELP_URI,
                 "defaultConfiguration": {"level": signal.level},
             }
     return list(seen.values())

@@ -580,11 +580,50 @@ no inference — so they run on the runner profile.
   orientation signals are emitted too, each under its own
   ``prthinker/<rule>`` rule id (``prthinker/trojan-source``,
   ``prthinker/merge-conflict``, …) so a viewer can filter them apart from
-  the model findings.
+  the model findings. Every result carries a stable
+  ``partialFingerprints`` hash (so code scanning dedups it across runs)
+  and every rule a ``helpUri`` + ``fullDescription``.
 * **HTML report** (``--html-report PATH``) — a standalone, XSS-safe HTML
   review report (severity summary + per-file findings) with an
-  *Orientation signals* section listing the no-model signals; every
+  *Orientation signals* section listing the no-model signals; styled with
+  an embedded stylesheet (no network fetch) and showing diff totals; every
   signal's path is escaped like the rest of the document.
+* **GitLab Code Quality** (``--codequality-out PATH``) — write findings +
+  located signals as a CodeClimate-format JSON array (description,
+  severity, stable fingerprint, path + begin line) so a GitLab MR renders
+  them in its Code Quality widget. Severities map error→critical,
+  warning→major, info→info.
+* **JUnit XML report** (``--junit-out PATH``) — write findings + located
+  signals as JUnit XML (one ``testsuite`` per file, one ``testcase`` per
+  finding; error severity → ``error``, otherwise ``failure``) so CI
+  test-report viewers surface them alongside the unit tests. All dynamic
+  text is escaped; the writer never parses XML.
+* **CSV export** (``--csv-out PATH``) — write findings + located signals
+  as a flat CSV (``type,rule,severity,path,line,message``) for spreadsheet
+  or ``awk`` triage; the stdlib ``csv`` writer quotes commas / newlines.
+* **Metrics rollup** (``--metrics-out PATH``) — write one compact JSON
+  record per review (findings by severity, signals by rule + level, diff
+  totals, files reviewed) for dashboards / trend tracking, versioned by
+  ``schema_version``.
+* **Markdown report** (``--markdown-out PATH``) — write a self-contained
+  Markdown document (summary + diff totals + orientation signals +
+  per-file findings) for a downloadable CI artifact or a wiki paste; same
+  content as the HTML report without the platform plumbing.
+* **GitHub Actions annotations** (``--gha-annotations``) — emit findings +
+  located signals as workflow commands on stdout
+  (``::error`` / ``::warning`` / ``::notice`` with ``file`` + ``line``) so
+  they render as inline annotations on the PR's Files-changed tab. Strict
+  workflow-command escaping is applied; complementary to the SARIF upload.
+* **SonarQube export** (``--sonar-out PATH``) — write findings + located
+  signals as SonarQube Generic Issue Data JSON
+  (``engineId`` / ``ruleId`` / ``severity`` / ``type`` /
+  ``primaryLocation``) for ``sonar.externalIssuesReportPaths``; error →
+  ``CRITICAL`` + ``BUG``, otherwise ``CODE_SMELL``.
+* **All-formats directory** (``--report-dir DIR``) — write every
+  file-based report (SARIF, HTML, Markdown, Code Quality, Sonar, JUnit,
+  CSV, metrics) into one directory with standard filenames, so a CI job
+  publishes the full set with a single flag. Backed by a format registry
+  (``report_formats.REPORT_FORMATS``).
 * **Finding suppression** (``--ignore-file`` / ``.prthinkerignore``) —
   drop findings by path glob, ``severity:<level>``, or ``rule:<id>``
   (substring match on the comment). Missing file is a no-op.

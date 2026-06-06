@@ -46,6 +46,82 @@ def test_findings_only_flag_parses() -> None:
     assert ns.findings_only is True
 
 
+def test_codequality_and_junit_out_flags_parse() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote", "--remote-url", "http://x",
+        "--codequality-out", "cq.json", "--junit-out", "junit.xml",
+    ])
+    assert ns.codequality_out == "cq.json"
+    assert ns.junit_out == "junit.xml"
+
+
+def test_codequality_and_junit_default_none() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote", "--remote-url", "http://x",
+    ])
+    assert ns.codequality_out is None
+    assert ns.junit_out is None
+
+
+def test_csv_and_metrics_out_flags_parse() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote", "--remote-url", "http://x",
+        "--csv-out", "f.csv", "--metrics-out", "m.json",
+    ])
+    assert ns.csv_out == "f.csv"
+    assert ns.metrics_out == "m.json"
+
+
+def test_csv_and_metrics_default_none() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote", "--remote-url", "http://x",
+    ])
+    assert ns.csv_out is None
+    assert ns.metrics_out is None
+
+
+def test_markdown_out_and_gha_annotations_parse() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote", "--remote-url", "http://x",
+        "--markdown-out", "r.md", "--gha-annotations",
+    ])
+    assert ns.markdown_out == "r.md"
+    assert ns.gha_annotations is True
+
+
+def test_markdown_and_gha_defaults() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote", "--remote-url", "http://x",
+    ])
+    assert ns.markdown_out is None
+    assert ns.gha_annotations is False
+
+
+def test_sonar_out_and_report_dir_parse() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote", "--remote-url", "http://x",
+        "--sonar-out", "s.json", "--report-dir", "reports/",
+    ])
+    assert ns.sonar_out == "s.json"
+    assert ns.report_dir == "reports/"
+
+
+def test_sonar_and_report_dir_default_none() -> None:
+    p = _build_parser()
+    ns = p.parse_args([
+        "review-file", "-", "--backend", "remote", "--remote-url", "http://x",
+    ])
+    assert ns.sonar_out is None
+    assert ns.report_dir is None
+
+
 def test_findings_only_defaults_false() -> None:
     p = _build_parser()
     ns = p.parse_args([
