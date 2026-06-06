@@ -31,6 +31,29 @@ class LocalBackendConfig:
     quantization: bool = True
 
 
+def _normalize_remote_url(url: str) -> str:
+    """Return ``url`` with an http(s) scheme, defaulting to https when absent.
+
+    httpx requires an explicit scheme; a bare host (``PRTHINKER_REMOTE_URL=
+    "host:9000"``) otherwise dies deep in httpx with "Request URL is missing
+    an 'http://' or 'https://' protocol". An explicit ``http://`` or
+    ``https://`` is respected (``http://`` covers a no-TLS tunnel); any other
+    scheme is rejected per the HTTPS-only outbound rule.
+    """
+    cleaned = (url or "").strip()
+    if not cleaned:
+        raise ValueError("RemoteBackendConfig.url is required")
+    if cleaned.lower().startswith(("http://", "https://")):
+        return cleaned
+    scheme_sep = cleaned.find("://")
+    if scheme_sep != -1:
+        scheme = cleaned[:scheme_sep]
+        raise ValueError(
+            f"RemoteBackendConfig.url scheme must be http or https, got {scheme!r}"
+        )
+    return f"https://{cleaned}"
+
+
 @dataclass(frozen=True)
 class RemoteBackendConfig:
     """Self-hosted FastAPI server (the project's own /ask + /review)."""
@@ -40,8 +63,9 @@ class RemoteBackendConfig:
     api_key: str | None = None
 
     def __post_init__(self) -> None:
-        if not self.url:
-            raise ValueError("RemoteBackendConfig.url is required")
+        # Normalise the URL at the boundary so every downstream httpx client
+        # gets a scheme-qualified value (frozen dataclass -> object.__setattr__).
+        object.__setattr__(self, "url", _normalize_remote_url(self.url))
 
 
 @dataclass(frozen=True)
