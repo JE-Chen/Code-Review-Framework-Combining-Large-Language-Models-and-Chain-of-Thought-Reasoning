@@ -4,8 +4,11 @@ Each step is a `ReviewStep` subclass that knows how to build its prompt from
 the current `ReviewContext`. Steps self-register via `@register_step` so
 adding a new one does not require editing the pipeline.
 
-Built-in steps re-use the prompt templates already defined under
-`codes/run/CoT_Prompts/` — they are the single source of truth.
+Built-in steps re-use the CoT prompt templates bundled at
+`prthinker/prompts/` so the runner is self-contained and importable
+without the project-specific `codes` tree. Those templates are a mirror
+of the canonical corpus at `codes/run/CoT_Prompts/`; keep the two in
+sync (see CLAUDE.md "Prompt Templates Are the Source of Truth").
 """
 
 from __future__ import annotations
@@ -75,18 +78,18 @@ def resolve_steps(names: tuple[str, ...]) -> tuple[type[ReviewStep], ...]:
 
 # Prompt-template imports live below the @register_step decorator so the
 # registry exists before the step subclasses below try to register.
-from codes.run.CoT_Prompts.code_smell_detector import CODE_SMELL_DETECTOR_TEMPLATE  # noqa: E402
-from codes.run.CoT_Prompts.counterfactual_review import (  # noqa: E402
+from prthinker.prompts.code_smell_detector import CODE_SMELL_DETECTOR_TEMPLATE  # noqa: E402
+from prthinker.prompts.counterfactual_review import (  # noqa: E402
     COUNTERFACTUAL_REVIEW_TEMPLATE,
 )
-from codes.run.CoT_Prompts.first_code_review import FIRST_CODE_REVIEW_TEMPLATE  # noqa: E402
-from codes.run.CoT_Prompts.first_summary_prompt import FIRST_SUMMARY_TEMPLATE  # noqa: E402
-from codes.run.CoT_Prompts.global_rule import build_global_rule_template  # noqa: E402
-from codes.run.CoT_Prompts.inline_findings import INLINE_FINDINGS_TEMPLATE  # noqa: E402
-from codes.run.CoT_Prompts.judge_step import JUDGE_STEP_TEMPLATE  # noqa: E402
-from codes.run.CoT_Prompts.linter import LINTER_TEMPLATE  # noqa: E402
-from codes.run.CoT_Prompts.total_summary import TOTAL_SUMMARY_TEMPLATE  # noqa: E402
-from codes.run.CoT_Prompts.walkthrough import WALKTHROUGH_TEMPLATE  # noqa: E402  # pylint: disable=wrong-import-position  # registry must exist first (see above)
+from prthinker.prompts.first_code_review import FIRST_CODE_REVIEW_TEMPLATE  # noqa: E402
+from prthinker.prompts.first_summary_prompt import FIRST_SUMMARY_TEMPLATE  # noqa: E402
+from prthinker.prompts.global_rule import build_global_rule_template  # noqa: E402
+from prthinker.prompts.inline_findings import INLINE_FINDINGS_TEMPLATE  # noqa: E402
+from prthinker.prompts.judge_step import JUDGE_STEP_TEMPLATE  # noqa: E402
+from prthinker.prompts.linter import LINTER_TEMPLATE  # noqa: E402
+from prthinker.prompts.total_summary import TOTAL_SUMMARY_TEMPLATE  # noqa: E402
+from prthinker.prompts.walkthrough import WALKTHROUGH_TEMPLATE  # noqa: E402  # pylint: disable=wrong-import-position  # registry must exist first (see above)
 
 
 def _wrap(prompt: str, rag_docs: list[str]) -> str:

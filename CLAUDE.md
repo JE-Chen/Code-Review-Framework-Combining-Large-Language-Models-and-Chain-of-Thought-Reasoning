@@ -320,6 +320,20 @@ runner. If no → server.
 prompt is referenced from multiple language versions (en / zh-TW / zh-CN), the source language
 file is the one that gets edited; the others are mirrored downstream.
 
+**Bundled mirror at `prthinker/prompts/`.** The `prthinker` package ships its own copy of
+the CoT templates at `prthinker/prompts/` so the runner is **self-contained** and importable
+when installed standalone in another repository (`pip install "prthinker[runner] @ git+..."`),
+where the `codes` tree does not exist. `prthinker/steps.py`, `pipeline.py`, and `findings.py`
+import from `prthinker.prompts`, **never** `codes.run.CoT_Prompts` — a module-top
+`codes.run.CoT_Prompts` import in the runner is a regression that breaks every downstream
+project (the `ModuleNotFoundError: No module named 'codes'` failure). The server / evaluation
+scripts under `codes/run/` still import the canonical `codes.run.CoT_Prompts`.
+
+The two copies are kept in sync **on purpose** (the original is retained, the mirror is added).
+When you edit a canonical template, re-copy it into `prthinker/prompts/` in the same commit;
+`tests/test_prompts_bundled.py::test_bundled_prompts_mirror_canonical` enforces byte-for-byte
+parity and fails the build if they drift.
+
 ### Corpora Are Append-Only
 
 `dismissed.jsonl`, `accepted.jsonl`, and `lessons.jsonl` are append-only. Never rewrite
