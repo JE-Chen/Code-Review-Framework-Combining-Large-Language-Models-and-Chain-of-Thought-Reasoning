@@ -44,7 +44,7 @@ def build_provenance_block(
     Returns ``""`` when there is nothing the model can cite, which
     silently disables the audit-trail request.
     """
-    from codes.run.CoT_Prompts.inline_findings import (
+    from prthinker.prompts.inline_findings import (
         PROVENANCE_INSTRUCTIONS_TEMPLATE,
     )
 

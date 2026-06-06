@@ -2,7 +2,38 @@
 
 from __future__ import annotations
 
-from codes.util.quant_guard import densification_risk, major_version
+from codes.util.quant_guard import (
+    balanced_max_memory,
+    densification_risk,
+    major_version,
+)
+
+
+# --- balanced_max_memory (device_map split arithmetic, torch-free) ------
+
+def test_balanced_max_memory_reserves_headroom_per_gpu():
+    # 2x46 GiB cards, default 13 GiB reserve -> 33 GiB cap each, low enough
+    # to force an even base split that leaves room for the unmerged LoRA.
+    assert balanced_max_memory([46, 46]) == {0: "33GiB", 1: "33GiB"}
+
+
+def test_balanced_max_memory_none_when_no_gpus():
+    assert balanced_max_memory([]) is None
+
+
+def test_balanced_max_memory_override_used_verbatim():
+    assert balanced_max_memory([46, 46], override="40GiB") == {
+        0: "40GiB", 1: "40GiB",
+    }
+
+
+def test_balanced_max_memory_cap_floored_at_one_gib():
+    # An over-large reserve never yields a non-positive cap.
+    assert balanced_max_memory([8], reserve_gib=50) == {0: "1GiB"}
+
+
+def test_balanced_max_memory_single_gpu():
+    assert balanced_max_memory([46]) == {0: "33GiB"}
 
 
 def test_major_version_parses_leading_int():

@@ -14,7 +14,7 @@ from transformers import (
 )
 from peft import PeftModel
 
-from codes.util.quant_guard import densification_risk
+from codes.util.quant_guard import balanced_max_memory, densification_risk
 from prthinker.pipeline import ReviewCancelledError
 
 log = logging.getLogger(__name__)
@@ -191,6 +191,27 @@ class _CancelStoppingCriteria(StoppingCriteria):
         )
 
 
+def _gpu_max_memory():
+    """Balanced per-GPU ``max_memory`` caps for ``device_map="auto"``, or None.
+
+    Reads each visible card's total memory and delegates the split
+    arithmetic to ``quant_guard.balanced_max_memory`` (pure, torch-free) so
+    the base model is spread evenly and leaves headroom for the unmerged
+    LoRA. Without this, ``device_map="auto"`` fills GPU 0 to the brim and
+    ``PeftModel.from_pretrained`` OOMs loading the adapter. Returns None on a
+    CPU-only host. Override the per-GPU cap with ``PRTHINKER_GPU_MAX_MEMORY``.
+    """
+    if not torch.cuda.is_available():
+        return None
+    totals = [
+        torch.cuda.get_device_properties(i).total_memory // (1024 ** 3)
+        for i in range(torch.cuda.device_count())
+    ]
+    return balanced_max_memory(
+        totals, os.environ.get("PRTHINKER_GPU_MAX_MEMORY", "").strip()
+    )
+
+
 def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3B-Thinking-2507", quantization: bool = True):
 
     print("Loading model across all GPUs...")
@@ -200,12 +221,16 @@ def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3
         # bf16, NOT 4-bit. On transformers>=5 a 4-bit A3B MoE densifies its
         # forward (allocation linear in input length) and OOMs the L40S.
         # bf16 across both cards (device_map="auto") avoids that entirely;
-        # see CLAUDE.md "GPU Server: bf16, no flash-attn".
+        # see CLAUDE.md "GPU Server: bf16, no flash-attn". max_memory caps
+        # each card below physical so the base splits evenly and leaves room
+        # for the unmerged LoRA loaded afterwards (else GPU 0 fills and the
+        # adapter OOMs).
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             device_map="auto",
             torch_dtype=torch.bfloat16,
             attn_implementation=attn_impl,
+            max_memory=_gpu_max_memory(),
         )
     elif not quantization:
         model = AutoModelForCausalLM.from_pretrained(
@@ -240,7 +265,18 @@ def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     if lora_path:
-        model = PeftModel.from_pretrained(model, lora_path)
+        # Stage the ~13 GiB adapter on CPU, not a GPU. PEFT defaults the
+        # adapter load to cuda:0; from there it either piles the whole
+        # adapter onto GPU 0 (low_cpu_mem_usage=True) or buffers the full
+        # state dict on GPU 0 before redistributing (the default), and
+        # either way the transient peak OOMs the already-loaded card on
+        # this 30B-A3B + r=64 expert LoRA. torch_device="cpu" keeps the
+        # source in host RAM; PEFT then moves each adapter tensor straight
+        # to its base layer's device, so the adapter splits evenly across
+        # both cards (~6.3 GiB each) and neither GPU spikes during load.
+        model = PeftModel.from_pretrained(
+            model, lora_path, torch_device="cpu"
+        )
         print(datetime.datetime.now(), "LoRa loaded")
         # PeftModel wraps the base; re-verify in case the LoRA path
         # somehow swapped the attention class.

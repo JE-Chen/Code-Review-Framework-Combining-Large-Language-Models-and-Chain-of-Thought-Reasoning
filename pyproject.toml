@@ -37,7 +37,7 @@ local = [
     "torch",
     "accelerate",
     "bitsandbytes",
-    "peft==0.18.0",
+    "peft==0.19.1",
     "faiss-cpu",
     "numpy",
 ]

@@ -320,6 +320,20 @@ runner. If no → server.
 prompt is referenced from multiple language versions (en / zh-TW / zh-CN), the source language
 file is the one that gets edited; the others are mirrored downstream.
 
+**Bundled mirror at `prthinker/prompts/`.** The `prthinker` package ships its own copy of
+the CoT templates at `prthinker/prompts/` so the runner is **self-contained** and importable
+when installed standalone in another repository (`pip install "prthinker[runner] @ git+..."`),
+where the `codes` tree does not exist. `prthinker/steps.py`, `pipeline.py`, and `findings.py`
+import from `prthinker.prompts`, **never** `codes.run.CoT_Prompts` — a module-top
+`codes.run.CoT_Prompts` import in the runner is a regression that breaks every downstream
+project (the `ModuleNotFoundError: No module named 'codes'` failure). The server / evaluation
+scripts under `codes/run/` still import the canonical `codes.run.CoT_Prompts`.
+
+The two copies are kept in sync **on purpose** (the original is retained, the mirror is added).
+When you edit a canonical template, re-copy it into `prthinker/prompts/` in the same commit;
+`tests/test_prompts_bundled.py::test_bundled_prompts_mirror_canonical` enforces byte-for-byte
+parity and fails the build if they drift.
+
 ### Corpora Are Append-Only
 
 `dismissed.jsonl`, `accepted.jsonl`, and `lessons.jsonl` are append-only. Never rewrite
@@ -353,7 +367,8 @@ The FastAPI server (`Qwen/Qwen3-Coder-30B-A3B-Instruct` + the unmerged 13 GB LoR
 only fast in **bf16**, and now loads it **deterministically**: `load_qwen3_model()`
 requests bf16 directly for the A3B models (`torch_dtype=torch.bfloat16`, no
 `BitsAndBytesConfig`) — ~75 GB across the two 46 GB L40S with `device_map="auto"`
-(the "~32 GB used on each card" signature), ~14 tok/s.
+(base ~28 GB/card; with the CPU-staged LoRA attached the steady-state signature is
+"~36–38 GB used on each card"), ~14 tok/s.
 
 **transformers must be pinned `<5`** (`pyproject.toml` `[local]` →
 `transformers>=4.51,<5`). transformers **≥ 5 densifies the Qwen3-A3B MoE forward**
@@ -376,7 +391,8 @@ MoE crushes decode to ~4.5 tok/s).
 
 The supported deploy is the `docker/Dockerfile.server` shipped here: CUDA
 `12.2.0-runtime` base, **no** flash-attn step, `[local]` deps with `transformers<5`,
-`device_map="auto"` (dual-card), LoRA left **unmerged**. Keep
+`device_map="auto"` (dual-card), LoRA left **unmerged** and CPU-staged (see "the LoRA
+stays UNMERGED" below — never `merge_and_unload`). Keep
 `TRANSFORMERS_CACHE=/cache/huggingface/hub` — without the `/hub` segment transformers
 obeys the deprecated var and looks in an empty dir, hanging (online) or OSErroring
 (offline) on load even though the weights are cached.
@@ -387,6 +403,42 @@ The math backend is *explicitly disabled* for the generate call so a long-contex
 either dispatches to the memory-efficient kernel or raises a clear "no available SDPA
 backend" error — never the silent 127 GiB attention-score materialisation that the
 default dispatcher fell into at ~35K total tokens.
+
+### GPU Server: the LoRA stays UNMERGED — CPU-stage it, never `merge_and_unload`
+
+The ~13 GB r=64 expert LoRA (`codes/train/outputs-lora-qwen3-coder-30b`, targeting
+`q/k/v/o_proj` + the MoE `gate/up/down_proj`) is attached at runtime with
+`PeftModel.from_pretrained(...)` and **MUST stay unmerged**. Do **NOT** call
+`merge_and_unload()`, `merge_adapter()`, or otherwise fold the adapter into the base
+weights — not in `load_qwen3_model()`, not in a "fix the OOM" patch, not anywhere.
+This is a hard rule, not a preference.
+
+**Why unmerged (and why merging is the wrong instinct):**
+
+- Merging is **not needed to fit memory.** The only reason anyone reaches for a merge
+  here is the boot-time GPU-0 OOM — and that OOM is a *load-placement* bug, already
+  solved without merging (see the fix below). Merging to "save memory" trades a solved
+  problem for several new ones.
+- The base weights live in the shared `hf_cache` volume and are **reused across
+  rebuilds**; the adapter is versioned and **retrained independently**. A merge would
+  bake a bespoke ~60 GB merged checkpoint that has to be regenerated and re-pushed on
+  every retrain, and it kills hot-swapping a new adapter onto the cached base.
+- A merge writes the LoRA delta back into the **MoE expert tensors** in bf16; that is
+  exactly the densification-adjacent path the rest of this section is built to avoid,
+  and it adds a merge-time peak with no upside.
+
+**The supported way to make the LoRA fit (this is the OOM fix, do this instead of
+merging):** stage the adapter on **CPU**, not a GPU —
+`PeftModel.from_pretrained(model, lora_path, torch_device="cpu")`. PEFT otherwise
+defaults the adapter load to `cuda:0` and the transient peak (base already on GPU 0
+plus the whole ~13 GB adapter buffered there) OOMs the card and crash-loops the
+container — `low_cpu_mem_usage=True` did **not** fix this (it piled the whole adapter
+onto `cuda:0`); the load **device** is the lever. With `torch_device="cpu"` the source
+sits in host RAM and PEFT moves each tensor straight to its base layer's device, so the
+adapter splits evenly (~6.3 GB/card) on top of the ~28 GB/card balanced base
+(`quant_guard.balanced_max_memory` `max_memory` cap), settling at **~36–38 GB used per
+card** with headroom to spare. If a future change reintroduces the GPU-0 OOM, fix the
+load placement — never the merge.
 
 ### Three-Language Docs Parity
 
