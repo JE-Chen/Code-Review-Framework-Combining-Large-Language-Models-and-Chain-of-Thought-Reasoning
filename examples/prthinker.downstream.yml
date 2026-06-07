@@ -1,4 +1,27 @@
-name: PRThinker
+# ============================================================================
+# PRThinker — downstream template
+#
+# Copy this file to .github/workflows/prthinker.yml in YOUR repository.
+# PRThinker is NOT vendored into your repo: the runner is installed from git
+# (see PRTHINKER_PKG below), so you need none of the prthinker source tree.
+#
+# ── One-time setup ──────────────────────────────────────────────────────────
+#  1. Edit PRTHINKER_PKG (below) to pin the prthinker version you trust.
+#  2. Pick a backend (see the "Backend selection" block in the review job)
+#     and add the matching repository secrets under
+#     Settings → Secrets and variables → Actions:
+#       • Mode A — self-hosted FastAPI server (this template's default):
+#           PRTHINKER_BACKEND_URL       e.g. https://review.example.com
+#           PRTHINKER_BACKEND_API_KEY   bearer token for that server
+#       • Mode B — a hosted LLM (OpenAI / Anthropic / Azure / vLLM / …):
+#           follow the commented "Mode B" lines; no server to deploy.
+#  3. GITHUB_TOKEN is provided automatically by Actions — no setup needed.
+#
+# Everything else — per-file matrix, incremental skip cache, inline findings,
+# gate / check-run, labels, the pre-review PR summary, and per-PR auto-cancel
+# — works out of the box once the backend is reachable.
+# ============================================================================
+name: PRThinker Review
 
 on:
   pull_request:
@@ -14,43 +37,44 @@ permissions:
 # and cancel-in-progress: true — the stale run is dropped instead of
 # reviewing code that no longer exists. Cross-PR GPU safety is enforced
 # server-side: the inference server serializes every generate behind one
-# process-wide lock (prthinker.gpu_lock), so two PRs reviewing at once
-# queue on the GPU instead of OOM-ing it. (This group was previously
-# repo-wide with cancel-in-progress: false to serialize the GPU at the CI
-# layer; that also blocked same-PR supersession, which the server lock
-# now makes unnecessary.)
+# process-wide lock, so two PRs reviewing at once queue on the GPU instead
+# of OOM-ing it. (If you point at a hosted LLM in Mode B, that provider
+# handles its own concurrency and this is moot.)
 concurrency:
   group: prthinker-pr-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 env:
-  # fnmatch patterns (comma-separated) for paths that should not be
-  # reviewed. Shared with the prthinker CLI via PRTHINKER_EXCLUDE_GLOBS
-  # so the enumerate job and the runner agree on the same filter.
-  PRTHINKER_EXCLUDE_GLOBS: ".idea/*,.idea/**/*,datas/*,datas/**/*,.prthinker/*,.prthinker/**/*,*.md,*.lock,*.json,docs/**/*"
+  # ── EDIT ME ────────────────────────────────────────────────────────────
+  # Where to install the prthinker runner from. Pin to a tag or commit SHA
+  # you trust rather than a moving branch. The `[runner]` extra is light
+  # (httpx + pydantic + PyYAML) and pulls no torch / faiss.
+  PRTHINKER_PKG: "prthinker[runner] @ git+https://github.com/JE-Chen/LLM_Research@main"
 
-  # Opt every JavaScript-based action (actions/checkout, setup-python,
-  # cache, upload-artifact, …) into the Node.js 24 runtime ahead of
-  # GitHub's 2026-06-16 forced cutover. Without this the runner emits
-  # a deprecation warning on every step and will hard-fail once
-  # Node.js 20 is removed on 2026-09-16.
+  # Backend mode for every prthinker invocation. "remote" = the self-hosted
+  # FastAPI server (Mode A). For a hosted LLM (Mode B) set this to "openai"
+  # or "anthropic" and follow the Mode B comments in the review job.
+  PRTHINKER_BACKEND: remote
+
+  # fnmatch patterns (comma-separated) for paths that should not be reviewed.
+  # Tune for your repo — these are sensible defaults for noise / generated
+  # files. Shared with the prthinker CLI so enumerate and the runner agree.
+  PRTHINKER_EXCLUDE_GLOBS: "*.md,*.lock,*.json,*.svg,*.png,*.min.js,*.map,dist/**/*,build/**/*,vendor/**/*"
+
+  # Opt JavaScript-based actions into the Node.js 24 runtime ahead of
+  # GitHub's forced cutover (removes the per-step deprecation warning).
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
-  # 1. List PR files (after dropping noise paths) and emit JSON for
-  #    the per-file matrix. The state cache is restored first so we
-  #    can drop files whose post-change blob SHA still matches the
-  #    SHA recorded by the previous successful aggregate — those
-  #    files don't enter the matrix at all (no runner shard starts),
-  #    and their prior partial JSON is forwarded to the aggregate
-  #    job as the `partial-skipped` artifact for re-use.
+  # 1. List PR files (after dropping noise paths) and emit JSON for the
+  #    per-file matrix. The state cache is restored first so files whose
+  #    post-change blob SHA still matches the previous successful run are
+  #    dropped from the matrix entirely (their prior partial is reused).
+  #    This job also posts the pre-review PR summary — before the matrix —
+  #    so the summary's backend call stays serial with the per-file reviews.
   enumerate:
     if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
-    # Higher than the bare file-listing needs: this job also posts the
-    # pre-review PR summary, which makes one (short) backend call. Keeping
-    # that call here — before the matrix — preserves the serial-GPU
-    # invariant (enumerate finishes before any review shard starts).
     timeout-minutes: 12
     outputs:
       files: ${{ steps.list.outputs.files }}
@@ -58,8 +82,6 @@ jobs:
       skipped: ${{ steps.list.outputs.skipped }}
       deleted: ${{ steps.list.outputs.deleted }}
     steps:
-      # Checkout first so its working-tree clean does not wipe the
-      # restored .prthinker/ state cache that follows.
       - name: Check out PR head
         uses: actions/checkout@v6
         with:
@@ -88,17 +110,15 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           PRTHINKER_PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          pip install -e ".[runner]"
+          pip install "${PRTHINKER_PKG}"
           python -m prthinker post-status || true
 
       # Copilot-style PR summary: reconcile the PR title / description /
       # commit messages against the diff and upsert it as its own comment
-      # (marker: prthinker:pr-summary) BEFORE the per-file review starts,
-      # so reviewers get an at-a-glance brief immediately. Best-effort and
-      # bounded: the command returns 0 on any backend failure, and the step
-      # is continue-on-error with its own timeout so it can never block the
-      # matrix. The GPU call lands here — before the matrix — so it stays
-      # serial with the per-file reviews on the shared backend.
+      # (marker: prthinker:pr-summary) BEFORE the per-file review starts.
+      # Best-effort and bounded: the command returns 0 on any backend
+      # failure and the step is continue-on-error with its own timeout, so
+      # it can never block the matrix.
       - name: Generate and post PR summary
         continue-on-error: true
         timeout-minutes: 9
@@ -106,13 +126,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           PRTHINKER_PR_NUMBER: ${{ github.event.pull_request.number }}
-          PRTHINKER_BACKEND: remote
+          # ----- Mode A: self-hosted server (default) ----------------------
           PRTHINKER_REMOTE_URL: ${{ secrets.PRTHINKER_BACKEND_URL }}
           PRTHINKER_REMOTE_API_KEY: ${{ secrets.PRTHINKER_BACKEND_API_KEY }}
-          # Bound the client poll well under the step timeout so a slow
-          # backend surfaces as a skipped summary, never a hung job.
           PRTHINKER_REMOTE_TIMEOUT: "480"
+          # ----- Mode B: hosted LLM (uncomment, set PRTHINKER_BACKEND
+          #       to openai/anthropic in the top-level env, and drop the
+          #       healthz preflight in the run block below) -----------------
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
+          # Mode A preflight: skip cleanly when the server is unset/unreachable.
+          # For Mode B (hosted LLM) delete this whole `if` block.
           if [ -z "$PRTHINKER_REMOTE_URL" ]; then
             echo "::warning::PR summary skipped — backend not configured"
             exit 0
@@ -122,8 +147,7 @@ jobs:
             AUTH_HEADER=(-H "Authorization: Bearer $PRTHINKER_REMOTE_API_KEY")
           fi
           # Retry the health probe: a cold tunnel / reverse proxy can blow a
-          # single short timeout even when the backend is healthy, which
-          # would otherwise skip the summary for the whole push.
+          # single short timeout even when the backend is healthy.
           reachable=0
           for _ in 1 2 3 4 5; do
             if curl -fsS --max-time 10 "${AUTH_HEADER[@]}" \
@@ -136,7 +160,7 @@ jobs:
             echo "::warning::PR summary skipped — backend unreachable"
             exit 0
           fi
-          pip install -e ".[runner]"
+          pip install "${PRTHINKER_PKG}"
           python -m prthinker pr-summary
 
       - name: List PR files and filter unchanged
@@ -148,10 +172,6 @@ jobs:
           RUNNER_TEMP: ${{ runner.temp }}
         run: |
           set -euo pipefail
-          # Pull every PR file with its current blob SHA. The blob SHA
-          # is the content hash GitHub itself uses, so comparing it to
-          # a previously-recorded value tells us — without any local
-          # hashing — whether the file actually changed since then.
           ALL=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/files?per_page=100" \
             --jq '[.[] | {path: .filename, sha: .sha, status: .status}]')
           ALL="$ALL" RUNNER_TEMP="$RUNNER_TEMP" python3 <<'PY'
@@ -193,8 +213,6 @@ jobs:
           for entry in kept:
               path = entry["path"]
               sha = entry["sha"]
-              # Same content as last time AND a stored partial exists?
-              # Then re-use the partial and skip the whole matrix shard.
               if prev.get(path) == sha:
                   digest = hashlib.sha256(path.encode("utf-8")).hexdigest()
                   partial = partials_dir / f"{digest}.json"
@@ -204,10 +222,6 @@ jobs:
                       continue
               matrix.append(path)
 
-          # Deleted (status "removed") files never enter the matrix —
-          # there is nothing in the head checkout to review — but the PR
-          # still touched them, so emit a finding-less, is_deleted partial
-          # the aggregate will merge and render as "skipped (deleted)".
           deleted = [
               e["path"] for e in raw
               if e["status"] == "removed" and not excluded(e["path"])
@@ -246,8 +260,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
-      # Deleted files don't get a matrix shard; this partial carries them
-      # into the aggregate so the comment lists them as skipped (deleted).
       - name: Upload deleted-file partial
         if: steps.list.outputs.deleted != '0' && steps.list.outputs.deleted != ''
         uses: actions/upload-artifact@v7
@@ -257,11 +269,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
-  # 2. Per-file review. Each matrix iteration owns ONE path and has
-  #    its own 60-min budget, so a single slow file can't starve the
-  #    whole PR. max-parallel: 1 because the backend serialises on
-  #    one GPU — parallel runners would just queue at /review/submit
-  #    and burn CI minutes for nothing.
+  # 2. Per-file review. Each matrix iteration owns ONE path with its own
+  #    60-min budget. max-parallel: 1 because the backend serializes on one
+  #    GPU — parallel runners would just queue and burn CI minutes.
   review:
     needs: enumerate
     if: ${{ needs.enumerate.outputs.empty == 'false' }}
@@ -288,15 +298,8 @@ jobs:
       - name: Install runner dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[runner]"
+          pip install "${PRTHINKER_PKG}"
 
-      # Restore the per-PR state cache (manifest, prior partials, and
-      # the in-runner diff-since-last SQLite). The matrix-level skip
-      # already lives in the enumerate job — what this restore buys
-      # is a layer-2 safety net: if a file made it into the matrix
-      # but its hashed content still matches a finding the SQLite
-      # remembers, the CoT pipeline short-circuits before any GPU
-      # work. Only the aggregate job writes back to this key.
       - name: Restore prthinker state cache
         uses: actions/cache/restore@v5
         with:
@@ -311,54 +314,47 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           PRTHINKER_PR_NUMBER: ${{ github.event.pull_request.number }}
 
-          # ----- Backend selection -----------------------------------------
-          # `remote` is the project's own FastAPI inference server. Swap to
-          # `openai` to drive any OpenAI-Chat-Completions endpoint (OpenAI,
-          # Azure, vLLM, Ollama /v1, LM Studio, Together, Groq, …), or to
-          # `anthropic` for Claude. See docs/guide/configuration.rst.
-          PRTHINKER_BACKEND: remote
+          # ===== Backend selection =========================================
+          # Mode A (default): the self-hosted FastAPI server. PRTHINKER_BACKEND
+          # is set to "remote" in the top-level env. RAG runs on the server.
           PRTHINKER_REMOTE_URL: ${{ secrets.PRTHINKER_BACKEND_URL }}
           PRTHINKER_REMOTE_API_KEY: ${{ secrets.PRTHINKER_BACKEND_API_KEY }}
           PRTHINKER_USE_REMOTE_PIPELINE: "true"
-          # How long the client polls /review/result before giving up.
-          # The CLI's default is 600s, but a real multi-step CoT review of
-          # one file on the 30B-A3B backend can exceed that, surfacing as
-          # "Remote review job ... did not finish within 600.0s". The
-          # job/poll pattern keeps each individual poll short (well under
-          # any reverse-proxy edge timeout), so a long overall budget is
-          # safe; the server keeps working regardless of this value.
           PRTHINKER_REMOTE_TIMEOUT: "1800"
+          PRTHINKER_RAG_ENABLED: "true"
+          PRTHINKER_REMOTE_RAG: "true"
+          #
+          # Mode B: a hosted LLM instead of the server. In the TOP-LEVEL env
+          # set PRTHINKER_BACKEND to "openai" (any OpenAI-compatible endpoint:
+          # OpenAI, Azure, vLLM, Ollama /v1, Together, Groq, …) or "anthropic".
+          # Then in THIS block: delete the four PRTHINKER_REMOTE_* lines and
+          # PRTHINKER_USE_REMOTE_PIPELINE above, add the API key, and turn RAG
+          # off (local FAISS RAG is not in the runner profile):
+          #   OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          #   # OPENAI_BASE_URL: https://your-endpoint/v1   # non-OpenAI hosts
+          #   # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          #   PRTHINKER_RAG_ENABLED: "false"
+          # and delete the healthz preflight in the run block below.
+          # =================================================================
 
           PRTHINKER_PER_FILE: "true"
           PRTHINKER_INLINE_REVIEW: "true"
           PRTHINKER_MAX_FINDINGS_PER_FILE: "10"
-          # The CLI loops over the PR diff but skips every path except
-          # this one — so the matrix iteration only spends GPU time on
-          # the file it owns.
+          # The CLI loops over the PR diff but reviews only this file.
           PRTHINKER_TARGET_FILE: ${{ matrix.file }}
-          # Write a partial ReviewResult instead of posting to GitHub.
-          # The aggregate job downloads all partials and posts one
-          # combined summary + inline review + gate close.
+          # Write a partial ReviewResult instead of posting; the aggregate
+          # job merges all partials into one summary + inline review + gate.
           PRTHINKER_OUTPUT_JSON: ${{ runner.temp }}/partial.json
 
-          PRTHINKER_RAG_ENABLED: "true"
-          PRTHINKER_REMOTE_RAG: "true"
-          # Gate is owned by the aggregate job — see PRTHINKER_GATE_ON
-          # in that job's env.
+          # Gate is owned by the aggregate job.
           PRTHINKER_GATE_ON: "none"
           PRTHINKER_INCLUDE_CI_SIGNALS: "true"
-
-          # Hash each file's post-change content. On a re-push to the
-          # same PR, files whose hash matches the previous run skip
-          # the CoT pipeline and reuse the cached findings — saves
-          # the bulk of GPU time on incremental fixes that only touch
-          # one file.
+          # Reuse cached findings for files unchanged since the last run.
           PRTHINKER_DIFF_SINCE_LAST: "true"
         run: |
-          # Preflight: if the remote backend is unreachable, skip this
-          # file. The aggregate job still runs and reports whatever
-          # other matrix shards produced; if all shards skipped, it
-          # posts a "backend unreachable" notice.
+          # Mode A preflight: skip this file when the server is unreachable so
+          # the aggregate still posts whatever other shards produced. For
+          # Mode B (hosted LLM) delete this whole `if` block.
           if [ -z "$PRTHINKER_REMOTE_URL" ]; then
             echo "::warning::PRThinker skipped ${{ matrix.file }} — backend not configured"
             exit 0
@@ -376,9 +372,6 @@ jobs:
           python -m prthinker review-pr
 
       - name: Upload partial review JSON
-        # always() so a skipped review (backend down) doesn't break
-        # artifact collection — the upload step itself just no-ops if
-        # the file is missing.
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -387,16 +380,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
-      # Checkpoint this shard's progress into the per-PR state cache
-      # so a later aggregate failure doesn't force the next push to
-      # re-scan every file. With max-parallel: 1 the shards are
-      # serial, so each one restores the previous shard's checkpoint
-      # (cumulative state) and writes a new checkpoint that includes
-      # its own file. The aggregate job's canonical save (no -shard
-      # suffix, written last) supersedes these checkpoints whenever
-      # it completes; if it doesn't, the next run's prefix-restore
-      # picks up the most recent shard checkpoint and at least the
-      # work that finished before the failure isn't lost.
+      # Checkpoint this shard's progress into the per-PR state cache so a
+      # later aggregate failure doesn't force the next push to re-scan
+      # every file.
       - name: Update per-PR state with this shard's partial
         if: success()
         id: shard-state
@@ -405,16 +391,11 @@ jobs:
           TARGET_FILE: ${{ matrix.file }}
         run: |
           set -euo pipefail
-          # A backend-unreachable shard exits 0 without writing
-          # partial.json. Guard against recording an empty result that
-          # would later be reused as if it were a real review.
           if [ ! -s "$PARTIAL_PATH" ]; then
             echo "No partial produced (backend skip?); not updating state"
             echo "updated=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # GitHub's blob SHA == git's blob SHA, so we can read it
-          # straight from the working tree without an extra API call.
           if ! BLOB_SHA=$(git rev-parse "HEAD:$TARGET_FILE" 2>/dev/null); then
             echo "Could not get blob SHA for $TARGET_FILE; skipping state update"
             echo "updated=false" >> "$GITHUB_OUTPUT"
@@ -464,17 +445,12 @@ jobs:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-shard-${{ strategy.job-index }}
 
-  # 3. Aggregate: download every matrix shard's partial JSON (plus
-  #    any partial-skipped artifact carried over from enumerate),
-  #    merge them, post ONE summary + ONE inline review, close the
-  #    pre-merge gate, then write the canonical per-PR state cache
-  #    that the next push's enumerate will read.
+  # 3. Aggregate: download every shard's partial JSON (plus any carried-over
+  #    skipped partials), merge them, post ONE summary + ONE inline review,
+  #    close the gate, and write the canonical per-PR state cache the next
+  #    push's enumerate reads.
   aggregate:
     needs: [enumerate, review]
-    # Run even when every file was reused (matrix empty but skipped > 0)
-    # because the new PR HEAD still needs its own check-run + comment
-    # upsert. Also runs on partial review failures so successful shards'
-    # findings still get posted.
     if: >-
       ${{ always() &&
           (needs.enumerate.outputs.empty == 'false' ||
@@ -497,12 +473,8 @@ jobs:
       - name: Install runner dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[runner]"
+          pip install "${PRTHINKER_PKG}"
 
-      # Restore the per-PR state cache so the write-state step at the
-      # end of this job can wipe + rebuild the partials dir against a
-      # known baseline (defends against half-written state from a run
-      # that died mid-aggregate).
       - name: Restore prthinker state cache
         uses: actions/cache/restore@v5
         with:
@@ -518,14 +490,9 @@ jobs:
           pattern: partial-*
           merge-multiple: false
 
-      # HARD RULE: a file's prior review result is NEVER lost from the
-      # posted PR review just because this run failed to refresh it.
-      # The restored per-PR state cache already sits at
-      # .prthinker/pr-state/partials/<sha256(path)>.json; copy them in
-      # under a name that sorts FIRST so the aggregate command
-      # (which is last-write-wins on duplicate paths) lets this run's
-      # matrix output override the prior partial, while any file the
-      # matrix did not touch is still posted with its prior findings.
+      # HARD RULE: a file's prior review result is NEVER lost just because
+      # this run failed to refresh it. Carry restored partials in under a
+      # name that sorts FIRST so this run's matrix output overrides them.
       - name: Carry prior partials forward into aggregate input
         if: hashFiles('.prthinker/pr-state/partials/*.json') != ''
         run: |
@@ -551,6 +518,8 @@ jobs:
           PRTHINKER_IMPACT_MAP: "true"
           PRTHINKER_PR_BODY_SUMMARY: "true"
           PRTHINKER_REQUIRE_FULL_SCAN: "true"
+          # Fail the check run when any error-severity finding lands. Set to
+          # "warning" to be stricter, or "none" to make the review advisory.
           PRTHINKER_GATE_ON: "error"
           PRTHINKER_SARIF_OUT: ${{ runner.temp }}/prthinker.sarif
           PRTHINKER_HTML_REPORT: ${{ runner.temp }}/report.html
@@ -558,12 +527,6 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
           PRTHINKER_AGGREGATE_FROM: ${{ runner.temp }}/partials
         run: |
-          # If neither a matrix shard nor enumerate's skip path
-          # produced any partial JSON (e.g. backend was unreachable
-          # for the whole run AND this is the first push, so there
-          # was nothing to reuse), post a single skip notice under
-          # the standard marker so reviewers know why the PR has
-          # no review.
           if ! find "$PRTHINKER_AGGREGATE_FROM" -name "*.json" -print -quit | grep -q .; then
             MARKER='<!-- prthinker:summary -->'
             BODY=$(printf '%s\n' \
@@ -582,9 +545,6 @@ jobs:
 
           python -m prthinker aggregate
 
-      # Upload the merged findings to GitHub code scanning so they also
-      # appear in the Security tab and as native diff annotations. Best
-      # effort: skipped when no SARIF was produced (e.g. skip notice).
       - name: Upload SARIF to code scanning
         if: ${{ always() }}
         continue-on-error: true
@@ -592,8 +552,6 @@ jobs:
         with:
           sarif_file: ${{ runner.temp }}/prthinker.sarif
 
-      # Upload the rendered reports as run artifacts; the summary comment's
-      # "Reports" footer links back to this run so reviewers can download them.
       - name: Upload review reports
         if: ${{ always() }}
         continue-on-error: true
@@ -605,12 +563,9 @@ jobs:
             ${{ runner.temp }}/prthinker.sarif
           if-no-files-found: ignore
 
-      # Rebuild .prthinker/pr-state from the downloaded partials +
-      # the current PR files API so the NEXT push's enumerate job
-      # can skip files whose blob SHA still matches. Each file's
-      # partial is rewritten to its own JSON keyed by sha256(path),
-      # and the manifest records the blob SHA observed at this
-      # aggregate's vantage point.
+      # Rebuild .prthinker/pr-state from the downloaded partials + the
+      # current PR files API so the next push's enumerate can skip files
+      # whose blob SHA still matches.
       - name: Write fresh per-PR state cache
         id: write-state
         env:
@@ -633,16 +588,6 @@ jobs:
           partials_dir.mkdir(parents=True, exist_ok=True)
           state.mkdir(parents=True, exist_ok=True)
 
-          # HARD RULE: a file's prior review result is NEVER discarded
-          # just because this run could not refresh it. partial-skipped
-          # upload failures, actions/cache restore misses, and matrix
-          # shard crashes all can leave files out of `download`; we
-          # must fall back to whatever the restored prior state cache
-          # already has on disk before deciding to drop an entry.
-
-          # Read the prior partials / manifest BEFORE writing anything,
-          # so we have a stable fallback layer even if this run produced
-          # nothing for a file.
           prior_path_to_fr: dict[str, dict] = {}
           for prior_jp in sorted(partials_dir.rglob("*.json")):
               try:
@@ -666,9 +611,6 @@ jobs:
               except Exception:
                   prior_blob_sha = {}
 
-          # Build path -> latest per_file entry across every downloaded
-          # partial JSON for THIS run. Last-write-wins matches the merge
-          # semantics the aggregate command itself uses.
           this_run_path_to_fr: dict[str, dict] = {}
           for jp in sorted(download.rglob("*.json")):
               try:
@@ -678,24 +620,14 @@ jobs:
               for fr in payload.get("per_file", []):
                   this_run_path_to_fr[fr["path"]] = fr
 
-          # Effective per_file = this run, falling back to prior. A file
-          # only gets dropped if BOTH this run AND the prior cache lack
-          # any partial for it (truly never-reviewed) or if it is no
-          # longer in the PR.
           effective_path_to_fr = dict(prior_path_to_fr)
           effective_path_to_fr.update(this_run_path_to_fr)
 
-          # Keep only files still in the PR. Removed files lose their
-          # partial; everything else is preserved.
           current_paths = {
               entry["path"] for entry in files_data
               if entry["status"] != "removed"
           }
 
-          # Rewrite the partials dir from the effective view. We do NOT
-          # rmtree first — we only overwrite digests we are about to
-          # rewrite and unlink digests for paths that left the PR. This
-          # makes the step idempotent on partial failures.
           kept_digests: set[str] = set()
           written = 0
           reused = 0
@@ -719,20 +651,12 @@ jobs:
               else:
                   reused += 1
 
-          # Drop digests for paths that left the PR (or never existed).
           dropped = 0
           for existing in partials_dir.glob("*.json"):
               if existing.stem not in kept_digests:
                   existing.unlink()
                   dropped += 1
 
-          # Rebuild manifest. For files refreshed this run, store the
-          # current blob_sha so the next enumerate skips them on a
-          # genuine no-op push. For files we are merely carrying over
-          # from prior cache (this run didn't touch them), keep the
-          # PRIOR blob_sha — anything else would lie about when this
-          # file's review was actually computed and could mislead the
-          # next enumerate into reusing a stale partial.
           path_to_current_sha = {
               entry["path"]: entry["sha"]
               for entry in files_data
