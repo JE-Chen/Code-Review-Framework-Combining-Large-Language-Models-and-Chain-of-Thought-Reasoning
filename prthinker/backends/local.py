@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from prthinker.backends.base import InferenceBackend
 from prthinker.config import LocalBackendConfig
+from prthinker.gpu_lock import gpu_serialized
 
 
 class LocalHFBackend(InferenceBackend):
@@ -47,13 +48,16 @@ class LocalHFBackend(InferenceBackend):
     ) -> str:
         from codes.util.qwen3_util import qwen3_ask
 
-        content, _thinking = qwen3_ask(
-            prompt,
-            self._model,
-            self._tokenizer,
-            max_new_tokens=max_new_tokens,
-            cancel_event=cancel_event,
-        )
+        # Serialize the forward pass: the server runs many request threads
+        # against one GPU, and two concurrent generates OOM the card.
+        with gpu_serialized():
+            content, _thinking = qwen3_ask(
+                prompt,
+                self._model,
+                self._tokenizer,
+                max_new_tokens=max_new_tokens,
+                cancel_event=cancel_event,
+            )
         return content
 
     def close(self) -> None:
