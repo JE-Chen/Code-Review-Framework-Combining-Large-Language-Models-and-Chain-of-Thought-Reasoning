@@ -459,6 +459,29 @@ invent benchmark numbers, RQs, comparison targets, or references. The framework-
 paper that has actually run the experiments. New mechanisms get a §3.7.x design subsection
 and a matching §6.4.5 future-work skeleton; both must carry a "本論文未予評估" disclaimer.
 
+### Architecture Diagrams
+
+The draw.io architecture diagrams live under `datas/Architecture/v<MAJOR>.<MINOR>/`
+(four per version: `系統架構` / `訓練流程` / `程式碼審查流程` / `LLM-as-a-Judge流程`).
+When adding a version, restyling, or fixing diagram layout, **use the
+`architecture-diagram-author` subagent** (`.claude/agents/architecture-diagram-author.md`)
+— it encodes the house style and the routing rules. Non-negotiables it captures:
+
+- **`系統架構` MUST use the AWS icon style** (`mxgraph.aws4.resourceIcon`),
+  not plain boxes; concept clusters / hubs stay as rounded boxes.
+- The draw.io **export renderer follows edge waypoints literally and never
+  routes around obstacles** — so edges crossing boxes/text are a layout bug
+  you must hand-fix (order bands by flow, keep hub lanes clear with staggered
+  side-spokes, route long edges in the margin/gutter lanes, avoid full-width
+  boxes blocking a crossing, prefer layered adjacency over long connectors).
+- **Always verify by exporting to PNG and looking at it** (the portable
+  draw.io build via `gh release download jgraph/drawio-desktop`, then
+  `draw.io.exe -x -f png -s 2 --no-sandbox`); iterate edit → export → view
+  until no edge crosses a box. `choco`/`winget` need admin; the portable zip
+  does not.
+- Per `paper_rule.md`, never invent components; mirror only what the code
+  actually has.
+
 ### GitHub Actions / CI Resilience Patterns
 
 - **CI matrix `max-parallel: 1`** is intentional. The single GPU backend is the bottleneck;
