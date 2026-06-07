@@ -5,9 +5,31 @@
      Reformatting them to restart at 1 would lose the cross-section
      numbering that the paper itself uses. -->
 
-# 論文補充內容（drop-in 段落集 — v3.4 修正版）
+# 論文補充內容（drop-in 段落集 — v3.5 修正版）
 
 ## 修正聲明
+
+本版相對於 v3.4 之關鍵差異（v3.5）：
+
+- **新增 §3.7.23 無模型定向信號（model-free orientation signals）**：對應
+  隨附框架近期之 orientation-signals 整合。此為一組\ **零推論成本、確定性**\
+  之啟發式偵測器，於 runner profile（無 GPU）即可執行，在 LLM 審查之前先就
+  diff 本身標示高風險或需人工確認之變更樣態。十二項信號經統一
+  ``SignalFinding``（``rule_id`` / ``level`` / ``message``）介面由
+  ``collect_signal_findings(diff)`` 匯總：遺留衝突標記、Trojan-Source 雙向／
+  隱形控制字元（CVE-2021-42574）、遺留除錯敘述、吞噬例外、大塊新增、二進位
+  變更、刪除檔、重命名／移動、低關注度噪音檔、新增之延遲標記（TODO/FIXME
+  等）、純格式變更、檔案模式變更（execute bit）。此批信號另\ **以各自
+  ``prthinker/<rule>`` rule id emit 至 SARIF**\ （延伸 §3.7.20 之 SARIF 匯出）
+  \ **與 HTML 報告之 Orientation signals 區段**\ ，並提供一個\ **無模型
+  triage 子指令**\ 與 model-free triage 之\ **MCP 工具**\ ，使無 GPU／無
+  API key 之環境亦能取得第一道確定性分流。皆隨附單元測試；\ **不計入 §3.7
+  之十七項研究級機制**\ ；其對缺陷遺漏率或審查效率之效益本論文\ **未予
+  評估**\ ，於 §6.4.5 補上對應未來工作骨架 (t)。
+- **研究級機制計數維持十七項**：§3.7.23 與 §3.7.20 / §3.7.22 同屬已實作之
+  operability／orientation 整合（純轉換、無推論），均不計入十七項。
+- 不變項目（沿用 v3.4）：仍\ **不謊造、不新增 RQ、不新增參考文獻**\ ；
+  既有 §5 之表 1 / 表 2 / 表 3 不更動；§3.7.1–§3.7.22 之既有內容沿用。
 
 本版相對於 v3.3 之關鍵差異（v3.4）：
 
@@ -140,31 +162,11 @@
 
 **內容**：
 
-> 在框架可擴展性方面，本研究將推論後端抽象為 Strategy 介面，目前實驗
-> 以本機 Qwen3-Coder-30B-A3B-Instruct 加 LoRA 適配器之配置（即表 1 之
-> Ours 欄）為主，框架亦預留 OpenAI-相容端點與 Anthropic Messages API
-> 之介面以利後續比較，惟此類跨後端之量化評估屬未來工作。框架另設
-> `JudgeStep` 將審查裁決映射為 GitHub Review API 之 `event` 欄位
-> （`APPROVE` / `REQUEST_CHANGES` / `COMMENT`）作為 PR 合併狀態之控制
-> 端點，並提供合併前 Check Run gate 與作者反饋語料學習等設計，皆屬本
-> 框架之設計貢獻；其量化驗證須累積實際 PR 流量後另行進行。
-
-> 本研究隨附之開源框架另實作十七項研究級擴充機制（涵蓋 prompt-injection
-> robustness、closed-loop 多輪對話、counterfactual / mutation-style
-> 審查、provenance 稽核、force-push 差分、suggestion sandbox 驗證、
-> cross-language API drift、PR 類型自適應、reproducibility 訊號、
-> dependency upgrade impact、reviewer personas + conflict surfacing、
-> risk-weighted attention、diff entropy 偵測、以作者反饋語料主動學習
-> 出之衍生規則（active-learning derived lessons）、跨 PR finding
-> 聚類（self-discovered rules）、Repo 知識圖譜接地（symbol-grounded
-> review）與每檔遞增存檔之崩潰安全部分結果（crash-safe partial
-> review）），均以 CLI flag 之 opt-in 形式提供；其端到端品質效益本
-> 研究均未予量化評估，詳細之設計說明與後續實驗骨架見學位論文 §3.7
-> 與 §6.4.5（對應本框架之 GitHub 倉庫之
-> `docs/en/concepts/research-extensions.rst`）。
-
-> 標示說明：上述段落僅描述機制設計，不附效益數字；本研究實際驗證之
-> 結果見 §5。
+> 在框架可擴展性方面，本研究將推論後端抽象為 Strategy 介面（實驗以表 1 之 Ours
+> 配置為主），預留 OpenAI-相容與 Anthropic 介面，並以 `JudgeStep` 將裁決映射為
+> GitHub Review event。隨附框架另實作十七項研究級擴充機制（prompt-injection
+> robustness、多輪對話、provenance 稽核等，CLI flag opt-in），其端到端效益本研究
+> 未予評估，詳見學位論文 §3.7。
 
 ---
 
@@ -175,16 +177,9 @@
 
 **內容**：
 
-> 框架另實作下列三項設計，於本研究實驗範圍外但屬隨附之開源框架之
-> 一部分，列此供讀者參照：(a) `JudgeStep`，於 CoT pipeline 末讀取
-> `total_summary` 與已解析之 inline 留言，輸出 JSON 裁決並可映射為
-> GitHub Review API 之 `event`；(b) 兩份 append-only 之 JSONL 學習
-> 語料，分別記錄歷次 PR 中被作者拒絕之留言與被作者「Apply suggestion」
-> 採納之建議，於推論時可分別作為輸出端相似度過濾與輸入端 in-context
-> 範例使用；(c) 送出至第三方推論端點前之 secret 預過濾與 SQLite 為基
-> 礎之 prompt cache、generate 呼叫之 telemetry。上述三項機制之量化
-> 評估不在本論文範圍內，留待未來工作。本論文 §5 之實驗結果僅就 §3.1
-> 之知識蒸餾 + LoRA 微調管線與 §3.2 之 RAG + CoT 多步推理進行驗證。
+> 框架另實作三項本研究範圍外之設計：`JudgeStep` 裁決至 GitHub Review event 映射、
+> 記錄作者拒絕／採納之兩份 JSONL 學習語料、secret 預過濾與 SQLite prompt cache；
+> 其量化評估留待未來工作，§5 僅就 §3.1 蒸餾＋LoRA 與 §3.2 RAG＋CoT 進行驗證。
 
 ---
 
@@ -194,15 +189,9 @@
 
 **內容**：
 
-> 在框架擴展面，本研究隨附之開源實作目前已提供四類推論後端介面
-> （本機 Hugging Face、自架 FastAPI 服務、OpenAI-相容端點、Anthropic
-> Messages API）、IDE 端 stdio 整合層（Model Context Protocol server）、
-> 送出前之 secret 預過濾、prompt cache 與 telemetry 等功能；惟此類
-> 機制之量化效益均未於本論文中評估。後續工作將依序針對：(a) 跨後端
-> 於同一基準資料之品質、成本與延遲偏序比較；(b) 作者反饋語料（dismissed
-> 與 accepted）之累積對 inline finding 精確率與作者再次按 👎 比率之
-> 影響；(c) MCP 介面對 IDE 內審查觸發率與接受率之影響；逐項補上實際
-> 實驗以完成完整驗證。
+> 在框架擴展面，隨附實作已提供四類推論後端（本機 Hugging Face、自架 FastAPI、
+> OpenAI-相容、Anthropic）、IDE 端 MCP 整合與 secret 預過濾等功能，惟其量化效益
+> 均未於本論文評估；後續將就跨後端品質成本、語料累積效益與 MCP 觸發率逐項補實驗。
 
 ---
 
@@ -374,12 +363,11 @@
 > 本論文\ **未對任何單項機制之端到端品質效益進行量化評估**\ ；
 > §6.4.5 將就每項機制給出對應之未來工作骨架。所列機制皆已伴隨單元
 > 測試與設計文件（`docs/en/concepts/research-extensions.rst`），可
-> 直接於工程上使用，僅缺學術評估。子節編號 §3.7.1–§3.7.13 為 v3 既有
-> 之十三項；§3.7.14 為部署層之工程設計；§3.7.15–§3.7.18 為 v3.1 新增
-> 之四項機制；§3.7.19 為 v3.2 新增之可觀測層工程，與 §3.7.14 同屬部署
-> 層、不計入上述十七項研究級機制；§3.7.20 為 v3.3 新增之可操作性與輸出
-> 整合（已實作並附單元測試，亦不計入十七項），§3.7.21 為僅設計、尚未
-> 實作之機制骨架。
+> 直接於工程上使用，僅缺學術評估。其中 §3.7.1–§3.7.13 與 §3.7.15–§3.7.18
+> 合為十七項研究級機制；§3.7.14 為部署層工程設計、§3.7.19 為可觀測層工程、
+> §3.7.20 為可操作性與輸出整合、§3.7.22 為審查導覽／分流輔助、§3.7.23 為
+> 無模型定向信號（此五者均已實作並附單元測試，惟與部署 / 輸出層性質相近，
+> 不計入上述十七項）；§3.7.21 為僅設計、尚未實作之機制骨架。
 >
 > 3.7.1  Prompt-injection robustness 與 `adversarial-eval` 子指令
 >
@@ -613,7 +601,7 @@
 > ``down_proj``）改派至 ``ParamWrapper``，拒絕訓練時之
 > ``lora_dropout=0.1``）。
 >
-> (j) **timeout 預算之兩端拉長**：原 v3 設計之 client poll deadline
+> (j) **timeout 預算之兩端拉長**：原設計之 client poll deadline
 > 與 backend per-call timeout 均為 30 分鐘；於本機後端跑全 5 步 CoT
 > 之 per-file review 觀察到 30B 模型於 ``total_summary`` 步驟之單一
 > generate 呼叫可逼近此上限。框架將 ``RemoteBackendConfig.
@@ -624,7 +612,7 @@
 >
 > (k) **poll 重試預算與指數 backoff 以吸收短暫 502**：30B-class
 > 後端之 process 重啟、GPU reload、nginx config reload 易於 ~1 分鐘
-> 時段內持續吐 502；原 v3 之
+> 時段內持續吐 502；原設計之
 > ``_MAX_CONSECUTIVE_POLL_FAILURES = 5`` × ``_POLL_INTERVAL_SECONDS
 > = 5`` 僅能扛 ~25 秒，超過即丟 ``HTTPStatusError`` 並中斷整輪
 > review。框架將預算提升至 60 並引入 ``_POLL_BACKOFF_AFTER_FAILURES
@@ -679,7 +667,7 @@
 > 上傳為 ``partial-skipped`` artifact 供 aggregate 與新跑之 shard
 > 之 partial 一同 merge；aggregate post 完成後，``write-state``
 > 步驟以 PR head 重建 manifest 與 partials 並做 canonical
-> ``cache/save@v4``，作為下一次 push 之來源。並同時修復 v3 設計
+> ``cache/save@v4``，作為下一次 push 之來源。並同時修復原設計
 > 中之 env-var 名稱錯位（``REVIEWMIND_DIFF_SINCE_LAST`` /
 > ``.reviewmind/diff-cache.sqlite`` 重新命名為對應之
 > ``PRTHINKER_*``），使 (l) 之 in-runner SQLite 短路成為第二層
@@ -787,7 +775,7 @@
 >
 > 30B-class 後端之 per-file CoT 於大 PR 上可累積跑數十分鐘。當該輪
 > 因 idle-poll sweep（§3.7.14 (e)）、GPU OOM、runner timeout 或人工
-> 於 GitHub Actions 介面之 cancel 而中途終結時，原 v3 之
+> 於 GitHub Actions 介面之 cancel 而中途終結時，原設計之
 > ``--output-json`` 僅於審查最末整批落盤──中途死亡即\ **無**\ 任何
 > 部分結果可審視。框架以 ``--incremental-save-dir <path>`` 將
 > per-file 完成事件改寫為「即時 atomic 寫盤」：
@@ -873,7 +861,7 @@
 > - **golden-set 快照**（library：``golden``）：寫入／比對 finding 之
 >   穩定快照以偵測 prompt／行為漂移（不含任何分數）。
 > - **評估 harness 骨架**（library：``benchmark``）：將 case 語料跑過
->   後端並僅記錄原始輸出；依 ``paper_rule.md`` 不輸出任何分數或聚合數字。
+>   後端並僅記錄原始輸出，不輸出任何分數或聚合數字。
 > - **成本估算與預算**（library：``cost``）：自 ``pricing`` 估每次呼叫
 >   之 USD，並以 ``CostBudget`` 為單一 PR 設定上限。
 > - **聚焦審查模式**（``--review-modes security,performance,…``）：以
@@ -893,7 +881,7 @@
 > 3.7.21  僅設計、尚未實作之機制（design-only, not yet implemented）
 >
 > 下列機制於隨附框架中\ **僅以設計描述存在、未隨附程式碼**\ ，因其素樸
-> 實作將不安全或需大幅重寫；依 ``paper_rule.md`` 皆標示「本論文未予
+> 實作將不安全或需大幅重寫，皆標示「本論文未予
 > 評估」並列為未來工作：
 >
 > - **平行 per-file 審查**：併行審查各檔可縮短 wall-clock，惟行內 GPU
@@ -942,6 +930,72 @@
 > 上列導覽／分流輔助屬輸出 / 呈現層，\ **不計入 §3.7 之十七項研究級擴充
 > 機制**\ ；各功能皆以單元測試覆蓋，惟其對審查效率、缺陷遺漏率或實務採納
 > 率之量化效益本論文未予評估；對應未來工作骨架見 §6.4.5 (s)。
+>
+> 3.7.23  無模型定向信號（model-free orientation signals）
+>
+> §3.7.22 之導覽輔助協助審查者規劃如何閱讀變更，本節之定向信號則在任何
+> 模型推論之前，先以\ **確定性啟發式**\ （deterministic heuristics，不涉
+> 機率性模型、相同輸入必得相同輸出之規則）就 diff 本身標示需優先目視確認
+> 之變更樣態。其動機有三：其一，LLM 審查需 GPU 或 API，於資源受限或離線之
+> CI 環境未必可得；其二，部分風險樣態（如下述 Trojan-Source）本質為字元層
+> 之確定事實，以規則偵測較交付機率性模型更可靠且可審計；其三，確定性信號
+> 零推論成本，適合作為昂貴 LLM 審查之前置分流。
+>
+> 全部信號共用單一結構化記錄 ``SignalFinding``（``rule_id`` 規則代號 /
+> ``level`` 嚴重度 / ``message`` 訊息），由 ``collect_signal_findings(diff)``
+> 一次掃過 diff 之\ **新增側**\ 行匯總，計十二項：
+>
+> - **遺留衝突標記**（``merge_markers``）：偵測新增行之 ``<<<<<<<`` /
+>   ``>>>>>>>`` / diff3 ``|||||||``（略過 ``=======`` 分隔線以免誤判
+>   Markdown 底線），因遺留標記幾必為衝突解析失誤。
+> - **Trojan-Source 信號**（``bidi_guard``）：掃描新增行之 Unicode 雙向
+>   覆寫與零寬／隱形控制字元（CVE-2021-42574，一類使原始碼之\ *渲染*\ 與
+>   \ *執行*\ 語意不一致之攻擊），逐行列出觸犯之碼位。其與 §3.7.20 之
+>   injection 防護互補：後者針對攻擊者之\ *文字*\ ，本信號針對程式碼本身
+>   之渲染層欺騙。
+> - **遺留除錯敘述**（``debug_left``）：就新增行偵測一組高精度除錯構件
+>   （``breakpoint()`` / ``pdb`` / ``ipdb`` 之 ``set_trace`` / ``console.log``
+>   / ``console.debug`` / ``debugger`` / ``var_dump`` / ``dd``），刻意排除
+>   裸 ``print(`` 以維持信號可信度。
+> - **吞噬例外**（``empty_except``，swallowed exception）：就新增之 ``except``
+>   子句，當其主體僅為 ``pass`` / ``...``（含單行 ``except X: pass`` 形式）時
+>   標示，因靜默吞噬例外常掩蓋錯誤。
+> - **大塊新增**（``large_hunk``）：量測每檔最長連續新增行，逾門檻（預設 80
+>   行）即標示，使單筆大量貼上或生成內容被刻意決定「略讀或細讀」，而非誤認
+>   為分散之手寫小修改。
+> - **二進位變更**（``binary_changes``）：列出無文字 hunk 之二進位檔，促使
+>   審查者另行檢視其內容與來源，而非默許不透明 blob 通過。
+> - **刪除檔**（``deleted_files``）：列出整檔刪除，使被移除之測試或安全防護
+>   不致湮沒於大量刪除行中。
+> - **重命名／移動**（``rename_map``）：自 diff 之 ``rename from`` /
+>   ``rename to``（含 ``similarity index`` 相似度）解析，使純移動不被重複
+>   審為「新檔加刪檔」。
+> - **低關注度噪音檔**（``noise_files``）：將 lock 檔、minified／生成 bundle、
+>   vendored 第三方樹與提交之快照分類為「可略讀」之提示；僅屬建議，不丟棄檔
+>   亦不左右最終結論。
+> - **新增延遲標記**（``new_markers``）：僅就\ **新增**\ 行掃描 ``TODO`` /
+>   ``FIXME`` / ``XXX`` / ``HACK`` / ``BUG``，逐項列出 ``path:line``，使本次
+>   新引入之技術債於提交時即可見；context 行上之既有標記不計入。
+> - **純格式變更**（``whitespace_only``）：將每檔新增與刪除行去除空白後比對，
+>   兩者相同即為純重排或重縮排，標示「formatting only」使行為審查者得以略過；
+>   真正之新內容永不塌縮，故不致誤標。
+> - **檔案模式變更**（``mode_changes``）：擷取 ``old mode`` / ``new mode``
+>   轉換，標示新取得執行位元（execute bit，``644`` → ``755``）之檔，因其
+>   可改變 CI 或部署實際執行之內容。
+>
+> 此批信號之輸出與既有產物整合，計四項：（i）以各自 ``prthinker/<rule>``
+> rule id（``prthinker/trojan-source`` / ``prthinker/merge-conflict`` 等）
+> emit 至 SARIF（延伸 §3.7.20 之 SARIF 匯出，使檢視器得將其與模型 finding
+> 分流）；（ii）於 HTML 報告新增\ *Orientation signals*\ 區段列出全部無模型
+> 信號，其路徑比照全文跳脫以維持 XSS 安全；（iii）提供一個\ **無模型 triage
+> 子指令**\ ，僅執行上列確定性信號而完全不呼叫模型，供無 GPU 或無 API key
+> 之環境取得第一道分流；（iv）將同一 model-free triage 暴露為 MCP（Model
+> Context Protocol）工具，使代理式工作流於不付推論成本之前提下亦能取得這些
+> 信號。
+>
+> 上列定向信號屬輸出 / 呈現層，\ **不計入 §3.7 之十七項研究級擴充機制**\ ；
+> 各信號皆以單元測試覆蓋，惟其對缺陷遺漏率、誤報率或審查效率之量化效益本
+> 論文未予評估；對應未來工作骨架見 §6.4.5 (t)。
 
 ---
 
@@ -1048,9 +1102,9 @@
 > §3.7 所述十七項機制目前僅完成框架實作；其端到端品質效益需後續以
 > 真實 PR 流量驗證。為避免日後補實驗時設計分歧，本節為各機制標示最
 > 小可驗證實驗骨架；所列指標皆為公開可重現之量度，避免引入新主觀
-> 量表。v3 既有之 (a)–(m) 對應 §3.7.1–§3.7.13；v3.1 新增之 (n)–(q)
-> 對應 §3.7.15–§3.7.18；(r) 對應 §3.7.19 之可觀測層（屬部署工程，不計
-> 入十七項，列此便於對照）。
+> 量表。其中 (a)–(m) 對應 §3.7.1–§3.7.13、(n)–(q) 對應 §3.7.15–§3.7.18；
+> (r)–(t) 分別對應 §3.7.19 之可觀測層、§3.7.22 之審查導覽與 §3.7.23 之無
+> 模型定向信號（三者均屬部署 / 輸出層，不計入十七項，列此便於對照）。
 >
 > (a) Prompt-injection robustness（§3.7.1）：擴充 `seed.jsonl` 至每
 > 攻擊類別 ≥ 30 例，於四類後端各跑一遍，以 SQLite 表格內之
@@ -1152,7 +1206,15 @@
 > 另以開啟與未開啟導覽輔助兩組量測「首條留言前之導覽時間」與缺陷遺漏率
 > 之差。本項屬輸出 / 呈現層量化評估，與核心品質研究分流，不計入十七項。
 >
-> 上列十七組研究級實驗與 (r) 之可觀測層工程實驗、(s) 之導覽層實驗皆需累積實際語料；
+> (t) 無模型定向信號（§3.7.23）：以 ≥ 50 個含已知植入樣態之 PR（人工注入
+> 遺留衝突標記、Trojan-Source 字元、遺留除錯敘述、吞噬例外等）為正樣本，另
+> 以等量未植入之乾淨 PR 為負樣本，量測十二項信號之逐類\ **召回率與誤報率**\ ；
+> 並以開啟與未開啟無模型 triage 兩組，量測「於不呼叫模型之前提下，確定性信號
+> 先行標示之高風險檔佔最終人工確認問題之比例」與「triage 階段之 wall-clock
+> （因零推論，預期為毫秒級）」。本項屬輸出 / 呈現層之確定性偵測量化評估，與
+> 核心品質研究分流，不計入十七項。
+>
+> 上列十七組研究級實驗與 (r) 之可觀測層工程實驗、(s) 之導覽層實驗、(t) 之無模型信號實驗皆需累積實際語料；
 > 本論文之主要貢獻仍為 §5.1 / §5.2
 > 所述之多階段 CoT + LoRA 微調 + RAG 之整合設計與驗證，§3.7 與
 > §6.4.5 之內容明示為框架設計貢獻與後續工作之承接介面，不影響本論
@@ -1174,13 +1236,14 @@
       引入 `[23]+`。
 - [ ] 兩篇引文格式統一為 IEEE `[N]`，未殘留 `(Author, Year)`。
 - [ ] 每個新增之技術名詞於首次出現處附括弧解釋。
-- [ ] 新增之子章節（§3.5.1–4、§3.6.1–2、**§3.7.1–21**、§5.3.1–3、
+- [ ] 新增之子章節（§3.5.1–4、§3.6.1–2、**§3.7.1–23**、§5.3.1–3、
       §6.4.1–5）在 docx 內已以加粗 + 略大字級之段落呈現，不僅以段落
       換行示意。子節編號：§3.7.1–§3.7.13 為原 13 項機制、§3.7.14 為
       部署層含 (a)–(p)、§3.7.15–§3.7.18 為 v3.1 新增之四項機制、§3.7.19
       為 v3.2 新增之可觀測層工程（部署層，不計入十七項研究級機制）、
       §3.7.20 為 v3.3 新增之可操作性與輸出整合（已實作 + 測試）、§3.7.21
-      為僅設計未實作之機制骨架；後三者皆不計入十七項。
+      為僅設計未實作之機制骨架、§3.7.22 為 v3.4 新增之審查導覽／分流輔助、
+      §3.7.23 為 v3.5 新增之無模型定向信號；§3.7.19–§3.7.23 皆不計入十七項。
 - [ ] §1.5 條列之七項貢獻：前三項已對應 §5 表 1 / 表 2 / 表 3 之實驗
       結果；第 4–7 項已明示為「框架設計貢獻、量化驗證屬未來工作」。
       第 7 項已更新為「十七項」並包含 lessons / clusters / KG /
