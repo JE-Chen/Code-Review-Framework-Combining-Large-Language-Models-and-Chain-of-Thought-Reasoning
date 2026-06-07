@@ -20,6 +20,7 @@ from prthinker import (
     diff_entropy,
     personas,
     pr_classifier,
+    pr_summary,
     risk_score,
 )
 from prthinker.accepted import AcceptedExamplesRetriever, format_examples_block
@@ -75,6 +76,7 @@ class ReviewResult:
     persona_reviews: list[PersonaReview] = field(default_factory=list)
     persona_conflicts: list[PersonaConflict] = field(default_factory=list)
     diff_entropy: DiffEntropySummary | None = None
+    pr_summary: str | None = None
 
     @property
     def total_summary(self) -> str | None:
@@ -309,6 +311,8 @@ class CoTPipeline:
         pr_classify: bool = False,
         pr_title: str = "",
         pr_body: str = "",
+        pr_summary: bool = False,
+        commit_messages: tuple[str, ...] = (),
         reproducibility_check: bool = False,
         dep_upgrade_check: bool = False,
         persona_set: tuple[str, ...] = (),
@@ -399,6 +403,11 @@ class CoTPipeline:
                     self._backend, diff_text, review_modes, self._max_new_tokens,
                 )
             )
+        pr_summary_text = (
+            self._summarize_pr(diff_text, pr_title, pr_body, commit_messages)
+            if pr_summary
+            else None
+        )
 
         return ReviewResult(
             code_diff=diff_text,
@@ -413,6 +422,7 @@ class CoTPipeline:
             persona_reviews=persona_reviews,
             persona_conflicts=persona_conflicts,
             diff_entropy=entropy_summary,
+            pr_summary=pr_summary_text,
         )
 
     # ---------- internals ---------------------------------------------------
@@ -474,6 +484,24 @@ class CoTPipeline:
             max_findings_per_file=max_findings_per_file,
             dialogue_block=dialogue_block,
         )
+
+    def _summarize_pr(
+        self,
+        diff_text: str,
+        pr_title: str,
+        pr_body: str,
+        commit_messages: tuple[str, ...],
+    ) -> str:
+        """Generate the Copilot-style PR summary through the backend."""
+        log.info("Generating PR summary")
+        prompt = pr_summary.build_prompt(
+            diff_text=diff_text,
+            title=pr_title,
+            body=pr_body,
+            commit_messages=tuple(commit_messages),
+        )
+        raw = self._backend.generate(prompt, max_new_tokens=self._max_new_tokens)
+        return pr_summary.clean_summary(raw)
 
     def _build_step_sequence(
         self, inline_review: bool, counterfactual: bool, judge: bool,
