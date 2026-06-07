@@ -146,8 +146,17 @@ jobs:
           if [ -n "$PRTHINKER_REMOTE_API_KEY" ]; then
             AUTH_HEADER=(-H "Authorization: Bearer $PRTHINKER_REMOTE_API_KEY")
           fi
-          if ! curl -fsS --max-time 5 "${AUTH_HEADER[@]}" \
-                   "$PRTHINKER_REMOTE_URL/healthz" > /dev/null; then
+          # Retry the health probe: a cold tunnel / reverse proxy can blow a
+          # single short timeout even when the backend is healthy.
+          reachable=0
+          for _ in 1 2 3 4 5; do
+            if curl -fsS --max-time 10 "${AUTH_HEADER[@]}" \
+                     "$PRTHINKER_REMOTE_URL/healthz" > /dev/null; then
+              reachable=1; break
+            fi
+            sleep 4
+          done
+          if [ "$reachable" != "1" ]; then
             echo "::warning::PR summary skipped — backend unreachable"
             exit 0
           fi
