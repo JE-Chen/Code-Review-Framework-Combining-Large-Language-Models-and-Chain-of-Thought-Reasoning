@@ -16,6 +16,7 @@ in :class:`prthinker.pipeline.CoTPipeline`, never here.
 from __future__ import annotations
 
 import re
+import textwrap
 
 # Distinct marker so the PR summary lives in its own comment, separate
 # from the review summary comment (which uses ``prthinker:summary``).
@@ -42,17 +43,28 @@ and reconcile them: if the description claims something the diff does
 not show — or the diff does something the description never mentions —
 say so explicitly.
 
-Write GitHub-flavoured Markdown with these sections, and nothing else:
+Write GitHub-flavoured Markdown using a `###` subheading for each section
+below, with its content on the lines directly under it. Do NOT turn the
+section titles into list items, and do NOT indent any line — every
+heading, paragraph, and bullet starts at column 0:
 
-* **Overview** — two or three sentences on what this PR does and why.
-* **Key changes** — a bullet list of the most important changes.
-* **Areas to review** — bullet points a reviewer should focus on (risk,
-  missing tests, behaviour changes), or "None obvious".
-* **Notes** — include only when the description and the diff disagree;
-  otherwise omit this section entirely.
+### Overview
+Two or three sentences on what this PR does and why.
 
-Keep it concise and high-level. Do not invent changes that are not in the
-diff. Do not restate the entire diff line by line.
+### Key changes
+A `-` bullet list of the most important changes.
+
+### Areas to review
+A `-` bullet list a reviewer should focus on (risk, missing tests,
+behaviour changes), or the single line `None obvious`.
+
+### Notes
+Only when the description and the diff disagree; otherwise write `None`.
+
+Use only `-` for bullets (never `*`), keep every bullet flush against the
+left margin (no leading spaces, no nested indentation), and leave one
+blank line between sections. Keep it concise and high-level. Do not invent
+changes that are not in the diff, and do not restate the diff line by line.
 
 ## PR title
 {title}
@@ -112,16 +124,24 @@ def clean_summary(raw_output: str) -> str:
     """Best-effort tidy of the model's summary text.
 
     Strips a single wrapping Markdown code fence (some models wrap the
-    whole answer in ``` ```markdown ```) and trims surrounding whitespace.
-    Returns an empty string for empty / whitespace-only input.
+    whole answer in ``` ```markdown ```) and removes any uniform leading
+    indentation, so a wholly-indented block does not render as a GitHub
+    code block. Returns an empty string for empty / whitespace-only input.
+
+    ``dedent`` only removes the indentation common to *every* line, so an
+    intentionally nested bullet keeps its relative indent; it just rescues
+    the "the model indented the whole answer" case.
     """
-    text = (raw_output or "").strip()
-    if not text:
+    text = raw_output or ""
+    if not text.strip():
         return ""
-    fence = _FENCE_RE.match(text)
+    # Strip a wrapping fence first; dedent the body BEFORE the final
+    # strip, otherwise stripping the first line's indent would hide the
+    # common indentation from textwrap.dedent.
+    fence = _FENCE_RE.match(text.strip())
     if fence:
-        return fence.group(1).strip()
-    return text
+        text = fence.group(1)
+    return textwrap.dedent(text).strip()
 
 
 def render_comment(summary: str, *, marker: str = DEFAULT_MARKER) -> str:

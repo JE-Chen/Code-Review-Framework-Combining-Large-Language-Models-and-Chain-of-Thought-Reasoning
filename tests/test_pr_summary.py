@@ -38,6 +38,16 @@ def test_build_prompt_embeds_all_inputs() -> None:
     assert "+y" in prompt  # diff embedded
 
 
+def test_prompt_requests_headings_and_flush_left_bullets() -> None:
+    # Sections must be `###` headings (not `* **Section**` list items) and
+    # bullets must be flush-left `-`, or GitHub renders broken indentation.
+    template = pr_summary.PROMPT_TEMPLATE
+    assert "### Overview" in template
+    assert "### Key changes" in template
+    assert "never indent" in template.lower() or "no leading spaces" in template.lower()
+    assert "* **Overview**" not in template  # the old, broken structure
+
+
 def test_build_prompt_uses_placeholders_for_empty_inputs() -> None:
     prompt = pr_summary.build_prompt(diff_text="")
     assert pr_summary._NO_TITLE in prompt
@@ -93,6 +103,22 @@ def test_clean_summary_leaves_plain_text_untouched() -> None:
 def test_clean_summary_empty_returns_empty() -> None:
     assert pr_summary.clean_summary("") == ""
     assert pr_summary.clean_summary("   \n  ") == ""
+
+
+def test_clean_summary_dedents_uniformly_indented_block() -> None:
+    # A model that indents the whole answer would otherwise render as a
+    # GitHub code block; dedent rescues it.
+    raw = "    ### Overview\n    Does a thing.\n    - point one"
+    assert pr_summary.clean_summary(raw) == (
+        "### Overview\nDoes a thing.\n- point one"
+    )
+
+
+def test_clean_summary_preserves_intentional_nesting() -> None:
+    # dedent removes only the COMMON indent, so a nested bullet keeps its
+    # relative indentation (headings at column 0 mean common indent is 0).
+    raw = "### Key changes\n- top\n  - nested"
+    assert pr_summary.clean_summary(raw) == "### Key changes\n- top\n  - nested"
 
 
 # ---------- render_comment --------------------------------------------------
