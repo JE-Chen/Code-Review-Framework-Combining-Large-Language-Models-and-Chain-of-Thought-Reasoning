@@ -13,10 +13,8 @@ from types import SimpleNamespace
 import pytest
 
 from prthinker import pr_summary
-from prthinker.pipeline import CoTPipeline, ReviewResult
 from prthinker.platforms.base import PlatformAdapter
 from prthinker.platforms.github import GitHubAdapter
-from prthinker.rag import NoOpRetriever
 from tests.conftest import FakeBackend
 
 _ONE_FILE_DIFF = (
@@ -112,35 +110,6 @@ def test_default_marker_is_distinct_from_review_marker() -> None:
     assert "summary" in pr_summary.DEFAULT_MARKER
 
 
-# ---------- pipeline integration --------------------------------------------
-
-def test_run_per_file_sets_pr_summary_when_enabled() -> None:
-    # 5 CoT steps for the single file + 1 PR-summary call.
-    backend = FakeBackend(["s"] * 5 + ["## PR Summary\n\nAdds y."])
-    pipeline = CoTPipeline(backend=backend, retriever=NoOpRetriever())
-    result = pipeline.run_per_file(
-        _ONE_FILE_DIFF,
-        inline_review=False,
-        pr_summary=True,
-        pr_title="t",
-        pr_body="b",
-        commit_messages=("feat: x",),
-    )
-    assert result.pr_summary == "## PR Summary\n\nAdds y."
-    assert len(backend.calls) == 6
-    # The PR-summary prompt carried the author's words.
-    summary_prompt = backend.calls[-1][0]
-    assert "feat: x" in summary_prompt
-
-
-def test_run_per_file_without_pr_summary_leaves_it_none() -> None:
-    backend = FakeBackend(["s"] * 5)
-    pipeline = CoTPipeline(backend=backend, retriever=NoOpRetriever())
-    result = pipeline.run_per_file(_ONE_FILE_DIFF, inline_review=False)
-    assert result.pr_summary is None
-    assert len(backend.calls) == 5
-
-
 # ---------- adapter contract ------------------------------------------------
 
 class _MiniAdapter(PlatformAdapter):
@@ -194,78 +163,20 @@ def test_github_upsert_marked_comment_uses_given_marker(
     assert captured["body"] == "hello"
 
 
-# ---------- CLI posting helper ----------------------------------------------
+# ---------- standalone pr-summary command -----------------------------------
 
-class _RecordingAdapter(_MiniAdapter):
-    def __init__(self) -> None:
+class _SummaryAdapter(_MiniAdapter):
+    """Adapter feeding the standalone pr-summary command its PR inputs."""
+
+    def __init__(self, *, diff: str = _ONE_FILE_DIFF) -> None:
         self.marked: list[tuple[str, str]] = []
+        self._diff = diff
 
     def upsert_marked_comment(self, body: str, *, marker: str) -> int:
         self.marked.append((body, marker))
         return len(self.marked)
 
-
-def _args(**kwargs) -> argparse.Namespace:
-    base = {"pr_summary": True}
-    base.update(kwargs)
-    return argparse.Namespace(**base)
-
-
-def test_post_helper_posts_when_summary_present() -> None:
-    from prthinker.cli_review import _maybe_post_pr_summary
-
-    adapter = _RecordingAdapter()
-    result = ReviewResult(code_diff="", rag_docs=[], pr_summary="Overview.")
-    _maybe_post_pr_summary(_args(), adapter, result)
-    assert len(adapter.marked) == 1
-    body, marker = adapter.marked[0]
-    assert marker == pr_summary.DEFAULT_MARKER
-    assert "Overview." in body
-
-
-def test_post_helper_skips_when_flag_off() -> None:
-    from prthinker.cli_review import _maybe_post_pr_summary
-
-    adapter = _RecordingAdapter()
-    result = ReviewResult(code_diff="", rag_docs=[], pr_summary="Overview.")
-    _maybe_post_pr_summary(_args(pr_summary=False), adapter, result)
-    assert adapter.marked == []
-
-
-def test_post_helper_skips_when_summary_empty() -> None:
-    from prthinker.cli_review import _maybe_post_pr_summary
-
-    adapter = _RecordingAdapter()
-    result = ReviewResult(code_diff="", rag_docs=[], pr_summary=None)
-    _maybe_post_pr_summary(_args(), adapter, result)
-    assert adapter.marked == []
-
-
-def test_post_helper_swallows_adapter_error(caplog) -> None:
-    from prthinker.cli_review import _maybe_post_pr_summary
-
-    class _BoomAdapter(_MiniAdapter):
-        def upsert_marked_comment(self, body: str, *, marker: str) -> int:
-            raise RuntimeError("network down")
-
-    result = ReviewResult(code_diff="", rag_docs=[], pr_summary="Overview.")
-    with caplog.at_level("WARNING"):
-        _maybe_post_pr_summary(_args(), _BoomAdapter(), result)
-    assert "Could not post PR summary comment" in caplog.text
-
-
-# ---------- standalone pr-summary command -----------------------------------
-
-class _SummaryAdapter(_RecordingAdapter):
-    """Adapter feeding the standalone pr-summary command its PR inputs."""
-
-    def __init__(self, *, diff: str = _ONE_FILE_DIFF) -> None:
-        super().__init__()
-        self._diff = diff
-        self.fetched = False
-
     def fetch_diff(self) -> str:
-        self.fetched = True
         return self._diff
 
     def fetch_pr_meta(self) -> tuple[str, str]:

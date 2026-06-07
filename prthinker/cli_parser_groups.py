@@ -569,17 +569,6 @@ def _add_classification_args(common: argparse.ArgumentParser) -> None:
         ),
     )
     common.add_argument(
-        "--pr-summary",
-        action="store_true",
-        default=env_bool("PRTHINKER_PR_SUMMARY", False),
-        help=(
-            "Generate a Copilot-style PR summary from the PR title, "
-            "description, commit messages, and diff, then post it as a "
-            "dedicated PR comment (separate from the review summary). "
-            "Reconciles what the author wrote against what the diff does."
-        ),
-    )
-    common.add_argument(
         "--reproducibility-check",
         action="store_true",
         default=env_bool("REVIEWMIND_REPRODUCIBILITY_CHECK", False),

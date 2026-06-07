@@ -527,8 +527,6 @@ def _collect_classify_kwargs(args: argparse.Namespace) -> dict:
         "pr_classify": bool(getattr(args, "pr_classify", False)),
         "pr_title": getattr(args, "pr_title", "") or "",
         "pr_body": getattr(args, "pr_body", "") or "",
-        "pr_summary": bool(getattr(args, "pr_summary", False)),
-        "commit_messages": tuple(getattr(args, "pr_commit_messages", ()) or ()),
         "reproducibility_check": bool(getattr(args, "reproducibility_check", False)),
         "dep_upgrade_check": bool(getattr(args, "dep_upgrade_check", False)),
     }
@@ -650,30 +648,18 @@ def _validate_pr_args(args: argparse.Namespace) -> None:
         raise SystemExit("--github-token / $GITHUB_TOKEN / $GITLAB_TOKEN is required")
 
 def _maybe_fetch_pr_meta(args: argparse.Namespace, adapter: object) -> None:
-    """Populate ``args.pr_title`` / ``args.pr_body`` for classify + summary."""
-    if not (getattr(args, "pr_classify", False) or getattr(args, "pr_summary", False)):
+    """Populate ``args.pr_title`` / ``args.pr_body`` for the classifier."""
+    if not getattr(args, "pr_classify", False):
         return
     try:
         pr_title, pr_body = adapter.fetch_pr_meta()
-    except Exception as exc:  # noqa: BLE001 — meta is best-effort
-        log.warning("Could not fetch PR meta (%s); running on diff only", exc)
+    except Exception as exc:
+        log.warning("Could not fetch PR meta for classifier (%s); "
+                    "classifier will run on diff only", exc)
         return
     args.pr_title = pr_title
     args.pr_body = pr_body
     log.info("Fetched PR meta: title=%r body_len=%d", pr_title[:60], len(pr_body))
-
-
-def _maybe_fetch_commit_messages(args: argparse.Namespace, adapter: object) -> None:
-    """Populate ``args.pr_commit_messages`` for the PR summary (best-effort)."""
-    if not getattr(args, "pr_summary", False):
-        return
-    try:
-        messages = adapter.fetch_commit_messages()
-    except Exception as exc:  # noqa: BLE001 — summary degrades to diff-only
-        log.warning("Could not fetch commit messages for PR summary (%s)", exc)
-        messages = []
-    args.pr_commit_messages = tuple(messages)
-    log.info("Fetched %d commit message(s) for PR summary", len(messages))
 
 def _resolve_head_sha(args: argparse.Namespace, adapter: object) -> str | None:
     """Fetch the head SHA only when the gate or CI signals need it."""
@@ -1134,25 +1120,6 @@ def _maybe_update_pr_body(
         log.warning("Could not update PR body summary (%s)", exc)
 
 
-def _maybe_post_pr_summary(
-    args: argparse.Namespace, adapter: object, result: ReviewResult
-) -> None:
-    """Post the Copilot-style PR summary as its own comment (best-effort)."""
-    if not getattr(args, "pr_summary", False):
-        return
-    summary = getattr(result, "pr_summary", None)
-    if not summary:
-        return
-    body = pr_summary.render_comment(summary, marker=pr_summary.DEFAULT_MARKER)
-    try:
-        comment_id = adapter.upsert_marked_comment(
-            body, marker=pr_summary.DEFAULT_MARKER
-        )
-        log.info("Posted PR summary comment id=%s", comment_id)
-    except Exception as exc:  # noqa: BLE001 — summary must not break the review
-        log.warning("Could not post PR summary comment (%s)", exc)
-
-
 def _generate_pr_summary_body(args: argparse.Namespace, adapter: object) -> str:
     """Build the marker-tagged PR-summary comment body, or '' to skip."""
     diff = adapter.fetch_diff()
@@ -1330,7 +1297,6 @@ def _publish_review_result(
 
     _maybe_set_labels(args, adapter, result)
     _maybe_update_pr_body(args, adapter, result)
-    _maybe_post_pr_summary(args, adapter, result)
     _maybe_autofix(args, result, platform_kind)
     return 0
 
@@ -1357,7 +1323,6 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
         return 0
 
     _maybe_fetch_pr_meta(args, adapter)
-    _maybe_fetch_commit_messages(args, adapter)
     head_sha = _resolve_head_sha(args, adapter)
     diff = _maybe_prepend_ci_signals(args, diff, head_sha, platform_kind)
     gate_handle = _open_gate_if_needed(args, adapter, head_sha)

@@ -20,7 +20,6 @@ from prthinker import (
     diff_entropy,
     personas,
     pr_classifier,
-    pr_summary,
     risk_score,
 )
 from prthinker.accepted import AcceptedExamplesRetriever, format_examples_block
@@ -76,7 +75,6 @@ class ReviewResult:
     persona_reviews: list[PersonaReview] = field(default_factory=list)
     persona_conflicts: list[PersonaConflict] = field(default_factory=list)
     diff_entropy: DiffEntropySummary | None = None
-    pr_summary: str | None = None
 
     @property
     def total_summary(self) -> str | None:
@@ -178,20 +176,6 @@ class _AggregatedFiles:
     inline_findings: list[InlineFinding] = field(default_factory=list)
     counterfactuals: list[CounterfactualBlock] = field(default_factory=list)
     step_outputs: dict[str, str] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class _PrLevelOptions:
-    """PR-wide (not per-file) review knobs applied after the file loop."""
-
-    dep_upgrade_check: bool = False
-    persona_set: tuple[str, ...] = ()
-    api_consistency_check: bool = False
-    review_modes: tuple[str, ...] = ()
-    pr_summary: bool = False
-    pr_title: str = ""
-    pr_body: str = ""
-    commit_messages: tuple[str, ...] = ()
 
 
 class CoTPipeline:
@@ -325,8 +309,6 @@ class CoTPipeline:
         pr_classify: bool = False,
         pr_title: str = "",
         pr_body: str = "",
-        pr_summary: bool = False,
-        commit_messages: tuple[str, ...] = (),
         reproducibility_check: bool = False,
         dep_upgrade_check: bool = False,
         persona_set: tuple[str, ...] = (),
@@ -394,77 +376,46 @@ class CoTPipeline:
         )
 
         agg = self._review_each_file(file_diffs, opts, on_file_done)
-        return self._finalize_per_file_review(
-            diff_text, file_diffs, agg, classification, entropy_summary,
-            _PrLevelOptions(
-                dep_upgrade_check=dep_upgrade_check,
-                persona_set=persona_set,
-                api_consistency_check=api_consistency_check,
-                review_modes=review_modes,
-                pr_summary=pr_summary,
-                pr_title=pr_title,
-                pr_body=pr_body,
-                commit_messages=commit_messages,
-            ),
-        )
-
-    # ---------- internals ---------------------------------------------------
-
-    def _finalize_per_file_review(
-        self,
-        diff_text: str,
-        file_diffs: list[FileDiff],
-        agg: _AggregatedFiles,
-        classification: "PRClassification | None",
-        entropy_summary: "DiffEntropySummary | None",
-        pr_opts: _PrLevelOptions,
-    ) -> ReviewResult:
-        """Run the PR-wide optional steps and assemble the final result."""
+        per_file_results = agg.per_file_results
+        aggregated_findings = agg.inline_findings
+        aggregated_counterfactuals = agg.counterfactuals
         aggregated_steps = agg.step_outputs
+
         dep_upgrades = (
             self._run_dep_upgrades(file_diffs, aggregated_steps)
-            if pr_opts.dep_upgrade_check else []
+            if dep_upgrade_check else []
         )
         persona_reviews, persona_conflicts = (
-            self._run_personas(pr_opts.persona_set, diff_text, aggregated_steps)
-            if pr_opts.persona_set else ([], [])
+            self._run_personas(persona_set, diff_text, aggregated_steps)
+            if persona_set else ([], [])
         )
         api_drift = (
             self._run_api_consistency(file_diffs, aggregated_steps)
-            if pr_opts.api_consistency_check else []
+            if api_consistency_check else []
         )
-        if pr_opts.review_modes:
+        if review_modes:
             aggregated_steps.update(
                 run_review_modes(
-                    self._backend, diff_text, pr_opts.review_modes,
-                    self._max_new_tokens,
+                    self._backend, diff_text, review_modes, self._max_new_tokens,
                 )
             )
-        pr_summary_text = self._maybe_pr_summary(diff_text, pr_opts)
+
         return ReviewResult(
-            code_diff=diff_text, rag_docs=[],
+            code_diff=diff_text,
+            rag_docs=[],
             step_outputs=aggregated_steps,
-            inline_findings=agg.inline_findings,
-            per_file=agg.per_file_results,
-            counterfactuals=agg.counterfactuals,
+            inline_findings=aggregated_findings,
+            per_file=per_file_results,
+            counterfactuals=aggregated_counterfactuals,
             api_drift=api_drift,
             pr_classification=classification,
             dep_upgrades=dep_upgrades,
             persona_reviews=persona_reviews,
             persona_conflicts=persona_conflicts,
             diff_entropy=entropy_summary,
-            pr_summary=pr_summary_text,
         )
 
-    def _maybe_pr_summary(
-        self, diff_text: str, pr_opts: _PrLevelOptions
-    ) -> str | None:
-        """Generate the PR summary only when the feature is enabled."""
-        if not pr_opts.pr_summary:
-            return None
-        return self._summarize_pr(
-            diff_text, pr_opts.pr_title, pr_opts.pr_body, pr_opts.commit_messages,
-        )
+    # ---------- internals ---------------------------------------------------
 
     def _review_each_file(
         self,
@@ -523,24 +474,6 @@ class CoTPipeline:
             max_findings_per_file=max_findings_per_file,
             dialogue_block=dialogue_block,
         )
-
-    def _summarize_pr(
-        self,
-        diff_text: str,
-        pr_title: str,
-        pr_body: str,
-        commit_messages: tuple[str, ...],
-    ) -> str:
-        """Generate the Copilot-style PR summary through the backend."""
-        log.info("Generating PR summary")
-        prompt = pr_summary.build_prompt(
-            diff_text=diff_text,
-            title=pr_title,
-            body=pr_body,
-            commit_messages=tuple(commit_messages),
-        )
-        raw = self._backend.generate(prompt, max_new_tokens=self._max_new_tokens)
-        return pr_summary.clean_summary(raw)
 
     def _build_step_sequence(
         self, inline_review: bool, counterfactual: bool, judge: bool,
