@@ -182,7 +182,7 @@ def test_github_upsert_marked_comment_uses_given_marker(
     monkeypatch.setattr(
         "prthinker.platforms.github.upsert_pr_comment", _fake_upsert
     )
-    adapter = GitHubAdapter(repo="o/r", token="t", pr_number=1)
+    adapter = GitHubAdapter(repo="o/r", token="t", pr_number=1)  # nosec B106 - test fixture token, not a credential
     cid = adapter.upsert_marked_comment("hello", marker="<!-- prthinker:pr-summary -->")
     assert cid == 99
     assert captured["marker"] == "<!-- prthinker:pr-summary -->"
