@@ -180,6 +180,20 @@ class _AggregatedFiles:
     step_outputs: dict[str, str] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class _PrLevelOptions:
+    """PR-wide (not per-file) review knobs applied after the file loop."""
+
+    dep_upgrade_check: bool = False
+    persona_set: tuple[str, ...] = ()
+    api_consistency_check: bool = False
+    review_modes: tuple[str, ...] = ()
+    pr_summary: bool = False
+    pr_title: str = ""
+    pr_body: str = ""
+    commit_messages: tuple[str, ...] = ()
+
+
 class CoTPipeline:
     def __init__(
         self,
@@ -380,42 +394,59 @@ class CoTPipeline:
         )
 
         agg = self._review_each_file(file_diffs, opts, on_file_done)
-        per_file_results = agg.per_file_results
-        aggregated_findings = agg.inline_findings
-        aggregated_counterfactuals = agg.counterfactuals
-        aggregated_steps = agg.step_outputs
+        return self._finalize_per_file_review(
+            diff_text, file_diffs, agg, classification, entropy_summary,
+            _PrLevelOptions(
+                dep_upgrade_check=dep_upgrade_check,
+                persona_set=persona_set,
+                api_consistency_check=api_consistency_check,
+                review_modes=review_modes,
+                pr_summary=pr_summary,
+                pr_title=pr_title,
+                pr_body=pr_body,
+                commit_messages=commit_messages,
+            ),
+        )
 
+    # ---------- internals ---------------------------------------------------
+
+    def _finalize_per_file_review(
+        self,
+        diff_text: str,
+        file_diffs: list[FileDiff],
+        agg: _AggregatedFiles,
+        classification: "PRClassification | None",
+        entropy_summary: "DiffEntropySummary | None",
+        pr_opts: _PrLevelOptions,
+    ) -> ReviewResult:
+        """Run the PR-wide optional steps and assemble the final result."""
+        aggregated_steps = agg.step_outputs
         dep_upgrades = (
             self._run_dep_upgrades(file_diffs, aggregated_steps)
-            if dep_upgrade_check else []
+            if pr_opts.dep_upgrade_check else []
         )
         persona_reviews, persona_conflicts = (
-            self._run_personas(persona_set, diff_text, aggregated_steps)
-            if persona_set else ([], [])
+            self._run_personas(pr_opts.persona_set, diff_text, aggregated_steps)
+            if pr_opts.persona_set else ([], [])
         )
         api_drift = (
             self._run_api_consistency(file_diffs, aggregated_steps)
-            if api_consistency_check else []
+            if pr_opts.api_consistency_check else []
         )
-        if review_modes:
+        if pr_opts.review_modes:
             aggregated_steps.update(
                 run_review_modes(
-                    self._backend, diff_text, review_modes, self._max_new_tokens,
+                    self._backend, diff_text, pr_opts.review_modes,
+                    self._max_new_tokens,
                 )
             )
-        pr_summary_text = (
-            self._summarize_pr(diff_text, pr_title, pr_body, commit_messages)
-            if pr_summary
-            else None
-        )
-
+        pr_summary_text = self._maybe_pr_summary(diff_text, pr_opts)
         return ReviewResult(
-            code_diff=diff_text,
-            rag_docs=[],
+            code_diff=diff_text, rag_docs=[],
             step_outputs=aggregated_steps,
-            inline_findings=aggregated_findings,
-            per_file=per_file_results,
-            counterfactuals=aggregated_counterfactuals,
+            inline_findings=agg.inline_findings,
+            per_file=agg.per_file_results,
+            counterfactuals=agg.counterfactuals,
             api_drift=api_drift,
             pr_classification=classification,
             dep_upgrades=dep_upgrades,
@@ -425,7 +456,15 @@ class CoTPipeline:
             pr_summary=pr_summary_text,
         )
 
-    # ---------- internals ---------------------------------------------------
+    def _maybe_pr_summary(
+        self, diff_text: str, pr_opts: _PrLevelOptions
+    ) -> str | None:
+        """Generate the PR summary only when the feature is enabled."""
+        if not pr_opts.pr_summary:
+            return None
+        return self._summarize_pr(
+            diff_text, pr_opts.pr_title, pr_opts.pr_body, pr_opts.commit_messages,
+        )
 
     def _review_each_file(
         self,
