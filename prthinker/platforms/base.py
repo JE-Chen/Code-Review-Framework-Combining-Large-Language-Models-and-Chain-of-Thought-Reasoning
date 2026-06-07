@@ -102,7 +102,7 @@ class PlatformAdapter(ABC):
         body must already contain it.
         """
 
-    def upsert_marked_comment(self, body: str, *, marker: str) -> int:
+    def upsert_marked_comment(self, body: str, *, marker: str) -> int:  # pylint: disable=unused-argument  # no-op default; overrides consume body
         """Create-or-update a secondary PR comment keyed by ``marker``.
 
         Used for auxiliary comments that live alongside — not inside — the
@@ -111,7 +111,6 @@ class PlatformAdapter(ABC):
         logs that the platform has no support and returns ``-1``; adapters
         that can post a marker-tagged comment override this.
         """
-        del body  # unused in the no-op default; overrides consume it
         log.info(
             "%s does not support auxiliary marked comments; skipping",
             type(self).__name__,
