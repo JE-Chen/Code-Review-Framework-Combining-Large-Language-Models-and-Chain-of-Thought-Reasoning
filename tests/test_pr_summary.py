@@ -8,6 +8,7 @@ and the CLI posting helper.
 from __future__ import annotations
 
 import argparse
+from types import SimpleNamespace
 
 import pytest
 
@@ -251,3 +252,146 @@ def test_post_helper_swallows_adapter_error(caplog) -> None:
     with caplog.at_level("WARNING"):
         _maybe_post_pr_summary(_args(), _BoomAdapter(), result)
     assert "Could not post PR summary comment" in caplog.text
+
+
+# ---------- standalone pr-summary command -----------------------------------
+
+class _SummaryAdapter(_RecordingAdapter):
+    """Adapter feeding the standalone pr-summary command its PR inputs."""
+
+    def __init__(self, *, diff: str = _ONE_FILE_DIFF) -> None:
+        super().__init__()
+        self._diff = diff
+        self.fetched = False
+
+    def fetch_diff(self) -> str:
+        self.fetched = True
+        return self._diff
+
+    def fetch_pr_meta(self) -> tuple[str, str]:
+        return ("Add y", "Appends y to a.py.")
+
+    def fetch_commit_messages(self) -> list[str]:
+        return ["feat: append y"]
+
+
+def _cmd_args(**kwargs) -> argparse.Namespace:
+    base = {
+        "platform": "github",
+        "platform_base_url": "",
+        "repo": "o/r",
+        "github_token": "t",
+        "pr_number": 1,
+        "marker": "<!-- prthinker:summary -->",
+        "dry_run": False,
+        "redact_secrets": False,
+    }
+    base.update(kwargs)
+    return argparse.Namespace(**base)
+
+
+def _patch_backend(monkeypatch: pytest.MonkeyPatch, responses: list[str]) -> FakeBackend:
+    backend = FakeBackend(responses)
+    monkeypatch.setattr(
+        "prthinker.cli_review._build_config",
+        lambda args: SimpleNamespace(max_new_tokens=512),
+    )
+    monkeypatch.setattr("prthinker.cli_review.create_backend", lambda config: backend)
+    return backend
+
+
+def _patch_adapter(monkeypatch: pytest.MonkeyPatch, adapter: _SummaryAdapter) -> None:
+    monkeypatch.setattr(
+        "prthinker.platforms.create_platform_adapter",
+        lambda *a, **k: adapter,
+    )
+
+
+def test_generate_pr_summary_body_builds_marked_comment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from prthinker.cli_review import _generate_pr_summary_body
+
+    backend = _patch_backend(monkeypatch, ["## PR Summary\n\nAppends y."])
+    adapter = _SummaryAdapter()
+    body = _generate_pr_summary_body(_cmd_args(), adapter)
+    assert body.startswith(pr_summary.DEFAULT_MARKER)
+    assert "Appends y." in body
+    # The prompt carried the PR's own words and the diff.
+    prompt = backend.calls[0][0]
+    assert "Add y" in prompt and "feat: append y" in prompt and "+y" in prompt
+
+
+def test_generate_pr_summary_body_empty_diff_returns_blank(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from prthinker.cli_review import _generate_pr_summary_body
+
+    _patch_backend(monkeypatch, ["unused"])
+    assert _generate_pr_summary_body(_cmd_args(), _SummaryAdapter(diff="   ")) == ""
+
+
+def test_cmd_pr_summary_upserts_marked_comment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from prthinker.cli_review import _cmd_pr_summary
+
+    _patch_backend(monkeypatch, ["## PR Summary\n\nAppends y."])
+    adapter = _SummaryAdapter()
+    _patch_adapter(monkeypatch, adapter)
+    assert _cmd_pr_summary(_cmd_args()) == 0
+    assert len(adapter.marked) == 1
+    body, marker = adapter.marked[0]
+    assert marker == pr_summary.DEFAULT_MARKER
+    assert "Appends y." in body
+
+
+def test_cmd_pr_summary_dry_run_does_not_post(
+    monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    from prthinker.cli_review import _cmd_pr_summary
+
+    _patch_backend(monkeypatch, ["## PR Summary\n\nAppends y."])
+    adapter = _SummaryAdapter()
+    _patch_adapter(monkeypatch, adapter)
+    assert _cmd_pr_summary(_cmd_args(dry_run=True)) == 0
+    assert adapter.marked == []
+    assert "Appends y." in capsys.readouterr().out
+
+
+def test_cmd_pr_summary_swallows_backend_error(
+    monkeypatch: pytest.MonkeyPatch, caplog
+) -> None:
+    from prthinker.cli_review import _cmd_pr_summary
+
+    monkeypatch.setattr(
+        "prthinker.cli_review._build_config",
+        lambda args: SimpleNamespace(max_new_tokens=512),
+    )
+
+    def _boom(config):  # noqa: ANN001
+        raise RuntimeError("backend down")
+
+    monkeypatch.setattr("prthinker.cli_review.create_backend", _boom)
+    adapter = _SummaryAdapter()
+    _patch_adapter(monkeypatch, adapter)
+    with caplog.at_level("WARNING"):
+        assert _cmd_pr_summary(_cmd_args()) == 0
+    assert adapter.marked == []
+    assert "PR summary generation failed" in caplog.text
+
+
+def test_pr_summary_command_is_registered() -> None:
+    from prthinker.cli import _COMMAND_HANDLERS
+    from prthinker.cli_review import _cmd_pr_summary
+
+    assert _COMMAND_HANDLERS["pr-summary"] is _cmd_pr_summary
+
+
+def test_pr_summary_parser_routes_command() -> None:
+    from prthinker.cli import _build_parser
+
+    args = _build_parser().parse_args(
+        ["pr-summary", "--repo", "o/r", "--pr-number", "1", "--github-token", "t"]
+    )
+    assert args.command == "pr-summary"

@@ -45,7 +45,11 @@ jobs:
   enumerate:
     if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Higher than the bare file-listing needs: this job also posts the
+    # pre-review PR summary, which makes one (short) backend call. Keeping
+    # that call here — before the matrix — preserves the serial-GPU
+    # invariant (enumerate finishes before any review shard starts).
+    timeout-minutes: 12
     outputs:
       files: ${{ steps.list.outputs.files }}
       empty: ${{ steps.list.outputs.empty }}
@@ -84,6 +88,44 @@ jobs:
         run: |
           pip install -e ".[runner]"
           python -m prthinker post-status || true
+
+      # Copilot-style PR summary: reconcile the PR title / description /
+      # commit messages against the diff and upsert it as its own comment
+      # (marker: prthinker:pr-summary) BEFORE the per-file review starts,
+      # so reviewers get an at-a-glance brief immediately. Best-effort and
+      # bounded: the command returns 0 on any backend failure, and the step
+      # is continue-on-error with its own timeout so it can never block the
+      # matrix. The GPU call lands here — before the matrix — so it stays
+      # serial with the per-file reviews on the shared backend.
+      - name: Generate and post PR summary
+        continue-on-error: true
+        timeout-minutes: 9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PRTHINKER_PR_NUMBER: ${{ github.event.pull_request.number }}
+          PRTHINKER_BACKEND: remote
+          PRTHINKER_REMOTE_URL: ${{ secrets.PRTHINKER_BACKEND_URL }}
+          PRTHINKER_REMOTE_API_KEY: ${{ secrets.PRTHINKER_BACKEND_API_KEY }}
+          # Bound the client poll well under the step timeout so a slow
+          # backend surfaces as a skipped summary, never a hung job.
+          PRTHINKER_REMOTE_TIMEOUT: "480"
+        run: |
+          if [ -z "$PRTHINKER_REMOTE_URL" ]; then
+            echo "::warning::PR summary skipped — backend not configured"
+            exit 0
+          fi
+          AUTH_HEADER=()
+          if [ -n "$PRTHINKER_REMOTE_API_KEY" ]; then
+            AUTH_HEADER=(-H "Authorization: Bearer $PRTHINKER_REMOTE_API_KEY")
+          fi
+          if ! curl -fsS --max-time 5 "${AUTH_HEADER[@]}" \
+                   "$PRTHINKER_REMOTE_URL/healthz" > /dev/null; then
+            echo "::warning::PR summary skipped — backend unreachable"
+            exit 0
+          fi
+          pip install -e ".[runner]"
+          python -m prthinker pr-summary
 
       - name: List PR files and filter unchanged
         id: list

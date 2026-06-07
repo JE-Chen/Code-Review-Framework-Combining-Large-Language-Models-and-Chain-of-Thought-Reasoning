@@ -1153,6 +1153,68 @@ def _maybe_post_pr_summary(
         log.warning("Could not post PR summary comment (%s)", exc)
 
 
+def _generate_pr_summary_body(args: argparse.Namespace, adapter: object) -> str:
+    """Build the marker-tagged PR-summary comment body, or '' to skip."""
+    diff = adapter.fetch_diff()
+    if not diff.strip():
+        log.warning("Empty diff — skipping PR summary")
+        return ""
+    if getattr(args, "redact_secrets", False):
+        from prthinker.redaction import redact
+        diff, _ = redact(diff)
+    title, body = adapter.fetch_pr_meta()
+    commit_messages = tuple(adapter.fetch_commit_messages())
+    config = _build_config(args)
+    backend = create_backend(config)
+    try:
+        prompt = pr_summary.build_prompt(
+            diff_text=diff, title=title, body=body,
+            commit_messages=commit_messages,
+        )
+        raw = backend.generate(prompt, config.max_new_tokens)
+    finally:
+        backend.close()
+    text = pr_summary.clean_summary(raw)
+    if not text:
+        return ""
+    return pr_summary.render_comment(text, marker=pr_summary.DEFAULT_MARKER)
+
+
+def _cmd_pr_summary(args: argparse.Namespace) -> int:
+    """Generate the Copilot-style PR summary and upsert it as its own comment.
+
+    Runs as a standalone pre-review step (e.g. the enumerate job) so the
+    summary lands before the slower per-file review starts. Best-effort: a
+    backend or network failure logs a warning and returns 0 so it never
+    blocks the review matrix.
+    """
+    from prthinker.platforms import PlatformKind, create_platform_adapter
+
+    _validate_pr_args(args)
+    adapter = create_platform_adapter(
+        PlatformKind(args.platform),
+        repo=args.repo,
+        token=args.github_token,
+        pr_number=args.pr_number,
+        comment_marker=args.marker,
+        base_url=args.platform_base_url,
+    )
+    try:
+        body = _generate_pr_summary_body(args, adapter)
+    except Exception as exc:  # noqa: BLE001 — summary must never block the matrix
+        log.warning("PR summary generation failed (%s); skipping", exc)
+        return 0
+    if not body:
+        log.info("No PR summary produced; nothing to post")
+        return 0
+    if args.dry_run:
+        sys.stdout.write(body)
+        return 0
+    adapter.upsert_marked_comment(body, marker=pr_summary.DEFAULT_MARKER)
+    log.info("Posted PR summary comment")
+    return 0
+
+
 def _pr_files_url(args: argparse.Namespace) -> str | None:
     """Base URL of the PR's Files-changed tab, for diff deep links.
 
