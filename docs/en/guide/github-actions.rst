@@ -12,9 +12,10 @@ Workflow shape
 The workflow is structured as three jobs so a slow file (or a large PR)
 cannot starve the whole review:
 
-1. **enumerate** (5 min) — lists the PR's changed files, drops noise
+1. **enumerate** (12 min) — lists the PR's changed files, drops noise
    paths via ``PRTHINKER_EXCLUDE_GLOBS``, emits the surviving list as
-   a JSON output for the next job's matrix.
+   a JSON output for the next job's matrix, and posts the Copilot-style
+   pre-review PR summary (see `Pre-review PR summary`_ below).
 2. **review** (matrix, 60 min per shard, ``max-parallel: 1``) — each
    matrix iteration owns exactly one file, passes
    ``PRTHINKER_TARGET_FILE`` to the CLI, and writes a partial
@@ -45,6 +46,29 @@ one second, so it sits safely inside the 100 s idle timeout that
 Cloudflare's free / pro / business proxy applies. A synchronous
 ``/review`` POST would block long enough for the proxy to return 504
 before the 30B MoE finishes one file.
+
+Concurrency and GPU serialization
+---------------------------------
+
+The workflow groups concurrency per PR and cancels in progress:
+
+.. code-block:: yaml
+
+   concurrency:
+     group: prthinker-pr-${{ github.event.pull_request.number }}
+     cancel-in-progress: true
+
+A new commit therefore supersedes the PR's *own* in-flight run — the
+stale review is dropped rather than finished against code that no
+longer exists. Different PRs are not affected: they run concurrently at
+the workflow level.
+
+Cross-PR GPU safety is enforced **server-side**, not by the CI
+concurrency group. Every ``model.generate`` on the inference server runs
+under one process-wide lock, so two PRs reviewing at once queue on the
+GPU rather than running two forward passes that would OOM the card. That
+decoupling is what makes the per-PR ``cancel-in-progress`` safe: the CI
+layer no longer has to serialize the GPU.
 
 Required secrets
 ----------------
@@ -180,6 +204,27 @@ The workflow is built to fail gracefully:
   row before the loop gives up. A successful poll resets the
   counter, so a long sequence of healthy polls followed by one
   blip is invisible to the workflow.
+
+Pre-review PR summary
+---------------------
+
+Before the matrix starts, the ``enumerate`` job runs
+``prthinker pr-summary`` to post a Copilot-style brief of the PR. It
+reads the PR title, description, and commit messages alongside the diff
+and upserts a dedicated comment under its own
+``<!-- prthinker:pr-summary -->`` marker — separate from, and posted
+earlier than, the review summary — with ``### Overview`` /
+``### Key changes`` / ``### Areas to review`` / ``### Notes`` sections
+that reconcile what the author wrote against what the diff does. See
+:doc:`../reference/cli` for the command.
+
+Keeping the call in ``enumerate`` puts it ahead of the per-file review,
+so its one short backend generate stays serial with the reviews on the
+shared GPU. The step is best-effort: a retried health probe and a
+retried generate ride over a momentarily cold tunnel, and on persistent
+failure it exits 0 with a warning so it can never block the matrix.
+Distinct from the aggregate-time *Overall Summary* below — that one
+summarises the review *findings*; this one summarises the *change*.
 
 PR-wide overall summary
 -----------------------

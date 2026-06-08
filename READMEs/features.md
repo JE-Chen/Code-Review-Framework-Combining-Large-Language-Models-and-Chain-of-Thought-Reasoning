@@ -579,6 +579,28 @@ impossible.
 
 ---
 
+## Copilot-style PR summary
+
+Before the matrix runs, the `enumerate` job calls
+`prthinker pr-summary` to post a Copilot-style brief of the PR. It reads
+the PR **title, description, and commit messages** alongside the diff and
+upserts a dedicated comment under its own
+`<!-- prthinker:pr-summary -->` marker (separate from the review
+summary), reconciling what the author *wrote* against what the diff
+*does*. Output is GitHub Markdown with `### Overview` / `### Key changes`
+/ `### Areas to review` / `### Notes`.
+
+It runs ahead of the per-file review so its one short backend generate
+stays serial with the reviews on the shared GPU, and it is best-effort —
+a retried health probe and a retried generate ride over a momentarily
+cold tunnel, and on persistent failure it exits 0 with a warning so it
+never blocks the matrix. `prthinker pr-summary --dry-run` prints the
+comment instead of posting. Distinct from the aggregate-time *Overall
+Summary*: that one summarises the review **findings**; this one
+summarises the **change**.
+
+---
+
 ## Matrix workflow and aggregator
 
 The bundled `.github/workflows/prthinker.yml` ships as a three-job
