@@ -318,6 +318,80 @@ def test_cmd_pr_summary_swallows_backend_error(
     assert "PR summary generation failed" in caplog.text
 
 
+# ---------- generate retry --------------------------------------------------
+
+class _FlakyBackend(FakeBackend):
+    """Scripted backend: each entry is ('raise', exc) or ('ok', text)."""
+
+    def __init__(self, script) -> None:  # noqa: ANN001
+        super().__init__()
+        self._script = list(script)
+        self.calls_made = 0
+
+    def generate(self, prompt, max_new_tokens, *, cancel_event=None):  # noqa: ANN001
+        self.calls_made += 1
+        kind, payload = self._script.pop(0)
+        if kind == "raise":
+            raise payload
+        return payload
+
+
+def _no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("prthinker.cli_review.time.sleep", lambda _s: None)
+
+
+def test_generate_summary_text_succeeds_first_try(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from prthinker.cli_review import _generate_summary_text
+
+    _no_sleep(monkeypatch)
+    backend = _FlakyBackend([("ok", "### Overview\nx")])
+    assert _generate_summary_text(backend, "p", 8) == "### Overview\nx"
+    assert backend.calls_made == 1
+
+
+def test_generate_summary_text_retries_after_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from prthinker.cli_review import _generate_summary_text
+
+    _no_sleep(monkeypatch)
+    backend = _FlakyBackend([
+        ("raise", RuntimeError("net blip")),
+        ("ok", "### Overview\nx"),
+    ])
+    assert _generate_summary_text(backend, "p", 8) == "### Overview\nx"
+    assert backend.calls_made == 2
+
+
+def test_generate_summary_text_retries_after_empty_reply(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from prthinker.cli_review import _generate_summary_text
+
+    _no_sleep(monkeypatch)
+    backend = _FlakyBackend([("ok", "   "), ("ok", "### Overview\nx")])
+    assert _generate_summary_text(backend, "p", 8) == "### Overview\nx"
+    assert backend.calls_made == 2
+
+
+def test_generate_summary_text_gives_up_after_all_attempts(
+    monkeypatch: pytest.MonkeyPatch, caplog
+) -> None:
+    from prthinker import cli_review
+    from prthinker.cli_review import _generate_summary_text
+
+    _no_sleep(monkeypatch)
+    backend = _FlakyBackend(
+        [("raise", RuntimeError("down"))] * cli_review._PR_SUMMARY_ATTEMPTS
+    )
+    with caplog.at_level("WARNING"):
+        assert _generate_summary_text(backend, "p", 8) == ""
+    assert backend.calls_made == cli_review._PR_SUMMARY_ATTEMPTS
+    assert "no text after" in caplog.text
+
+
 def test_pr_summary_command_is_registered() -> None:
     from prthinker.cli import _COMMAND_HANDLERS
     from prthinker.cli_review import _cmd_pr_summary

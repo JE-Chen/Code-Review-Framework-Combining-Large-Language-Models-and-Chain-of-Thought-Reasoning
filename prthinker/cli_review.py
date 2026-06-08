@@ -1120,6 +1120,45 @@ def _maybe_update_pr_body(
         log.warning("Could not update PR body summary (%s)", exc)
 
 
+# The PR summary is best-effort, but the comment is worth a few quick
+# retries: a transient backend hiccup (a 5xx, a dropped connection, an
+# empty reply while the GPU was momentarily contended by an overlapping
+# run) otherwise drops the summary silently for the whole push.
+_PR_SUMMARY_ATTEMPTS = 3
+_PR_SUMMARY_RETRY_BACKOFF_SECONDS = 5.0
+
+
+def _generate_summary_text(
+    backend: object, prompt: str, max_new_tokens: int
+) -> str:
+    """Generate + clean the summary, retrying transient backend failures.
+
+    Returns the cleaned text, or '' when every attempt fails or yields
+    nothing. Retries cover fast failures (network error, 5xx, an empty
+    reply); a full-length timeout still consumes its attempt, but the loop
+    makes its remaining tries within the calling step's own time budget.
+    """
+    for attempt in range(1, _PR_SUMMARY_ATTEMPTS + 1):
+        try:
+            text = pr_summary.clean_summary(
+                backend.generate(prompt, max_new_tokens)
+            )
+        except Exception as exc:  # noqa: BLE001 — retry any transient failure
+            log.warning(
+                "PR summary generate attempt %d/%d failed: %s",
+                attempt, _PR_SUMMARY_ATTEMPTS, exc,
+            )
+            text = ""
+        if text:
+            return text
+        if attempt < _PR_SUMMARY_ATTEMPTS:
+            time.sleep(_PR_SUMMARY_RETRY_BACKOFF_SECONDS)
+    log.warning(
+        "PR summary produced no text after %d attempts", _PR_SUMMARY_ATTEMPTS
+    )
+    return ""
+
+
 def _generate_pr_summary_body(args: argparse.Namespace, adapter: object) -> str:
     """Build the marker-tagged PR-summary comment body, or '' to skip."""
     diff = adapter.fetch_diff()
@@ -1138,10 +1177,9 @@ def _generate_pr_summary_body(args: argparse.Namespace, adapter: object) -> str:
             diff_text=diff, title=title, body=body,
             commit_messages=commit_messages,
         )
-        raw = backend.generate(prompt, config.max_new_tokens)
+        text = _generate_summary_text(backend, prompt, config.max_new_tokens)
     finally:
         backend.close()
-    text = pr_summary.clean_summary(raw)
     if not text:
         return ""
     return pr_summary.render_comment(text, marker=pr_summary.DEFAULT_MARKER)
