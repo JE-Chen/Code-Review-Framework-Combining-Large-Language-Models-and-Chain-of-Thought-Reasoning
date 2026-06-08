@@ -546,6 +546,24 @@ type drift 不可能發生。
 
 ---
 
+## Copilot 式 PR 摘要
+
+在 matrix 跑之前，`enumerate` job 會呼叫 `prthinker pr-summary` 貼出
+Copilot 式 PR 概覽。它讀取 PR **標題、描述與 commit 訊息**並對照 diff，
+以專屬 marker `<!-- prthinker:pr-summary -->` upsert 一則獨立留言（與
+review summary 分開），核對作者*所寫*與 diff*所做*是否一致。輸出為
+GitHub Markdown，含 `### Overview` / `### Key changes` /
+`### Areas to review` / `### Notes`。
+
+它早於逐檔審查執行，故其單次短 generate 於共享 GPU 上與審查維持序列；
+並為 best-effort──health 探測與 generate 皆會重試以越過短暫冷啟動之通
+道，持續失敗則 exit 0 並 log warning，永不阻擋 matrix。
+`prthinker pr-summary --dry-run` 會印出留言而不貼出。與 aggregate 階段
+之 *Overall Summary* 不同：後者摘要 review 之**發現**，本節摘要**變更**
+本身。
+
+---
+
 ## Matrix workflow 與 aggregator
 
 預設 `.github/workflows/prthinker.yml` 是三段式 pipeline，避免單一
