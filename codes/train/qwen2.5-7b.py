@@ -36,8 +36,10 @@ def format_example(example):
     answer = example['answer']
     return {"prompt": prompt, "answer": answer}
 
+
 dataset = load_dataset("json", data_files=DATA_PATH, split="train")
 dataset = dataset.map(format_example)
+
 
 def tokenize(batch):
     tokenized_prompt = tokenizer(
@@ -65,9 +67,9 @@ def tokenize(batch):
         labels.append(label)
 
     max_len = max(len(ids) for ids in input_ids)
-    for i in range(len(input_ids)):
-        pad_len = max_len - len(input_ids[i])
-        input_ids[i] = input_ids[i] + [tokenizer.pad_token_id] * pad_len
+    for i, input_id in enumerate(input_ids):
+        pad_len = max_len - len(input_id)
+        input_ids[i] = input_id + [tokenizer.pad_token_id] * pad_len
         labels[i] = labels[i] + [-100] * pad_len
 
     return {
@@ -75,6 +77,7 @@ def tokenize(batch):
         "attention_mask": [[1]*len(ids) + [0]*pad_len for ids, pad_len in zip(input_ids, [max_len - len(ids) for ids in input_ids])],
         "labels": labels,
     }
+
 
 tokenized_dataset = dataset.map(tokenize, batched=True, remove_columns=["prompt", "answer"])
 

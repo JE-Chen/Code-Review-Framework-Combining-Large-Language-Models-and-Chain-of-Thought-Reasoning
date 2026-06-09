@@ -402,4 +402,3 @@ def qwen3_ask(prompt: str, model, tokenizer, max_new_tokens: int = 16784, cancel
     content = tokenizer.decode(output_ids[index:], skip_special_tokens=True).strip("\n")
     print(datetime.datetime.now(), "Generation completed.")
     return content, thinking_content
-

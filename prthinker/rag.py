@@ -38,9 +38,11 @@ class FaissRAGRetriever(RAGRetriever):
     """
 
     def __init__(self, threshold: float = 0.7) -> None:
-        # Import is deferred so callers that pick NoOpRetriever do not pay
-        # the embedding-model load cost.
-        from codes.util.faiss_util import search_docs  # noqa: F401
+        # Import the module (not the symbol) so its import-time side effect
+        # — building the FAISS index once — runs eagerly at construction.
+        # Deferred so callers that pick NoOpRetriever do not pay the
+        # embedding-model load cost.
+        import codes.util.faiss_util  # noqa: F401
 
         self._threshold = threshold
 

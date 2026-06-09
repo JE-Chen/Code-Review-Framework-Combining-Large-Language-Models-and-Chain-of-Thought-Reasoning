@@ -146,6 +146,16 @@ class _ClassifyOutcome:
 
 
 @dataclass(frozen=True)
+class _FileRunFlags:
+    """Optional per-file behaviour toggles passed to ``_run_one_file``."""
+
+    self_correct: bool = False
+    dialogue_block: str = ""
+    provenance: bool = False
+    reproducibility_check: bool = False
+
+
+@dataclass(frozen=True)
 class _PerFileOptions:
     """Per-file review knobs threaded through the per-file loop."""
 
@@ -593,10 +603,12 @@ class CoTPipeline:
             opts.all_steps,
             max_findings_per_file=self._effective_max(fd, opts),
             output_dir=file_out_dir,
-            self_correct=opts.self_correct,
-            dialogue_block=opts.dialogue_block,
-            provenance=opts.provenance,
-            reproducibility_check=opts.reproducibility_check,
+            flags=_FileRunFlags(
+                self_correct=opts.self_correct,
+                dialogue_block=opts.dialogue_block,
+                provenance=opts.provenance,
+                reproducibility_check=opts.reproducibility_check,
+            ),
         )
         if cache_key is not None:
             opts.review_cache.put(
@@ -797,16 +809,14 @@ class CoTPipeline:
         *,
         max_findings_per_file: int,
         output_dir: Path | None,
-        self_correct: bool = False,
-        dialogue_block: str = "",
-        provenance: bool = False,
-        reproducibility_check: bool = False,
+        flags: "_FileRunFlags | None" = None,
     ) -> FileReviewResult:
+        flags = flags or _FileRunFlags()
         rag_docs = self._merge_rules(self._retriever.retrieve(fd.raw))
         n_accepted_examples, positive_examples_block = self._accepted_examples(fd)
 
         provenance_block = ""
-        if provenance:
+        if flags.provenance:
             provenance_block = build_provenance_block(
                 rag_docs=rag_docs,
                 n_accepted_examples=n_accepted_examples,
@@ -818,27 +828,19 @@ class CoTPipeline:
             file_path=fd.path,
             max_findings=max_findings_per_file,
             positive_examples_block=positive_examples_block,
-            dialogue_block=dialogue_block,
+            dialogue_block=flags.dialogue_block,
             provenance_block=provenance_block,
         )
         self._run_steps(ctx, step_classes, output_dir)
 
         findings = self._collect_findings(
             fd, ctx, rag_docs, n_accepted_examples,
-            provenance=provenance,
-            reproducibility_check=reproducibility_check,
-            self_correct=self_correct,
+            provenance=flags.provenance,
+            reproducibility_check=flags.reproducibility_check,
+            self_correct=flags.self_correct,
         )
 
-        verdict: JudgeVerdict | None = None
-        if "judge" in ctx.results:
-            verdict = parse_verdict(ctx.results["judge"])
-
-        counterfactuals: list[CounterfactualBlock] = []
-        if "counterfactual" in ctx.results and findings:
-            counterfactuals = parse_counterfactuals(
-                ctx.results["counterfactual"], total_findings=len(findings),
-            )
+        verdict, counterfactuals = self._parse_judge_and_counterfactuals(ctx, findings)
 
         return FileReviewResult(
             path=fd.path,
@@ -850,6 +852,22 @@ class CoTPipeline:
             is_deleted=fd.is_deleted,
             counterfactuals=counterfactuals,
         )
+
+    @staticmethod
+    def _parse_judge_and_counterfactuals(
+        ctx: ReviewContext, findings: list,
+    ) -> "tuple[JudgeVerdict | None, list[CounterfactualBlock]]":
+        """Parse the judge verdict and counterfactual blocks from step results."""
+        verdict: JudgeVerdict | None = None
+        if "judge" in ctx.results:
+            verdict = parse_verdict(ctx.results["judge"])
+
+        counterfactuals: list[CounterfactualBlock] = []
+        if "counterfactual" in ctx.results and findings:
+            counterfactuals = parse_counterfactuals(
+                ctx.results["counterfactual"], total_findings=len(findings),
+            )
+        return verdict, counterfactuals
 
     def _resolve_personas(
         self, persona_set: tuple[str, ...],

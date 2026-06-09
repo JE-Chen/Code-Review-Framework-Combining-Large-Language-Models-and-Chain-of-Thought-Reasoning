@@ -760,23 +760,32 @@ def _maybe_autofix(
     )
     _maybe_open_auto_fix_pr(gh, args, result)
 
+
+def _apply_inline_ignore(result: ReviewResult) -> None:
+    """Drop inline-suppressed findings across the aggregate and per-file lists."""
+    if not result.code_diff:
+        return
+    result.inline_findings = filter_inline_ignored(result.inline_findings, result.code_diff)
+    for file_result in result.per_file:
+        file_result.inline_findings = filter_inline_ignored(
+            file_result.inline_findings, result.code_diff
+        )
+
+
+def _apply_ignore_spec(args: argparse.Namespace, result: ReviewResult) -> None:
+    """Apply the ``.prthinkerignore`` spec across aggregate and per-file lists."""
+    spec = load_ignore(getattr(args, "ignore_file", "") or ".prthinkerignore")
+    if spec.is_empty:
+        return
+    result.inline_findings = filter_findings(result.inline_findings, spec)
+    for file_result in result.per_file:
+        file_result.inline_findings = filter_findings(file_result.inline_findings, spec)
+
+
 def _postprocess_findings(args: argparse.Namespace, result: ReviewResult) -> None:
     """Apply inline / file ignore suppression and de-duplication in place."""
-    if result.code_diff:
-        result.inline_findings = filter_inline_ignored(
-            result.inline_findings, result.code_diff
-        )
-        for file_result in result.per_file:
-            file_result.inline_findings = filter_inline_ignored(
-                file_result.inline_findings, result.code_diff
-            )
-    spec = load_ignore(getattr(args, "ignore_file", "") or ".prthinkerignore")
-    if not spec.is_empty:
-        result.inline_findings = filter_findings(result.inline_findings, spec)
-        for file_result in result.per_file:
-            file_result.inline_findings = filter_findings(
-                file_result.inline_findings, spec
-            )
+    _apply_inline_ignore(result)
+    _apply_ignore_spec(args, result)
     if getattr(args, "dedupe_findings", False):
         result.inline_findings = dedupe_findings(result.inline_findings)
     min_conf = float(getattr(args, "min_confidence", 0.0) or 0.0)
@@ -784,40 +793,28 @@ def _postprocess_findings(args: argparse.Namespace, result: ReviewResult) -> Non
         result.inline_findings = filter_by_confidence(result.inline_findings, min_conf)
 
 
+# Single-file artifact writers keyed by their CLI destination attribute.
+# Each entry is (args-attribute, writer, human label) and every writer here
+# accepts ``(result, out_path)`` where ``out_path`` may be a plain string.
+_ARTIFACT_WRITERS = (
+    ("sarif_out", write_sarif, "SARIF"),
+    ("html_report", write_report, "HTML report"),
+    ("codequality_out", write_codequality, "Code Quality report"),
+    ("junit_out", write_junit, "JUnit report"),
+    ("csv_out", write_csv, "CSV"),
+    ("metrics_out", write_metrics, "metrics"),
+    ("markdown_out", write_markdown, "Markdown report"),
+    ("sonar_out", write_sonar, "Sonar report"),
+)
+
+
 def _emit_review_artifacts(args: argparse.Namespace, result: ReviewResult) -> None:
     """Write optional SARIF / HTML / Code Quality / JUnit artifacts."""
-    sarif_out = getattr(args, "sarif_out", "") or ""
-    if sarif_out:
-        write_sarif(result, sarif_out)
-        log.info("Wrote SARIF to %s", sarif_out)
-    html_out = getattr(args, "html_report", "") or ""
-    if html_out:
-        write_report(result, Path(html_out))
-        log.info("Wrote HTML report to %s", html_out)
-    cq_out = getattr(args, "codequality_out", "") or ""
-    if cq_out:
-        write_codequality(result, cq_out)
-        log.info("Wrote Code Quality report to %s", cq_out)
-    junit_out = getattr(args, "junit_out", "") or ""
-    if junit_out:
-        write_junit(result, junit_out)
-        log.info("Wrote JUnit report to %s", junit_out)
-    csv_out = getattr(args, "csv_out", "") or ""
-    if csv_out:
-        write_csv(result, csv_out)
-        log.info("Wrote CSV report to %s", csv_out)
-    metrics_out = getattr(args, "metrics_out", "") or ""
-    if metrics_out:
-        write_metrics(result, metrics_out)
-        log.info("Wrote metrics to %s", metrics_out)
-    markdown_out = getattr(args, "markdown_out", "") or ""
-    if markdown_out:
-        write_markdown(result, markdown_out)
-        log.info("Wrote Markdown report to %s", markdown_out)
-    sonar_out = getattr(args, "sonar_out", "") or ""
-    if sonar_out:
-        write_sonar(result, sonar_out)
-        log.info("Wrote Sonar report to %s", sonar_out)
+    for attr, writer, label in _ARTIFACT_WRITERS:
+        out_path = getattr(args, attr, "") or ""
+        if out_path:
+            writer(result, Path(out_path))
+            log.info("Wrote %s to %s", label, out_path)
     report_dir = getattr(args, "report_dir", "") or ""
     if report_dir:
         written = write_report_dir(result, report_dir)
@@ -894,6 +891,26 @@ def _join_overview(*sections: str | None) -> str | None:
     return "\n\n".join(parts) if parts else None
 
 
+def _artifact_link(args: argparse.Namespace, server: str, repo: str, run_id: str) -> str | None:
+    """Workflow-artifacts link, or None when nothing was produced in CI."""
+    artifacts = [
+        name for name, flag in (("report.html", "html_report"), ("prthinker.sarif", "sarif_out"))
+        if getattr(args, flag, "")
+    ]
+    if not (repo and run_id and artifacts):
+        return None
+    joined = ", ".join(artifacts)
+    return f"[Workflow artifacts: {joined}]({server}/{repo}/actions/runs/{run_id})"
+
+
+def _code_scanning_link(args: argparse.Namespace, server: str, repo: str) -> str | None:
+    """Code-scanning link for the PR, or None when SARIF / context is absent."""
+    pr_number = getattr(args, "pr_number", 0)
+    if not (getattr(args, "sarif_out", "") and repo and pr_number):
+        return None
+    return f"[Code scanning]({server}/{repo}/security/code-scanning?query=pr%3A{pr_number})"
+
+
 def _report_links_footer(args: argparse.Namespace) -> str | None:
     """A '**Reports**' footer linking to the run artifacts / code scanning.
 
@@ -905,17 +922,11 @@ def _report_links_footer(args: argparse.Namespace) -> str | None:
     server = os.environ.get("GITHUB_SERVER_URL", "https://github.com").rstrip("/")
     repo = os.environ.get("GITHUB_REPOSITORY") or getattr(args, "repo", "") or ""
     run_id = os.environ.get("GITHUB_RUN_ID", "")
-    pr_number = getattr(args, "pr_number", 0)
-    links: list[str] = []
-    artifacts = [
-        name for name, flag in (("report.html", "html_report"), ("prthinker.sarif", "sarif_out"))
-        if getattr(args, flag, "")
-    ]
-    if repo and run_id and artifacts:
-        joined = ", ".join(artifacts)
-        links.append(f"[Workflow artifacts: {joined}]({server}/{repo}/actions/runs/{run_id})")
-    if getattr(args, "sarif_out", "") and repo and pr_number:
-        links.append(f"[Code scanning]({server}/{repo}/security/code-scanning?query=pr%3A{pr_number})")
+    candidates = (
+        _artifact_link(args, server, repo, run_id),
+        _code_scanning_link(args, server, repo),
+    )
+    links = [link for link in candidates if link]
     if not links:
         return None
     return "---\n\n**Reports:** " + " · ".join(links)
@@ -1167,18 +1178,7 @@ def _publish_review_result(
     """Post comment + inline review, close the gate, and trigger auto-fix."""
     _postprocess_findings(args, result)
     _emit_review_artifacts(args, result)
-    # The summary text reports how many findings actually land on a diff
-    # hunk (= will be posted as inline comments) versus the raw total, so
-    # it never claims findings outside the diff were posted. Only compute
-    # it when inline review is enabled; otherwise nothing is posted inline
-    # and the breakdown would be misleading.
-    posted_count: int | None = None
-    off_diff: tuple[InlineFinding, ...] = ()
-    if getattr(args, "inline_review", False):
-        posted_count = count_findings_on_diff(
-            result.inline_findings, result.code_diff
-        )
-        off_diff = tuple(findings_off_diff(result.inline_findings, result.code_diff))
+    posted_count, off_diff = _inline_post_breakdown(args, result)
     delta_line, progress_block = _review_progress(args, adapter, result)
     files_url = _pr_files_url(args)
     pages = format_pr_comment_pages(
@@ -1211,31 +1211,65 @@ def _publish_review_result(
     comment_ids = adapter.upsert_summary_comments(pages)
     log.info("Posted %d summary comment(s): %s", len(comment_ids), comment_ids)
 
-    review_event = _resolve_review_event(args, result)
-    if args.inline_review and result.inline_findings:
-        review_id = adapter.submit_inline_review(
-            result.inline_findings,
-            summary_body="prthinker — inline findings",
-            event=review_event,
-        )
-        log.info("Posted inline review id=%s (event=%s)", review_id, review_event)
-
-    if gate_handle is not None:
-        gate_result = evaluate_gate(
-            result.inline_findings, gate_on=args.gate_on,
-            with_annotations=getattr(args, "check_annotations", False),
-        )
-        adapter.close_gate(gate_handle, gate_result)
-        log.info(
-            "Gate conclusion=%s (errors=%d warnings=%d info=%d, floor=%s)",
-            gate_result.conclusion, gate_result.error_count,
-            gate_result.warning_count, gate_result.info_count, args.gate_on,
-        )
+    _submit_inline_review(args, adapter, result)
+    _close_review_gate(args, adapter, result, gate_handle)
 
     _maybe_set_labels(args, adapter, result)
     _maybe_update_pr_body(args, adapter, result)
     _maybe_autofix(args, result, platform_kind)
     return 0
+
+
+def _inline_post_breakdown(
+    args: argparse.Namespace, result: ReviewResult
+) -> "tuple[int | None, tuple[InlineFinding, ...]]":
+    """Compute (posted-on-diff count, off-diff findings) for the summary.
+
+    The summary reports how many findings actually land on a diff hunk
+    (= will be posted as inline comments) versus the raw total, so it never
+    claims findings outside the diff were posted. Computed only when inline
+    review is enabled; otherwise nothing is posted inline and the breakdown
+    would be misleading.
+    """
+    if not getattr(args, "inline_review", False):
+        return None, ()
+    posted_count = count_findings_on_diff(result.inline_findings, result.code_diff)
+    off_diff = tuple(findings_off_diff(result.inline_findings, result.code_diff))
+    return posted_count, off_diff
+
+
+def _submit_inline_review(
+    args: argparse.Namespace, adapter: object, result: ReviewResult
+) -> None:
+    """Submit the per-line inline review when enabled and findings exist."""
+    if not (args.inline_review and result.inline_findings):
+        return
+    review_event = _resolve_review_event(args, result)
+    review_id = adapter.submit_inline_review(
+        result.inline_findings,
+        summary_body="prthinker — inline findings",
+        event=review_event,
+    )
+    log.info("Posted inline review id=%s (event=%s)", review_id, review_event)
+
+
+def _close_review_gate(
+    args: argparse.Namespace, adapter: object, result: ReviewResult, gate_handle: object | None
+) -> None:
+    """Evaluate and close the merge gate when one was opened."""
+    if gate_handle is None:
+        return
+    gate_result = evaluate_gate(
+        result.inline_findings, gate_on=args.gate_on,
+        with_annotations=getattr(args, "check_annotations", False),
+    )
+    adapter.close_gate(gate_handle, gate_result)
+    log.info(
+        "Gate conclusion=%s (errors=%d warnings=%d info=%d, floor=%s)",
+        gate_result.conclusion, gate_result.error_count,
+        gate_result.warning_count, gate_result.info_count, args.gate_on,
+    )
+
 
 def _cmd_review_pr(args: argparse.Namespace) -> int:
     config = _build_config(args)

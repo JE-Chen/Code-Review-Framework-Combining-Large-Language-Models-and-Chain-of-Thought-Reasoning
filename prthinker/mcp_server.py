@@ -75,9 +75,9 @@ def _openai_config(timeout: float) -> OpenAICompatConfig:
         model=env_str("PRTHINKER_OPENAI_MODEL", "gpt-4o-mini") or "gpt-4o-mini",
         api_key=key,
         base_url=env_str("PRTHINKER_OPENAI_BASE_URL",
-                          _DEFAULT_OPENAI_BASE_URL) or _DEFAULT_OPENAI_BASE_URL,
+                         _DEFAULT_OPENAI_BASE_URL) or _DEFAULT_OPENAI_BASE_URL,
         organization=env_str("PRTHINKER_OPENAI_ORGANIZATION")
-                          or env_str("OPENAI_ORG_ID"),
+        or env_str("OPENAI_ORG_ID"),
         timeout_seconds=timeout,
     )
 
@@ -89,12 +89,12 @@ def _anthropic_config(timeout: float) -> AnthropicConfig:
         raise RuntimeError("ANTHROPIC_API_KEY is required for anthropic backend")
     return AnthropicConfig(
         model=env_str("PRTHINKER_ANTHROPIC_MODEL", "claude-opus-4-7")
-                   or "claude-opus-4-7",
+        or "claude-opus-4-7",
         api_key=key,
         base_url=env_str("PRTHINKER_ANTHROPIC_BASE_URL",
-                          _DEFAULT_ANTHROPIC_BASE_URL) or _DEFAULT_ANTHROPIC_BASE_URL,
+                         _DEFAULT_ANTHROPIC_BASE_URL) or _DEFAULT_ANTHROPIC_BASE_URL,
         anthropic_version=env_str("PRTHINKER_ANTHROPIC_VERSION",
-                                   "2023-06-01") or "2023-06-01",
+                                  "2023-06-01") or "2023-06-01",
         timeout_seconds=timeout,
     )
 
@@ -104,7 +104,7 @@ def _cache_config() -> CacheConfig:
     return CacheConfig(
         enabled=env_bool("PRTHINKER_CACHE_ENABLED", False),
         path=env_str("PRTHINKER_CACHE_PATH", ".prthinker/cache.sqlite")
-              or ".prthinker/cache.sqlite",
+        or ".prthinker/cache.sqlite",
     )
 
 
@@ -113,7 +113,7 @@ def _telemetry_config() -> TelemetryConfig:
     return TelemetryConfig(
         enabled=env_bool("PRTHINKER_TELEMETRY_ENABLED", False),
         path=env_str("PRTHINKER_TELEMETRY_PATH", ".prthinker/telemetry.sqlite")
-              or ".prthinker/telemetry.sqlite",
+        or ".prthinker/telemetry.sqlite",
     )
 
 

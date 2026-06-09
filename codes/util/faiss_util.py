@@ -60,6 +60,7 @@ def get_embedding(text: str) -> np.ndarray:
     faiss.normalize_L2(emb.reshape(1, -1))
     return emb
 
+
 # =========================
 # Build FAISS index
 # =========================

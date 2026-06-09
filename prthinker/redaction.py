@@ -116,6 +116,23 @@ class RedactionReport:
         return "redacted " + ", ".join(parts)
 
 
+def _make_sub(kind: str, placeholder: str, counts: dict[str, int]):
+    """Build a substitution callback bound to one pattern's kind/placeholder.
+
+    Factored out of ``redact`` so the closure captures the per-pattern values
+    as explicit arguments rather than late-binding a loop variable.
+    """
+
+    def _sub(match: re.Match[str]) -> str:
+        # Don't re-redact our own placeholders.
+        if _REDACTED_RE.fullmatch(match.group(0)):
+            return match.group(0)
+        counts[kind] = counts.get(kind, 0) + 1
+        return placeholder
+
+    return _sub
+
+
 def redact(text: str) -> tuple[str, RedactionReport]:
     """Apply every known pattern; return (scrubbed_text, report).
 
@@ -126,13 +143,7 @@ def redact(text: str) -> tuple[str, RedactionReport]:
     redacted = text
     for pattern in _PATTERNS:
         placeholder = f"<REDACTED:{pattern.kind}>"
-        # Don't re-redact our own placeholders.
-        def _sub(match: re.Match[str]) -> str:
-            if _REDACTED_RE.fullmatch(match.group(0)):
-                return match.group(0)
-            counts[pattern.kind] = counts.get(pattern.kind, 0) + 1
-            return placeholder
-        redacted = pattern.regex.sub(_sub, redacted)
+        redacted = pattern.regex.sub(_make_sub(pattern.kind, placeholder, counts), redacted)
     return redacted, RedactionReport(counts=counts)
 
 

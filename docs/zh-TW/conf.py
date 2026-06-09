@@ -10,7 +10,7 @@ sys.path.insert(0, str(_REPO_ROOT))
 
 project = "prthinker"
 author = "JeffreyChen"
-copyright = "2026, JeffreyChen"
+copyright = "2026, JeffreyChen"  # pylint: disable=redefined-builtin  # Sphinx-required config name
 language = "zh_TW"
 
 try:

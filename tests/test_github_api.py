@@ -80,6 +80,7 @@ _M = _CFG.comment_marker
 def _methods(client: _ScriptedClient) -> list[str]:
     return [m for m, _ in client.requests]
 
+
 # A two-file unified diff. ``a.py`` adds lines 1-2; ``b.py`` adds line 5.
 _DIFF = (
     "diff --git a/a.py b/a.py\n"

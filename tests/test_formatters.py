@@ -508,7 +508,6 @@ def test_signal_note_shows_verified_and_low_repro():
 
 
 def test_min_confidence_drops_low_and_keeps_unknown():
-    from prthinker.schemas import Provenance
     low = _finding(path="a.py", line=1, severity="warning",
                    provenance=Provenance(citations=[], confidence=0.2))
     high = _finding(path="a.py", line=2, severity="warning",

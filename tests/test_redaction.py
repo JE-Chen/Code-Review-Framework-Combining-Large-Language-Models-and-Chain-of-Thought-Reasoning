@@ -74,7 +74,7 @@ def test_multiple_secrets_all_count() -> None:
         "k2 = 'ghp_" + "b" * 36 + "'\n"
         "k3 = 'AKIAIOSFODNN7EXAMPLE'\n"
     )
-    out, report = redact(text)
+    _, report = redact(text)
     assert report.counts["github-token"] == 2
     assert report.counts["aws-access-key-id"] == 1
     assert report.total == 3

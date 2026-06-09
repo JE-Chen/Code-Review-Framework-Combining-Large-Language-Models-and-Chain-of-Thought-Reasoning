@@ -17,6 +17,17 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import ClassVar
 
+from prthinker.prompts.code_smell_detector import CODE_SMELL_DETECTOR_TEMPLATE
+from prthinker.prompts.counterfactual_review import COUNTERFACTUAL_REVIEW_TEMPLATE
+from prthinker.prompts.first_code_review import FIRST_CODE_REVIEW_TEMPLATE
+from prthinker.prompts.first_summary_prompt import FIRST_SUMMARY_TEMPLATE
+from prthinker.prompts.global_rule import build_global_rule_template
+from prthinker.prompts.inline_findings import INLINE_FINDINGS_TEMPLATE
+from prthinker.prompts.judge_step import JUDGE_STEP_TEMPLATE
+from prthinker.prompts.linter import LINTER_TEMPLATE
+from prthinker.prompts.total_summary import TOTAL_SUMMARY_TEMPLATE
+from prthinker.prompts.walkthrough import WALKTHROUGH_TEMPLATE
+
 
 @dataclass
 class ReviewContext:
@@ -75,21 +86,6 @@ def resolve_steps(names: tuple[str, ...]) -> tuple[type[ReviewStep], ...]:
 # ---------------------------------------------------------------------------
 # Built-in steps — wrap existing CoT prompt templates.
 # ---------------------------------------------------------------------------
-
-# Prompt-template imports live below the @register_step decorator so the
-# registry exists before the step subclasses below try to register.
-from prthinker.prompts.code_smell_detector import CODE_SMELL_DETECTOR_TEMPLATE  # noqa: E402
-from prthinker.prompts.counterfactual_review import (  # noqa: E402
-    COUNTERFACTUAL_REVIEW_TEMPLATE,
-)
-from prthinker.prompts.first_code_review import FIRST_CODE_REVIEW_TEMPLATE  # noqa: E402
-from prthinker.prompts.first_summary_prompt import FIRST_SUMMARY_TEMPLATE  # noqa: E402
-from prthinker.prompts.global_rule import build_global_rule_template  # noqa: E402
-from prthinker.prompts.inline_findings import INLINE_FINDINGS_TEMPLATE  # noqa: E402
-from prthinker.prompts.judge_step import JUDGE_STEP_TEMPLATE  # noqa: E402
-from prthinker.prompts.linter import LINTER_TEMPLATE  # noqa: E402
-from prthinker.prompts.total_summary import TOTAL_SUMMARY_TEMPLATE  # noqa: E402
-from prthinker.prompts.walkthrough import WALKTHROUGH_TEMPLATE  # noqa: E402  # pylint: disable=wrong-import-position  # registry must exist first (see above)
 
 
 def _wrap(prompt: str, rag_docs: list[str]) -> str:

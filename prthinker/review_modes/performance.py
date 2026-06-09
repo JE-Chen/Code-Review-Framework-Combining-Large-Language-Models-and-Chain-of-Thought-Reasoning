@@ -11,7 +11,7 @@ mechanism only and makes no empirical claim about review quality.
 
 from __future__ import annotations
 
-from prthinker.review_modes import register_mode
+from prthinker.review_modes._registry import register_mode
 
 _FOCUS_ITEMS = (
     "N+1 queries (a query issued once per item inside a loop)",

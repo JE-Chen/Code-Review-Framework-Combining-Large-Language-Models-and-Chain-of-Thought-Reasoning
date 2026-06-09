@@ -161,22 +161,13 @@ class AutoFixResult:
     total_findings_skipped: int
 
 
-def open_auto_fix_pr(
-    config: GitHubConfig,
-    findings_by_file: dict[str, list[InlineFinding]],
-    base_pr_number: int,
-    base_branch: str,
-    repo_root: Path,
-) -> AutoFixResult | None:
-    """Walk per-file findings, apply suggestions, commit, push, open draft PR.
-
-    Returns ``None`` when there is nothing to apply (no surviving
-    warning-severity suggestion across all files).
-    """
+def _apply_fixes_to_disk(
+    findings_by_file: dict[str, list[InlineFinding]], repo_root: Path
+) -> tuple[list[str], int, int]:
+    """Apply each file's suggestions on disk; return (changed, applied, skipped)."""
     files_changed: list[str] = []
     total_applied = 0
     total_skipped = 0
-
     for path_str, findings in findings_by_file.items():
         target = repo_root / path_str
         if not target.exists():
@@ -194,20 +185,38 @@ def open_auto_fix_pr(
             "Auto-fix %s: applied %d, skipped %d",
             path_str, len(report.applied), len(report.skipped),
         )
+    return files_changed, total_applied, total_skipped
 
+
+def _commit_and_push_fixes(branch: str, files_changed: list[str], base_pr_number: int) -> None:
+    """Stage the changed files on a fresh branch, commit, and force-push."""
+    _git("checkout", "-B", branch)
+    for path_str in files_changed:
+        _git("add", path_str)
+    _git("commit", "-m", f"Apply prthinker suggestions for #{base_pr_number}")
+    _git("push", "--force-with-lease", "origin", branch)
+
+
+def open_auto_fix_pr(
+    config: GitHubConfig,
+    findings_by_file: dict[str, list[InlineFinding]],
+    base_pr_number: int,
+    base_branch: str,
+    repo_root: Path,
+) -> AutoFixResult | None:
+    """Walk per-file findings, apply suggestions, commit, push, open draft PR.
+
+    Returns ``None`` when there is nothing to apply (no surviving
+    warning-severity suggestion across all files).
+    """
+    files_changed, total_applied, total_skipped = _apply_fixes_to_disk(
+        findings_by_file, repo_root
+    )
     if not files_changed:
         return None
 
     branch = f"auto-fix/prthinker-pr-{base_pr_number}"
-    _git("checkout", "-B", branch)
-    for path_str in files_changed:
-        _git("add", path_str)
-    _git(
-        "commit",
-        "-m",
-        f"Apply prthinker suggestions for #{base_pr_number}",
-    )
-    _git("push", "--force-with-lease", "origin", branch)
+    _commit_and_push_fixes(branch, files_changed, base_pr_number)
 
     pr_url: str | None = None
     pr_number: int | None = None
@@ -235,16 +244,10 @@ def open_auto_fix_pr(
     )
 
 
-def _open_draft_pr(
-    *,
-    config: GitHubConfig,
-    base_branch: str,
-    head_branch: str,
-    base_pr_number: int,
-    total_applied: int,
-    total_skipped: int,
-    files_changed: list[str],
-) -> tuple[int, str]:
+def _draft_pr_body(
+    base_pr_number: int, total_applied: int, total_skipped: int, files_changed: list[str]
+) -> str:
+    """Render the Markdown body for the auto-fix draft PR."""
     body_lines = [
         f"Mechanically applies prthinker's `suggestion` blocks from #{base_pr_number}.",
         "",
@@ -264,11 +267,24 @@ def _open_draft_pr(
         "Review the diff, then merge this branch into the original PR if "
         "the changes look right.",
     ]
+    return "\n".join(body_lines)
+
+
+def _open_draft_pr(
+    *,
+    config: GitHubConfig,
+    base_branch: str,
+    head_branch: str,
+    base_pr_number: int,
+    total_applied: int,
+    total_skipped: int,
+    files_changed: list[str],
+) -> tuple[int, str]:
     payload = {
         "title": f"Apply prthinker suggestions from #{base_pr_number}",
         "head": head_branch,
         "base": base_branch,
-        "body": "\n".join(body_lines),
+        "body": _draft_pr_body(base_pr_number, total_applied, total_skipped, files_changed),
         "draft": True,
     }
     with httpx.Client(

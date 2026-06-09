@@ -524,5 +524,5 @@ def ask_cancel(job_id: str) -> dict[str, str | bool]:
 
 
 class _NoOpRetriever:
-    def retrieve(self, prompt: str) -> list[str]:
+    def retrieve(self, prompt: str) -> list[str]:  # pylint: disable=unused-argument  # retriever interface signature
         return []

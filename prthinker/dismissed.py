@@ -22,10 +22,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable
 
+from prthinker.schemas import InlineFinding
+
 if TYPE_CHECKING:
     import numpy as np
-
-from prthinker.schemas import InlineFinding
 
 log = logging.getLogger(__name__)
 

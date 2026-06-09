@@ -74,7 +74,7 @@ class PlatformAdapter(ABC):
         """
         return []
 
-    def set_labels(self, labels: list[str]) -> None:
+    def set_labels(self, labels: list[str]) -> None:  # pylint: disable=unused-argument  # overridable no-op; subclasses use labels
         """Apply the prthinker-managed labels to the PR.
 
         Default is a no-op so adapters without label support simply skip
@@ -82,7 +82,7 @@ class PlatformAdapter(ABC):
         """
         log.info("%s does not support PR labels; skipping", type(self).__name__)
 
-    def update_body_section(self, section: str) -> None:
+    def update_body_section(self, section: str) -> None:  # pylint: disable=unused-argument  # overridable no-op; subclasses use section
         """Insert / replace a prthinker section in the PR description.
 
         Default is a no-op; adapters that support editing the PR body

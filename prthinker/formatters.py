@@ -95,6 +95,7 @@ def _loc_ref(path: str, line: int, files_url: str | None) -> str:
         return f"`{path}:{line}`"
     return f"[`{path}:{line}`]({files_url}#{_diff_anchor(path, line)})"
 
+
 _SECTION_TITLES: dict[str, str] = {
     "first_summary": "PR Summary",
     "first_code_review": "First Code Review",
@@ -1240,12 +1241,14 @@ def _format_file_step_details(fr: FileReviewResult) -> list[str]:
     return block
 
 
+def _is_verified(finding: InlineFinding) -> bool:
+    """True when the finding carries a passing verification result."""
+    return finding.verification is not None and finding.verification.status == "pass"
+
+
 def _signal_note(findings: list[InlineFinding]) -> str:
     """Surface already-computed trust signal: verified / low-repro counts."""
-    verified = sum(
-        1 for f in findings
-        if f.verification is not None and f.verification.status == "pass"
-    )
+    verified = sum(1 for f in findings if _is_verified(f))
     low_repro = sum(1 for f in findings if f.reproducibility == "low")
     bits = []
     if verified:
@@ -1278,6 +1281,12 @@ def _format_walkthrough_block(fr: FileReviewResult) -> list[str]:
     return ["**📝 Walkthrough**", "", text, ""]
 
 
+def _format_skipped_file_block(fr: FileReviewResult) -> list[str]:
+    """Render the one-line skip entry for a binary or deleted file."""
+    reason = "binary" if fr.is_binary else "deleted"
+    return [f"- <code>{fr.path}</code> — _skipped ({reason})_", ""]
+
+
 def _format_file_block(
     fr: FileReviewResult,
     files_url: str | None = None,
@@ -1286,8 +1295,7 @@ def _format_file_block(
     # Skipped files (binary / deleted) are still listed so every touched
     # file is accounted for — just with the skip reason instead of a review.
     if fr.is_binary or fr.is_deleted:
-        reason = "binary" if fr.is_binary else "deleted"
-        return [f"- <code>{fr.path}</code> — _skipped ({reason})_", ""]
+        return _format_skipped_file_block(fr)
 
     summary = fr.total_summary or "_no summary_"
     badge = _file_findings_badge(fr.inline_findings)

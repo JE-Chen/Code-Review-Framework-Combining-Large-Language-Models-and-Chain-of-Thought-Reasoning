@@ -4,6 +4,29 @@
 # and turns off the engines / patterns Codacy ships by default that
 # trip on this repo without surfacing real defects.
 
+# Paths excluded from ALL Codacy tools. These are generated artifacts,
+# fixture corpora, and canonical prompt text — not maintained source code
+# — so style/lint findings on them are category mismatches, not defects.
+exclude_paths:
+  # Experiment outputs + RAG/fixture corpora. The bulk of the repo's
+  # markdownlint findings live here (auto-generated model responses), plus
+  # the deliberately-flawed code samples under datas/code_to_detect/ that
+  # the framework REVIEWS as input — they are supposed to contain issues.
+  - 'datas/**'
+  # pip requirement manifests are parsed as Python by Codacy's pylint and
+  # mis-flagged as "statement with no effect"; they are not Python modules.
+  - 'requirements.txt'
+  - 'dev_requirements.txt'
+  # Canonical prompt templates. codes/run/CoT_Prompts/ is the source of
+  # truth and prthinker/prompts/ is its byte-for-byte mirror (enforced by
+  # tests/test_prompts_bundled.py). They are long instruction strings, not
+  # code subject to line-length / escape-sequence style rules; the project
+  # ruff config already tolerates them. Linting them here would only push
+  # toward edits that change prompt content or break the mirror parity.
+  - 'codes/run/CoT_Prompts/**'
+  - 'prthinker/prompts/**'
+  - 'codes/util/prompt_define.py'
+
 engines:
   agentlinter:
     # Agentlinter is a prompt-quality linter for AI agent system prompts

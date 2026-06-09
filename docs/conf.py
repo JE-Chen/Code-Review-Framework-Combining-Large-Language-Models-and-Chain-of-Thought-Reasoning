@@ -13,7 +13,7 @@ sys.path.insert(0, str(_REPO_ROOT))
 
 project = "prthinker"
 author = "JeffreyChen"
-copyright = "2026, JeffreyChen"
+copyright = "2026, JeffreyChen"  # pylint: disable=redefined-builtin  # Sphinx-required config name
 
 try:
     from prthinker import __version__ as release  # noqa: WPS433

@@ -1,13 +1,16 @@
 import datetime
 import os
 import random
+from pathlib import Path
+
+# TOKENIZERS_PARALLELISM must be set before transformers/tokenizers import.
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
-import torch
-from datasets import load_dataset
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-from pathlib import Path
-from transformers import (
+# pylint: disable=wrong-import-position  # env var above must precede heavy imports
+import torch  # noqa: E402
+from datasets import load_dataset  # noqa: E402
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training  # noqa: E402
+from transformers import (  # noqa: E402
     AutoModelForCausalLM,
     AutoTokenizer,
     Trainer,
@@ -70,6 +73,7 @@ def check_keys(example):
     example.setdefault("think", "")
     return example
 
+
 dataset = dataset.map(check_keys)
 
 # ======================
@@ -81,8 +85,8 @@ PROMPT_TEMPLATES = [
     "Please carefully answer the following.\n{question}\n\nAnswer:",
 ]
 
-def build_prompt(instruction, question, think):
-    template = random.choice(PROMPT_TEMPLATES)
+def build_prompt(instruction, question, think):  # pylint: disable=unused-argument  # think kept to match dataset field
+    template = random.choice(PROMPT_TEMPLATES)  # nosec B311  # non-crypto: training-data shuffle, not security-sensitive
     return template.format(
         instruction=instruction.strip(),
         question=question.strip(),
@@ -122,6 +126,7 @@ def tokenize_batch(batch):
         labels.append(label)
 
     return {"input_ids": input_ids, "labels": labels}
+
 
 tokenized = dataset.shuffle(seed=42).map(
     tokenize_batch,
@@ -214,6 +219,7 @@ def main(merge_lora: bool = False):
         merged.save_pretrained(os.path.join(OUTPUT_DIR, "merged"))
 
     print(datetime.datetime.now(), "Training finished")
+
 
 if __name__ == "__main__":
     main(merge_lora=False)

@@ -191,6 +191,14 @@ def add_per_file_args(common: argparse.ArgumentParser) -> None:
 
 def _add_per_file_mode_args(common: argparse.ArgumentParser) -> None:
     """Add per-file mode + inline-review selection arguments."""
+    _add_per_file_toggle_args(common)
+    _add_pr_presentation_args(common)
+    _add_per_file_summary_args(common)
+    _add_per_file_scope_args(common)
+
+
+def _add_per_file_toggle_args(common: argparse.ArgumentParser) -> None:
+    """Add the per-file / inline-review toggle flags."""
     common.add_argument(
         "--per-file",
         action="store_true",
@@ -222,6 +230,10 @@ def _add_per_file_mode_args(common: argparse.ArgumentParser) -> None:
             "only; the inline review and merge gate still see them)."
         ),
     )
+
+
+def _add_pr_presentation_args(common: argparse.ArgumentParser) -> None:
+    """Add the PR overview / labels / check-annotation flags."""
     common.add_argument(
         "--pr-overview",
         action="store_true",
@@ -250,6 +262,10 @@ def _add_per_file_mode_args(common: argparse.ArgumentParser) -> None:
             "whole batch)."
         ),
     )
+
+
+def _add_per_file_summary_args(common: argparse.ArgumentParser) -> None:
+    """Add the delta / summary-rendering arguments for per-file mode."""
     common.add_argument(
         "--review-delta",
         action="store_true",
@@ -290,6 +306,10 @@ def _add_per_file_mode_args(common: argparse.ArgumentParser) -> None:
         type=int,
         default=int(env_str("PRTHINKER_MAX_FINDINGS_PER_FILE", "10") or 10),
     )
+
+
+def _add_per_file_scope_args(common: argparse.ArgumentParser) -> None:
+    """Add the file-scoping arguments (exclude globs, single target file)."""
     common.add_argument(
         "--exclude-globs",
         default=env_str("PRTHINKER_EXCLUDE_GLOBS", ""),
@@ -399,6 +419,12 @@ def _add_dialogue_feature_args(common: argparse.ArgumentParser) -> None:
 
 def _add_kg_lessons_args(common: argparse.ArgumentParser) -> None:
     """Add knowledge-graph grounding and repo-lessons injection flags."""
+    _add_kg_grounding_args(common)
+    _add_kg_map_lessons_args(common)
+
+
+def _add_kg_grounding_args(common: argparse.ArgumentParser) -> None:
+    """Add the knowledge-graph store / grounding configuration flags."""
     common.add_argument(
         "--kg-ground",
         action="store_true",
@@ -423,6 +449,16 @@ def _add_kg_lessons_args(common: argparse.ArgumentParser) -> None:
         default=Path(env_str("PRTHINKER_KG_WORKDIR") or "."),
         help="Workdir scope the KG was built against.",
     )
+
+
+def _add_kg_map_lessons_args(common: argparse.ArgumentParser) -> None:
+    """Add the impact/order/change-map and repo-lessons injection flags."""
+    _add_kg_map_args(common)
+    _add_lessons_args(common)
+
+
+def _add_kg_map_args(common: argparse.ArgumentParser) -> None:
+    """Add the full-scan / body-summary / impact / order / change-map flags."""
     common.add_argument(
         "--require-full-scan",
         action="store_true",
@@ -470,6 +506,10 @@ def _add_kg_lessons_args(common: argparse.ArgumentParser) -> None:
             "the change is visible inline."
         ),
     )
+
+
+def _add_lessons_args(common: argparse.ArgumentParser) -> None:
+    """Add the repo-derived lessons injection flags."""
     common.add_argument(
         "--lessons",
         action="store_true",
@@ -718,6 +758,13 @@ def _add_generation_output_args(common: argparse.ArgumentParser) -> None:
 
 def _add_report_output_args(common: argparse.ArgumentParser) -> None:
     """Add SARIF / HTML / ignore-file / dedupe / confidence report-output flags."""
+    _add_report_format_args(common)
+    _add_report_extra_format_args(common)
+    _add_report_filter_args(common)
+
+
+def _add_report_format_args(common: argparse.ArgumentParser) -> None:
+    """Add the SARIF / HTML / Code Quality / JUnit / CSV report flags."""
     common.add_argument(
         "--sarif-out",
         default=env_str("PRTHINKER_SARIF_OUT"),
@@ -747,6 +794,10 @@ def _add_report_output_args(common: argparse.ArgumentParser) -> None:
         help="Write findings + signals as a flat CSV to this path "
              "(spreadsheet / awk triage).",
     )
+
+
+def _add_report_extra_format_args(common: argparse.ArgumentParser) -> None:
+    """Add the metrics / Markdown / Sonar / report-dir / annotation flags."""
     common.add_argument(
         "--metrics-out",
         default=env_str("PRTHINKER_METRICS_OUT"),
@@ -778,6 +829,10 @@ def _add_report_output_args(common: argparse.ArgumentParser) -> None:
         help="Emit findings + signals as GitHub Actions workflow commands "
              "on stdout (inline ::error / ::warning / ::notice annotations).",
     )
+
+
+def _add_report_filter_args(common: argparse.ArgumentParser) -> None:
+    """Add ignore-file / dedupe / confidence / review-mode flags."""
     common.add_argument(
         "--ignore-file",
         default=env_str("PRTHINKER_IGNORE_FILE", ".prthinkerignore"),

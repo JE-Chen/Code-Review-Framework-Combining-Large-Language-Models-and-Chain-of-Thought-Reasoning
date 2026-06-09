@@ -8,7 +8,7 @@ the source of truth; this module is pure stdlib and runner-safe.
 
 from __future__ import annotations
 
-from prthinker.review_modes import register_mode
+from prthinker.review_modes._registry import register_mode
 
 _JSON_ARRAY = "JSON array"
 
