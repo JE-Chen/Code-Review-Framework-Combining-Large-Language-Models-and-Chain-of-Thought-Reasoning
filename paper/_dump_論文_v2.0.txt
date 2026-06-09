@@ -1,0 +1,521 @@
+[0000] <Normal 18.0pt> 國立高雄師範大學軟體工程與管理學系
+[0001] <Normal 18.0pt> 碩士論文
+[0002] <Normal 18.0pt> Department of Software Engineering and Management
+[0003] <Normal 18.0pt> National Kaohsiung Normal University
+[0004] <Normal 18.0pt> Master’s Thesis
+[0007] <Normal 18.0pt> 基於大語言模型和思維鏈推理的程式碼審查框架
+[0009] <Normal 18.0pt> Code Review Framework Combining Large Language Models and Chain-of-Thought Reasoning
+[0010] <Normal 18.0pt> 指導教授 : 李文廷 博士
+[0011] <Normal 18.0pt> 研究生 : 陳冠穎 撰
+[0013] <Normal 18.0pt> 中 華 民 國 一一六 年 六 月
+[0014] <Normal 18.0pt> June, 2026
+[0018] <Heading 1> 摘要
+[0019] <Normal 14.0pt> 隨著大型語言模型（Large Language Models, LLMs）的快速發展，其在軟體工程領域中的應用逐漸受到關注，特別是在程式碼生成與程式碼審查（Code Review）方面。傳統人工程式碼審查雖能有效提升程式碼品質與可維護性，但往往需要大量人力與時間成本，因此如何利用人工智慧提升審查效率成為重要研究議題。
+[0020] <Normal 14.0pt> 隨著大型語言模型（Large Language Models, LLMs，一種以大規模文本訓練、能同時理解自然語言與程式語言之深度學習模型）的快速發展，其於軟體工程領域之應用日益受到關注，尤以程式碼生成與程式碼審查（Code Review，由開發者相互檢視程式碼變更以把關品質之流程）為然。傳統人工審查雖能有效提升程式碼品質與可維護性，卻需可觀之人力與時間成本，如何以人工智慧提升審查效率因而成為重要議題。
+[0021] <Normal 14.0pt> 將 LLM 直接用於審查時，會遇到三個彼此牽連之問題：模型可能產生幻覺（編造看似合理卻不正確之內容）、相同輸入下輸出不穩定而一致性不足、以及缺乏對特定專案領域規範之認識。本研究因此提出一套整合框架，而非單點技巧：以多階段思維鏈（Chain-of-Thought, CoT，引導模型先逐步推理再下結論之策略）推理拆解審查、以檢索增強生成（Retrieval-Augmented Generation, RAG，於生成前先檢索相關資料並注入提示詞之技術）動態注入專案規則、再以知識蒸餾（Knowledge Distillation, KD）結合量化低秩適應（QLoRA）將大型教師模型之審查能力輕量化移轉
+[0022] <Normal 14.0pt> 實驗於 CRSCORE++ 指標上，本框架之完整性、相關性與簡潔性分別達 0.86、0.83 與 0.64（三者皆以接近 1 為佳），均優於基準之 0.67、0.63 與 0.57，代表審查意見更少漏看真正該提的問題、且更貼合該次變更。消融分析作為整合框架內部之貢獻分解，顯示多階段提示詞流程為單項貢獻最大之一環（+34 分），LoRA 微調之邊際貢獻雖較小（+2 分），卻解決不同問題——在有限資源下保留並穩定教師之審查能力，與提示詞流程互補而非競爭。整體而言，本研究之核心結論並非以單一元件取代其餘，而是三者整合方能同時回應幻覺、不穩定與缺乏領域規範三大問題。
+[0023] <Normal 14.0pt> 關鍵字: 大型語言模型、程式碼審查、思維鍊推理、檢索增強生成、知識蒸餾、LLM-as-a-Judge、軟體工程自動化
+[0024] <Normal 20.0pt> Abstract
+[0025] <Normal 14.0pt> With the rapid development of Large Language Models (LLMs), their applications in the field of software engineering have attracted increasing attention, particularly in code generation and code review. Although traditional manual code review can effectively improve code quality and maintainability, 
+[0026] <Normal 14.0pt> With the rapid development of Large Language Models (LLMs), their applications in software engineering have attracted increasing attention, particularly in code generation and code review. Although traditional manual review effectively improves code quality and maintainability, it incurs considerabl
+[0027] <Normal 14.0pt> Applying LLMs directly to code review raises three intertwined problems: hallucination (plausible-looking yet incorrect content), unstable and inconsistent outputs, and a lack of awareness of project-specific domain norms. This study therefore proposes an integrated framework rather than a single te
+[0028] <Normal 14.0pt> On the CRSCORE++ metric, the framework attains comprehensiveness, relevance, and conciseness of 0.86, 0.83, and 0.64, surpassing the baseline's 0.67, 0.63, and 0.57. As a contribution decomposition within the integrated framework, the ablation shows that the multi-stage prompting workflow is the sin
+[0029] <Normal 14.0pt> Keywords: Large Language Models, Code Review, Chain-of-Thought Reasoning, Retrieval-Augmented Generation, Knowledge Distillation, LLM-as-a-Judge, Software Engineering Automation
+[0036] <Normal 20.0pt> 目錄
+[0037] <Heading 1> 圖次目錄
+[0038] <table of figures> 圖一、系統架構圖	24
+[0039] <table of figures> 圖二、訓練流程	25
+[0040] <table of figures> 圖三、程式碼審查流程	43
+[0041] <table of figures> 圖四、LLM-as-a-Judge 流程	87
+[0055] <Heading 1> 表次目錄
+[0056] <table of figures> 表一、模型訓練參數配置	56
+[0057] <table of figures> 表二、模型訓練參數說明	57
+[0058] <table of figures> 表三、模型程式碼審查生成參數設置	58
+[0059] <table of figures> 表四、模型套件與用途	59
+[0060] <table of figures> 表五、採用 CRSCORE++方法的整體評估	60
+[0061] <table of figures> 表六、不同提示詞設計比較 (GPT-5)	61
+[0062] <table of figures> 表七、不同提示詞設計比較 (Gemini-3)	61
+[0063] <table of figures> 表八、提示詞設計比較 (Gemini-3)	62
+[0064] <table of figures> 表九、微調後與基礎模型比較 (GPT-5)	62
+[0065] <table of figures> 表十、微調後與基礎模型比較 (Gemini-3)	63
+[0066] <table of figures> 表十一、不同提示詞設計比較(人工評分)	63
+[0067] <table of figures> 表十二、微調程式碼審查結果 (人工評分)	64
+[0070] <Heading 1> 第一章、緒論
+[0071] <Heading 2 18.0pt> 1.1 研究背景
+[0072] <Normal 14.0pt> 隨著大型語言模型（Large Language Models, LLMs）於自然語言與程式語言理解上的快速發展，程式碼生成與輔助開發已成為其在軟體工程領域之重要應用。在開發流程中，程式碼審查（Code Review）不僅是品質保證之關鍵環節，更是團隊協作與知識傳遞之核心機制：透過開發者間之相互檢視，潛在之邏輯錯誤、安全漏洞與效能問題得以在整合前被發現，開發風格與文化亦得以統一。傳統人工審查雖能有效提升品質與可維護性，卻需耗費可觀之人力與時間成本，於快速迭代之環境中漸成瓶頸。
+[0073] <Normal 14.0pt> 以 LLM 輔助程式碼審查之研究背景可歸結為三個面向：其一，LLM 於語義理解上之突破，使其能跨越自然語言描述與程式結構之間的鴻溝，掌握程式碼之語義與設計意圖；其二，隨專案規模與協作複雜度上升，確保程式碼一致性與可維護性之需求日益迫切，尤以大型協作專案為甚；其三，現有靜態分析與 Lint 工具雖能檢出部分錯誤，於語義層級之理解與設計合理性判斷上仍顯不足，這正是 LLM 可補足之空間。
+[0076] <Heading 2 18.0pt> 1.2 研究動機
+[0077] <Normal 14.0pt> 在軟體開發流程中，人工程式碼審查雖為品質保證之核心，卻隨專案規模龐大、程式碼複雜度上升而面臨效率不足、審查標準不一致、審查者主觀性過高等問題，於大型專案中漸成開發瓶頸，亟需更具智慧化與自動化之輔助工具。大型語言模型之出現帶來契機：其能同時理解自然語言與程式語言，於程式碼結構、語義、風格一致性與潛在錯誤之檢測上提供支持，並較傳統靜態分析工具更能捕捉設計意圖、提出符合工程規範之改進建議。
+[0078] <Normal 14.0pt> 然而，若把 LLM 直接放上審查崗位，會浮現三個彼此牽連之問題，這三者正是本研究設計之起點。其一為幻覺：模型可能編造看似合理卻不正確之內容，例如指出一個並不存在之函式呼叫，使審查意見不可信。其二為輸出不穩定：相同的程式碼變更，模型於不同次或不同提示詞下可能給出不一致之結論，使審查結果難以複現與比較。其三為缺乏領域規範：模型只見過泛用語料，並不知道「你這個專案」的命名慣例、安全要求或設計準則，因而給出與專案脈絡脫節之建議。
+[0079] <Normal 14.0pt> 這三個問題並非各自獨立，而是構成一條因果鏈，需要一套整合設計而非單點技巧來回應。把整段審查塞進一個提示詞，正是輸出不穩定與幻覺的溫床：模型在一次推理中要兼顧摘要、風格、邏輯與安全，注意力分散而易遺漏或臆造；缺乏領域規範則使它更傾向以「一般而言」之套話填補，加重幻覺。因此本研究主張，唯有同時做到「把審查拆細、逐步可查」「把專案規範即時餵給模型」「把這套能力穩定保留於可部署之模型」，審查結果才能同時兼具一致性、可解釋性與可維護性，並使 LLM 與人類審查者形成互補。此即本研究之核心動機，下節之研究問題與隨後之研究目的即由此而生。
+[0080] <Heading 2 14.0pt> 1.3 研究問題
+[0081] <Normal (Web) 14.0pt> 本研究根據前述研究背景與動機，將自動化程式碼審查框架之設計與評估聚焦於下列四個研究問題：
+[0082] <Normal (Web) 14.0pt> RQ1：以多階段思維鏈提示詞拆解審查任務、並結合 LoRA 微調之框架，相較傳統單一提示詞與 CRSCORE++ 等既有評估方法，能否於完整性、簡潔性與相關性等面向顯著提升審查品質？
+[0083] <Normal (Web) 14.0pt> RQ2：在固定參數規模下，僅引入多階段提示詞而不進行模型微調，是否即可帶來品質提升？以分離提示詞工程與權重微調二者之獨立貢獻。
+[0084] <Normal (Web) 14.0pt> RQ3：多階段提示詞與模型微調二者，對最終分數之邊際貢獻分別為何？哪一項為品質改善之主要因素？
+[0085] <Normal (Web) 14.0pt> RQ4：自動化 LLM-as-a-Judge 評分之結論，是否能由獨立人工評分交叉驗證、並於可維護性與正確性等深層語義維度上保持一致？
+[0086] <Heading 2 18.0pt> 1.4 研究目的
+[0087] <Normal 14.0pt> 本研究之目的，在於回應上節所述 LLM 審查之三大問題——幻覺、輸出不穩定、缺乏領域規範——並驗證一套整合框架能否使審查結果同時具備一致性、可解釋性與可維護性。所謂目的，指本研究「要解決什麼」，與下節之貢獻「實際做出了什麼」分屬兩事，特先界定以免混淆。
+[0088] <Normal 14.0pt> 對應地，本研究將三個問題明確映射至三項設計，作為全篇之論證主軸（於第三章設計、於第五章佐證）：其一，針對輸出不穩定與一致性差，以多階段思維鏈將審查拆解為摘要生成、初步審查、靜態分析、程式碼異味偵測與最終彙整等循序步驟，每步僅承擔單一子任務、產物逐一落為 .md 檔，並以統一之全域規則前綴貫串，使審查可逐步追溯而趨於穩定；其二，針對缺乏領域規範，以 RAG 於每次審查前檢索相關專案規則（餘弦相似度達門檻者）動態注入為條件式之全域規則，使模型不重新訓練即可按專案規範審查，貼合領域且可維護；其三，針對幻覺與落地成本，以知識蒸餾結合 QLoRA 把大型教師模型之審查能力輕量化移轉至學生模型，使逐步且有
+[0089] <Normal 14.0pt> 為釐清整合框架內部各元件之相對作用，本研究進一步以消融實驗分離「多階段提示詞流程設計」與「模型權重微調」二者對審查品質之獨立貢獻。需強調者，此一分離旨在理解框架之組成而非主張「以一者取代另一者」：三項設計各自回應不同問題，缺一即難同時達成一致性、可解釋性與可維護性，其量化證據與彼此互補之關係，將於第五章結果分析中回填。
+[0090] <Heading 2 14.0pt> 1.5 研究貢獻
+[0091] <Normal 14.0pt> 本研究之貢獻，整體可視為一套回應前節三大問題之「整合框架」：多階段 CoT 推理（對應一致性與可追溯）、RAG 領域規則注入（對應領域規範與可維護）、KD/QLoRA 輕量化（對應落地與可信保留）三者協同，方使 LLM 程式碼審查同時具備一致性、可解釋性與可維護性。在此整合視角下，下列貢獻可彙整為七項——前三項為本論文 §5 已實驗驗證之核心元件，後四項為隨附開源框架（prthinker）之設計貢獻，其量化驗證留待 §6.4 所述之未來工作。各項與三大問題、與 §5 / §3.6–§3.8 / §6.4 之對應於下逐一掛鉤：
+[0092] <Normal 14.0pt> 1. 整合多階段 CoT 提示詞之程式碼審查流程設計與驗證：將審查任務拆解為摘要生成、初步審查、靜態分析、程式碼異味偵測與最終彙整等五個循序步驟，並以 build_global_rule_template 函式統一前綴規則之注入。經 §5.2 表 2 之 LLM 評分消融實驗，本設計相對單一提示詞之邊際貢獻最為顯著。
+[0093] <Normal 14.0pt> 2. 以知識蒸餾結合 QLoRA 之輕量化教師–學生訓練流程：使 30B 級教師模型之推理能力於有限 GPU 資源下移轉至學生模型，並以 LoRA 適配器形式保留可拆卸性。經 §5.2 表 2 與 §5.1 表 1 比較，本設計可於同等參數量級下提升 CRSCORE++ 三維度分數。
+[0094] <Normal 14.0pt> 3. 以 FAISS 為基礎之 RAG 規則檢索層與相關性閾值設計：以餘弦相似度將領域規則動態注入提示詞，避免規則總量隨基礎模型 context window 擴張而線性增加；§5 所載結果皆於該檢索層啟用之配置下取得。
+[0095] <Normal 14.0pt> 下列三項屬於本研究隨附之開源框架（prthinker）之設計貢獻；其量化效益之驗證留待 §6.4 所述之未來工作：
+[0096] <Normal 14.0pt> 4. 以 `JudgeStep` 為核心之 LLM-as-a-Judge-Our 細粒度評分機制與 GitHub Review event 映射設計：本研究於 §5.2 / §5.3 採用 LLM-as -a-Judge-Our 之百分制五維度評分作為自動化評估指標；框架另實作將模型輸出之 {verdict, score, reasons} JSON 裁決透過保守聚合規則映射為 PR 之 APPROVE / REQUEST_CHANGES / COMMENT 事件之機制，惟此一「自動裁決驅動合併狀態」之端到端效益本論文未予評估。
+[0097] <Normal 14.0pt> 5. 以 PR 作者反饋為輸入訊號之兩份學習語料設計（dismissed / accepted）：分別於推論時以相似度過濾與 in-context top-K 注入兩種非對稱方式影響審查結果，建立無需額外人工標註之持續學習機制之資料介面。本研究尚未對該機制之累積效益進行量化評估。
+[0098] <Normal 14.0pt> 6. 可替換之推論後端與 IDE 整合層之設計：以 Strategy 介面提供本機 Hugging Face（含 LoRA + 量化）、自架 FastAPI、OpenAI-相容端點、Anthropic Messages API 與 Gemini / Cohere / Mistral 等具體後端，另以 RouterBackend（失敗逐級回退）與 EnsembleBackend （多後端表決）提供組合層，並以 MCP server 將審查管線暴露為 IDE 可直接調用之 tool。本論文 §5 之實驗以本機後端為主，跨後端比較與 IDE 內審查觸發率之評估屬未來工作。
+[0099] <Normal 14.0pt> 7. 十七項研究級擴充機制之設計（見 §3.8 詳述）：包含 prompt-injection robustness 之 corpus + bypass detection、closed-loop 多輪對話、 counterfactual / mutation-style 審查、provenance 稽核、force-push 差分 cache、suggestion sandbox 驗證、cross-language API drift 偵測、PR 類型自適應、reproducibility 訊號、dependency upgrade impact 分析、reviewer personas +
+[0100] <Heading 2 14.0pt> 1.6 論文架構
+[0101] <Normal 14.0pt> 本論文共分為六章，以「三大問題 → 整合框架 → 實證」之主軸貫串。第一章緒論，說明研究背景、動機（提出幻覺 / 輸出不穩定 / 缺乏領域規範三問題）、研究問題、目的（三問題映射為三設計）、貢獻與論文架構。第二章文獻探討，回顧程式碼審查、靜態分析工具、大型語言模型、LLM-as-a-Judge、RAG、PEFT、LoRA、QLoRA 與知識蒸餾等相關研究，每節並標明其對本研究之意義，於 2.10 節以文獻比較表收束現有方法之共通局限與本研究擬補足之研究缺口。第三章為 LLM 程式碼審查架構設計，依序說明系統架構、知識蒸餾與 QLoRA 微調管線、多階段提示詞、審查流程，以及隨附框架之設計層機制
+[0102] <Heading 1> 第二章、文獻探討
+[0103] <Heading 2 20.0pt> 2.1 程式碼審查
+[0104] <Normal 14.0pt> 程式碼審查（Code Review，由其他開發者或團隊成員檢視並評估程式碼變更之流程）是軟體開發中極為重要的一環，目的在確保程式碼之品質、可維護性與一致性。它不只是找出錯誤或漏洞，更是一種知識分享與團隊協作的方式：透過審查，潛在之邏輯錯誤、安全性漏洞、效能瓶頸，乃至命名不清或結構不佳之程式碼得以在合併前被攔截，大幅降低後續維護成本。Kakimoto 等人指出程式碼審查可在整合測試前發現 50% 至 70% 的缺陷 [13]，避免上線後才付出更高代價修正，審查亦能促進成員交流，使不同開發者理解彼此之設計脈絡並統一團隊風格。
+[0105] <Normal 14.0pt> 對本研究的意義：人工審查所提供之「品質把關 + 知識傳遞」雙重價值，正是自動化審查必須盡量保留之目標。本研究之多階段流程刻意逐步輸出可讀之中間文件（摘要、初審、靜態分析、異味），即是為了讓自動審查不只給出結論，更能像人類審查般呈現推理脈絡，維持可解釋與知識傳遞之價值。
+[0106] <Heading 2 20.0pt> 2.2 靜態分析工具 (STAs)
+[0107] <Normal 14.0pt> 靜態分析工具（Static Analysis Tools, STAs，於程式未執行前即掃描原始碼以找出問題之工具）透過對原始碼或編譯後中介表示進行系統化掃描，找出潛在錯誤、風格問題、安全漏洞與不符最佳實踐之處。與需實際執行程式之動態測試不同，靜態分析能於開發早期就提供回饋，降低後期修正成本，常見如 SonarQube、Coverity、ESLint、Pylint，並常整合於 CI/CD 流程。然而其檢測能力受限於規則僵化：規則本身難以涵蓋設計合理性、命名語義等高層次判斷，規則更新亦不易，故相當比例之問題無法被涵蓋。
+[0108] <Normal 14.0pt> 對本研究的意義：STAs 之「規則明確、可重現」與其「無法理解語義與設計意圖」恰成一體兩面。本研究因此不以 LLM 取代靜態分析，而是在多階段流程中保留 Linter 步驟作為確定性基礎，再由後續之 CoT 推理步驟補上 STAs 難及之語義層判斷，使二者互補。
+[0109] <Heading 2 20.0pt> 2.3 大語言模型 (LLM)
+[0110] <Normal 14.0pt> 大語言模型（Large Language Model, LLM）是一種基於深度學習之人工智慧系統，核心為以神經網路處理與生成自然語言，通常採 Transformer（一種以自注意力機制為核心之網路）架構。透過大量文本之預訓練，模型學得語言之統計規律與上下文邏輯，再於微調階段針對特定任務（如問答、翻譯、程式碼生成）調整。現代模型參數量常達數百億甚至上千億，使其能捕捉極複雜之語義關聯，惟亦因此面臨偏見與幻覺等問題，需搭配人工監督。
+[0111] <Normal 14.0pt> 對本研究的意義：LLM 強大的語義理解力，是本研究能跨越「自然語言描述」與「程式結構」鴻溝之前提，但其幻覺與不穩定，也正是 §1.2 三問題之來源。本研究後續以 RAG（補領域知識）與多階段流程（穩定輸出）對症處理，即建立在對 LLM 此一「能力與風險並存」本質之認識上。
+[0112] <Heading 2 20.0pt> 2.4 LLM-as-a-Judge
+[0113] <Normal 14.0pt> LLM-as-a-Judge 是一種利用大型語言模型（LLM）作為「裁判」來自動評估其他模型輸出的新興方法，它的核心思想是讓強大的 LLM 依照指定標準對文本生成結果進行打分、排序或比較，以取代或輔助人工標註，如同Kakimoto研究的結果LLM 的錯誤偵測能力與人類審查者相當，統計上無顯著差異，LLM 在程式碼審查中可作為輔助工具，提供初步檢查與提示，但尚不足以取代人類[13]。
+[0114] <Normal 14.0pt> LLM-as-a-Judge 的出現源於傳統評估方法的不足：過去常用的基於匹配或詞嵌入的指標（如 BLEU、ROUGE）難以捕捉語言的細微差異，無法全面衡量生成文本的質量。隨著 GPT-5 等模型的強大理解能力被驗證，研究者開始嘗試讓 LLM 直接充當「評審」，透過提示詞（prompt）定義評估標準，並讓模型依此對輸出進行判斷。這種方法在多種場景中展現出高效性。
+[0115] <Normal 14.0pt> 在實際應用中，LLM-as-a-Judge 可以採用兩種主要方式：一是成對比較，即讓模型同時看到兩個候選輸出並判斷哪一個更好；二是單一評分，即對單一輸出依據正確性、相關性、偏見程度、是否存在幻覺等維度給予分數或標籤。這樣的評估方式更接近人工標註，能提供描述性判斷而不僅僅是數值指標。代表性工具如 AlpacaEval 就是基於此，利用 GPT-4 Turbo 對模型輸出進行自動化比較，並已廣泛應用於 LMSYS Chatbot Arena 等排行榜。
+[0116] <Normal 14.0pt> 然而，LLM-as-a-Judge 也存在挑戰：偏見與一致性問題（不同模型可能給出不同判斷）、成本問題（使用高性能 LLM 進行大規模評估需要大量算力與費用）、以及 可靠性問題（LLM 的判斷仍可能出現幻覺或錯誤）。因此，研究者正在探索如何設計更穩健的提示詞、建立基準數據集，以及結合人工與自動化方法來提升可信度，如Naik等人在他們的論文「CRSCORE」裡定義了三個維度，簡潔性、完整性、相關性來讓LLM進行評分[7]，且Kapadnis等人的「CRSCORE++」依然沿用了三個維度與LLM評分制度[10]，Crupi及Tufano指出傳統自動化評估方式（如 BLEU、ROUGE、METEOR
+[0117] <Normal 14.0pt> 對本研究的意義：LLM-as-a-Judge（讓強大之 LLM 依指定標準替其他模型輸出打分之方法）使本研究得以在不依賴大量人工標註之前提下，對「多階段 vs 單一提示詞」等不同設定之審查品質進行可重現之比較。其已知之偏見與一致性風險，則促使本研究以雙評審模型（GPT-5、Gemini-3）加人工評分交叉驗證——此一安排即為第四章評估設計與第五章交叉驗證之文獻依據。
+[0118] <Heading 2 20.0pt> 2.5 RAG
+[0119] <Normal 14.0pt> 檢索增強生成（Retrieval-Augmented Generation, RAG）是一種結合「檢索」與「生成」之技術：其直覺是，模型本身不知道你專案的規範，RAG 就在每次生成前，臨時把最相關的幾筆外部資料（如專案規則）找出來塞進提示詞，讓模型照這些資料作答，而不必為此重新訓練模型。具體分兩階段：檢索階段依查詢自外部知識庫（如向量資料庫）找出最相關之片段，生成階段再將片段與原始查詢一併輸入以生成回答。因模型不再單靠內部記憶、而能引用真實外部來源，RAG 能有效降低幻覺並提升準確性，目前已應用於安全建議與開發輔助系統。
+[0120] <Normal 14.0pt> 對本研究的意義：RAG 正是本研究回應「缺乏領域規範」此一問題之核心機制。本研究以 RAG 將手寫之專案規則於審查前動態注入為條件式之全域規則（詳見 §3.1.4 與 §3.4），使審查貼合專案脈絡且可隨規則文件更新即時調整，而無需每次重新訓練模型——這是「可維護性」性質之來源。
+[0121] <Heading 2 20.0pt> 2.6 PEFT
+[0122] <Normal 14.0pt> 參數高效微調（Parameter-Efficient Fine-Tuning, PEFT）是一類針對大型語言模型之微調技術，核心理念為只調整模型中一小部分參數，而非如傳統微調更新全部權重。由於大型模型常擁數十億至上百億參數，全參數微調之運算與儲存成本極高，PEFT 透過引入輕量模組（如 LoRA、Prefix Tuning、Adapter）將可訓練參數限制於少量附加層，使模型在保留原有能力之同時快速適應特定任務，大幅降低訓練成本與記憶體需求。其中 LoRA（Low-Rank Adaptation，低秩適應）以低秩矩陣近似全參數更新，在極少參數下仍可逼近完整微調之效果，並能如插件般模組化載入同一
+[0123] <Normal 14.0pt> 對本研究的意義：PEFT / LoRA 是本研究「在有限 GPU 資源下完成 30B 級模型微調」之關鍵前提。本研究以 LoRA 適配器保留可拆卸性（未與基座合併），使同一基座得掛載多組任務適配器並動態切換——這對知識蒸餾後之輕量化部署，以及未來擴充，皆提供彈性。
+[0124] <Normal 14.0pt> LoRA，全名 Low-Rank Adaptation，是一種近年在人工智慧領域非常重要的輕量化微調技術。它的核心理念是：在不需要重新訓練整個大型模型的情況下，透過引入低秩矩陣來讓模型快速學習新的概念、角色或風格。因為完整訓練模型的成本極高，而 LoRA 只需訓練少量參數即可完成微調。後來，LoRA 被廣泛應用到影像生成領域，尤其是 Stable Diffusion 等模型，成為一種模組化外掛：使用者可以針對特定角色、畫風或藝術風格訓練出小型的 LoRA 模型，然後將它注入基礎模型中，就能生成符合需求的作品。
+在大型語言模型（LLM）的訓練中，LoRA（Low-Rank Adaptation）
+[0125] <Normal 14.0pt> 在實際應用上，LoRA 通常與 Hugging Face 的 PEFT（Parameter-Efficient Fine-Tuning）框架結合使用。開發者只需在原本的訓練流程中加入 LoRA 的設定，就能快速將模型轉換為可微調的版本，並在有限資源下完成訓練。例如，對一個 7B 參數量的模型，使用 LoRA 可以在單張顯示卡上完成特定任務的微調，而不需要昂貴的伺服器或多 GPU 集群。
+[0126] <Normal 14.0pt> 更進一步，LoRA 的設計也讓它能以模組化的方式存在：不同的 LoRA 模型可以像插件一樣被載入到同一個基礎模型中，讓 LLM 在保持原有能力的同時，快速學會新的任務或風格。這種靈活性使得 LoRA 成為目前 LLM 訓練與部署的主流方法之一。
+[0127] <Heading 2 20.0pt> 2.8 QLoRA
+[0128] <Normal 14.0pt> QLoRA（Quantized Low-Rank Adaptation，量化低秩適應）是專為大型語言模型設計之高效微調技術，結合 LoRA 與量化（Quantization，以較低位元表示權重以省記憶體）之思想，目的是在顯著降低硬體資源消耗之同時，仍維持接近全參數微調之效果。傳統大模型微調需巨量記憶體（例如 65B 模型於 float16 下可能需逾 130GB），多數研究者難以負擔。QLoRA 之核心創新在於將預訓練權重量化為 4-bit 精度（特別是 NF4，Normal Float 4-bit），再以雙重量化進一步壓縮記憶體，並輔以分頁優化器處理記憶體尖峰，使大型模型得於單機有限資源下完
+[0129] <Normal 14.0pt> 對本研究的意義：QLoRA 是本研究訓練端之具體實作選擇。本研究於訓練時以 4-bit NF4 加雙重量化降低顯存佔用，推論時則改以 bf16 載入（因 A3B MoE 架構於 4-bit 推論路徑上會 densify 而導致記憶體不足），此一「訓練量化、推論不量化」之取捨，使輕量化得以在不犧牲推論穩定性之前提下落地。
+[0130] <Heading 2 20.0pt> 2.9 知識蒸餾（Knowledge Distillation）
+[0131] <Normal 14.0pt> 大型語言模型（Large Language Models, LLMs）的知識蒸餾（Knowledge Distillation）是一種將大型教師模型（teacher model）的能力轉移至較小學生模型（student model）的訓練方法，其核心目的在於讓學生模型在參數量與運算成本較低的情況下，盡可能學習教師模型的語言理解、生成品質與推理風格。此概念最早由 Geoffrey Hinton 等人提出[22]。 在此方法中，學生模型的訓練目標等同於一般監督式學習（Supervised Fine-Tuning, SFT）：首先以高效能教師模型（例如 GPT-5 或 Claude）對大量文字或指令
+[0132] <Normal 14.0pt> 學生模型可透過大量由教師模型生成之問答資料、推理範例與對話樣本進行訓練，藉由模仿教師之完整回應內容與表達方式，於語氣、段落結構與解題流程上逐步貼近教師。此處最直觀之類比是：知識蒸餾就像讓小模型當學徒，照著大模型寫好之範例與推理過程學會審查。透過足夠規模與多樣性之教師資料，學生模型可在實務表現上逼近教師之品質，並可反覆生成新資料、重新訓練以形成持續改進之蒸餾流程。
+[0133] <Normal 14.0pt> 對本研究的意義：知識蒸餾是本研究把「大型教師之高品質審查能力」搬到「可部署之小模型」之橋樑。本研究以具 CoT 之少樣本提示向教師大模型蒸餾出帶推理軌跡之資料（而非僅有結論），使學生模型學到的是「如何逐步推理地審查」，而非死記答案——這正是審查可解釋性得以被保留之原因。
+[0134] <Heading 2 20.0pt> 2.10 文獻比較與研究缺口
+[0135] <Normal (Web) 14.0pt> 本節整理前述各小節所回顧之 LLM 程式碼審查相關研究，從審查流程設計、模型微調策略、外部知識整合方式與評估指標等四個維度進行對照（詳見表 2-1），藉以辨識現有方法之共通局限，並指出本研究擬補足之研究缺口。
+[0136] <Normal 14.0pt> 表 2-1、現有 LLM 程式碼審查方法之比較與研究缺口對照
+[TABLE 8x6] hdr: 方法 / 研究 | 多階段提示詞 | 模型微調 | RAG 注入 | 評估方式 | 主要限制
+[0137] <Normal (Web) 14.0pt> 綜合上述比較可知，現有 LLM 程式碼審查研究多採單一提示詞架構（如 [7][10][16]）或單一技術面向之改良（如 [16] 僅進行 LoRA 微調、[20] 僅整合 RAG、[19] 僅以多代理協作），鮮少同時整合多階段思維鏈提示詞拆解、知識蒸餾＋QLoRA 輕量化微調、領域規則之 RAG 注入與多維度量化評估等四項技術。在評估指標上，現有方法多沿用傳統字串重疊指標（[16]）或粗粒度 1–5 分 LLM 評分（[7][10]），缺乏百分制細粒度評分與獨立人工評分交叉驗證之搭配。本研究即針對此一研究缺口，提出整合上述四項技術之程式碼審查框架，並設計 LLM-as-a-Judge-Our 
+[0139] <Heading 1> 第三章、LLM 程式碼審查架構設計
+[0140] <Heading 2 20.0pt> 3.1 系統架構
+[0141] <Normal 14.0pt> 本研究所提之程式碼審查框架採分層式架構,自開發者於 GitHub 發起之 Pull Request(PR)為輸入起點,歷經持續整合(CI)、邊緣與伺服層、思維鏈(Chain-of-Thought, CoT)審查管線、知識檢索層與推論後端,最終彙整為可直接回貼於 PR 之審查結果與監控指標。整體架構如下圖(系統架構圖)所示,各層之職責與資料流分述如下。
+[0142] <Normal 14.0pt> 圖、系統架構(Code Review Framework — System Architecture)〔請插入附圖〕
+[0143] <Normal (Web) 18.0pt> 3.1.1 進入點與持續整合層(Entry & CI)
+[0144] <Normal 14.0pt> 審查由 GitHub PR 觸發,經 GitHub Actions 工作流程啟動;工作流程以 actions/cache 保存跨次執行之狀態與差分快取,並透過 prthinker 命令列介面(CLI)作為 runner 進入點,於本機路徑時亦可直接呼叫 cot.py 執行五階段審查。
+[0145] <Normal (Web) 18.0pt> 3.1.2 邊緣與伺服層(Edge & Server)
+[0146] <Normal 14.0pt> 對外推論服務以 Cloudflare 提供傳輸層安全(TLS)終端,經 nginx 反向代理進行路由,導向自架之 FastAPI 伺服器;為因應 30B 級模型單次推論可能超過反向代理之 idle timeout,伺服層提供非同步 job 端點(submit / poll),並於啟動與執行期設置防護(boot 與 runtime guards)。
+[0147] <Normal (Web) 18.0pt> 3.1.3 思維鏈審查管線(Review Pipeline)
+[0148] <Normal 14.0pt> 核心為五階段 CoT 審查管線(摘要 → 初步審查 → Linter → 程式碼異味 → 總彙整),其外圍掛載數組可選之審查能力模組——信任與安全(Trust & Safety)、自適應審查(Adaptive Review)、主動學習與符號接地(Active Learning & Grounding)、跨上下文檢查(Cross-context Checks)、韌性(Resilience)與聚焦審查模式(Focused Review Modes)——皆以 opt-in 形式參與,預設關閉以維持基準管線之可重現性;管線之提示詞由 CoT 提示詞模板(Prompt Templates)供應。
+[0149] <Normal (Web) 18.0pt> 3.1.4 知識檢索層(Knowledge, RAG)
+[0150] <Normal 14.0pt> 審查管線於各階段以檢索增強生成(Retrieval-Augmented Generation, RAG)取得外部知識;規則與語料經嵌入模型(Embedding model)向量化後,以 FAISS 進行相似度檢索(相似度閾值 ≥ 0.7),並輔以儲存庫知識圖譜(Repo KG)對符號進行接地,將命中之規則與語料注入提示詞。
+[0151] <Normal (Web) 18.0pt> 3.1.5 後端抽象層(Backend Abstraction)
+[0152] <Normal 14.0pt> 推論後端以策略模式(Strategy)與依賴注入(Dependency Injection, DI)封裝為統一之 InferenceBackend 介面,由 create_backend 工廠依設定建立具體後端——本機 Hugging Face、自架遠端、OpenAI、Anthropic 等(密鑰一律取自環境變數)——並可組合 Router(失敗逐級回退)、Ensemble(多後端投票)、取樣與快取/遙測包裝層。
+[0153] <Normal (Web) 18.0pt> 3.1.6 推論與訓練(Inference & Training)
+[0154] <Normal 14.0pt> 線上推論以本機後端(LocalHF)載入 Qwen3-Coder-30B-A3B(bf16),掛載微調所得之 LoRA 適配器,並以 SDPA 與雙卡部署降低注意力計算之記憶體峰值;離線訓練則以教師大語言模型(Teacher LLM)生成帶推理軌跡之資料,經 QLoRA 訓練器產出適配器(Adapter output),再掛載回推論路徑。
+[0155] <Normal (Web) 18.0pt> 3.1.7 狀態與快取層(State & Cache)
+[0156] <Normal 14.0pt> 框架以持久化儲存保存 PR 狀態、差分快取、提示詞快取、遙測與歷次執行紀錄(pr-state / diff-cache / prompt-cache / telemetry / runs),供差分審查、留言冪等性處理與崩潰後之部分結果回復使用。
+[0157] <Normal (Web) 18.0pt> 3.1.8 輸出與監控層(Output & Monitoring)
+[0158] <Normal 14.0pt> 審查結果以 PR 留言、行內審查(inline review)與合併閘門(gate)回貼至 PR,並可匯出為 SARIF、HTML、Markdown、CodeQuality、Sonar、JUnit、CSV 與 metrics 等多種報告格式;維運面則以 Prometheus、Grafana、GPU 指標與知識圖譜視覺化(KG viz)構成監控疊加層。
+[0159] <Normal 14.0pt> 後續各節依此架構展開:§3.2 至 §3.4 詳述本論文 §5 已實驗驗證之訓練流程、多階程式碼審查與程式碼審查流程;§3.5 至 §3.8 則說明隨附開源框架(prthinker)於上述核心之外另實作之設計層機制(與程式碼編輯環境整合、學習語料與評審機制、安全前處理與 IDE 整合層、研究級擴充機制),其量化效益留待 §6.4 所述之未來工作。
+[0160] <Caption> [IMG] 
+[0161] <Caption 14.0pt> 圖一、系統架構圖
+[0162] <Heading 2> 3.2 訓練流程
+[0163] <Normal> [IMG] 
+[0164] <Caption 14.0pt> 圖二、訓練流程
+[0166] <Normal> 本圖呈現整體訓練流程,包含教師模型透過 Chain-of-Thought 提示產出高品質回應、整理為微調資料集、再以 QLoRA 對學生模型 Qwen3-Coder-30B-A3B-Instruct 進行微調,完整描繪知識蒸餾的端到端管線。
+[0168] <Heading 3 18.0pt> 3.2.1  知識蒸餾流程
+[0169] <Normal (Web) 14.0pt> 本研究的訓練流程採用知識蒸餾（Knowledge Distillation）與 QLoRA 微調並行的設計，整體可分為「教師端資料生成」、「資料處理」、「模型與適配器準備」、「訓練」與「輸出與部署」五個階段。最上方由 Teacher LLM 搭配 generate_datas_prompt.md 蒸餾用提示模板進行 Synthetic Data Generation，由教師模型產生帶有 Chain-of-Thought 推理軌跡的審查樣本，產出 qwen3_train_data.jsonl，每筆資料包含 Instruction、question、think、answer 四個欄位。資料端再經 
+[0170] <Heading 3 18.0pt> 3.2.2 產生訓練集提示詞
+[0171] <Normal (Web)> [IMG] 
+[0172] <Normal> 本圖為向教師模型發出之訓練資料生成提示詞範例,要求其輸出 JSONL 格式的 instruction、question、think、answer 結構化樣本,作為學生模型微調的監督訊號。
+[0173] <Normal (Web) 20.0pt> 3.3 多階程式碼審查
+[0174] <Normal (Web) 18.0pt> 3.3.1 多階提示詞
+[0175] <Normal (Web) 14.0pt> 直覺先行：與其要模型一口氣把整段審查做完，不如像人類資深審查者一樣分階段來看——先掌握這次改了什麼，再逐項細看，最後總結。本研究即把 Code Review 拆解為多階段、多輸出文件、並結合 RAG 之流程。相較於單一提示詞一次完成所有任務，多階段有明顯之品質、穩定性與可維護性優勢。單一提示詞往往需同時涵蓋摘要理解、架構評估、風格檢查、程式異味分析與最終總結，使提示詞極度複雜、上下文負載過重，模型易因注意力分散而遺漏或分析深度不足，多階段流程則以「先摘要、再細部審查、再專項檢查、最後彙總」之拆解，讓模型於每階段專注於單一明確任務，降低認知負擔，使輸出更聚焦而有層次。
+[0176] <Normal 14.0pt> 在整條 CoT 中的角色：本節之多階提示詞是整個審查鏈之總綱與骨架，後續 §3.3.2–§3.3.9 各提示詞即為這條鏈上之各個節點。為何需要：分階段輸出之中間文件（first_summary、first_code_review、linter、code_smell、total_summary 各自落為 .md）使每一步之推理產物可獨立檢視、追溯與驗證，即使長鏈推理中途失敗亦不致遺失先前步驟之產出——這正是本研究回應「輸出不穩定」問題之結構性手段。
+[0177] <Normal (Web) 18.0pt> 3.3.2 程式碼異味審查提示詞
+[0178] <Normal (Web) 14.0pt> 直覺先行：這一步要找的不是會立刻當掉的錯，而是「現在能跑、但日後難維護」之結構問題。本提示詞把模型設定為專責程式碼品質審查之資深軟體工程師，要求其針對給定之程式碼（以 {code_diff} 代表）進行全面靜態分析，找出可能之 Code Smells（程式碼異味，指雖不一定立即出錯、卻影響可讀性 / 可維護性 / 可擴充性或設計品質之潛在問題，如過長函式、魔法數字、重複程式碼、命名不清、過度耦合、違反單一職責原則等）。它不只要求列出問題，而要以結構化格式逐項輸出，每項含問題類型、發生位置、為何構成 Code Smell 及其風險、符合最佳實踐之重構建議，並標註嚴重程度（High / Mediu
+[0179] <Normal 14.0pt> 在整條 CoT 中的角色：本步驟為「專項深掃」之一環，承接初步審查所未及之設計層問題，其輸出之code_smell_result 將與 Linter 結果一併送入後續之 CoT 深度說明與總摘要。為何需要：異味問題最需要設計經驗、最難由規則化之靜態工具涵蓋，故以獨立步驟交付模型專注處理，避免其在綜合提示詞中被表層問題淹沒。
+[0180] <Normal (Web)> [IMG] 
+[0181] <Normal (Web)> [IMG] 
+[0182] <Normal> 本圖為程式碼異味審查提示詞的完整內容,要求模型針對 {code_diff} 列出所有 Code Smell,並依類型、位置、原因、改進建議與嚴重程度輸出結構化結果。
+[0183] <Normal (Web) 18.0pt> 3.3.3第一步程式碼審查提示詞
+[0184] <Normal (Web) 14.0pt> 直覺先行：審查要由淺入深，第一步只看「一眼就看得出」之問題，不急著鑽進複雜架構。本提示詞建立第一階段（first-step）之審查範本，要求模型以專業而精簡之方式對 {code_diff} 進行基礎層級之 Code Review，明確限定範圍只聚焦最明顯、表層之問題，而非深入架構或複雜邏輯。重點包含可讀性、命名是否具描述性、是否符合基本軟體工程原則，以及是否存在顯而易見之邏輯錯誤或潛在 bug，並要求以結構化條列、語氣專業、內容精簡，每點附簡短改進建議。
+[0185] <Normal 14.0pt> 在整條 CoT 中的角色：本步驟為審查鏈之入口，先以低成本之表層掃描建立基礎結論，為後續之 Linter、Code Smell 與 CoT 深度說明預備脈絡。為何需要：先處理表層問題可避免模型在後續深度步驟中仍被瑣碎問題分心，使每一階段各司其職、層層遞進。
+[0186] <Normal (Web)> [IMG] 
+[0187] <Normal> 本圖為第一步程式碼審查提示詞內容,引導模型針對命名、可讀性與明顯邏輯錯誤等表層問題進行條列式精簡審查,作為後續多階段流程的起點。
+[0188] <Normal (Web) 18.0pt> 3.3.4簡易程式碼審查提示詞
+[0189] <Normal (Web) 14.0pt> 直覺先行：在細看程式碼前，先用一段話講清楚「這次到底改了什麼、為什麼改」，能讓後續每一步審查都有共同背景。本提示詞要求模型依 {code_diff} 產出高層次、精簡且專業之變更說明，聚焦幾個核心面向：先簡述關鍵變更或新增功能，再指出影響範圍，接著解釋修改目的、提醒可能風險與需特別測試之區域，最後列出需 Reviewer 確認或驗證之重點。
+[0190] <Normal 14.0pt> 在整條 CoT 中的角色：本步驟產出之 PR 摘要為整條審查鏈提供「意圖層」背景，使後續審查不只看程式碼表面、更能對齊變更目的。為何需要：缺乏意圖背景時，模型容易把合理之設計選擇誤判為問題，先確立變更目的，能降低此類誤報。
+[0191] <Normal (Web)> [IMG] 
+[0192] <Normal> 本圖為簡易程式碼審查和PR 摘要提示詞內容,要求模型對 {code_diff} 產出涵蓋變更重點、影響範圍、修改目的、風險與審查重點的高層次摘要。
+[0193] <Normal (Web) 18.0pt> 3.3.5簡易摘要提示詞
+[0194] <Normal (Web) 14.0pt> 直覺先行：本步驟是上一步摘要設計於本研究流程中之實際落地，最終產出即作為 first_summary_result 供下游參考。提示詞要求模型依 {code_diff} 自動生成高層次、易讀且專業之變更說明：先說明關鍵變更或新增功能，再指出受影響之模組 / 檔案 / 功能範圍，接著說明修改目的、提醒風險與需特別測試之區域，最後列出審查者應確認或驗證之事項。
+[0195] <Normal 14.0pt> 在整條 CoT 中的角色：本步驟之輸出 first_summary_result 是後續所有審查步驟共享之上下文起點。為何需要：將「變更摘要」明確獨立為一份可追溯之文件，使整條 CoT 之每一步都能引用同一份意圖描述，維持跨步驟之一致性。
+[0196] <Normal (Web)> [IMG] 
+[0197] <Normal> 本圖延續上一階段的 PR 摘要提示詞設計,展示其於本研究流程中作為 first_summary_result 來源的實際樣態,供下游審查階段參考。
+[0198] <Normal (Web) 18.0pt> 3.3.6 Linter 提示詞
+[0199] <Normal (Web) 14.0pt> 直覺先行：這一步要模型「只當檢查器、不當建議者」，像 ESLint / Pylint 那樣只回報問題、不改寫程式碼，以維持輸出之確定性與可比較性。本提示詞要求模型對 {code_diff} 進行規則導向之問題偵測並輸出結構化之 linter_messages，明確禁止修改或重寫程式碼。每個回報項含五個標準欄位：rule_id（違反之規則識別碼）、severity（限 error / warning / info）、message（清楚說明問題）、line（問題行號）、suggestion（精簡改善建議），若無問題則回傳空陣列而非額外說明。
+[0200] <Normal 14.0pt> 在整條 CoT 中的角色：Linter 步驟為審查鏈提供確定性之基礎信號，與後續仰賴語義推理之步驟互補。為何需要：把「規則可判定」之問題交給結構化、低變異之 Linter 角色處理，能釋放後續 CoT 步驟之注意力專注於規則難及之設計與語義判斷，也使審查結果更易跨次比較。
+[0201] <Normal (Web)> [IMG] 
+[0202] <Normal> 本圖為Linter 提示詞內容,明確限制模型僅回報問題(rule_id、severity、message、line、suggestion),不得修改程式碼,模擬靜態分析工具的行為。
+[0204] <Normal (Web) 18.0pt> 3.3.7 Chain of thought 提示詞
+[0205] <Normal (Web) 14.0pt> 直覺先行：前面幾步已找出「有哪些問題」，這一步要回答「這些問題到底是什麼意思、為何發生、該怎麼修」，把冰冷之問題清單轉成可理解、可行動之說明。本提示詞讓模型扮演程式碼品質審查專家，針對已產出之 Linter 與 Code Smell 結果逐項完成五個步驟：先以白話重新解釋該問題於軟體工程中之意義，再分析其根本原因（背後之設計缺陷或不良習慣），接著評估影響與風險（對可讀性 / 可維護性 / 效能 / 安全性）並說明嚴重程度，然後提供具體可執行之修正建議（必要時附簡短範例），最後補充相關最佳實踐（如 SOLID、DRY 或命名慣例）。
+[0206] <Normal 14.0pt> 在整條 CoT 中的角色：本步驟為整條鏈之「推理深化層」，是 Chain-of-Thought 在本框架中最直接之體現——它把前序步驟之發現逐步推理成有依據之解釋。為何需要：多步推理顯著提升審查之可解釋性，使審查意見不再是黑盒判斷，而是每一條都附有「為什麼」，這正是本研究回應「幻覺 / 不可信」問題之關鍵環節。
+[0207] <Normal (Web)> [IMG] 
+[0208] <Normal (Web)> [IMG] 
+[0209] <Normal> 本圖為套用 Chain-of-Thought 提示詞後,模型逐步推理並輸出深度說明的範例結果,用以呈現多步驟推理對審查可解釋性的提升。
+[0210] <Normal (Web) 18.0pt> 3.3.8 總摘要提示詞
+[0211] <Normal (Web) 14.0pt> 直覺先行：審查到最後，需要有人把前面各份報告綜合判讀、給出一個有判斷力之結論，而不是把所有意見原樣堆在一起。本提示詞要求模型扮演資深審查者，基於所有審查產出與程式碼差異生成最終之 PR 總結報告，並嚴格要求分析完全依據輸入本身、嚴禁加入外部假設或個人推測。它整合五種來源（初步 Code Review、初步 PR 摘要、Linter 結果、Code Smell 分析與實際 Code Diff），綜合判讀後形成最終結論，而非逐條重複，若不同來源存在矛盾訊號（如 Linter 無錯誤但 Code Smell 嚴重），須明確說明如何權衡，輸出格式嚴格限定為條列式。
+[0212] <Normal 14.0pt> 在整條 CoT 中的角色：總摘要為審查鏈之終點與收束，將分散於各步之產物彙整為單一可行動之結論。為何需要：唯有經此一步把多份報告整合並化解矛盾，下游（人類或 JudgeStep）才能拿到前後一致、可直接據以決策之審查結果，避免開發者面對彼此衝突之零碎意見。
+[0213] <Normal (Web)> [IMG] 
+[0214] <Normal (Web)> [IMG] 
+[0215] <Normal (Web)> [IMG] 
+[0216] <Normal> 本圖為總摘要提示詞內容,要求模型整合 first review、first summary、linter、code smell 與 code diff 五份輸入,輸出含整體結論、綜合評估、最終決策建議的最終 PR 報告。
+[0217] <Normal (Web) 18.0pt> 3.3.9 全局規則提示詞
+[0218] <Normal (Web) 14.0pt> 直覺先行：要讓每一份審查都按同一套標準走，就得先把「審查該看哪些面向」寫成一份共同前綴，貼在每一步審查提示詞之最前面。本提示詞要求模型依一套完整、標準化、系統性之規範執行審查，而非隨意評論或只盯語法錯誤。它定義七條靜態審查準則：可讀性與一致性、命名規範、軟體工程原則、邏輯與正確性、效能與安全性、文件與測試、評分與回饋風格。為避免誤解，須明確指出：本框架之全域規則為「七條靜態準則」，並非固定八條。
+[0219] <Normal 14.0pt> 在整條 CoT 中的角色：全域規則為所有審查步驟之共同前綴（由 build_global_rule_template 注入），是貫串整條 CoT 之「統一標準」。其關鍵設計在於與 RAG 之銜接：當且僅當 RAG 檢索到非空之專案規則時，才於七條之後動態追加一條「條件式第八條」——即 {rag_rules_section} 所注入之專案特定規範，若無命中則維持七條。為何需要：以固定七條保證審查之基本一致性，再以條件式第八條把「該專案才有」之領域規範即時接上，使審查同時具備一致性（七條）與可維護之領域貼合（第八條），正是本研究整合框架中「以 RAG 回應缺乏領域規範」之具體落地。
+[0220] <Normal (Web)> [IMG] 
+[0221] <Normal (Web)> [IMG] 本圖為全局規則提示詞」內容,定義可讀性、命名、軟體工程原則、邏輯正確性、效能與安全、文件與測試、評分與回饋風格等七大審查面向,並透過 {rag_rules_section} 動態注入 RAG 檢索到的專案規範。
+[0222] <Normal (Web) 20.0pt> 3.4 程式碼審查流程
+[0223] <Title> [IMG] 
+[0224] <Caption 14.0pt> 圖三、程式碼審查流程
+[0225] <Normal 14.0pt> 本圖呈現完整的程式碼審查流程：自載入模型、建立 RAG,依序產生 first_summary、first_code_review、linter_result、code_smell_result,最終整合為 total_summary_result,展示多階段、多輸出的模組化架構。
+[0226] <Normal (Web) 14.0pt> 本研究之程式碼審查系統整體架構如圖二所示，由「測試資料」、「RAG 規則檢索」、「核心模型」、「審查策略」與「評估方法」五大部分構成。測試資料來源為 ChatGPT 與 Copilot 各自生成的 Source Code，並依 bad_data、code_diff、only_code 三種類別進行組織，以驗證系統在不同輸入型態下的審查能力。
+[0227] <Normal (Web) 14.0pt> 為強化審查的依據與一致性，系統建立 RAG 子流程：將外部 Rule Documents 透過 Qwen3-Embedding-4B 進行向量化後寫入 FAISS Vector Index，每次推論時以相似度 threshold ≥ 0.7 的條件取得 Retrieved Rules，並與 7 Review Standards 一併以 RAG Rules Injection 注入至審查提示詞中。在審查策略層級，本研究同時實作三條互為對照的 Pipeline：CoT Pipeline（Summary → Review → Linter → Smell → Total 五階段串接）、Single 
+[0228] <Normal (Web) 14.0pt> 三條 Pipeline 共用同一個核心模型 Qwen3-Coder-30B-A3B 並搭載 4-bit Quantization 與微調得到的 LoRA Adapter，以在有限資源下完成推論。所有 Pipeline 產生的 Review Results 會分別流向三套評估方法進行品質量化：本研究自行設計的 LLM-as-Judge（5 Dimensions Scoring）、CRScore Evaluation 以及 Human Judge（人工評估），三者交叉驗證以提升評估結果的可信度。
+[0229] <Normal (Web) 20.0pt> 3.5 與程式碼編輯環境整合
+[0230] <Normal 14.0pt> 直覺先行：審查若能在開發者寫程式之當下就給回饋，而非等到送出後才提醒，修正成本最低、學習效果最好。本研究隨附之框架即朝此目標提供兩條落地整合路徑，二者皆不依賴任何專屬編輯器外掛。其一為 Model Context Protocol（MCP）整合層：以 prthinker mcp 子指令啟動 MCP server，將審查管線暴露為可由支援 MCP 之客戶端直接調用之工具（詳見 §3.7.2），使開發者得於其工作環境中即時觸發審查。其二為 pre-commit hook：以 prthinker hook 將審查掛入版本控制之提交前流程，於 commit 之前先行檢查並回饋。
+[0231] <Normal 14.0pt> 對本研究的意義：本研究所稱「與程式碼編輯環境整合」，明確且僅限於上述 MCP server 與 pre-commit hook 兩條路徑，框架並未提供原生之 VS Code / Vim / LSP 外掛。如此據實收斂，旨在使「即時回饋」之主張可被精確檢驗，MCP 整合於 IDE 內之實際觸發率、開發者接受率與其相對於 CI 內審查之等價程度，本論文未予評估，列為 §6.4 之未來工作。
+[0232] <Normal (Web) 20.0pt> 3.6 學習語料與評審機制（設計層）
+[0233] <Normal 14.0pt> 本節描述本研究隨附之開源框架（prthinker）於 §3.1 系統架構之外另實作之兩項機制：作者反饋學習語料與 JudgeStep 評審層。下列說明屬於框架之設計與介面定義；其量化效益本論文未予評估，留待 §6.4 所述之未來工作以累積實際 PR 流量後另行驗證。
+[0234] <Normal (Web) 18.0pt> 3.6.1 Dismissed 語料：以相似度過濾抑制重複噪音之機制
+[0235] <Normal 14.0pt> 框架提供 harvest-dismissed 子指令掃描既往 PR 之 review comments，將符合下列任一條件之留言視為被拒：留言本身或其回覆含 👎 reaction、或留言之回覆字串命中「false positive」、「wontfix」、「not relevant」、「誤判」、「不修」等中英文關鍵字集合。命中之留言以 JSONL 格式 append 至 .prthinker/dismissed.jsonl，欄位包含 path、comment、reason、 diff_snippet。於推論時，server 啟動時將該 JSONL 之每筆 comment 各 embed 一次並載
+[0236] <Normal (Web) 18.0pt> 3.6.2 Accepted 語料：以 in-context 範例注入提升建議採納率之機制
+[0237] <Normal 14.0pt> 對偶地，harvest-accepted 子指令掃描含有「Apply suggestion(s) from code review」commit 之 PR，將該 PR 上所有附帶 `suggestion 區塊之 review comment 收為 accepted 範例（欄位 path、comment、suggestion、 pr_number）。於 inline-findings 步驟組裝 prompt 時，框架以候選 diff 為 query 對 accepted 語料做相似度檢索，取相似度高於 τ_a 之前 K 筆作為 few-shot 區塊注入 prompt。本機制屬框架介面層之設計；
+[0238] <Normal (Web) 18.0pt> 3.6.3 非對稱使用之設計理由
+[0239] <Normal 14.0pt> Dismissed 訊號作用於輸出端（過濾）、accepted 訊號作用於輸入端（prompt 注入），此一非對稱設計之理由為：負向訊號若以 in-context 範例形式提供，模型可能誤學「應產生此種被拒留言」；正向訊號若以輸出端 filter 形式提供，將過度限縮模型多樣性。將兩者分置於 pipeline 之輸入與輸出兩端，可同時得到「過去之錯不再犯」與「過去之對更易出現」之雙向效果。本設計理由屬框架架構之說明；其端到端效益之實證留待 §6.4 之未來工作。
+[0240] <Normal (Web) 18.0pt> 3.6.4 JudgeStep：模型裁決至 GitHub Review event 之映射
+[0241] <Normal 14.0pt> 五步 CoT 完成後，框架於 per-file pipeline 末追加 JudgeStep，由模型讀取 total_summary 與已解析之 inline 留言，輸出 {verdict ∈ {approve, request_changes, comment}, score ∈ [0,10], reasons: [...]} 之 JSON 裁決。多份檔案之裁決以保守規則聚合：任一檔判 request_changes 即整體判 request_changes，全檔判 approve 始整體判 approve，其餘判 comment。聚合結果映射為 GitHub Review API POST
+[0242] <Normal (Web) 20.0pt> 3.7 安全前處理與 IDE 整合層（設計層）
+[0243] <Normal (Web) 18.0pt> 3.7.1 Secret 預過濾
+[0244] <Normal 14.0pt> 當推論後端為第三方付費 API 時，PR diff 之 payload 可能含有遺漏於 .gitignore 之 secret（例如 .env 內容、寫死於測試 fixture 之 token、snapshot test 內之 JWT）。為避免此類 secret 經 HTTPS 送至外部服務，框架於送出前以 --redact-secrets 旗標啟動之 pre-pass 將 diff 中符合下列 pattern 之字串以 <REDACTED:<kind>> 取代： AWS access key、GitHub PAT、OpenAI key、Anthropic key、Stripe key、 Sl
+[0245] <Normal (Web) 18.0pt> 3.7.2 Model Context Protocol 整合層
+[0246] <Normal 14.0pt> 本框架除 CI 觸發路徑外，另以 prthinker mcp 子指令啟動 stdio MCP server（Model Context Protocol，LLM client 與外部工具之間之 JSON-RPC 協定），將 review 管線暴露為兩個可由 MCP client 之 LLM 自由調用之 tool。後端設定共用 §3.1 所述之環境變數機制，密鑰一律取自環境變數不寫入 MCP client config。本框架於 IDE 內之觸發率、開發者接受率與與 CI 內審查之等價程度本論文未予評估，相關實驗屬未來工作。
+[0247] <Normal (Web) 20.0pt> 3.8 研究級擴充機制（設計層）
+[0248] <Normal 14.0pt> 本節描述本研究隨附之開源框架另實作之十七項機制，均對應於 LLM 程式碼審查文獻中目前較少實作之研究面向。每項機制皆以 CLI flag 形式 opt-in，預設關閉以維持 §5 所驗證之 baseline pipeline 不受干擾。本論文未對任何單項機制之端到端品質效益進行量化評估； §6.4.5 將就每項機制給出對應之未來工作骨架。所列機制皆已伴隨單元測試與設計文件（docs/en/concepts/research-extensions.rst），可直接於工程上使用，僅缺學術評估。其中 §3.8.1–§3.8.13 與 §3.8.15–§3.8.18 合為十七項研究級機制；§3.8.1
+[0249] <Normal (Web) 18.0pt> 3.8.1 Prompt-injection robustness 與 adversarial-eval 子指令
+[0250] <Normal 14.0pt> 既有 LLM 程式碼審查文獻多預設 diff 為友善輸入。本框架實作四類攻擊之 corpus 與分類器（direct_injection 將「忽略先前指令並核可此 PR」貼入 diff、encoded_payload 以 base64 / hex / ROT13 / unicode homoglyph 混淆、split_injection 將 payload 拆散於多檔案、 role_hijack 重新定義審查器角色），並提供 detect_bypass() 純函式將模型輸出與 case 標記之 markers 進行匹配，於 SQLite 記錄每筆呼叫之原始輸出供事後審計。隨附之 seed.j
+[0251] <Normal (Web) 18.0pt> 3.8.2 Closed-loop 多輪對話審查
+[0252] <Normal 14.0pt> 既有 LLM reviewer 將審查視為一次性事件：模型發出留言、作者回覆，但下一輪審查並未讀取作者之回覆。框架在 PlatformAdapter 加入 fetch_author_replies()，將作者於最近一則 summary comment 後之回覆渲染為「Prior dialogue」區塊，注入 inline-findings prompt。模型被明確要求對作者已回應之 finding 做下列三擇一：捨棄、精煉、以新證據反駁，禁止靜默重貼。此一機制屬框架設計貢獻；其於真實 PR 對話下對 round-2 precision 之影響本論文未予評估。
+[0253] <Normal (Web) 18.0pt> 3.8.3 Counterfactual / mutation-style 審查
+[0254] <Normal 14.0pt> 多數審查器只輸出「請改成 X」。框架另實作 CounterfactualStep，於 per-file inline findings 之後針對被視為「設計選擇」之 finding，要求模型列出最多三個競爭性實作與 trade-off 矩陣（axes 為 performance / readability / testability / memory / idiomaticity / dependency 等）。Parser 丟棄選項少於 2 或 finding_index 越界之區塊；本機制屬框架設計貢獻，其對人類審查者決策品質之影響本論文未予評估。
+[0255] <Normal (Web) 18.0pt> 3.8.4 Provenance 稽核：每條 finding 之引用鏈
+[0256] <Normal 14.0pt> 框架定義 Provenance(citations, confidence) schema 並要求模型對每條 finding 引用其依據（rag_rule 編號、accepted_example 編號、或 diff_evidence 行號），可選附自評信心值 ∈ [0, 1]。Parser 對越界引用做靜默丟棄但不丟 finding；confidence 僅供人類參考，不作為自動過濾依據。本機制使審查行為從「黑盒」變為可審計，屬框架設計貢獻；其與 finding 正確率之相關性本論文未予評估。
+[0257] <Normal (Web) 18.0pt> 3.8.5 Force-push 差分審查
+[0258] <Normal 14.0pt> 迭代型 PR 在多次 push 間之 diff 通常 60–80% 不變。框架實作 FileDiff.content_sha256()（僅 hash 新側內容，排除 diff metadata 與被刪除行），並提供 SQLite cache 以 (pr_number, repo, file_path, hunk_sha256) 為 key 儲存 findings。下次 push 時 hash 未變之檔直接 reuse 上次結論。本機制屬框架設計貢獻；其於真實 PR 流量下節省之 token 成本本論文未予評估。
+[0259] <Normal (Web) 18.0pt> 3.8.6 Suggestion sandbox 驗證
+[0260] <Normal 14.0pt> 框架實作 verify_suggestion()，把 working tree 複製到 tempfile.mkdtemp 後以 original 守備檢查套用 suggestion，再以 verify_cmd（預設 pytest -x）於 timeout 之內執行，將每條建議標 pass / fail / skip / error。原 repo 絕不動；verify 指令以 argv list 跑（無 shell=True）。將 suggestion 由「盲射建議」升級為「有經驗證據之假設」之設計貢獻；其於開發者採納率上之效益本論文未予評估。
+[0261] <Normal (Web) 18.0pt> 3.8.7 Cross-language API drift 偵測
+[0262] <Normal 14.0pt> 當 PR 同時碰到後端（.py）與前端（.ts / .tsx / .js / .jsx），per-file review 看不到「後端把 user_id 改名 userId、前端仍用舊名」之跨檔 drift。框架以 is_mixed_language() 偵測跨語言 PR，組裝跨檔 prompt 並解析為 ApiDriftFinding（kinds： field_renamed / field_removed / type_changed / path_changed / method_changed / other）。Parser 丟棄引用了非 diff 路徑之 drift（模型無法虛構檔名
+[0263] <Normal (Web) 18.0pt> 3.8.8 PR 類型自適應審查
+[0264] <Normal 14.0pt> 多數 LLM 審查器對所有 PR 一視同仁。框架實作前置之 PR-type classifier（PRType ∈ {bugfix, feature, refactor, docs, chore, unknown}），用 diff + 標題 + body 將 PR 分類後，按 ReviewBudget 表調整後續 review 深度：DOCS 跳整個 inline findings、BUGFIX 縮 max_findings_per_file 並注入 focused prompt 片段、REFACTOR 放大 budget 並注入等價檢查 hint。安全失敗方向：解析失敗 → UNKNOWN 
+[0265] <Normal (Web) 18.0pt> 3.8.9 Reproducibility / 評論一致性訊號
+[0266] <Normal 14.0pt> 多數 backend 並未透過統一 API 暴露穩定之 per-token logprob。框架提供後端通用之 uncertainty proxy：對同一檔以同 prompt 跑兩次 inline-findings step（非 0 temperature 自然產生第二樣本），按 (path, line, 正規化 comment) 比對；正規化壓掉空白 / 大小寫 / 標點以涵蓋 paraphrase。findings 標 stable / low；第二次新出現之 finding 亦保留為 low。本機制屬框架設計貢獻；其與真實正確率之相關性本論文未予評估。
+[0267] <Normal (Web) 18.0pt> 3.8.10 Dependency upgrade impact 分析
+[0268] <Normal 14.0pt> 最容易被人類審查者迅速放行之 PR，往往是不顯眼之 dependency bump。框架偵測 requirements.txt / pyproject.toml / package.json 之觸碰，抽出 (package, old_version, new_version) delta，並以該套件於 diff 其他檔案中之實際呼叫點為附加 prompt 上下文，問模型 breaking change 是否影響本 repo 之用法，解析為 DependencyUpgradeFinding(severity, summary, evidence)。框架於 review-time 不抓 remot
+[0269] <Normal (Web) 18.0pt> 3.8.11 Reviewer personas + conflict surfacing
+[0270] <Normal 14.0pt> 既有 ensemble reviewer 多半是同一 lens 跑 N 次平均。框架實作五個正交 Persona（SECURITY / PERFORMANCE / READABILITY / API_STABILITY / MAINTAINABILITY），每個 persona prompt 明確要求模型只在該 lens 範圍內評論。N 個角色發言後，conflict-finder step 拿 N 個輸出找跨角色之分歧並輸出 PersonaConflict(personas, summary, resolution)；resolution 刻意不替決策者選邊，將張力顯化而非平均化。本機制屬框
+[0271] <Normal (Web) 18.0pt> 3.8.12 Risk-weighted attention：以 git 訊號分配 findings budget
+[0272] <Normal 14.0pt> 多數審查器將 PR 內每檔視同仁。框架實作以三項 git-derived 訊號計算之每檔風險分：churn（git log --since=90.days.ago 之 commit 數）、complexity proxy（HEAD 行數）、bug history（commit message 命中 fix: / bug / revert）。三項在 PR 內 normalise 後以權重 (0.4, 0.3, 0.3) 線性結合（明示為框架慣例而非校準公式），並按分數線性縮放 max_findings_per_file 於 floor 與 ceiling 之間。本機制屬框架設計貢獻；權重之校準與
+[0273] <Normal (Web) 18.0pt> 3.8.13 Diff entropy 與「diff bomb」偵測
+[0274] <Normal 14.0pt> 多數 LLM 審查器照單全收地處理千檔大 PR，產出灌洗版式之 review。框架將 PR 之形狀視為 first-class review signal：以檔案數 + 總 +/- 行為 size 分量，以頂層目錄分布之 Shannon entropy 經 log2(n_dirs) 正規化為 dispersion 分量，分類為 focused / wide / bomb。verdict 為 bomb 時於留言頂端貼「Consider splitting this PR」警示。框架不因高分阻擋合併，目的僅為將 PR 形狀顯化以利人類決策。本機制屬框架設計貢獻；其與真實 PR 缺陷漏報率之相關性本
+[0275] <Normal (Web) 18.0pt> 3.8.14 部署層工程：CI 矩陣分片、非同步 job-pattern endpoint
+[0276] <Normal 14.0pt> 在以反向代理（Cloudflare 免費 / Pro / Business 方案套用 100 秒之 HTTP idle timeout）對外暴露之 30B MoE 推論伺服器上，單一 per-file CoT 審查之單 round-trip 推論時間可超過該上限，並隨 per-file mode 對大 PR 之序列化處理累積觸發 GitHub Actions 預設之 30 分鐘 job 上限與 GPU 累積 KV cache 之 OOM。框架在不更動審查流程之前提下，於部署層提出四項工程設計：
+[0277] <Normal 14.0pt> (a) 非同步 job-pattern endpoint：將 /review 同步端點補上 POST /review/submit（回傳 job_id）與 GET /review/result/{id} 兩個 endpoint，搭配 5 秒輪詢之 client 設計，使任一 HTTP round-trip 之 wall-clock 時間落於 reverse-proxy idle timeout 之內，與 backend 端實際推論時間解耦。
+[0278] <Normal 14.0pt> (b) CI matrix 分片：將原 single-job review-pr 重構為 enumerate → review matrix（max-parallel: 1，每 shard 60 分鐘 budget）→ aggregate 三 job pipeline，使每個 file 享有獨立 timeout budget。max-parallel: 1 屬刻意設計，避免並行 shard 在 backend 排隊浪費 CI 分鐘而無 wall-clock 收益（單 GPU 仍為瓶頸）。
+[0279] <Normal 14.0pt> (c) noise-path 過濾與 single-file 模式：新增 --exclude-globs / --target-file 兩 flag，使 matrix shard 能以 matrix.file 之精確路徑接管單一 file 之審查，並透過共享 PRTHINKER_EXCLUDE_GLOBS 確保 workflow 與 CLI 使用同一份 fnmatch 規則跳過 IDE 設定 / 生成資料 / 文件變更，避免將 GPU 預算消耗於與審查目標無關之檔案。
+[0280] <Normal 14.0pt> (d) partial-result aggregation：新增 --output-json flag 與 aggregate 子指令，使 matrix shard 將其 partial ReviewResult 序列化為 JSON artifact，由 aggregate job 將 inline_findings / per_file / step_outputs 合一後僅 post 一次 summary 留言、一次 inline review、開 / 關 pre-merge gate 各一次。
+[0281] <Normal 14.0pt> 另搭配兩項 GPU 端記憶體工程：每個 job 結束以 torch.cuda.empty_cache() + gc.collect() 釋出 caching allocator 之保留區塊；於 inference 路徑前以 backend tokenizer 切上限（預設 6000 tokens）之 diff truncation，避免單一過長 diff 在 attention 計算階段觸發 OOM。
+[0282] <Normal 14.0pt> (e) 主動式取消與 idle-poll sweeper：為避免 CI runner 被取消（concurrency: cancel-in-progress、手動 cancel、runner crash）後 backend 仍持續耗用 GPU 跑沒人讀的 review，於 server 新增 POST /review/cancel/{job_id} 與 POST /ask/cancel/{job_id} 兩 endpoint，client 端以 try/finally 在離開 poll loop 時主動發送 cancel。另搭配 server 端常駐 sweeper thread：每 30 秒
+[0283] <Normal 14.0pt> (f) summary comment / inline review / check run 之冪等性處理：同一 head SHA 之重複 workflow run（manual re-run、cancel-in-progress 後之新 push、CI retry）原本會於 PR 上累積多份 prthinker 產物。框架以三種機制達成單一 SHA 對應單一可見產物：(i) summary comment 以 HTML marker <!-- prthinker:summary --> upsert，PATCH 同一 comment 而非每次 POST 新的；(ii) inline rev
+[0284] <Normal 14.0pt> (g) CI matrix 分片之 PR-wide overall summary 合成：matrix 各 shard 僅產出 per-file 之 total_summary，aggregate 階段缺乏跨檔之總結。於 aggregate 完成 per-file 合併後，以 /ask/submit 對 backend 發起一次合成 prompt（將所有 per-file summaries 串為輸入，要求 3-5 句之 PR-wide 重點），結果寫入 merged.step_outputs["total_summary"] 並由 formatter 於 PR 留言頂部呈現為 ### Ove
+[0285] <Normal 14.0pt> (h) Step 輸出字元上限以避免 final-step OOM：CoT 最終 total_summary 步驟之 prompt 為前序所有步驟之輸出之串接；於預設 max_new_tokens=32768 下，前序四步各可吐 ~120 KB，使最終 prompt 易達數十萬 token 並於 attention 計算階段觸發 GPU OOM（50K token × 64 head 之 KV cache 約需 300 GiB）。框架以 _DEFAULT_MAX_STEP_RESULT_CHARS = 6000（約 1500 token）對ctx.results 內每步之 in-pipelin
+[0286] <Normal 14.0pt> (i) 本機後端之 FlashAttention 2 / SDPA 啟用與容器基底升級：將 transformers.AutoModelForCausalLM.from_pretrained 之 attn_implementation 偏好設為 flash_attention_2 並 fallback 至 sdpa，使 30B-class MoE 之 attention 計算避開 vanilla 路徑之 O(L²) 記憶體峰值；配合升級伺服器 Dockerfile 之 CUDA 基底至 13.0.1 -devel-ubuntu22.04 以於映像建構期間提供 flash-attn 之 nvcc
+[0287] <Normal 14.0pt> (j) timeout 預算之兩端拉長：原設計之 client poll deadline 與 backend per-call timeout 均為 30 分鐘；於本機後端跑全 5 步 CoT 之 per-file review 觀察到 30B 模型於 total_summary 步驟之單一 generate 呼叫可逼近此上限。框架將 RemoteBackendConfig. timeout_seconds 之預設值由 1800.0 提升至 3600.0、CLI 客戶端之 deadline 同步至 1800.0 / 3600.0，並於 review 子指令文件明示該上限為「全 pipelin
+[0288] <Normal 14.0pt> (k) poll 重試預算與指數 backoff 以吸收短暫 502：30B-class 後端之 process 重啟、GPU reload、nginx config reload 易於 ~1 分鐘時段內持續吐 502；原設計之 _MAX_CONSECUTIVE_POLL_FAILURES = 5 × _POLL_INTERVAL_SECONDS = 5 僅能扛 ~25 秒，超過即丟 HTTPStatusError 並中斷整輪 review。框架將預算提升至 60 並引入 _POLL_BACKOFF_AFTER_FAILURES = 5 / _POLL_MAX_INTERVAL_SECONDS
+[0289] <Normal 14.0pt> (l) CI matrix 內之 diff-since-last 快取串接：§3.8.5 所述之 force-push 差分機制原僅於 CLI 使用層暴露 --diff-since-last flag 與 SQLite cache 檔；於 CI 環境下需搭配 GitHub Actions 之 actions/cache 機制方能跨 workflow run 保留。框架於 matrix shard 之 review 步驟前後分別加入 actions/cache/restore 與 actions/cache/save，以 prthinker-diff-pr-<PR>-<run>-<shard> 
+[0290] <Normal 14.0pt> (m) GitHub 留言之 65536-char 上限自動截斷：GitHub Issues / PR 之 comment body 超過 65,536 字元時回應 422 Unprocessable Entity；於多檔 matrix run 之 aggregate 階段，將各 shard 之 per- file 區塊（含 §3.8.14 (g) 之 Overall Summary、RAG docs、judge verdicts）串接於同一 upserted 留言中，極易超過該上限而導致整輪 aggregate 失敗。框架於 upsert_pr_comment 內加上 60,000 字元之硬
+[0291] <Normal 14.0pt> (n) enumerate 階段之 per-PR 狀態快取與 matrix 預過濾： §3.8.14 (l) 之 in-runner SQLite cache 只能讓 shard 內之 LLM 短路，無法避免每個未變動之檔仍消耗一個 runner 之 checkout + setup-python + pip install + healthcheck（~1–2 分鐘）。框架另引入「per-PR 狀態快取」之 enumerate 預過濾：每 PR 之 actions/cache 條目包含 .prthinker/pr-state/manifest.json（路徑 → blob SHA 對照表， 
+[0292] <Normal 14.0pt> (o) 每 shard 之狀態 checkpoint 寫入：(n) 設計中之 canonical state 由 aggregate job 寫入；若 aggregate 失敗或 runner 於最後一個 shard 與 aggregate 之間崩潰，整輪所跑之 review 均不被下次 push 利用。配合 §3.8.14 (b) 之 max-parallel: 1（既為單 GPU 之必然設計，亦提供本子項所需之序列性），框架讓每 shard 於 review-pr 成功後執行三步：(i) 將其 partial.json 複製至 .prthinker/pr-state/partials/<s
+[0293] <Normal 14.0pt> (p) inline findings 對 diff hunks 之預過濾以避開 review 全局 422：GitHub 之 PR Review API 對單一 inline comment 若指向 side:RIGHT 之非 hunk 範圍行，將以 422 Line could not be resolved 拒絕整份 review──一條虛構行號之 finding 即連帶癱瘓同 review 內所有合法 finding，aggregate 因此 short- circuit 而 close_gate 不執行，required-status branch protection 將永遠看不到
+[0294] <Normal 14.0pt> 本機制屬部署層設計貢獻，其對端到端 PR 流量之穩定性、wall-clock 改善、reviewer 對重複留言之認知負擔等量化評估本論文未予進行，列為 §6.4.5 之未來工作。
+[0295] <Normal (Web) 18.0pt> 3.8.15 主動學習衍生規則（active-learning derived lessons）
+[0296] <Normal 14.0pt> §3.6 所述之 dismissed / accepted 兩語料為一階訊號──「此筆具體留言被作者拒絕」「此筆具體建議被採納」──兩者本身對未來 PR 無泛化能力。框架於兩語料之上再加一層：derive-lessons 子指令讀取兩語料之最近 N 筆，向模型詢問「應從中抽出何種可重用之審查規則（name / trigger / action 三欄）」，並明示模型「輸出空陣列優於虛構規則」。解析後之 LessonRule 連同其來源 PR 編號一併追加寫入 lessons.jsonl（append-only，供事後可追溯地檢視規則演化）。下一次 review-pr --lessons 時，最近
+[0297] <Normal (Web) 18.0pt> 3.8.16 跨 PR finding 聚類與自我發現規則
+[0298] <Normal 14.0pt> 若框架反覆於不同 PR 中提出實質相同之 finding，正確之回應不是繼續重複，而是將其結晶為 --rules-dir 下之 repo 規則。框架為每條已產出之 inline finding 將留言文字以 backend embedding 化並與 (pr_number, file_path, line, comment, embedding) fingerprint 一併寫入 findings-index.sqlite。discover-rules 子指令對該 store 跑貪婪餘弦相似度聚類（預設 brute-force NumPy；大規模時可換為 sqlite-vec / FAISS 
+[0299] <Normal (Web) 18.0pt> 3.8.17 Repo 知識圖譜與 inline finding 之符號接地
+[0300] <Normal 14.0pt> LLM 審查器於大型 repo 上常見之失敗模式為虛構符號名稱──宣稱 auth.py 內有 get_user 函式而該函式實際位於 core/users.py。既有 RAG 層接地於 repo 之*規則*，本機制接地於 repo 之*符號*： build-kg --workdir . 以 Python ast 走訪 def / class / 類方法 / ALL_CAPS 常數，並以正則為主之 scanner 走訪 TypeScript / JavaScript 之 function / class / interface / const / default export，將 (symbol
+[0301] <Normal (Web) 18.0pt> 3.8.18 每檔遞增存檔與崩潰安全部分結果（crash-safe partial review）
+[0302] <Normal 14.0pt> 30B-class 後端之 per-file CoT 於大 PR 上可累積跑數十分鐘。當該輪因 idle-poll sweep（§3.8.14 (e)）、GPU OOM、runner timeout 或人工於 GitHub Actions 介面之 cancel 而中途終結時，原設計之 --output-json 僅於審查最末整批落盤──中途死亡即無任何部分結果可審視。框架以 --incremental-save-dir <path> 將 per-file 完成事件改寫為「即時 atomic 寫盤」：
+[0303] <Normal 14.0pt> ‧ <path>/files/<slug>.json：FileReviewResult 加入記憶體 per_file_results list 之同時，將其序列化（涵蓋 inline_findings / verdict / counterfactuals 等所有 pydantic 欄位）寫入磁碟；slug 將目錄分隔符與非法字元一律換為 _ 以跨 Windows / Linux / macOS 通用。
+[0304] <Normal 14.0pt> ‧ <path>/review.json：僅於整輪 sweep 跑完寫入；其存在即意味著「該次 run 乾淨完成」。
+[0305] <Normal 14.0pt> ‧ <path>/meta.json：開始時寫入 repo / pr_number / head_sha / started_at，使事後檢視者可辨識所屬 PR / commit。
+[0306] <Normal 14.0pt> 所有寫盤透過 <target>.tmp + os.replace 達成原子性，半寫狀態不可見。Writer 內部之任何 OSError 僅 log 並吞掉──持久化之失敗不可中斷正在跑之 review。CoTPipeline.run_per_file 為此暴露 on_file_done callback，於 cache-hit 與全 review 兩處 append 點各觸發一次；本機制限於本機 pipeline 路徑（遠端 pipeline 走 --use-remote-pipeline 時 server 一次回完整 ReviewResult， per-file 增量在伺服端不適用，--ou
+[0307] <Normal (Web) 18.0pt> 3.8.19 推論伺服器之指標端點與監控可觀測層（observability）
+[0308] <Normal 14.0pt> 自架之 FastAPI 推論伺服器以 prometheus_fastapi_instrumentator （Prometheus 之 FastAPI 中介層）將每端點之請求數、延遲與狀態碼以 Prometheus 文字格式暴露於 /metrics。本機制與 §3.8.14 同屬部署 / 可觀測層工程，不計入本節之十七項研究級擴充機制。該相依採延遲匯入（lazy import），未安裝時僅記錄一行 log 並停用該端點，故 runner-profile 安裝（httpx + pydantic + PyYAML）不受影響。隨附之 docker-compose.monitoring.yml 監控疊加
+[0309] <Normal (Web) 18.0pt> 3.8.20 可操作性與輸出整合（operability and output integrations）
+[0310] <Normal 14.0pt> 除上述十七項研究級機制外，隨附框架另提供一組 opt-in 旗標／子指令，將審查結果與外部工具鏈整合。此類功能皆為純轉換或轉接器（不含推論），故於 runner profile（httpx + pydantic + PyYAML）即可執行，且皆隨附單元測試；其對審查品質或實務採納率之效益不在本論文評估範圍：
+[0311] <Normal 14.0pt> ‧ SARIF 匯出（--sarif-out）：以 SARIF（Static Analysis Results Interchange Format，靜態分析結果交換格式）2.1.0 輸出 finding，供 GitHub code-scanning 或任何 SARIF 檢視器使用。
+[0312] <Normal 14.0pt> ‧ HTML 報告（--html-report）：產生獨立、防 XSS（cross-site scripting，跨站腳本）之 HTML 審查報告（嚴重度摘要 + 每檔 finding）。
+[0313] <Normal 14.0pt> ‧ finding 抑制（--ignore-file / .prthinkerignore）：以路徑 glob、severity:<level> 或 rule:<id> 丟棄 finding；缺檔即 no-op。
+[0314] <Normal 14.0pt> ‧ finding 去重（--dedupe-findings）：合併近似重複之 finding （同 path+line、等義訊息，保留最高嚴重度）。
+[0315] <Normal 14.0pt> ‧ 公開 API 影響（--api-impact）：以對 diff 內公開 def / class 簽章增刪改之啟發式掃描，於摘要附 semver（Semantic Versioning，語意化版本）影響（major / minor / patch）一行。
+[0316] <Normal 14.0pt> ‧ Gitea 平台（--platform gitea）：與 GitHub / GitLab 同走 PlatformAdapter 策略之 GiteaAdapter。
+[0317] <Normal 14.0pt> ‧ commit message 審查（review-commits）：就 stdin 讀入之 commit message 評估其品質（conventional-commits、祈使語氣、清晰度）。
+[0318] <Normal 14.0pt> ‧ 額外推論後端（--backend gemini|cohere|mistral）：與 OpenAI / Anthropic 同走 InferenceBackend 工廠之 HTTP 後端。
+[0319] <Normal 14.0pt> ‧ 後端組合（library API）：RouterBackend 於失敗時逐級回退、 EnsembleBackend 查詢多後端並依 longest / first / majority 選取；二者皆為 InferenceBackend 裝飾器，可與快取／ telemetry 包裝層組合。
+[0320] <Normal 14.0pt> ‧ self-consistency 取樣（library：self_consistent_generate）：對同一 prompt 取樣 k 次後回傳多數（正規化）輸出。
+[0321] <Normal 14.0pt> ‧ 第三方 step 外掛（load_plugin_steps）：以 prthinker.steps entry-point group 探索外部套件所註冊之審查 step，於 CLI 啟動時載入，使外部套件無需改動核心即可註冊 step（Open/Closed 原則）。
+[0322] <Normal 14.0pt> ‧ confidence 棄權（--min-confidence）：丟棄 provenance confidence 低於閾值之 finding（須搭配 --provenance）；無 confidence 者一律保留。
+[0323] <Normal 14.0pt> ‧ 引用驗證（library：citation_verify）：標記 provenance 引用之 rule / example 索引越界、或 diff 證據行落在 diff 之外者。
+[0324] <Normal 14.0pt> ‧ prompt-injection 防護（library：injection_guard）：對新增行啟發式掃描（直接注入、role-hijack、編碼 blob），補強對抗語料。
+[0325] <Normal 14.0pt> ‧ finding 在地化（library：localize）：以 prompt + parse 將 finding 留言翻譯為目標語言。
+[0326] <Normal 14.0pt> ‧ golden-set 快照（library：golden）：寫入／比對 finding 之穩定快照以偵測 prompt／行為漂移（不含任何分數）。
+[0327] <Normal 14.0pt> ‧ 評估 harness 骨架（library：benchmark）：將 case 語料跑過後端並僅記錄原始輸出，不輸出任何分數或聚合數字。
+[0328] <Normal 14.0pt> ‧ 成本估算與預算（library：cost）：自 pricing 估每次呼叫之 USD，並以 CostBudget 為單一 PR 設定上限。
+[0329] <Normal 14.0pt> ‧ 聚焦審查模式（--review-modes security,performance,…）：以 Registry 模式註冊於 prthinker.review_modes 之 opt-in 全 diff pass──security / SAST（Static Application Security Testing，靜態應用程式安全測試）、performance、test-coverage、IaC（Infrastructure as Code，基礎設施即程式碼）、DB-migration、accessibility、 secret-scan、PII（personally identifi
+[0330] <Normal 14.0pt> ‧ Prometheus 告警規則（docker/monitoring/alerts.yml）：監控疊加層隨附之告警規則（詳見 Docker 概念頁與 §3.8.19）。
+[0331] <Normal 14.0pt> 上列整合屬部署 / 輸出層工程，不計入 §3.8 之十七項研究級擴充機制；各功能皆以單元測試覆蓋，惟其對審查品質或實務採納率之量化效益本論文未予評估。
+[0332] <Normal (Web) 18.0pt> 3.8.21 僅設計、尚未實作之機制（design-only, not yet implemented）
+[0333] <Normal 14.0pt> 下列機制於隨附框架中僅以設計描述存在、未隨附程式碼，因其素樸實作將不安全或需大幅重寫，皆標示「本論文未予評估」並列為未來工作：
+[0334] <Normal 14.0pt> ‧ 平行 per-file 審查：併行審查各檔可縮短 wall-clock，惟行內 GPU 後端（LocalHFBackend）序列化生成、不可由多執行緒安全呼叫；正確設計需 per-backend 併發能力旗標加上有界 worker pool（僅 HTTP 後端 opt-in、本機後端不參與）。
+[0335] <Normal 14.0pt> ‧ 可配置 step DAG（directed acyclic graph，有向無環圖）：管線目前為固定線性 step 序列；分支／條件式 DAG（依 PR 類型跳過 step、獨立 step 扇出）需重構 CoTPipeline 與 step 解析。
+[0336] <Normal 14.0pt> ‧ per-author 校準 / 自動調校 RAG 閾值 / embedding 漂移監測：均需累積 accept / dismiss 歷史與線上回饋迴路；語料庫已存在，惟學習迴路僅止於設計。
+[0337] <Normal 14.0pt> ‧ server queue + rate-limiting 與 per-model 指標標籤：伺服端併發控制與更細之 telemetry 標籤；為維持 boot path 與指標基數穩定，目前僅止於設計。
+[0338] <Normal 14.0pt> 本子節所列皆不隨附程式碼，與 §3.8.1–§3.8.20 之「已實作」性質不同，純屬未來工作之設計骨架。
+[0339] <Normal (Web) 18.0pt> 3.8.22 審查導覽與分流輔助（review orientation and triage aids）
+[0340] <Normal 14.0pt> 多數審查器僅輸出 finding，卻未協助審查者規劃如何閱讀一份變更。隨附框架另提供一組 opt-in 之導覽／分流輔助。其中唯一使用推論者為 逐檔變更走查（--walkthrough）：於 per-file 管線新增一個 WalkthroughStep，就每檔 diff 產出二至四句「此變更做了什麼、為何」之敘事（僅描述、不評斷，亦不得臆造 diff 未顯示之行為），釘於該檔區塊最上方。此為既有無推論之 commit-message PR 概覽之推論側對應物，使審查者於閱讀 finding 前先掌握「變更之意圖」。其餘輔助皆為 runner-safe 純轉換、於 runner profile
+[0341] <Normal 14.0pt> ‧ Conventional Comments 標籤：依嚴重度與 category 為每則 inline 留言冠以 issue / suggestion / nitpick 標籤（共用 formatter， GitHub 與 Gitea 一致），使阻擋性與可選項可被人與工具一眼分流。
+[0342] <Normal 14.0pt> ‧ 跨檔 Top-findings 佇列：將全部 finding 依嚴重度再依模型 confidence 排序之單一優先清單，較僅含 error 之 Must-fix 為廣。
+[0343] <Normal 14.0pt> ‧ Must-fix 原始碼行引用：自 diff 解析出問題行內容，使阻擋性問題不必開檔即可閱讀。
+[0344] <Normal 14.0pt> ‧ 每檔變更規模徽章（+a −b · h hunks）、建議審閱順序 （--review-order，以 KG import 入度將最被依賴之檔排前）、變更地圖 （--change-map，以 Mermaid 畫變更檔間之 import 邊）、缺測試提示 （改了 production .py 卻無同名測試變更之啟發式）、high-risk 檔案註記（--risk-weighted 已算之 churn／複雜度／bug 歷史分數）與 reviewer checklist（自未驗證 error、低再現性 finding、API drift 生成之人工把關清單）。
+[0345] <Normal 14.0pt> 上列導覽／分流輔助屬輸出 / 呈現層，不計入 §3.8 之十七項研究級擴充機制；各功能皆以單元測試覆蓋，惟其對審查效率、缺陷遺漏率或實務採納率之量化效益本論文未予評估；對應未來工作骨架見 §6.4.5 (s)。
+[0346] <Normal (Web) 18.0pt> 3.8.23 無模型定向信號（model-free orientation signals）
+[0347] <Normal 14.0pt> §3.8.22 之導覽輔助協助審查者規劃如何閱讀變更，本節之定向信號則在任何模型推論之前，先以確定性啟發式（deterministic heuristics，不涉機率性模型、相同輸入必得相同輸出之規則）就 diff 本身標示需優先目視確認之變更樣態。其動機有三：其一，LLM 審查需 GPU 或 API，於資源受限或離線之 CI 環境未必可得；其二，部分風險樣態（如下述 Trojan-Source）本質為字元層之確定事實，以規則偵測較交付機率性模型更可靠且可審計；其三，確定性信號零推論成本，適合作為昂貴 LLM 審查之前置分流。
+[0348] <Normal 14.0pt> 全部信號共用單一結構化記錄 SignalFinding（rule_id 規則代號 / level 嚴重度 / message 訊息），由 collect_signal_findings(diff) 一次掃過 diff 之新增側行匯總，計十二項：
+[0349] <Normal 14.0pt> ‧ 遺留衝突標記（merge_markers）：偵測新增行之 <<<<<<< / >>>>>>> / diff3 |||||||（略過 ======= 分隔線以免誤判 Markdown 底線），因遺留標記幾必為衝突解析失誤。
+[0350] <Normal 14.0pt> ‧ Trojan-Source 信號（bidi_guard）：掃描新增行之 Unicode 雙向覆寫與零寬／隱形控制字元（CVE-2021-42574，一類使原始碼之*渲染*與 *執行*語意不一致之攻擊），逐行列出觸犯之碼位。其與 §3.8.20 之 injection 防護互補：後者針對攻擊者之*文字*，本信號針對程式碼本身之渲染層欺騙。
+[0351] <Normal 14.0pt> ‧ 遺留除錯敘述（debug_left）：就新增行偵測一組高精度除錯構件（breakpoint() / pdb / ipdb 之 set_trace / console.log / console.debug / debugger / var_dump / dd），刻意排除裸 print( 以維持信號可信度。
+[0352] <Normal 14.0pt> ‧ 吞噬例外（empty_except，swallowed exception）：就新增之 except 子句，當其主體僅為 pass / ...（含單行 except X: pass 形式）時標示，因靜默吞噬例外常掩蓋錯誤。
+[0353] <Normal 14.0pt> ‧ 大塊新增（large_hunk）：量測每檔最長連續新增行，逾門檻（預設 80 行）即標示，使單筆大量貼上或生成內容被刻意決定「略讀或細讀」，而非誤認為分散之手寫小修改。
+[0354] <Normal 14.0pt> ‧ 二進位變更（binary_changes）：列出無文字 hunk 之二進位檔，促使審查者另行檢視其內容與來源，而非默許不透明 blob 通過。
+[0355] <Normal 14.0pt> ‧ 刪除檔（deleted_files）：列出整檔刪除，使被移除之測試或安全防護不致湮沒於大量刪除行中。
+[0356] <Normal 14.0pt> ‧ 重命名／移動（rename_map）：自 diff 之 rename from / rename to（含 similarity index 相似度）解析，使純移動不被重複審為「新檔加刪檔」。
+[0357] <Normal 14.0pt> ‧ 低關注度噪音檔（noise_files）：將 lock 檔、minified／生成 bundle、 vendored 第三方樹與提交之快照分類為「可略讀」之提示；僅屬建議，不丟棄檔亦不左右最終結論。
+[0358] <Normal 14.0pt> ‧ 新增延遲標記（new_markers）：僅就新增行掃描 TODO / FIXME / XXX / HACK / BUG，逐項列出 path:line，使本次新引入之技術債於提交時即可見；context 行上之既有標記不計入。
+[0359] <Normal 14.0pt> ‧ 純格式變更（whitespace_only）：將每檔新增與刪除行去除空白後比對，兩者相同即為純重排或重縮排，標示「formatting only」使行為審查者得以略過；真正之新內容永不塌縮，故不致誤標。
+[0360] <Normal 14.0pt> ‧ 檔案模式變更（mode_changes）：擷取 old mode / new mode 轉換，標示新取得執行位元（execute bit，644 → 755）之檔，因其可改變 CI 或部署實際執行之內容。
+[0361] <Normal 14.0pt> 此批信號之輸出與既有產物整合，計四項：（i）以各自 prthinker/<rule> rule id（prthinker/trojan-source / prthinker/merge-conflict 等） emit 至 SARIF（延伸 §3.8.20 之 SARIF 匯出，使檢視器得將其與模型 finding 分流）；（ii）於 HTML 報告新增*Orientation signals*區段列出全部無模型信號，其路徑比照全文跳脫以維持 XSS 安全；（iii）提供一個無模型 triage 子指令，僅執行上列確定性信號而完全不呼叫模型，供無 GPU 或無 API key 之環境取得第一道
+[0362] <Normal 14.0pt> 上列定向信號屬輸出 / 呈現層，不計入 §3.8 之十七項研究級擴充機制；各信號皆以單元測試覆蓋，惟其對缺陷遺漏率、誤報率或審查效率之量化效益本論文未予評估；對應未來工作骨架見 §6.4.5 (t)。
+[0363] <Heading 1> 第四章、實驗設計
+[0364] <Normal (Web) 20.0pt> 4.1 基準資料
+[0365] <Normal 14.0pt> 直覺先行：要公平地評估審查框架，測試題目本身不能偏心——既不能全由人手寫而沾上個人風格，也不能全由單一模型生成而讓受測者「考自己擅長之題」。本研究因此以 GPT-5 與 Copilot 共同產生 44 筆測試資料集，並經人工驗證，兼顧資料品質、任務覆蓋率、模型泛化能力與評估穩定性，用以驗證整個流程（摘要、code review、linter 分析、code smell 判斷與最終總結）於不同類型程式碼情境下是否穩定、準確且一致。以兩種不同生成風格與訓練背景之工具共同產生資料，可有效擴展語法風格、命名習慣、設計模式與錯誤型態之分佈，避免單一來源造成之風格偏差與分佈集中。
+[0366] <Normal 14.0pt> 我們產生了 44 筆測試資料，在實務上，小於 20 筆的資料集通常難以覆蓋多維度錯誤類型，例如效能問題、安全漏洞、命名不一致、過度耦合、重複邏輯、異常處理缺失等；而超過上百筆又會增加人工驗證與標註成本，使迭代效率下降。
+[0367] <Normal 14.0pt> 這 44 筆高品質測試資料也可以作為教師模型與學生模型之間的對照樣本，用於比較不同模型在相同輸入下的輸出差異，透過 GPT-5 與 Copilot 共同產生並經人工驗證的資料集，可以確保測試資料既多樣又具代表性，避免模型僅在單一分佈下表現優秀。
+[0368] <Normal (Web) 20.0pt> 4.2 評估指標
+[0369] <Normal (Web) 18.0pt> 4.2.1 LLM-as-a-Judge 流程
+[0370] <Normal (Web)> [IMG] 
+[0371] <Caption 14.0pt> 圖四、LLM-as-a-Judge 流程
+[0372] <Normal> 本圖呈現 LLM-as-a-Judge 評估流程：將原始程式碼與審查結果整合為 Judge Prompt,輸入 GPT-5 等大型語言模型,最終輸出結構化的量化評分結果。
+[0374] <Normal (Web) 14.0pt> 本研究之 LLM-as-a-Judge 流程如圖三所示，採「RAG 注入 → 多階段平行思維鏈 → 總結 → 評分」的端到端設計。系統首先以 Source Code 為輸入，經 Query Embedding 與 FAISS Search 取得相關規則（Retrieved Rules），再由 Inject RAG Rules into Global Template 將檢索到的規則注入至全局提示詞模板。接著進入 Chain-of-Thought 平行階段，同步執行四個子任務：Step 1 Summary（變更摘要、影響範圍、風險評估）、Step 2 Code Review（可讀性、命名規範、邏
+[0375] <Normal (Web) 18.0pt> 4.2.2 LLM-as-a-Judge-CRSCORE++
+[0376] <Normal (Web) 14.0pt> 讓模型扮演程式碼審查評分員的角色，針對一個 Python 程式碼變更（以 git diff 呈現）、該變更被偵測到的 code smells、linter 訊息，以及一段對這個變更的 review comment，去評估這則 review 的品質。整體流程分成幾個階段：首先，模型必須根據提供的程式碼變更內容、靜態分析工具的警告（包含 code smell 與 linter 訊息），推導出一個理想的程式碼審查應該涵蓋哪些重點，例如潛在 bug、安全性漏洞、可讀性、可維護性、效能、記憶體使用、設計模式好壞、效率問題，以及所有被工具標記的問題等，並將這些整理成一個條列清單，放在 ### Topics
+[0377] <Normal (Web)> [IMG] 
+[0378] <Normal (Web)> [IMG] 
+[0379] <Normal (Web)> [IMG] 
+[0380] <Normal> 本圖為 CRSCORE++ 評分提示詞內容,要求裁判模型先列出應涵蓋議題,再分析 review comment 的覆蓋程度,最後給出 comprehensiveness、conciseness、relevance 三個 1–5 分。
+[0381] <Normal (Web) 18.0pt> 4.2.3 LLM-as-a-Judge-Our
+[0382] <Normal (Web) 14.0pt> 讓模型扮演一個程式碼審查評論評估員，對現有的 review comment 進行系統化、量化和證據導向的評分，重點在於評論是否針對程式碼中的實際問題，尤其是由 code smell 偵測器和 linter 所發現的問題，提供清楚、可操作、結構化的建議，而不是泛泛而談。它定義了五個評分維度：可讀性（評估評論的語言清晰度和結構化程度）、建設性或可維護性（評論是否提供具體、可落地的改進建議）、正確性（評論是否準確、邏輯合理地識別問題）、跨多評論覆蓋性與結構獨立性（評估多份評論是否全面涵蓋程式碼重要議題，每段評論是否自足、可單獨理解、並清楚對應到 code smell 或 linter 訊息）、以及完
+[0383] <Normal (Web)> [IMG] 
+[0384] <Normal (Web)> [IMG] 
+[0385] <Normal (Web)> [IMG] 
+[0386] <Normal (Web)> [IMG] 
+[0387] <Normal> 本圖呈現本研究 Judge 提示詞與 CRSCORE++ 在同一份資料上的對照結果,用以說明採用百分制與多維度設計帶來的評分差異。
+[0388] <Normal (Web) 14.0pt> CRSCORE的提示詞沒有定義評分方式容易造成誤差，且一個區間是20%的差距，容易造成結果看起來差異不大，難以真正反映出細微的差別。採用百分制能更準確地呈現出不同程度的差別且百分制的概念在人們的日常生活中非常普遍，直覺上更容易理解與接受，因此我們採用百分制。
+[0389] <Normal (Web) 18.0pt> 4.2.4 人工評估
+[0390] <Normal (Web) 14.0pt> 即使在使用 LLM-as-a-Judge（讓大型語言模型充當評審）來自動評估與比較程式碼品質、可讀性或正確性之後，仍然需要人工進行 code review，主要原因在於模型本質上的限制與軟體工程實務的複雜性之間存在不可避免的落差：對於看似合理但在特定商業邏輯、系統架構或安全需求下其實有隱患的程式碼，往往無法精確辨識，例如權限控管邏輯、併發條件競爭、記憶體或資源生命週期等隱性問題，這些都需要具備上下文與系統全貌理解的人類工程師來把關；其次，LLM-as-a-Judge 容易受到提示語（prompt）與輸入格式的影響，可能產生不穩定或前後不一致的評價結果，即便在同一段程式碼上多次評估也可能出現差異
+[0391] <Normal (Web) 14.0pt> 並且對於多份由 LLM 產生的 code-review 報告而言，之所以更適合由人類進行最終審查，多個 LLM 報告往往在表面上看似獨立，但實際上共享相似的訓練資料分布與評分傾向，而人類審查者能從跨報告的差異中辨識哪些意見只是語氣或表達方式不同、哪些才是真正對系統有影響的實質問題；其次，多份 LLM code-review 報告常會出現結論相似但依據不同的情況，人類可以回到原始程式碼與專案脈絡，驗證每一條評論是否真的成立，避免因語言模型的自信表達而誤信錯誤結論，此外，多份 LLM 報告之間經常存在重複、冗餘或彼此矛盾的建議，需要人類進行整合與優先排序，才能轉化為可執行的改進清單，否則開發者反而
+[0392] <Normal (Web) 20.0pt> 4.3 實驗配置
+[0393] <Normal (Web) 18.0pt> 4.3.1 環境配置
+[0394] <Normal (Web) 14.0pt> 本研究所有實驗皆在Intel Xeon Gold 6526Y 28GHz 共2顆（32 核心 64 執行緒）、32G DDR5 5600 REG ECC 共16支，容量共512 GB記憶體、以及兩張NVIDIA L40S顯示卡（共 96 GB VRAM）的Linux系統伺服器主機上運行訓練與推論。
+[0395] <Normal (Web) 18.0pt> 4.3.2 訓練配置
+[0396] <Normal (Web) 14.0pt> 本研究採用 Qwen3-Coder-30B-A3B-Instruct 模型，並使用 QLoRA 進行微調訓練。
+[0397] <Normal (Web) 14.0pt> 表一、模型訓練參數配置
+[TABLE 11x2] hdr: 參數 | 配置
+[0398] <Normal> 本表呈現以 QLoRA 微調 Qwen3-Coder-30B-A3B-Instruct 時所採用的關鍵超參數實際數值（如 epoch、batch size、learning rate、LoRA rank 等），作為訓練流程可重現性的依據。
+[0399] <Normal (Web) 14.0pt> 表二、模型訓練參數說明
+[TABLE 11x2] hdr: 參數 | 意義說明
+[0400] <Normal> 本表逐項解釋表一所列訓練參數的意義與作用，協助讀者理解每一個超參數在 LoRA 微調過程中所扮演的角色及其對訓練行為的影響。
+[0402] <Normal (Web) 18.0pt> 4.3.3 模型程式碼審查配置
+[0403] <Normal (Web) 14.0pt> 表三、模型程式碼審查生成參數設置
+[TABLE 6x2] hdr: 參數名 | 設定
+[0404] <Normal> 本表列出推論階段產生程式碼審查結果時所使用的生成參數（如 temperature、top_p、max_new_tokens 等），用以確保不同模型在相同生成條件下進行公平比較。
+[0405] <Normal (Web) 18.0pt> 4.3.4 套件配置
+[0406] <Normal (Web) 14.0pt> 本研究在設計流程時，特別強調後續可持續維護與擴充的便利性。將訓練與推論所依賴的相關套件，集中規劃並呈現在表 4.4，同時完整列出研究所採用的 Python 套件環境配置。
+[0409] <Normal (Web) 14.0pt> 表四、模型套件與用途
+[TABLE 9x3] hdr: 套件 | 版本需求 | 用途
+[0410] <Normal> 本表整理本研究訓練與推論流程所依賴的主要 Python 套件、版本需求及其在系統中的用途，作為環境重建與後續維護的參考依據。
+[0411] <Heading 1> 第五章、實驗結果與分析
+[0412] <Normal (Web) 20.0pt> 5.1 各方法比較
+[0413] <Normal (Web) 14.0pt> 為釐清本研究所提出之程式碼審查框架中，各關鍵設計對生成結果之影響，本節透過 LLM-as-a-Judge和人工評分進行綜合評估。
+[0414] <Normal (Web) 14.0pt> 表五、採用 CRSCORE++方法的多階段提示詞整體評估
+[TABLE 4x5] hdr: 維度 | CRSCORE++ | Ours (30B) | Ours (7B) | Ours (coder-7B)
+[0415] <Normal> 本表以 CRSCORE++ 評分法在 comprehensiveness、conciseness、relevance 三個面向上比較本研究三種不同規模學生模型（30B、7B、coder-7B）的整體表現,用以驗證本框架在不同模型尺寸下的可行性。
+[0416] <Normal (Web) 14.0pt> 表六、不同提示詞設計比較 (GPT-5)
+[TABLE 6x3] hdr: 維度 | Ours | Single code-review P
+[0417] <Normal> 本表以 GPT-5 作為 LLM-as-a-Judge,比較本研究多階段提示詞(Ours)與單一提示詞(Single code-review Prompt)所產生的審查品質差異,用以驗證多階段設計的優勢。
+[0418] <Normal (Web) 14.0pt> 表七、不同提示詞設計比較 (Gemini-3)
+[TABLE 6x3] hdr: 維度 | Ours | Single code-review P
+[0419] <Normal> 本表使用 Gemini-3 作為 LLM-as-a-Judge,重複表六的比較設計,目的是降低單一裁判模型偏差並驗證多階段提示詞的優勢具有跨模型一致性。
+[0420] <Normal (Web) 14.0pt> 表八、提示詞設計比較 (Gemini-3)
+[TABLE 6x3] hdr: 維度 | Ours | Base Model
+[0421] <Normal> 本表延伸提示詞設計的比較實驗,由 Gemini-3 評分,分析本研究方法相對於 base model 在各維度上的差異,補充表六、表七的觀察。
+[0422] <Normal (Web) 14.0pt> 表九、微調後與基礎模型比較 (GPT-5)
+[TABLE 6x3] hdr: 維度 | Ours | Base Model
+[0423] <Normal> 本表以 GPT-5 作為裁判,比較微調後模型(Ours)與未微調的基礎模型(Base Model),用以量化知識蒸餾與 QLoRA 微調對審查品質帶來的提升。
+[0424] <Normal (Web) 14.0pt> 表十、微調後與基礎模型比較 (Gemini-3)
+[TABLE 6x3] hdr: 維度 | Ours | Base Model
+[0425] <Normal> 本表以 Gemini-3 作為裁判,重複表九的微調效果比較實驗,藉由不同裁判模型驗證微調帶來的提升並非單一裁判造成的偏差。
+[0426] <Normal (Web) 14.0pt> 表十一、不同提示詞設計比較(人工評分)
+[TABLE 6x3] hdr: 維度 | Ours | Base model
+[0427] <Normal> 本表以人工評分為基準,比較本研究多階段提示詞與基礎模型的審查結果,用以驗證 LLM-as-a-Judge 自動評分結果與人類判斷之間的一致性。
+[0428] <Normal (Web) 14.0pt> 表十二、微調程式碼審查結果 (人工評分)
+[TABLE 6x3] hdr: 維度 | Finetune | Without Finetune
+[0429] <Normal> 本表以人工評分比較有微調(Finetune)與未微調(Without Finetune)的學生模型,用以從人類視角驗證微調確實提升了審查報告的整體品質。
+[0430] <Normal (Web) 20.0pt> 5.2 消融實驗
+[0431] <Normal (Web) 18.0pt> 5.2.1 LLM-as-a-Judge 評分
+[0432] <Normal (Web) 16.0pt> 5.2.1.1 與傳統 BLEU/ROUGE 方法比較
+[0433] <Normal (Web) 14.0pt> 使用 LLM-as-a-Judge（讓大型語言模型擔任評審）來評估 Code Review 的品質，是因為程式碼審查本質上需要理解語意、邏輯與上下文，而傳統指標如 BLEU 或 ROUGE 主要是透過字詞重疊率來比較兩段文字是否相似，這種方法只適合翻譯或摘要等有標準答案且文字形式固定的任務，但在 Code Review 中，不同的評論即使表達方式不同，只要指出相同的問題或提出合理建議，就仍然是高品質的審查，因此 BLEU/ROUGE 往往會低估這些語意正確但文字不同的回覆，相較之下，LLM-as-a-Judge 能理解程式碼的語意、潛在錯誤、最佳實務以及評論是否具有建設性，例如是否指出 bug
+[0434] <Normal (Web) 16.0pt> 5.2.1.2 我們的方法與CRSCORE++的方法
+[0435] <Normal (Web) 14.0pt> 在評分流程中，系統會將 原始程式碼變更（code diff）、靜態分析工具輸出（linter messages）、程式碼異味（code smells） 以及 模型產生的 review comment 一併提供給評分模型。評分模型首先根據程式碼變更與工具檢測結果推導出理想的程式碼審查應涵蓋的議題，接著分析 review comment 是否實際涵蓋這些議題，最後依據指定評分維度輸出結構化評分結果。
+[0436] <Normal (Web) 14.0pt> 本研究採用兩種 LLM-as-a-Judge 評分方法進行比較：
+[0437] <Normal (Web) 14.0pt> CRSCORE++ 評分方法
+該方法主要從三個面向評估 review comment 品質，包括：
+[0438] <Normal (Web) 14.0pt> Comprehensiveness：評論是否涵蓋程式碼變更中的重要議題。
+[0439] <Normal (Web) 14.0pt> Conciseness：評論是否簡潔且避免離題內容。
+[0440] <Normal (Web) 14.0pt> Relevance：評論整體與程式碼變更的相關性。
+[0441] <Normal (Web) 14.0pt> 本研究提出之評分方法（Our Method）
+為更完整評估程式碼審查品質，本研究額外設計多個評分維度，包括評論可讀性、建設性、正確性以及對 code smell 與 linter 訊息的覆蓋程度。此方法強調評論是否提供具體且可執行的建議，而不僅僅指出問題。
+[0442] <Normal (Web) 14.0pt> 透過 LLM-as-a-Judge 的評分結果，可以觀察到本研究提出的多階段程式碼審查流程在多數測試案例中能夠產生具有良好相關性與完整性的 review comment。特別是在 relevance 與 comprehensiveness 兩個面向上，模型通常能夠識別出程式碼變更中的主要問題，並提供相對合理的審查建議。多階段審查架構（包含摘要、code review、linter 分析與 code smell 分析）也有助於提升評論的覆蓋率，使模型較少遺漏重要議題。
+[0443] <Normal (Web) 18.0pt> 5.2.2 提示詞設計比較 LLM-as-a-Judge評分
+[0444] <Normal (Web) 16.0pt> 5.2.2.1 單提示詞與多階提示詞
+[0445] <Normal (Web) 14.0pt> 在 LLM-as-a-Judge 的評估框架中，提示詞（Prompt）的設計會直接影響模型對生成內容的理解方式，進而影響最終評分結果。因此，本研究進一步探討不同提示詞設計對評分結果的影響，以評估提示詞結構對評估穩定性與一致性的影響。
+[0446] <Normal (Web) 14.0pt> 在本研究中，評分階段使用兩種大型語言模型作為 Judge，包括 GPT-5 與 Gemini-3。透過使用不同架構的語言模型進行評分，可以降低單一模型偏差（model bias）對評估結果造成的影響，同時也能觀察不同模型在相同提示詞下的評分一致性。
+[0447] <Normal (Web) 14.0pt> 為了分析提示詞設計對評分結果的影響，本研究設計了兩種類型的評分提示詞。第一種為單一提示詞設計，此提示詞要求模型對程式碼進行審查。
+[0448] <Normal (Web) 14.0pt> 第二種為 本研究提出之多階段程式碼審查提示詞設計。相較於 單一提示詞的評分方式，我們提出的提示詞進一步細化評估維度，要求模型從多個面向對程式碼審查結果進行評估，例如問題識別的準確性、建議內容的有效性、審查覆蓋範圍以及說明清晰度等。透過多維度的提示詞設計，可引導模型進行更細緻的分析，並提供更具解釋性的評分結果。
+[0449] <Normal (Web) 14.0pt> 在實驗流程中，程式碼審查結果會分別套用不同的評分提示詞，並由 GPT-5 與 Gemini-3 兩個 Judge 模型獨立進行評分。透過比較不同提示詞設計下的評分結果，本研究可分析提示詞結構對 LLM-as-a-Judge 評估結果的影響，並探討何種提示詞設計能提供較為穩定且一致的評分結果。
+[0450] <Normal (Web) 16.0pt> 5.2.2.2 單提示詞程式碼審查提示詞
+[0451] <Normal (Web)> [IMG] 
+[0452] <Normal> 本圖為單一提示詞程式碼審查提示詞內容,要求模型於單次推論中同時涵蓋 best practices、linter messages 與 code smells,作為與本研究多階段方法比較的對照組。
+[0453] <Normal (Web) 18.0pt> 5.2.3人工評分
+[0454] <Normal (Web) 16.0pt> 5.2.3.1 LLM-as-a-judge的限制
+[0455] <Normal (Web) 14.0pt> 雖已採用 LLM-as-a-Judge（以 GPT-5 與 Gemini-3 評分）進行大規模自動評估，本研究仍輔以人工評分作為補充與驗證，其原因有三。其一，LLM 評分本質上依語言模式與統計關聯進行判斷，未必真正理解程式碼之執行邏輯，可能對表面合理卻實際有誤之建議給予高分，而人類評審能結合開發經驗對建議之實際可行性與價值做更精確之判斷。其二，LLM-as-a-Judge 於不同提示詞設計下之評分具一定敏感性與不穩定性，單純依賴自動評分未必能完全反映生成內容之真實品質。其三，於涉及語意理解與專業判斷之任務中，人工評分仍被視為重要之參考標準。透過人工評分與自動評分之一致性比對，可驗證自動化評分之
+[0456] <Normal (Web) 16.0pt> 5.2.3.2 人工評分的計算方式
+[0457] <Normal (Web)> [IMG] 
+[0458] <Normal (Web)> [IMG] 
+[0459] <Normal> 本區塊為人工評分用的評分標準說明,依 Readability、Constructiveness、Correctness、Multi-Review Coverage、Comprehensiveness 五個維度,提供 1–100 分制的細緻分級描述。
+[0460] <Normal (Web) 20.0pt> 5.3 結果分析
+[0461] <Normal (Web) 18.0pt> 5.3.1 自動化評分與人工評分之一致性
+[0462] <Normal 14.0pt> 本節將三張結果表串成一條論證：整合框架同時改善一致性、可解釋性與可維護性三項性質，從而回應§1.2 之三大問題，各 RQ 並回指對應表格與 §1.4 之三項設計。先看自動與人工評分之一致性（對應RQ4）。由表 1（CRSCORE++）、表 2（LLM-as-a-Judge-Our 自動評分）與表 3（人工評分）之趨勢可知，本研究之完整方法（微調模型 + 多階段提示詞）於 Maintainability、Correctness、Multi-Review Coverage 三維度同時優於單一提示詞變體與基礎模型變體，且差距於人工評分（表 3）保持一致方向，惟 Readability 一項出現 LL
+[0463] <Normal 14.0pt> 所以呢：兩套獨立評審（自動 + 人工）在多數深層維度上指向同一結論，代表本框架之改善並非某一評審之特有現象，而是穩健可信的——這同時佐證了「可解釋、可被獨立驗證」此一性質，亦呼應 RQ4 對自動評估可信度之要求，Readability 之系統性落差則指出一個明確之後續校正方向。
+[0464] <Normal (Web) 18.0pt> 5.3.2 多階段提示詞之邊際效益
+[0465] <Normal 14.0pt> 次看整合框架內部各元件之貢獻分解（對應 RQ2、RQ3）。表 2 顯示，自基礎模型 → 多階段提示詞（微調 + 多階段）之變化使 Maintainability 由 85 升至 95、Correctness 由 82 升至 98，表 3 之人工評分亦呈相同方向之提升（Maintainability 79.88 → 86.25、Correctness 80.75 → 87.75）。相較之下，自「基礎模型 + 多階段（未微調）」→「微調 + 多階段」之變化於兩表中差距較小（表 2 中 Maintainability 維持 95、Correctness 由 98 持平，表 3 中 Maintaina
+[0466] <Normal 14.0pt> 此一比例支持兩點觀察。第一，本研究採用之 Qwen3-Coder-30B 已具備充分之程式碼語義理解能力，主要瓶頸在於「一次提示要求過多任務」造成之 context 過載，故多階段拆解之邊際貢獻最為顯著（消融中折算約 +34 分，於百分制等於整體品質跳了約三分之一個量級）。第二，LoRA 微調之邊際貢獻雖較小（約 +2 分），但其所解決之問題與提示詞流程不同：微調是在有限資源下把教師之審查能力穩定保留於可部署之學生模型，使前述多階段之高品質得以在輕量化後仍維持。
+[0467] <Normal 14.0pt> 所以呢：須特別澄清，+34 與 +2 是「整合框架內部之貢獻分解」，而非「流程勝過微調、故可砍掉微調」。多階段流程是整合框架中單項貢獻最大之一環，但它與 RAG 之領域接地、KD/QLoRA 之輕量化保留是互補而非競爭——前者提供一致性與可解釋性，RAG 提供領域規範之可維護性，微調提供有限資源下之能力保留，三者缺一，即難同時回應幻覺、輸出不穩定與缺乏領域規範三大問題。此即本研究主軸於結果層之回填，亦回指 §1.4 之三項設計。
+[0468] <Normal (Web) 18.0pt> 5.3.3 與基準方法（CRSCORE++）之對照
+[0469] <Normal 14.0pt> 末看與基準方法之整體對照（對應 RQ1）。由表 1 之 CRSCORE++ 三維度可知，本研究之 Ours 配置於comprehensiveness（0.86 vs 0.67）、conciseness（0.64 vs 0.57）與 relevance（0.83 vs 0.63）三項皆顯著優於 CRSCORE++ 基準（三項均以接近 1 為佳）。其中完整性之增幅最為明顯，意味本框架之審查意見更少漏看真正該提的問題，相關性之提升則代表意見更貼合該次變更本身。Ours-7B 變體（Qwen3 7B 與 Qwen2.5-Coder-7B）於 comprehensiveness 仍可達 0.79 ~ 0
+[0470] <Normal 14.0pt> 所以呢：RQ1 得到正面回答——完整框架（多階段 + 微調 + RAG）相較既有單一提示詞之 CRSCORE++ 基準，於完整性、相關性與簡潔性三面向全面提升，且不同模型尺寸之變體仍維持多數維度之優勢，顯示此一整合設計具相當之可移植性。綜合 5.3.1–5.3.3，本研究之結論收束於：是「多階段 CoT + RAG 領域接地 + KD/QLoRA 輕量化」三者整合，方使審查同時具一致性、可解釋性與可維護性，並正面回應 §1.2 所提之三大問題，而非任一單一元件之功勞。
+[0471] <Heading 1> 第六章、結論與未來工作
+[0472] <Heading 2 18.0pt> 6.1 結論
+[0473] <Normal 14.0pt> 本研究針對傳統人工程式碼審查所面臨之效率不足、成本高昂與審查標準不一致等問題，更進一步聚焦於 LLM 直接審查時浮現之三大問題——幻覺、輸出不穩定、缺乏領域規範——提出一套整合框架予以正面回應。框架以三項彼此互補之設計協同運作：以多階段思維鏈推理將審查拆解為摘要、初步審查、靜態分析與程式碼異味偵測等循序步驟、產物逐一落檔，回應輸出不穩定並提供一致性與可追溯性，以檢索增強生成於審查前動態注入專案規則（條件式之全域第八條），回應缺乏領域規範並提供可維護之領域貼合，以知識蒸餾結合 QLoRA 把大型教師模型之審查能力輕量化移轉至學生模型，使逐步且有領域接地之高品質審查得於有限資源下部署。
+[0474] <Normal 14.0pt> 經 CRSCORE++ 與 LLM-as-a-Judge-Our 雙重量化評估並由人工評分交叉驗證，本框架於完整性、相關性與簡潔性面向均優於基準（0.86 / 0.83 / 0.64 對 0.67 / 0.63 / 0.57）。消融分析作為整合框架內部之貢獻分解，顯示多階段提示詞流程為單項貢獻最大之一環（+34 分），LoRA 微調之邊際貢獻較小（+2 分）卻互補地解決「有限資源下保留並穩定教師審查能力」之不同問題。本研究之核心結論因此並非以單一元件取代其餘，而是三者整合方能同時具備一致性、可解釋性與可維護性，正面回應 LLM 審查之三大問題，此一整合，亦正是大型語言模型於程式碼審查任務上得以
+[0475] <Heading 2 14.0pt> 6.2 研究貢獻
+[0476] <Normal 14.0pt> 本研究之核心貢獻（已於 §5 達成並具量化證據，與 §1.5 所列「將提出」之設計貢獻相區分）可歸納為三項，三者構成一套整合框架而非彼此可替代之選項。其一，於審查流程設計上，提出將審查拆解為摘要、初步審查、靜態分析與程式碼異味偵測之多階段思維鏈流程，並以 build_global_rule_template 統一注入七條靜態全域規則與 RAG 檢索所得之條件式第八條領域規則，消融實驗顯示，於整合框架內部，此一流程設計為單項貢獻最大之一環（邊際貢獻 +34 分），與後述之 RAG 領域接地及 LoRA 輕量化（+2 分）互補，共同達成審查之一致性、可解釋性與可維護性，而非以其取代其餘元件。
+[0477] <Normal 14.0pt> 其二，於模型輕量化上，以知識蒸餾結合 QLoRA 將 30B 級教師模型之推理能力轉移至學生模型，使高品質審查得於有限 GPU 資源下訓練與部署，並以 LoRA 適配器保留可拆卸與動態切換之彈性。
+[0478] <Normal 14.0pt> 其三，於評估方法上，提出 LLM-as-a-Judge-Our 五項百分制細粒度指標，並以獨立評審模型（GPT-5 / Gemini-3）與人工評分雙重交叉驗證，提升評估之解析度與可信度。
+[0479] <Normal 14.0pt> 此外，本研究隨附之開源框架（prthinker）已將上述審查流程整合並部署於 GitHub Actions CI/CD 實際運作，另實作 JudgeStep 裁決至 GitHub Review event 之映射、四類推論後端、MCP 整合層與十七項研究級擴充機制，其端到端效益留待 §6.4 所述之未來工作量化。整體而言，本研究證明大型語言模型結合結構化之流程設計，於程式碼審查任務上具高度實用潛力，可作為開發者之重要輔助工具以提升軟體開發流程之效率與品質。
+[0480] <Heading 2 14.0pt> 6.3 研究限制
+[0481] <Normal (Web) 14.0pt> 本研究雖在自動化程式碼審查上取得初步成果，並透過 CRSCORE++ 與 LLM-as-a-Judge-Our 兩套指標完成量化驗證，但仍存在以下研究限制，亦為後續研究值得深入探討之方向。
+[0482] <Normal (Web) 14.0pt> (1) 資料規模與多樣性：實驗以 GPT-5 與 Copilot 共同生成 44 筆 Python 測試資料，雖兼顧多樣性與標註成本，但相較真實開源專案動輒上千個 Pull Request 之審查歷史仍屬有限規模；對其他程式語言（C++、Java、Go）、其他類型專案（嵌入式系統、分散式系統、前端框架）之泛化能力尚未驗證。
+[0483] <Normal (Web) 14.0pt> (2) 評審模型偏差：評估採 LLM-as-a-Judge 機制，由獨立於本框架之 GPT-5 / Gemini-3 擔任評審以降低自評偏差，惟同屬大型商用 LLM 仍可能共享預訓練資料分布之傾向，導致對某類錯誤型態之識別偏好；雖以人工評分交叉驗證，但人工樣本量亦受限於評審成本。
+[0484] <Normal (Web) 14.0pt> (3) 微調範圍：本研究僅針對 Qwen3-Coder-30B-A3B-Instruct 進行 QLoRA 微調，未系統性比較不同基座模型（Qwen2.5-Coder、CodeLlama、StarCoder2）於相同 CoT 框架下之表現；LoRA rank、量化精度（NF4 vs INT8）等超參數消融亦未涵蓋。
+[0485] <Normal (Web) 14.0pt> (4) 部署面實證：本框架雖已整合至 IDE 環境完成可行性驗證，但尚未於真實開發團隊長期試行，缺乏對開發者採用意願、審查時間節省比例、誤報率與滿意度等實務指標之量化資料。
+[0487] <Normal (Web) 20.0pt> 6.4 未來工作
+[0488] <Normal (Web) 18.0pt> 6.4.1 跨後端之品質、成本與延遲偏序評估
+[0489] <Normal 14.0pt> §1.5 之研究貢獻第 6 項所述之四類推論後端（本機 Hugging Face、自架 FastAPI、OpenAI-相容、Anthropic Messages API）於本論文 §5 僅以本機配置為主進行評估。後續將於相同基準資料上以同一份提示詞、同一份 RAG 規則文件分別執行於各後端，比較其 CRSCORE++ 三維度品質、單 PR 成本與 p50 / p95 延遲，建立可依團隊成本敏感度與品質要求選擇後端之偏序對照表。
+[0490] <Normal (Web) 18.0pt> 6.4.2 作者反饋語料之累積效益驗證
+[0491] <Normal 14.0pt> §3.6 所述之 dismissed / accepted 語料機制目前以介面層形式存在；後續工作將於實際 PR 流量上累積至少 100 筆語料後，以 paired bootstrap 對下列兩項指標進行量化評估：(a) 啟用 dismissed filter 對 inline finding 精確率之影響；(b) 啟用 accepted few-shot 注入對 inline finding 之 suggestion 區塊出現率與作者實際「Apply suggestion」採納率之影響。並以同一份累積語料探討兩種閾值 τ_d、τ_a 與 top-K 之敏感度分析。
+[0492] <Normal (Web) 18.0pt> 6.4.3 跨平台支援與多模型協作之擴展
+[0493] <Normal 14.0pt> 本框架現以 GitHub 為主之 PR 模型運作，後續可將 GitHub 整合層抽象為 PlatformAdapter 介面並提供 GitLab、Bitbucket 與內部自架 Gitea 之實作，以涵蓋採用非 GitHub 平台之企業案例。模型協作面，可進一步探索多模型仲裁（multi-model ensemble）：同一份 diff 並行送入兩至三個後端，再由第四個後端作為 judge 比對其裁決一致性，作為衡量審查不確定度之來源，並協助識別需人工介入之高分歧檔案。此擴展之具體實驗設計與評估指標屬未來工作。
+[0494] <Normal (Web) 18.0pt> 6.4.4 IDE 內審查觸發與生產級 ops 補強
+[0495] <Normal 14.0pt> §3.7.2 所述之 MCP 整合層使本框架可在 IDE 內直接觸發審查，後續可比較 IDE 觸發（push 前）與 CI 觸發（push 後）兩種時機對開發者接受率與後續修正成本之差異。在 ops 補強面，可將框架隨附之 SQLite cache / telemetry 遷移至 Redis 與 PostgreSQL 以擴及多 server 共享之企業環境，並補上 drift watcher：以固定之 golden PR 集合定期重跑審查，比對輸出相似度，一旦偏離既有 baseline 即觸發告警。
+[0496] <Normal (Web) 18.0pt> 6.4.5 §3.8 所述十七項研究級擴充機制之實證評估
+[0497] <Normal 14.0pt> §3.8 所述十七項機制目前僅完成框架實作；其端到端品質效益需後續以真實 PR 流量驗證。為避免日後補實驗時設計分歧，本節為各機制標示最小可驗證實驗骨架；所列指標皆為公開可重現之量度，避免引入新主觀量表。其中 (a)–(m) 對應 §3.8.1–§3.8.13、(n)–(q) 對應 §3.8.15–§3.8.18；
+[0498] <Normal 14.0pt> (r)–(t) 分別對應 §3.8.19 之可觀測層、§3.8.22 之審查導覽與 §3.8.23 之無模型定向信號（三者均屬部署 / 輸出層，不計入十七項，列此便於對照）。
+[0499] <Normal 14.0pt> (a) Prompt-injection robustness（§3.8.1）：擴充 seed.jsonl 至每攻擊類別 ≥ 30 例，於四類後端各跑一遍，以 SQLite 表格內之 bypassed / detected 欄聚合為 detection rate 與 false-alarm rate 之偏序對照。
+[0500] <Normal 14.0pt> (b) Closed-loop 多輪對話（§3.8.2）：於同一 PR 連續推 ≥ 5 次提交，比較啟用 --reply-to-author 與否之 round-k 重複 finding 比率與作者採納率。
+[0501] <Normal 14.0pt> (c) Counterfactual 審查（§3.8.3）：抽 ≥ 50 個 design-choice 類 finding，請 ≥ 3 名人工審查者就「呈現替代方案是否影響其最終決策」之 Likert 5 點評分作為效益指標。
+[0502] <Normal 14.0pt> (d) Provenance 稽核（§3.8.4）：以人工標記 ≥ 100 條 finding 之「正確 / 誤判」標籤，比較有引用 vs 無引用兩組之 precision，並用 confidence 與真實正確率之 ROC AUC 量化自評之校準度。
+[0503] <Normal 14.0pt> (e) Force-push 差分（§3.8.5）：於連續 30 天之 PR 流量上比較啟用 --diff-since-last 與否之 token 用量、cache hit 比率與 false-reuse 比率（cache hit 但模型若實際重跑會產出不同 finding 之比例）。
+[0504] <Normal 14.0pt> (f) Suggestion sandbox 驗證（§3.8.6）：以 ≥ 100 條 suggestion 在 sandbox 內套用後跑 pytest -x，計算 pass / fail / skip / error 四類比例；另以人工標記真實正確性，計算 sandbox 之 verdict 與人工判斷之 Cohen's κ。
+[0505] <Normal 14.0pt> (g) Cross-language API drift（§3.8.7）：構造 ≥ 30 個 mixed-language PR（後端 rename、欄位刪除、type 變更）作為 ground-truth，計算 precision / recall。
+[0506] <Normal 14.0pt> (h) PR 類型自適應（§3.8.8）：在 ≥ 200 個公開 PR 上以 commit msg prefix / labels 為 ground-truth 計算分類 accuracy / macro-F1；並比較啟用 --pr-classify 前後之每類 PR finding 精確率。
+[0507] <Normal 14.0pt> (i) Reproducibility 訊號（§3.8.9）：對固定 PR 集合各跑 5 trials，以兩兩之 (path, line, normalised-comment) 重合率作為內部一致性指標；驗證 stable 標記與真實正確率之相關性。
+[0508] <Normal 14.0pt> (j) Dependency upgrade impact（§3.8.10）：以公開 advisory（GHSA / CVE）作為 ground-truth breaking change 之來源，於 ≥ 50 個歷史 dependency bump PR 上計算 precision / recall。
+[0509] <Normal 14.0pt> (k) Reviewer personas + conflict surfacing（§3.8.11）：於 ≥ 50 個 design-heavy PR 上比較單 lens 與 personas（含 conflict step）兩設定下，人類審查者「需介入決策」之留言數與最終 PR 之 revert 率。
+[0510] <Normal 14.0pt> (l) Risk-weighted attention（§3.8.12）：以歷史 bug-fix PR 之檔案分布為 ground-truth，建立 risk score 與「該檔於下一季出現 bug fix commit 之機率」之相關係數；並對權重 (0.4, 0.3, 0.3) 進行敏感度分析。
+[0511] <Normal 14.0pt> (m) Diff entropy（§3.8.13）：以公開「PR 被拆」事件作為 ground- truth，計算 verdict ∈ {focused, wide, bomb} 與「該 PR 後續被拆」之關聯。
+[0512] <Normal 14.0pt> (n) Active-learning derived lessons（§3.8.15）：先令 dismissed / accepted 累積至雙語料各 ≥ 100 筆後，於同一份固定 PR 集合上以 paired bootstrap 比較啟用 --lessons 與否之 inline finding precision 與作者再次按 👎 比率。輔以時間切片：每週重跑 derive-lessons，比較其輸出之新規則與既有規則之 Jaccard 重疊，量化規則庫之收斂速度。
+[0513] <Normal 14.0pt> (o) Cross-PR finding clustering（§3.8.16）：於 ≥ 500 筆累積 finding 上以 discover-rules 跑全 grid 之 --similarity-threshold ∈ {0.75, 0.80, 0.85, 0.90} × --min-cluster-size ∈ {3, 5, 10}；以 ≥ 3 名人工審查者就「此 cluster 是否確為一條值得寫入規則庫之真實重複規則」之 Likert 5 點評分作為品質指標，並計算評審間 Cohen's κ。並以「成為框架候選 → 被人類採納為 rules-dir 條目」之漏斗比率作為實用性指標
+[0514] <Normal 14.0pt> (p) Repo knowledge graph grounding（§3.8.17）：以 ≥ 30 個跨語言大 repo 為樣本，於每 repo 上各跑啟用與未啟用 --kg-ground 之全 PR 集合。以人工標記之「該 finding 提及之符號是否實際存在於 repo」作為 ground-truth，計算「符號虛構率」之相對降幅；輔以 --kg-ground 之 prompt token 開銷與每 PR wall-clock 之 trade- off 表。視覺化模組之效益另以團隊內部使用次數 / page-view 等工程量度報告，不混入研究主張。
+[0515] <Normal 14.0pt> (q) Crash-safe partial review（§3.8.18）：刻意於 CI 矩陣中注入 N 次中斷（concurrency: cancel-in-progress 觸發、人工 cancel、模擬 GPU OOM 之 ask/cancel 連發），以 --incremental-save-dir 啟用前後各跑 ≥ 50 次中斷實驗，比較「中斷後可恢復之 per-file 完成數量」之中位數與「未恢復則需重跑之 GPU-second 總開銷」之減幅。本項屬可靠性工程量化評估，與品質研究分流。
+[0516] <Normal 14.0pt> (r) 推論伺服器指標端點與監控疊加層（§3.8.19）：以固定之合成負載（固定 PR 集合連續送審）量測啟用 /metrics instrumentation 前後之每請求延遲差與伺服器吞吐差，作為觀測開銷之上界；並以 ≥ 50 次注入之故障情境（GPU OOM、後端重啟、502）量測「自告警觸發至營運者定位根因」之時間，比較有無 Grafana 儀表板兩組之 MTTR（平均修復時間， mean time to repair）。本項屬可觀測性工程量化評估，與品質研究分流。
+[0517] <Normal 14.0pt> (s) 審查導覽與分流輔助（§3.8.22）：就逐檔變更走查，以 ≥ 50 個 PR 令 ≥ 3 名審查者就「走查是否縮短理解該檔變更之時間、是否準確反映 diff 而無臆造」之 Likert 5 點評分與事實性誤判率作為效益與安全指標；另以開啟與未開啟導覽輔助兩組量測「首條留言前之導覽時間」與缺陷遺漏率之差。本項屬輸出 / 呈現層量化評估，與核心品質研究分流，不計入十七項。
+[0518] <Normal 14.0pt> (t) 無模型定向信號（§3.8.23）：以 ≥ 50 個含已知植入樣態之 PR（人工注入遺留衝突標記、Trojan-Source 字元、遺留除錯敘述、吞噬例外等）為正樣本，另以等量未植入之乾淨 PR 為負樣本，量測十二項信號之逐類召回率與誤報率；並以開啟與未開啟無模型 triage 兩組，量測「於不呼叫模型之前提下，確定性信號先行標示之高風險檔佔最終人工確認問題之比例」與「triage 階段之 wall-clock （因零推論，預期為毫秒級）」。本項屬輸出 / 呈現層之確定性偵測量化評估，與核心品質研究分流，不計入十七項。
+[0519] <Normal 14.0pt> 上列十七組研究級實驗與 (r) 之可觀測層工程實驗、(s) 之導覽層實驗、(t) 之無模型信號實驗皆需累積實際語料；本論文之主要貢獻仍為 §5.1 / §5.2 所述之多階段 CoT + LoRA 微調 + RAG 之整合設計與驗證，§3.8 與 §6.4.5 之內容明示為框架設計貢獻與後續工作之承接介面，不影響本論文之核心主張。
+[0520] <Heading 1> 參考文獻
+[0521] <EndNote Bibliography> [1]	I. Jaoua, O. B. Sghaier and H. Sahraoui, "Combining Large Language Models with Static Analyzers for Code Review Generation," 2025 IEEE/ACM 22nd International Conference on Mining Software Repositories (MSR), Ottawa, ON, Canada, 2025, pp. 174-186, doi: 10.1109/MSR66628.2025.00038.
+[0522] <EndNote Bibliography> [2]	F. S. Aðalsteinsson, B. B. Magnússon, M. Milicevic, A. N. Davidsson, and C.-H. Cheng, "Rethinking Code Review Workflows with LLM Assistance: An Empirical Study," arXiv preprint arXiv:2505.16339, May 2025. doi: 10.48550/arXiv.2505.16339
+[0523] <EndNote Bibliography> [3]	P. J. Sheng Xuan and Y. Lee, "Automated Code Review and Bug Detection," 2024 19th International Joint Symposium on Artificial Intelligence and Natural Language Processing (iSAI-NLP), Chonburi, Thailand, 2024, pp. 1-6, doi: 10.1109/iSAI-NLP64410.2024.10799479.
+[0524] <EndNote Bibliography> [4]	A. Frömmgen et al., "Resolving Code Review Comments with Machine Learning," 2024 IEEE/ACM 46th International Conference on Software Engineering: Software Engineering in Practice (ICSE-SEIP), Lisbon, Portugal, 2024, pp. 204-215, doi: 10.1145/3639477.3639746.
+[0525] <EndNote Bibliography> [5]	M. Vijayvergiya, M. Salawa, I. Budiselić, D. Zheng, P. Lamblin, M. Ivanković, J. Carin, M. Lewko, J. Andonov, G. Petrović, D. Tarlow, P. Maniatis, and R. Just, "AI-Assisted Assessment of Coding Practices in Modern Code Review," in *Proceedings of the ACM International Conference on AI-Powered So
+[0526] <EndNote Bibliography> [6]	Z. Rasheed, M. A. Sami, M. Waseem, K.-K. Kemell, X. Wang, A. Nguyen, K. Systä, and P. Abrahamsson, "AI-powered Code Review with LLMs: Early Results," arXiv:2404.18496, 2024. doi: 10.48550/arXiv.2404.18496
+[0527] <EndNote Bibliography> [7]	A. Naik, M. Alenius, D. Fried, and C. Rose, "CRScore: Grounding Automated Evaluation of Code Review Comments in Code Claims and Smells," arXiv:2409.19801, Sep. 2024. doi:10.48550/arXiv.2409.19801
+[0528] <EndNote Bibliography> [8]	T. Sharanarthi and S. Polineni, "Multi-Agent LLM Collaboration for Adaptive Code Review, Debugging, and Security Analysis," 2025 International Conference on Mechatronics, Robotics, and Artificial Intelligence (MRAI), Jinan, China, 2025, pp. 541-546, doi: 10.1109/MRAI65197.2025.11135756.
+[0529] <EndNote Bibliography> [9]	C. Adapa, S. S. Avulamanda, A. R. K. Anjana and A. Victor, "AI-Powered Code Review Assistant for Streamlining Pull Request Merging," 2024 IEEE International Conference for Women in Innovation, Technology & Entrepreneurship (ICWITE), Bangalore, India, 2024, pp. 323-327, doi: 10.1109/ICWITE59797.2
+[0530] <EndNote Bibliography> [10]	M. N. Kapadnis, A. Naik, and C. Rose, “CRScore++: Reinforcement Learning with Verifiable Tool and AI Feedback for Code Review,” arXiv preprint arXiv:2506.00296, May 2025, doi: 10.48550/arXiv.2506.00296.
+[0531] <EndNote Bibliography> [11]	G. Crupi, R. Tufano, A. Velasco, A. Mastropaolo, D. Poshyvanyk and G. Bavota, "On the Effectiveness of LLM-as-a-Judge for Code Generation and Summarization," in IEEE Transactions on Software Engineering, vol. 51, no. 8, pp. 2329-2345, Aug. 2025, doi: 10.1109/TSE.2025.3586082.
+[0532] <EndNote Bibliography> [12]	L. Yang and Y. Chen, "Integrating RAG and LLM for Automated Code Review in Practice" 2025 10th International Conference on Computer and Information Processing Technology (ISCIPT), Fushun, China, 2025, pp. 591-596, doi: 10.1109/ISCIPT67144.2025.11265531.
+[0533] <EndNote Bibliography> [13]	T. Kakimoto, H. Inayoshi, H. Uwano and A. Monden, "Evaluating the Source Code Review Performance of LLM-based AI Chatbots," 2025 IEEE/ACIS 29th International Conference on Software Engineering, Artificial Intelligence, Networking and Parallel/Distributed Computing (SNPD), Busan, Korea, Republic
+[0534] <EndNote Bibliography> [14]	O. B. Sghaier, M. Weyssow and H. Sahraoui, "Harnessing Large Language Models for Curated Code Reviews," 2025 IEEE/ACM 22nd International Conference on Mining Software Repositories (MSR), Ottawa, ON, Canada, 2025, pp. 187-198, doi: 10.1109/MSR66628.2025.00039.
+[0535] <EndNote Bibliography> [15]	D. O. Salem, Y. Alahmed, R. Fnich, M. Mazroub and M. Fnich, "AI-Driven Continuous Integration: Automating Code Review and Deployment with LLMs," 2025 10th International Conference on Fog and Mobile Edge Computing (FMEC), Tampa, FL, USA, 2025, pp. 268-274, doi: 10.1109/FMEC65595.2025.11119365.
+[0536] <EndNote Bibliography> [16]	J. Lu, L. Yu, X. Li, L. Yang and C. Zuo, "LLaMA-Reviewer: Advancing Code Review Automation with Large Language Models through Parameter-Efficient Fine-Tuning," 2023 IEEE 34th International Symposium on Software Reliability Engineering (ISSRE), Florence, Italy, 2023, pp. 647-658, doi: 10.1109/IS
+[0537] <EndNote Bibliography> [17]	M. A. Haider, A. B. Mostofa, S. S. B. Mosaddek, A. Iqbal, and T. Ahmed, "Prompting and Fine-tuning Large Language Models for Automated Code Review Comment Generation," arXiv preprint arXiv:2411.10129, Nov. 2024. doi: 10.48550/arXiv.2411.10129
+[0538] <EndNote Bibliography> [18]	C. Liu, H. Y. Lin and P. Thongtanunam, "Too Noisy To Learn: Enhancing Data Quality for Code Review Comment Generation," 2025 IEEE/ACM 22nd International Conference on Mining Software Repositories (MSR), Ottawa, ON, Canada, 2025, pp. 236-248, doi: 10.1109/MSR66628.2025.00043.
+[0539] <EndNote Bibliography> [19]	Yujia Chen. 2025. AutoReview: An LLM-based Multi-Agent System for Security Issue-Oriented Code Review. Proceedings of the 33rd ACM International Conference on the Foundations of Software Engineering. Association for Computing Machinery, New York, NY, USA, 1022–1024. https://doi.org/10.1145/3696
+[0540] <EndNote Bibliography> [20]	Y. Zhang, Y. Zhang, Z. Sun, Y. Jiang, and H. Liu, "LAURA: Enhancing Code Review Generation with Context-Enriched Retrieval-Augmented LLM," arXiv preprint arXiv:2512.01356, Dec. 2025. doi: 10.48550/arXiv.2512.01356
+[0541] <EndNote Bibliography> [21]   T. Dettmers, A. Pagnoni, A. Holtzman, and L. Zettlemoyer, "QLoRA: Efficient Finetuning of Quantized LLMs," arXiv preprint arXiv:2305.14314, May 2023, doi: 10.48550/arXiv.2305.14314.
+[0542] <EndNote Bibliography> [22]   G. Hinton, O. Vinyals, and J. Dean, "Distilling the Knowledge in a Neural Network," arXiv preprint arXiv:1503.02531, 2015. doi: 10.48550/arXiv.1503.02531
+[0544] <Heading 1> 附錄
