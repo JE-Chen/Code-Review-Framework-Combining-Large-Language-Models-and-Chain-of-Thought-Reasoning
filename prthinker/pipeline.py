@@ -188,6 +188,57 @@ class _AggregatedFiles:
     step_outputs: dict[str, str] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class _AggregateExtras:
+    """Cross-file extra-step outputs aggregated after the per-file loop."""
+
+    dep_upgrades: list[DependencyUpgradeFinding] = field(default_factory=list)
+    persona_reviews: list[PersonaReview] = field(default_factory=list)
+    persona_conflicts: list[PersonaConflict] = field(default_factory=list)
+    api_drift: list[ApiDriftFinding] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class PerFileReviewOptions:
+    """Cohesive optional knobs for :meth:`CoTPipeline.run_per_file`.
+
+    Groups every per-file toggle into one immutable value object so the
+    public entry point keeps a small, stable signature. Defaults mirror the
+    historical keyword defaults, so an empty ``PerFileReviewOptions()`` runs
+    the base step sweep with no extras enabled.
+    """
+
+    inline_review: bool = False
+    judge: bool = False
+    self_correct: bool = False
+    counterfactual: bool = False
+    walkthrough: bool = False
+    provenance: bool = False
+    api_consistency_check: bool = False
+    max_findings_per_file: int = 10
+    skip_binary: bool = True
+    output_dir: Path | None = None
+    dialogue_block: str = ""
+    review_cache: "ReviewCache | None" = None
+    cache_repo: str = ""
+    cache_pr_number: int = 0
+    verify_suggestions: bool = False
+    verify_workdir: Path | None = None
+    verify_cmd: str = ""
+    verify_timeout: float = 60.0
+    pr_classify: bool = False
+    pr_title: str = ""
+    pr_body: str = ""
+    reproducibility_check: bool = False
+    dep_upgrade_check: bool = False
+    persona_set: tuple[str, ...] = ()
+    risk_weighted: bool = False
+    risk_workdir: Path | None = None
+    diff_entropy_check: bool = False
+    review_modes: tuple[str, ...] = ()
+    on_file_done: "object | None" = None
+
+
 class CoTPipeline:
     def __init__(
         self,
@@ -297,135 +348,130 @@ class CoTPipeline:
     def run_per_file(
         self,
         diff_text: str,
-        *,
-        inline_review: bool = False,
-        judge: bool = False,
-        self_correct: bool = False,
-        counterfactual: bool = False,
-        walkthrough: bool = False,
-        provenance: bool = False,
-        api_consistency_check: bool = False,
-        max_findings_per_file: int = 10,
-        skip_binary: bool = True,
-        output_dir: Path | None = None,
-        dialogue_block: str = "",
-        review_cache: ReviewCache | None = None,
-        cache_repo: str = "",
-        cache_pr_number: int = 0,
-        verify_suggestions: bool = False,
-        verify_workdir: Path | None = None,
-        verify_cmd: str = "",
-        verify_timeout: float = 60.0,
-        pr_classify: bool = False,
-        pr_title: str = "",
-        pr_body: str = "",
-        reproducibility_check: bool = False,
-        dep_upgrade_check: bool = False,
-        persona_set: tuple[str, ...] = (),
-        risk_weighted: bool = False,
-        risk_workdir: Path | None = None,
-        diff_entropy_check: bool = False,
-        review_modes: tuple[str, ...] = (),
-        on_file_done: "object | None" = None,
+        options: "PerFileReviewOptions | None" = None,
     ) -> ReviewResult:
         """Run the full step sequence once per file in the diff.
 
-        When `inline_review` is True, append an `InlineFindingsStep` to each
-        file's run and aggregate the parsed findings into the result.
+        When ``options.inline_review`` is True, append an
+        ``InlineFindingsStep`` to each file's run and aggregate the parsed
+        findings into the result.
         """
+        opts = options or PerFileReviewOptions()
         file_diffs = parse_unified_diff(diff_text)
         if not file_diffs:
             log.warning("Diff had no parseable files")
             return ReviewResult(code_diff=diff_text, rag_docs=[])
 
-        outcome = (
-            self._classify_pr(
-                diff_text, pr_title, pr_body,
-                inline_review, max_findings_per_file, dialogue_block,
-            )
-            if pr_classify
-            else _ClassifyOutcome(
-                None, inline_review, max_findings_per_file, dialogue_block,
-            )
-        )
-        classification = outcome.classification
-        inline_review = outcome.inline_review
-        max_findings_per_file = outcome.max_findings_per_file
-        dialogue_block = outcome.dialogue_block
+        outcome = self._classify_outcome(diff_text, opts)
+        per_file_opts = self._build_per_file_opts(file_diffs, opts, outcome)
+        agg = self._review_each_file(file_diffs, per_file_opts, opts.on_file_done)
 
-        all_steps = self._build_step_sequence(
-            inline_review, counterfactual, judge, walkthrough
+        extras = self._run_aggregate_extras(
+            diff_text, file_diffs, opts, agg.step_outputs,
         )
-        entropy_summary = (
-            self._compute_entropy_summary(file_diffs) if diff_entropy_check else None
-        )
-        risk_by_path = (
-            self._compute_risk_by_path(file_diffs, risk_workdir)
-            if risk_weighted and risk_workdir is not None
-            else {}
-        )
-
-        opts = _PerFileOptions(
-            all_steps=all_steps,
-            max_findings_per_file=max_findings_per_file,
-            output_dir=output_dir,
-            self_correct=self_correct,
-            dialogue_block=dialogue_block,
-            provenance=provenance,
-            reproducibility_check=reproducibility_check,
-            skip_binary=skip_binary,
-            inline_review=inline_review,
-            review_cache=review_cache,
-            cache_repo=cache_repo,
-            cache_pr_number=cache_pr_number,
-            risk_by_path=risk_by_path,
-            verify_suggestions=verify_suggestions,
-            verify_workdir=verify_workdir,
-            verify_cmd=verify_cmd,
-            verify_timeout=verify_timeout,
-        )
-
-        agg = self._review_each_file(file_diffs, opts, on_file_done)
-        per_file_results = agg.per_file_results
-        aggregated_findings = agg.inline_findings
-        aggregated_counterfactuals = agg.counterfactuals
-        aggregated_steps = agg.step_outputs
-
-        dep_upgrades = (
-            self._run_dep_upgrades(file_diffs, aggregated_steps)
-            if dep_upgrade_check else []
-        )
-        persona_reviews, persona_conflicts = (
-            self._run_personas(persona_set, diff_text, aggregated_steps)
-            if persona_set else ([], [])
-        )
-        api_drift = (
-            self._run_api_consistency(file_diffs, aggregated_steps)
-            if api_consistency_check else []
-        )
-        if review_modes:
-            aggregated_steps.update(
-                run_review_modes(
-                    self._backend, diff_text, review_modes, self._max_new_tokens,
-                )
-            )
-
         return ReviewResult(
             code_diff=diff_text,
             rag_docs=[],
-            step_outputs=aggregated_steps,
-            inline_findings=aggregated_findings,
-            per_file=per_file_results,
-            counterfactuals=aggregated_counterfactuals,
-            api_drift=api_drift,
-            pr_classification=classification,
-            dep_upgrades=dep_upgrades,
-            persona_reviews=persona_reviews,
-            persona_conflicts=persona_conflicts,
-            diff_entropy=entropy_summary,
+            step_outputs=agg.step_outputs,
+            inline_findings=agg.inline_findings,
+            per_file=agg.per_file_results,
+            counterfactuals=agg.counterfactuals,
+            api_drift=extras.api_drift,
+            pr_classification=outcome.classification,
+            dep_upgrades=extras.dep_upgrades,
+            persona_reviews=extras.persona_reviews,
+            persona_conflicts=extras.persona_conflicts,
+            diff_entropy=(
+                self._compute_entropy_summary(file_diffs)
+                if opts.diff_entropy_check else None
+            ),
         )
 
     # ---------- internals ---------------------------------------------------
+
+    def _classify_outcome(
+        self, diff_text: str, opts: "PerFileReviewOptions",
+    ) -> _ClassifyOutcome:
+        """Classify the PR (when enabled) or echo the caller's knobs back."""
+        if opts.pr_classify:
+            return self._classify_pr(
+                diff_text, opts.pr_title, opts.pr_body,
+                opts.inline_review, opts.max_findings_per_file,
+                opts.dialogue_block,
+            )
+        return _ClassifyOutcome(
+            None, opts.inline_review, opts.max_findings_per_file,
+            opts.dialogue_block,
+        )
+
+    def _build_per_file_opts(
+        self,
+        file_diffs: list[FileDiff],
+        opts: "PerFileReviewOptions",
+        outcome: _ClassifyOutcome,
+    ) -> _PerFileOptions:
+        """Fold the caller options and classifier outcome into the loop knobs."""
+        risk_by_path = (
+            self._compute_risk_by_path(file_diffs, opts.risk_workdir)
+            if opts.risk_weighted and opts.risk_workdir is not None
+            else {}
+        )
+        return _PerFileOptions(
+            all_steps=self._build_step_sequence(
+                outcome.inline_review, opts.counterfactual, opts.judge,
+                opts.walkthrough,
+            ),
+            max_findings_per_file=outcome.max_findings_per_file,
+            output_dir=opts.output_dir,
+            self_correct=opts.self_correct,
+            dialogue_block=outcome.dialogue_block,
+            provenance=opts.provenance,
+            reproducibility_check=opts.reproducibility_check,
+            skip_binary=opts.skip_binary,
+            inline_review=outcome.inline_review,
+            review_cache=opts.review_cache,
+            cache_repo=opts.cache_repo,
+            cache_pr_number=opts.cache_pr_number,
+            risk_by_path=risk_by_path,
+            verify_suggestions=opts.verify_suggestions,
+            verify_workdir=opts.verify_workdir,
+            verify_cmd=opts.verify_cmd,
+            verify_timeout=opts.verify_timeout,
+        )
+
+    def _run_aggregate_extras(
+        self,
+        diff_text: str,
+        file_diffs: list[FileDiff],
+        opts: "PerFileReviewOptions",
+        aggregated_steps: dict[str, str],
+    ) -> "_AggregateExtras":
+        """Run the cross-file extra steps (dep / persona / api / review modes)."""
+        dep_upgrades = (
+            self._run_dep_upgrades(file_diffs, aggregated_steps)
+            if opts.dep_upgrade_check else []
+        )
+        persona_reviews, persona_conflicts = (
+            self._run_personas(opts.persona_set, diff_text, aggregated_steps)
+            if opts.persona_set else ([], [])
+        )
+        api_drift = (
+            self._run_api_consistency(file_diffs, aggregated_steps)
+            if opts.api_consistency_check else []
+        )
+        if opts.review_modes:
+            aggregated_steps.update(
+                run_review_modes(
+                    self._backend, diff_text, opts.review_modes,
+                    self._max_new_tokens,
+                )
+            )
+        return _AggregateExtras(
+            dep_upgrades=dep_upgrades,
+            persona_reviews=persona_reviews,
+            persona_conflicts=persona_conflicts,
+            api_drift=api_drift,
+        )
 
     def _review_each_file(
         self,
@@ -1042,4 +1088,10 @@ def _sanitize(path: str) -> str:
     return path.replace("/", "__").replace("\\", "__")
 
 
-__all__ = ["CoTPipeline", "ReviewContext", "ReviewResult", "FileReviewResult"]
+__all__ = [
+    "CoTPipeline",
+    "ReviewContext",
+    "ReviewResult",
+    "FileReviewResult",
+    "PerFileReviewOptions",
+]

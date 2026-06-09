@@ -222,7 +222,7 @@ Step 3 — Python API
 
    from prthinker.backends.remote import RemoteHttpBackend
    from prthinker.config import RemoteBackendConfig
-   from prthinker.pipeline import CoTPipeline
+   from prthinker.pipeline import CoTPipeline, PerFileReviewOptions
    from prthinker.rag import RemoteRAGRetriever
 
 
@@ -239,12 +239,14 @@ Step 3 — Python API
        try:
            result = pipeline.run_per_file(
                diff_text,
-               inline_review=True,
-               counterfactual=True,
-               provenance=True,
-               judge=True,
-               self_correct=True,
-               max_findings_per_file=10,
+               PerFileReviewOptions(
+                   inline_review=True,
+                   counterfactual=True,
+                   provenance=True,
+                   judge=True,
+                   self_correct=True,
+                   max_findings_per_file=10,
+               ),
            )
        finally:
            backend.close()

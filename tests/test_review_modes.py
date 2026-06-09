@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from prthinker.pipeline import CoTPipeline
+from prthinker.pipeline import CoTPipeline, PerFileReviewOptions
 from prthinker.rag import NoOpRetriever
 from prthinker.review_modes import (
     available_modes,
@@ -69,7 +69,8 @@ def test_run_per_file_runs_enabled_review_modes():
     backend = FakeBackend(["s"] * 5 + ["SECURITY FINDINGS"])
     pipeline = CoTPipeline(backend=backend, retriever=NoOpRetriever())
     result = pipeline.run_per_file(
-        _ONE_FILE_DIFF, inline_review=False, review_modes=("security",),
+        _ONE_FILE_DIFF,
+        PerFileReviewOptions(inline_review=False, review_modes=("security",)),
     )
     assert "review_mode::security" in result.step_outputs
     assert result.step_outputs["review_mode::security"] == "SECURITY FINDINGS"
@@ -79,5 +80,7 @@ def test_run_per_file_runs_enabled_review_modes():
 def test_run_per_file_without_review_modes_adds_nothing():
     backend = FakeBackend(["s"] * 5)
     pipeline = CoTPipeline(backend=backend, retriever=NoOpRetriever())
-    result = pipeline.run_per_file(_ONE_FILE_DIFF, inline_review=False)
+    result = pipeline.run_per_file(
+        _ONE_FILE_DIFF, PerFileReviewOptions(inline_review=False)
+    )
     assert not any(k.startswith("review_mode::") for k in result.step_outputs)

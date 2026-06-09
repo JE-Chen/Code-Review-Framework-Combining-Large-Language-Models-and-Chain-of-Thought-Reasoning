@@ -6,7 +6,7 @@ path, and the ``extra_rules`` merge into RAG docs.
 
 from __future__ import annotations
 
-from prthinker.pipeline import CoTPipeline
+from prthinker.pipeline import CoTPipeline, PerFileReviewOptions
 from prthinker.rag import NoOpRetriever
 
 from tests.conftest import FakeBackend
@@ -41,7 +41,7 @@ def test_per_file_runs_steps_per_file() -> None:
         "diff --git a/b.py b/b.py\n"
         "--- a/b.py\n+++ b/b.py\n@@ -1 +1,2 @@\n z\n+w\n"
     )
-    result = pipeline.run_per_file(diff, inline_review=False)
+    result = pipeline.run_per_file(diff, PerFileReviewOptions(inline_review=False))
     assert len(result.per_file) == 2
     assert [fr.path for fr in result.per_file] == ["a.py", "b.py"]
     assert len(backend.calls) == 10  # 5 steps × 2 files
@@ -62,7 +62,7 @@ def test_per_file_with_inline_review_adds_findings_step() -> None:
         "diff --git a/b.py b/b.py\n"
         "--- a/b.py\n+++ b/b.py\n@@ -1 +1,2 @@\n z\n+w\n"
     )
-    result = pipeline.run_per_file(diff, inline_review=True)
+    result = pipeline.run_per_file(diff, PerFileReviewOptions(inline_review=True))
     assert len(result.inline_findings) == 2
     assert {f.path for f in result.inline_findings} == {"a.py", "b.py"}
     assert all(f.severity == "warning" for f in result.inline_findings)
@@ -73,7 +73,7 @@ def test_per_file_with_walkthrough_adds_step() -> None:
     backend = FakeBackend(["s1", "s2", "s3", "s4", "s5", "This adds a guard."])
     pipeline = CoTPipeline(backend=backend, retriever=NoOpRetriever())
     diff = "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1 +1,2 @@\n x\n+y\n"
-    result = pipeline.run_per_file(diff, walkthrough=True)
+    result = pipeline.run_per_file(diff, PerFileReviewOptions(walkthrough=True))
     assert result.per_file[0].step_outputs["walkthrough"] == "This adds a guard."
     assert len(backend.calls) == 6
 
@@ -83,7 +83,9 @@ def test_walkthrough_runs_without_inline_review() -> None:
     backend = FakeBackend(["s1", "s2", "s3", "s4", "s5", "narrative"])
     pipeline = CoTPipeline(backend=backend, retriever=NoOpRetriever())
     diff = "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1 +1,2 @@\n x\n+y\n"
-    result = pipeline.run_per_file(diff, walkthrough=True, inline_review=False)
+    result = pipeline.run_per_file(
+        diff, PerFileReviewOptions(walkthrough=True, inline_review=False)
+    )
     assert "walkthrough" in result.per_file[0].step_outputs
     assert not result.inline_findings
 
@@ -92,7 +94,7 @@ def test_walkthrough_prompt_includes_file_and_diff() -> None:
     backend = FakeBackend(["s1", "s2", "s3", "s4", "s5", "ok"])
     pipeline = CoTPipeline(backend=backend, retriever=NoOpRetriever())
     diff = "diff --git a/foo.py b/foo.py\n--- a/foo.py\n+++ b/foo.py\n@@ -1 +1,2 @@\n x\n+y\n"
-    pipeline.run_per_file(diff, walkthrough=True)
+    pipeline.run_per_file(diff, PerFileReviewOptions(walkthrough=True))
     walkthrough_prompt = backend.calls[5][0]  # 6th call is the walkthrough
     assert "foo.py" in walkthrough_prompt
     assert "Change Walkthrough" in walkthrough_prompt
@@ -125,7 +127,7 @@ def test_binary_and_deleted_files_skip_pipeline() -> None:
         "diff --git a/logo.png b/logo.png\n"
         "Binary files a/logo.png and b/logo.png differ\n"
     )
-    result = pipeline.run_per_file(diff, inline_review=False)
+    result = pipeline.run_per_file(diff, PerFileReviewOptions(inline_review=False))
     # All three files are RECORDED so the summary accounts for every
     # touched path, but only the reviewable one calls the backend.
     assert [fr.path for fr in result.per_file] == ["keep.py", "gone.py", "logo.png"]

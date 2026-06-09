@@ -212,7 +212,7 @@ def run() -> int:
             if report:
                 log.warning("MCP redaction: %s", report.summary())
         if file_path:
-            result = pipeline.run_per_file(diff, inline_review=False)
+            result = pipeline.run_per_file(diff)
         else:
             from prthinker.pipeline import ReviewResult
             inner = pipeline.run(diff)
