@@ -6,6 +6,91 @@ mandatory in the project's ``CLAUDE.md``. Every extension point follows
 one of them, so adding a new step, backend, or retriever is a matter of
 slotting code into existing seams — not editing the pipeline.
 
+In plain language
+-----------------
+
+Before the patterns, the one-paragraph version for anyone: when a
+developer proposes a code change (a *Pull Request*), ``prthinker`` reads
+it and reviews it the way a careful senior engineer would — summarising
+what changed, pointing out bugs and risky spots, and leaving comments
+right on the affected lines, many with a one-click "apply this fix"
+button. It remembers feedback (comments the team dismissed are not
+repeated; suggestions the team accepted are reused as examples) and can
+be required as a merge gate.
+
+The codebase has **two halves**:
+
+* A lightweight **runner** (the ``prthinker/`` package) that talks to
+  GitHub, builds the prompts, and posts results. It needs no GPU — only
+  ``httpx`` and ``pydantic``.
+* A heavier **AI brain** (the ``codes/`` tree) — the language model plus
+  its training and the FastAPI inference server. This is the part that
+  needs a GPU, and it can be swapped for a paid API such as OpenAI or
+  Anthropic instead.
+
+Project structure
+-----------------
+
+.. only:: html
+
+   .. mermaid::
+
+      graph TD
+          GHA[".github/workflows<br/>auto-reviews every PR"] --> CLI
+
+          subgraph RUNNER["prthinker/ &mdash; the runner (thin, no GPU)"]
+              direction TB
+              CLI["CLI &amp; entry points<br/>cli*.py"]
+              PIPE["Pipeline &amp; steps<br/>pipeline.py · steps.py · findings.py"]
+              BACK["Backends &mdash; swappable AI brains<br/>local · remote · OpenAI · Anthropic · Gemini…"]
+              PLAT["Platforms &mdash; code hosts<br/>GitHub · GitLab · Gitea"]
+              CORP["Memory / corpora<br/>accepted · dismissed · lessons · RAG · knowledge-graph"]
+              SIG["Model-free triage signals<br/>orientation · bidi · merge markers · debug-left…"]
+              EXT["Research extensions (opt-in)<br/>personas · counterfactual · risk-score…"]
+              OUT["Reports &amp; output<br/>Markdown · HTML · SARIF · JUnit · Sonar · CSV"]
+              SEC["Safety<br/>redaction · injection guard · sandbox"]
+              CLI --> PIPE
+              PIPE --> BACK & PLAT & CORP & SIG & EXT & OUT & SEC
+          end
+
+          subgraph SERVER["codes/ &mdash; training &amp; inference (heavy, GPU)"]
+              direction TB
+              FAST["FastAPI inference server<br/>codes/run/fastapi_server.py"]
+              PROMPT["Prompt templates (source of truth)<br/>codes/run/CoT_Prompts/"]
+              TRAIN["LoRA fine-tuning<br/>codes/train/ (Qwen3-Coder-30B…)"]
+              UTIL["Model + FAISS utils<br/>codes/util/"]
+          end
+
+          BACK -. "HTTP /review · /ask" .-> FAST
+          FAST --- PROMPT & UTIL
+          TRAIN -. "produces the model" .-> FAST
+
+.. only:: latex
+
+   .. code-block:: text
+
+      .github/workflows  ── auto-reviews every PR, drives the runner
+      prthinker/         ── THE RUNNER (thin, no GPU)
+        cli*.py            command-line entry points
+        pipeline / steps   the step-by-step review engine
+        backends/          swappable AI brains (local · OpenAI · Anthropic · Gemini…)
+        platforms/         code hosts (GitHub · GitLab · Gitea)
+        corpora            memory (accepted · dismissed · lessons · RAG · knowledge-graph)
+        signals            model-free triage + research extensions
+        reports / safety   output formats + redaction / injection guard / sandbox
+      codes/             ── THE AI BRAIN (heavy, GPU)
+        run/fastapi_server.py   inference server the runner calls over HTTP
+        run/CoT_Prompts/        prompt templates (single source of truth)
+        train/                  LoRA fine-tuning (Qwen3-Coder-30B…)
+        util/                   model loading + FAISS retrieval
+
+The runner reaches the brain over two HTTP shapes (``/ask`` and
+``/review``, both detailed under `Runner vs server`_ below). Supporting
+directories sit outside both halves: ``docs/`` (this trilingual Sphinx
+site), ``docker/`` (one-command self-hosting), ``datas/`` (RAG rule
+documents, architecture diagrams, fixtures), ``paper/`` (the manuscript
+and slides), and ``tests/``.
+
 Patterns at a glance
 --------------------
 

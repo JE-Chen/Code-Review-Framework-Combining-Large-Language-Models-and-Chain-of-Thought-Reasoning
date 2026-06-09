@@ -30,7 +30,15 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
     "sphinx_copybutton",
+    "sphinxcontrib.mermaid",
 ]
+
+# Mermaid renders client-side via mermaid.js for the HTML builder. The PDF
+# (LaTeX) builder would otherwise need the mermaid-cli (mmdc) binary, which
+# is not available on Read the Docs — so every ``.. mermaid::`` block is
+# wrapped in ``.. only:: html`` with a plain-text fallback under
+# ``.. only:: latex``. This keeps both the HTML and the PDF formats building
+# without an extra system dependency.
 
 templates_path = ["_templates"]
 exclude_patterns = [

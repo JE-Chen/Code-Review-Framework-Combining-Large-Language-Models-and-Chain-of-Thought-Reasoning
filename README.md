@@ -13,6 +13,30 @@ back to the PR. It learns from each repo's history — dismissed comments
 are filtered out next time, accepted suggestions are surfaced as in-context
 exemplars — and can act as a required status check before merges.
 
+## In plain language
+
+Never touched the code? Here is the whole idea in a few sentences:
+
+- **What it does** — When a developer opens a Pull Request (a proposed
+  code change), `prthinker` reads the change and reviews it the way a
+  careful senior engineer would: it summarises what changed, points out
+  bugs and risky spots, flags style and design problems, and leaves
+  comments right on the affected lines — many with a one-click
+  "apply this fix" button.
+- **It learns your team's taste** — Comments your team dismisses, it
+  stops repeating. Suggestions your team accepts, it reuses as examples
+  next time.
+- **It can guard the merge button** — You can require it as a check, so
+  a Pull Request can't be merged while serious problems remain.
+- **Two halves** — A lightweight **runner** does the talking to GitHub
+  and needs no special hardware; a heavier **AI "brain"** (the language
+  model) runs separately on a GPU server, or via a paid API such as
+  OpenAI / Anthropic. The [Project structure](#project-structure)
+  diagram below shows how the pieces fit.
+
+Think of it as an always-available reviewer that never gets tired,
+remembers past feedback, and explains its reasoning step by step.
+
 ## What you get
 
 - **Five-step CoT pipeline** — first_summary → first_code_review → linter →
@@ -272,19 +296,86 @@ pip install -r docs/requirements.txt
 sphinx-build -b html docs docs/_build/html
 ```
 
-## Repo layout
+## Project structure
 
+The repository has **two halves**: a lightweight **runner** (`prthinker/`
+— reads a PR, runs the review, posts results, no GPU needed) and a
+heavier **training + inference** side (`codes/` — runs the AI model on a
+GPU). Everything else (`docs/`, `docker/`, `datas/`, `paper/`, `tests/`,
+the GitHub Action) supports those two.
+
+```mermaid
+graph TD
+    GHA[".github/workflows<br/>auto-reviews every PR"] --> CLI
+
+    subgraph RUNNER["prthinker/ &mdash; the runner (thin, no GPU)"]
+        direction TB
+        CLI["CLI &amp; entry points<br/>cli*.py"]
+        PIPE["Pipeline &amp; steps<br/>pipeline.py · steps.py · findings.py"]
+        BACK["Backends &mdash; swappable AI brains<br/>local · remote · OpenAI · Anthropic · Gemini…"]
+        PLAT["Platforms &mdash; code hosts<br/>GitHub · GitLab · Gitea"]
+        CORP["Memory / corpora<br/>accepted · dismissed · lessons · RAG · knowledge-graph"]
+        SIG["Model-free triage signals<br/>orientation · bidi · merge markers · debug-left…"]
+        EXT["Research extensions (opt-in)<br/>personas · counterfactual · risk-score · diff-entropy…"]
+        OUT["Reports &amp; output<br/>Markdown · HTML · SARIF · JUnit · Sonar · CSV"]
+        SEC["Safety<br/>redaction · injection guard · sandbox"]
+        CLI --> PIPE
+        PIPE --> BACK & PLAT & CORP & SIG & EXT & OUT & SEC
+    end
+
+    subgraph SERVER["codes/ &mdash; training &amp; inference (heavy, GPU)"]
+        direction TB
+        FAST["FastAPI inference server<br/>codes/run/fastapi_server.py"]
+        PROMPT["Prompt templates (source of truth)<br/>codes/run/CoT_Prompts/"]
+        TRAIN["LoRA fine-tuning<br/>codes/train/ (Qwen3-Coder-30B…)"]
+        UTIL["Model + FAISS utils<br/>codes/util/"]
+    end
+
+    BACK -. "HTTP /review · /ask" .-> FAST
+    FAST --- PROMPT & UTIL
+    TRAIN -. "produces the model" .-> FAST
+
+    DOCS["docs/<br/>Sphinx · EN + 繁中 + 简中"]
+    DOCKER["docker/<br/>one-command self-host"]
+    DATA["datas/<br/>RAG rules · diagrams · fixtures"]
+    PAPER["paper/<br/>manuscript &amp; slides"]
 ```
-prthinker/        The standalone Python package (Strategy/Factory/Registry)
-codes/run/           Original scripts; cot.py and fastapi_server.py call the package
-codes/run/CoT_Prompts/  Prompt templates (single source of truth)
-codes/train/         LoRA fine-tuning scripts (Qwen3.1-7B, Qwen2.5-Coder-7B, Qwen3-30B, Qwen3-Coder-30B)
-codes/util/          Model loading + FAISS retrieval utilities
-datas/               Test data, RAG rule documents
-paper/               Manuscript + slide build
-.github/workflows/   prthinker.yml — the GHA integration
-docs/                Sphinx documentation
+
+**Annotated layout:**
+
+```text
+Code-Review-Framework/
+├── prthinker/            # THE RUNNER — reads a PR, reviews it, posts results (no GPU)
+│   ├── cli*.py           #   Command-line entry points (review-pr, review-file, triage…)
+│   ├── pipeline.py       #   The step-by-step review engine …
+│   ├── steps.py          #   … and the individual review steps
+│   ├── backends/         #   Swappable "AI brains": local model, your server, OpenAI, Anthropic, Gemini…
+│   ├── platforms/        #   Swappable code hosts: GitHub, GitLab, Gitea
+│   ├── prompts/          #   Bundled copy of the review prompt templates (kept in sync with codes/)
+│   ├── review_modes/     #   Focused passes: security, performance, PII, IaC, accessibility…
+│   ├── accepted.py       #   Memory: suggestions the team accepted (reused as examples)
+│   ├── dismissed.py      #   Memory: comments the team rejected (filtered out next time)
+│   ├── *_report.py       #   Output formats: Markdown, HTML, SARIF, JUnit, Sonar, CSV
+│   ├── redaction.py      #   Safety: scrub secrets before any external API call
+│   ├── injection_guard.py#   Safety: block prompt-injection attacks hidden in diffs
+│   └── (orientation, personas, risk_score, counterfactual, …)  # Signals + research extensions
+├── codes/                # THE AI BRAIN — training + the inference server (needs a GPU)
+│   ├── run/fastapi_server.py  #   The model server the runner talks to
+│   ├── run/CoT_Prompts/       #   Prompt templates (single source of truth)
+│   ├── train/                 #   Fine-tuning scripts (Qwen3-Coder-30B, Qwen3-30B, Qwen2.5-7B…)
+│   └── util/                  #   Model loading + FAISS retrieval
+├── docs/                 # This documentation (English + 繁體中文 + 简体中文), built with Sphinx
+├── docker/               # One-command self-hosting (base + optional TLS + monitoring)
+├── datas/                # Rule documents for RAG, architecture diagrams, test fixtures
+├── paper/                # The academic manuscript and slides
+├── tests/                # Automated tests
+└── .github/workflows/    # The GitHub Action that reviews every PR automatically
 ```
+
+For the design-pattern view (Strategy / Factory / Registry / Repository)
+and the runtime data-flow diagrams, see
+[`READMEs/architecture.md`](READMEs/architecture.md) and
+[`docs/en/concepts/architecture.rst`](docs/en/concepts/architecture.rst).
 
 ## Citation
 
