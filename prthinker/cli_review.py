@@ -40,6 +40,7 @@ from prthinker.diff import parse_unified_diff
 from prthinker.finding_dedup import dedupe_findings
 from prthinker.change_map import change_map_edges, format_change_map_mermaid
 from prthinker.formatters import (
+    CommentOptions,
     first_finding_ref,
     format_digest,
     format_pr_comment,
@@ -1182,20 +1183,23 @@ def _publish_review_result(
     delta_line, progress_block = _review_progress(args, adapter, result)
     files_url = _pr_files_url(args)
     pages = format_pr_comment_pages(
-        result, marker=args.marker, posted_count=posted_count,
-        findings_only=getattr(args, "findings_only", False),
-        hide_info=getattr(args, "hide_info", False),
-        preliminary=_join_overview(
-            _build_preliminary_overview(args, adapter, result),
-            _impact_note(args, result), progress_block,
+        result, args.marker,
+        CommentOptions(
+            posted_count=posted_count,
+            findings_only=getattr(args, "findings_only", False),
+            hide_info=getattr(args, "hide_info", False),
+            preliminary=_join_overview(
+                _build_preliminary_overview(args, adapter, result),
+                _impact_note(args, result), progress_block,
+            ),
+            files_url=files_url,
+            delta=delta_line,
+            min_confidence=getattr(args, "summary_min_confidence", 0.0),
+            table=getattr(args, "summary_table", False),
+            gate=_gate_line(args, result, files_url),
+            off_diff_findings=off_diff,
+            extra_sections=_extra_sections(args, result, files_url),
         ),
-        files_url=files_url,
-        delta=delta_line,
-        min_confidence=getattr(args, "summary_min_confidence", 0.0),
-        table=getattr(args, "summary_table", False),
-        gate=_gate_line(args, result, files_url),
-        off_diff_findings=off_diff,
-        extra_sections=_extra_sections(args, result, files_url),
     )
     _append_report_links(args, pages)
     _append_review_footer(args, result, pages)

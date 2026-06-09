@@ -8,28 +8,53 @@ Two layouts:
 
 A sentinel marker is prepended so the comment can be upserted in place
 across repeated workflow runs.
+
+The leaf block renderers and shared presentation primitives live in
+:mod:`prthinker.formatters_blocks`; the public-facing private helpers are
+re-exported here so existing call sites and tests keep reaching them
+through ``prthinker.formatters``.
 """
 
 from __future__ import annotations
 
 import dataclasses
-import hashlib
-from collections import Counter
-from collections.abc import Callable
 
-from prthinker.change_stats import ChangeStat, change_badge, compute_change_stats
+from prthinker.change_stats import compute_change_stats
 from prthinker.diff import new_side_content
+from prthinker.formatters_blocks import (
+    _SEVERITY_ICON,
+    _SEVERITY_ICON_BY_NAME,
+    _SEVERITY_RANK,
+    _file_ref,
+    _file_status_icon,
+    _first_finding_line,
+    _first_line,
+    _format_api_drift_block,
+    _format_dep_upgrade_block,
+    _format_diff_entropy_block,
+    _format_file_block,
+    _format_legend,
+    _format_persona_conflicts_block,
+    _format_provenance_block,  # noqa: F401  # re-exported for prthinker.formatters._format_provenance_block
+    _format_step_detail,
+    _loc_ref,
+    _sort_files_by_severity,
+    _step_title,
+)
 from prthinker.pipeline import FileReviewResult, ReviewResult
 from prthinker.schemas import InlineFinding
 
-# Severity presentation, shared by the at-a-glance digest and per-file badges.
-_SEVERITY_ICON: tuple[tuple[str, str], ...] = (
-    ("error", "🔴"),
-    ("warning", "🟡"),
-    ("info", "🔵"),
-)
-_SEVERITY_RANK: dict[str, int] = {"error": 3, "warning": 2, "info": 1}
-_SEVERITY_ICON_BY_NAME: dict[str, str] = dict(_SEVERITY_ICON)
+# Re-export the public-facing private block helpers so existing call sites
+# and tests keep reaching them through ``prthinker.formatters``.
+__all__ = [
+    "CommentOptions",
+    "first_finding_ref",
+    "format_digest",
+    "format_pr_comment",
+    "format_pr_comment_pages",
+    "format_review_footer",
+    "format_reviewer_checklist",
+]
 
 # Category presentation for the optional "By category" index. Order here is
 # the display order (most reviewer-critical buckets first).
@@ -46,6 +71,44 @@ _CATEGORY_ICON: tuple[tuple[str, str], ...] = (
 
 
 @dataclasses.dataclass(frozen=True)
+class CommentOptions:
+    """Optional rendering / display knobs for the consolidated PR comment.
+
+    Grouping the optional parameters keeps :func:`format_pr_comment` and
+    :func:`format_pr_comment_pages` within the project's parameter-count
+    bar. ``result`` and ``marker`` remain explicit positionals; everything
+    that tunes *how* the comment is rendered (or filtered) lives here.
+    """
+
+    #: Inline findings that land on a diff hunk, or ``None`` when no inline
+    #: submission happens (local CLI / MCP / dry-run).
+    posted_count: int | None = None
+    #: List only files with findings; collapse clean ones into a count.
+    findings_only: bool = False
+    #: Drop ``info``-severity findings from the rendered summary (display
+    #: only — the inline review and gate still see them).
+    hide_info: bool = False
+    #: Pre-rendered, model-free "what this PR does" overview.
+    preliminary: str | None = None
+    #: Base Files-changed URL for diff deep links.
+    files_url: str | None = None
+    #: "Since last review" summary line, when available.
+    delta: str | None = None
+    #: Drop findings whose confidence is below this floor (display only).
+    min_confidence: float = 0.0
+    #: Render findings as a compact flat table instead of blocks.
+    table: bool = False
+    #: Gate verdict line, when a gate ran.
+    gate: str | None = None
+    #: Findings outside the diff hunks (not posted inline).
+    off_diff_findings: tuple[InlineFinding, ...] = ()
+    #: Caller-supplied pre-rendered markdown blocks.
+    extra_sections: tuple[str, ...] = ()
+    #: Pre-computed "filtered from view" note; derived when ``None``.
+    filtered: str | None = None
+
+
+@dataclasses.dataclass(frozen=True)
 class _RenderOpts:
     """Bundled per-file render options (keeps helper signatures small)."""
 
@@ -59,49 +122,6 @@ class _RenderOpts:
     off_diff: tuple[InlineFinding, ...] = ()
     extra_sections: tuple[str, ...] = ()
     filtered: str | None = None
-
-
-def _diff_anchor(path: str, line: int) -> str:
-    """GitHub's Files-changed anchor for ``path`` at new-side ``line``."""
-    digest = hashlib.sha256(path.encode("utf-8")).hexdigest()
-    return f"diff-{digest}R{line}"
-
-
-def _file_ref(path: str, files_url: str | None, line: int = 1) -> str:
-    """Markdown: a deep link into the diff, or a plain code span."""
-    if not files_url:
-        return f"`{path}`"
-    return f"[`{path}`]({files_url}#{_diff_anchor(path, line)})"
-
-
-def _file_summary_ref(path: str, files_url: str | None, line: int = 1) -> str:
-    """HTML (for ``<summary>``): a linked code span, or a plain one."""
-    if not files_url:
-        return f"<code>{path}</code>"
-    return (
-        f'<a href="{files_url}#{_diff_anchor(path, line)}">'
-        f"<code>{path}</code></a>"
-    )
-
-
-def _first_finding_line(fr: FileReviewResult) -> int:
-    """New-side line to anchor a file link at (first finding, else 1)."""
-    return fr.inline_findings[0].line if fr.inline_findings else 1
-
-
-def _loc_ref(path: str, line: int, files_url: str | None) -> str:
-    """Markdown ``path:line`` as a diff deep link, or a plain code span."""
-    if not files_url:
-        return f"`{path}:{line}`"
-    return f"[`{path}:{line}`]({files_url}#{_diff_anchor(path, line)})"
-
-
-_SECTION_TITLES: dict[str, str] = {
-    "first_summary": "PR Summary",
-    "first_code_review": "First Code Review",
-    "linter": "Lint Findings",
-    "code_smell": "Code Smell Detection",
-}
 
 
 def _total_inline_findings(result: ReviewResult) -> int:
@@ -174,12 +194,6 @@ def _hotspots_line(result: ReviewResult, files_url: str | None = None) -> str:
 
 _MUST_FIX_LIMIT = 5
 _SNIPPET_CAP = 100
-
-
-def _first_line(text: str, cap: int = 120) -> str:
-    """First line of a finding comment, length-capped for a one-liner."""
-    head = (text or "").strip().splitlines()[0] if (text or "").strip() else ""
-    return head if len(head) <= cap else head[: cap - 1] + "…"
 
 
 def _html_escape(text: str) -> str:
@@ -384,8 +398,8 @@ def _filtered_note(
 ) -> str | None:
     """How many findings the display filters drop, counted on the original.
 
-    ``--hide-info`` and ``--summary-min-confidence`` mutate the *display*
-    copy (including the digest counts), so without this note a reader sees
+    ``hide_info`` and ``min_confidence`` mutate the *display* copy
+    (including the digest counts), so without this note a reader sees
     e.g. ``🔵 0 info`` and wrongly concludes there were none. Surfacing the
     hidden tallies keeps the summary honest (the project's no-silent-caps
     rule). A finding hidden as ``info`` is not also counted as low-confidence.
@@ -399,58 +413,58 @@ def _filtered_note(
     return " · ".join(bits) + " hidden" if bits else None
 
 
+def _apply_display_filters(
+    result: ReviewResult, options: CommentOptions
+) -> tuple[ReviewResult, str | None]:
+    """Apply the info / confidence display filters and compute the note.
+
+    Returns the (possibly filtered) display copy and the "filtered from
+    view" note, defaulting the note to the derived tally when the caller
+    did not pre-supply one.
+    """
+    filtered = options.filtered
+    if filtered is None:
+        filtered = _filtered_note(result, options.hide_info, options.min_confidence)
+    if options.hide_info:
+        result = _without_info_findings(result)
+    if options.min_confidence > 0:
+        result = _without_low_confidence(result, options.min_confidence)
+    return result, filtered
+
+
+def _render_opts_from(options: CommentOptions, filtered: str | None) -> _RenderOpts:
+    """Build the per-file ``_RenderOpts`` from public ``CommentOptions``."""
+    return _RenderOpts(
+        posted_count=options.posted_count, findings_only=options.findings_only,
+        preliminary=options.preliminary, files_url=options.files_url,
+        delta=options.delta, table=options.table, gate=options.gate,
+        off_diff=options.off_diff_findings, extra_sections=options.extra_sections,
+        filtered=filtered,
+    )
+
+
 def format_pr_comment(
     result: ReviewResult,
     marker: str,
-    *,
-    posted_count: int | None = None,
-    findings_only: bool = False,
-    hide_info: bool = False,
-    preliminary: str | None = None,
-    files_url: str | None = None,
-    delta: str | None = None,
-    min_confidence: float = 0.0,
-    table: bool = False,
-    gate: str | None = None,
-    off_diff_findings: tuple[InlineFinding, ...] = (),
-    extra_sections: tuple[str, ...] = (),
-    filtered: str | None = None,
+    options: CommentOptions | None = None,
 ) -> str:
     """Render the consolidated PR comment.
 
-    ``posted_count`` is the number of inline findings that actually land
-    on a diff hunk (i.e. that GitHub will accept). When supplied, the
-    findings summary distinguishes "found" from "posted to the diff"
-    instead of overstating that every finding was posted. When ``None``
-    (local CLI, MCP, dry-run — no inline submission happens) only the
-    total is shown.
+    Args:
+        result: The completed review to render.
+        marker: Sentinel marker prepended for in-place upsert.
+        options: Optional rendering / display knobs; see
+            :class:`CommentOptions`. Defaults to a no-op options object.
 
-    ``findings_only`` lists only files that have findings (clean files are
-    collapsed into a count) and reduces a zero-finding PR to a one-line
-    confirmation instead of a full empty result.
-
-    ``hide_info`` omits ``info``-severity findings from the rendered
-    summary (display only — the inline review and gate still see them).
-
-    ``preliminary`` is a pre-rendered, model-free "what this PR does"
-    overview (from commit messages + changed files) pinned to the top.
+    Returns:
+        The rendered markdown comment body.
     """
-    if filtered is None:
-        filtered = _filtered_note(result, hide_info, min_confidence)
-    if hide_info:
-        result = _without_info_findings(result)
-    if min_confidence > 0:
-        result = _without_low_confidence(result, min_confidence)
-    if findings_only and _total_inline_findings(result) == 0:
-        return _format_clean_comment(result, marker, preliminary)
+    options = options or CommentOptions()
+    result, filtered = _apply_display_filters(result, options)
+    if options.findings_only and _total_inline_findings(result) == 0:
+        return _format_clean_comment(result, marker, options.preliminary)
     if result.per_file:
-        opts = _RenderOpts(
-            posted_count=posted_count, findings_only=findings_only,
-            preliminary=preliminary, files_url=files_url, delta=delta,
-            table=table, gate=gate, off_diff=off_diff_findings,
-            extra_sections=extra_sections, filtered=filtered,
-        )
-        return _format_per_file(result, marker, opts)
+        return _format_per_file(result, marker, _render_opts_from(options, filtered))
     return _format_single(result, marker)
 
 
@@ -940,19 +954,9 @@ def _label_pages(pages: list[str], marker: str) -> list[str]:
 def format_pr_comment_pages(
     result: ReviewResult,
     marker: str,
+    options: CommentOptions | None = None,
     *,
-    posted_count: int | None = None,
     max_chars: int = _PAGE_MAX_CHARS,
-    findings_only: bool = False,
-    hide_info: bool = False,
-    preliminary: str | None = None,
-    files_url: str | None = None,
-    delta: str | None = None,
-    min_confidence: float = 0.0,
-    table: bool = False,
-    gate: str | None = None,
-    off_diff_findings: tuple[InlineFinding, ...] = (),
-    extra_sections: tuple[str, ...] = (),
 ) -> list[str]:
     """Render the PR comment, paginated so no page exceeds ``max_chars``.
 
@@ -963,60 +967,34 @@ def format_pr_comment_pages(
     1 MB review is preserved across several comments instead of being
     truncated to the GitHub limit.
 
-    ``findings_only`` renders only files with findings (clean ones become a
-    count), which on a large but mostly-clean PR can collapse a multi-page
-    summary back to one comment. ``hide_info`` drops ``info``-severity
-    findings from the rendered summary. ``preliminary`` is the model-free
-    PR overview pinned to the top of page 1.
+    Args:
+        result: The completed review to render.
+        marker: Sentinel marker prepended for in-place upsert.
+        options: Optional rendering / display knobs; see
+            :class:`CommentOptions`.
+        max_chars: Per-page character budget.
+
+    Returns:
+        One markdown body per comment page.
     """
-    filtered = _filtered_note(result, hide_info, min_confidence)
-    if hide_info:
-        result = _without_info_findings(result)
-    if min_confidence > 0:
-        result = _without_low_confidence(result, min_confidence)
-    single = format_pr_comment(
-        result, marker, posted_count=posted_count,
-        findings_only=findings_only, preliminary=preliminary,
-        files_url=files_url, delta=delta, table=table, gate=gate,
-        off_diff_findings=off_diff_findings, extra_sections=extra_sections,
-        filtered=filtered,
+    options = options or CommentOptions()
+    result, filtered = _apply_display_filters(result, options)
+    page_options = dataclasses.replace(
+        options, hide_info=False, min_confidence=0.0, filtered=filtered
     )
+    single = format_pr_comment(result, marker, page_options)
     # The table layout is compact; never block-paginate it.
-    if len(single) <= max_chars or not result.per_file or table:
+    if len(single) <= max_chars or not result.per_file or options.table:
         return [single]
-    opts = _RenderOpts(
-        posted_count=posted_count, findings_only=findings_only,
-        preliminary=preliminary, files_url=files_url, delta=delta, gate=gate,
-        off_diff=off_diff_findings, extra_sections=extra_sections,
-        filtered=filtered,
-    )
+    opts = _render_opts_from(options, filtered)
     head = "\n".join(_per_file_head_parts(result, marker, opts))
     change_stats = compute_change_stats(result.code_diff)
     blocks = [
-        "\n".join(_format_file_block(fr, files_url, change_stats))
-        for fr in _files_to_render(result.per_file, findings_only)
+        "\n".join(_format_file_block(fr, options.files_url, change_stats))
+        for fr in _files_to_render(result.per_file, options.findings_only)
     ]
     pages = _paginate_blocks(head, blocks, marker, max_chars)
     return _label_pages(pages, marker)
-
-
-_LEGEND_LINES: tuple[str, ...] = (
-    "- **🔴 error · 🟡 warning · 🔵 info** — finding severity",
-    "- **✅** no findings · **🚨** must-fix (errors) · "
-    "**📋** PR overview · **🔎** review digest",
-    "- **💬** author reply · **✓** sandbox-verified suggestion · "
-    "**⚠️** low-reproducibility finding",
-    "- file badge `🔴2 🟡1` = per-severity finding counts; "
-    "filenames link into the diff",
-)
-
-
-def _format_legend() -> list[str]:
-    """A collapsed key explaining every glyph used in the report."""
-    return [
-        "<details><summary>Legend</summary>",
-        "", *_LEGEND_LINES, "", "</details>", "",
-    ]
 
 
 def format_review_footer(
@@ -1047,417 +1025,6 @@ def format_review_footer(
         bits.append(generated_at)
     meta = "_Review metadata: " + " · ".join(bits) + "._"
     return "\n".join(["---", "", meta, "", *_format_legend()]).rstrip() + "\n"
-
-
-_ENTROPY_NOTE: dict[str, str] = {
-    "focused": "PR is focused; no concerns from the diff-shape side.",
-    "wide":    "PR is wide — touches many directories. Consider whether "
-               "it could be split for easier review.",
-    "bomb":    "**Consider splitting this PR.** It is large *and* spread "
-               "across many areas; reviews of diffs this shape tend to "
-               "miss issues regardless of the model used.",
-}
-
-
-def _format_diff_entropy_block(summary) -> list[str]:
-    """Render the diff-shape header."""
-    block: list[str] = [
-        "### Diff shape",
-        "",
-        "| Files | +Lines | -Lines | Score | Verdict |",
-        "| ---: | ---: | ---: | ---: | --- |",
-        f"| {summary.file_count} | {summary.added_lines} | "
-        f"{summary.removed_lines} | {summary.score:.2f} | "
-        f"`{summary.verdict}` |",
-        "",
-        _ENTROPY_NOTE.get(summary.verdict, ""),
-        "",
-    ]
-    return block
-
-
-def _format_persona_conflicts_block(conflicts: list) -> list[str]:
-    """Render the cross-persona tension table at the top of the PR
-    comment. Resolutions intentionally do NOT pick a winner.
-    """
-    block: list[str] = [
-        "### Persona conflicts (tensions to resolve)",
-        "",
-        "| Personas | Tension | Resolution framing |",
-        "| --- | --- | --- |",
-    ]
-    for c in conflicts:
-        personas = ", ".join(f"`{p}`" for p in c.personas)
-        summary = c.summary.replace("|", "\\|").strip()
-        resolution = (c.resolution or "").replace("|", "\\|").strip()
-        block.append(f"| {personas} | {summary} | {resolution} |")
-    block += ["", ""]
-    return block
-
-
-def _format_dep_upgrade_block(upgrades: list) -> list[str]:
-    """Render the dependency-upgrade impact section.
-
-    Keeps the table tight: severity / package / version delta / what
-    to do. Full evidence stays in the raw ``dep_upgrade::*`` step
-    outputs for traceability.
-    """
-    block: list[str] = [
-        "### Dependency upgrade impact",
-        "",
-        "| Severity | Package | Bump | Summary |",
-        "| --- | --- | --- | --- |",
-    ]
-    for u in upgrades:
-        sev = u.severity
-        bump = f"{u.old_version} -> {u.new_version}"
-        summary = u.summary.replace("|", "\\|").strip()
-        block.append(
-            f"| {sev} | `{u.package}` ({u.ecosystem}) | {bump} | {summary} |"
-        )
-    block += ["", ""]
-    return block
-
-
-_API_DRIFT_KIND_LABEL: dict[str, str] = {
-    "field_renamed":  "field renamed",
-    "field_removed":  "field removed",
-    "type_changed":   "type changed",
-    "path_changed":   "path / route changed",
-    "method_changed": "HTTP method changed",
-    "other":          "other",
-}
-
-
-def _format_api_drift_block(drift: "list") -> list[str]:
-    """Render the cross-language API-drift section near the top of the
-    consolidated PR comment.
-    """
-    block: list[str] = [
-        "### Cross-language API drift",
-        "",
-        "| Kind | Backend | Frontend | Summary |",
-        "| --- | --- | --- | --- |",
-    ]
-    for df in drift:
-        kind = _API_DRIFT_KIND_LABEL.get(df.kind, df.kind)
-        summary = df.summary.replace("|", "\\|").strip()
-        block.append(
-            f"| {kind} | `{df.backend_path}` | `{df.frontend_path}` | {summary} |"
-        )
-    block += [
-        "",
-        "Evidence is preserved in the raw ``api_consistency`` step output "
-        "for traceability.",
-        "",
-    ]
-    return block
-
-
-_FILE_RESERVED_STEPS: frozenset[str] = frozenset(
-    {"total_summary", "inline_findings", "counterfactual", "walkthrough"}
-)
-
-
-def _format_step_detail(title: str, body: str) -> list[str]:
-    """Render one collapsible per-step ``<details>`` block."""
-    return [
-        f"<details><summary>{title}</summary>",
-        "",
-        body,
-        "",
-        "</details>",
-        "",
-    ]
-
-
-def _step_title(name: str) -> str:
-    """Return the display title for a step output name."""
-    return _SECTION_TITLES.get(name, name.replace("_", " ").title())
-
-
-def _annotation_subblock(
-    findings: list[InlineFinding],
-    predicate: Callable[[InlineFinding], bool],
-    renderer: Callable[[list[InlineFinding]], list[str]],
-) -> list[str]:
-    """Render one annotation sub-block for the findings matching ``predicate``."""
-    matched = [f for f in findings if predicate(f)]
-    return renderer(matched) if matched else []
-
-
-def _format_finding_annotations(findings: list[InlineFinding]) -> list[str]:
-    """Render provenance, reproducibility, and verification sub-blocks."""
-    block: list[str] = []
-    block += _annotation_subblock(
-        findings, lambda f: f.provenance is not None, _format_provenance_block
-    )
-    block += _annotation_subblock(
-        findings, lambda f: f.reproducibility is not None, _format_reproducibility_block
-    )
-    block += _annotation_subblock(
-        findings, lambda f: f.verification is not None, _format_verification_block
-    )
-    return block
-
-
-def _file_findings_badge(findings: list[InlineFinding]) -> str:
-    """Per-file badge as severity icons (🔴2 🟡1), or a no-findings note."""
-    if not findings:
-        return " — no findings"
-    counts = Counter(f.severity for f in findings)
-    parts = [f"{icon}{counts[sev]}" for sev, icon in _SEVERITY_ICON if counts.get(sev)]
-    return " — " + " ".join(parts)
-
-
-def _file_status_icon(findings: list[InlineFinding]) -> str:
-    """Leading status glyph for a file's ``<summary>`` (worst severity)."""
-    for sev, icon in _SEVERITY_ICON:  # error, warning, info — worst first
-        if any(f.severity == sev for f in findings):
-            return icon
-    return "✅"
-
-
-def _file_sort_key(fr: FileReviewResult) -> tuple[int, int]:
-    """Rank a file by (worst severity, finding count) for summary ordering."""
-    ranks = [_SEVERITY_RANK.get(f.severity, 0) for f in fr.inline_findings]
-    return (max(ranks, default=0), len(fr.inline_findings))
-
-
-def _sort_files_by_severity(
-    files: list[FileReviewResult],
-) -> list[FileReviewResult]:
-    """Most-severe / most-findings files first so they read at the top."""
-    return sorted(files, key=_file_sort_key, reverse=True)
-
-
-def _format_file_step_details(fr: FileReviewResult) -> list[str]:
-    """Render the per-file step-output detail blocks, skipping reserved ones."""
-    block: list[str] = []
-    for name in fr.step_outputs:
-        if name in _FILE_RESERVED_STEPS:
-            continue
-        block += _format_step_detail(_step_title(name), fr.step_outputs[name].strip())
-    return block
-
-
-def _is_verified(finding: InlineFinding) -> bool:
-    """True when the finding carries a passing verification result."""
-    return finding.verification is not None and finding.verification.status == "pass"
-
-
-def _signal_note(findings: list[InlineFinding]) -> str:
-    """Surface already-computed trust signal: verified / low-repro counts."""
-    verified = sum(1 for f in findings if _is_verified(f))
-    low_repro = sum(1 for f in findings if f.reproducibility == "low")
-    bits = []
-    if verified:
-        bits.append(f"✓ {verified} verified")
-    if low_repro:
-        bits.append(f"⚠️ {low_repro} low-repro")
-    return f"_Signal: {' · '.join(bits)}_" if bits else ""
-
-
-def _change_badge_suffix(
-    path: str, change_stats: dict[str, ChangeStat] | None
-) -> str:
-    """Per-file ``(+12 −3 · 2 hunks)`` summary suffix, or ``""``."""
-    if not change_stats:
-        return ""
-    badge = change_badge(change_stats.get(path))
-    return f" ({badge})" if badge else ""
-
-
-def _format_walkthrough_block(fr: FileReviewResult) -> list[str]:
-    """Render the model-written 'what this change does' lead, when present.
-
-    Pinned above the review **Summary** because it is orientation (what
-    the change *is*) that the reviewer reads before the assessment (what
-    is *wrong* with it). Rendered only when the ``--walkthrough`` step ran.
-    """
-    text = (fr.step_outputs.get("walkthrough") or "").strip()
-    if not text:
-        return []
-    return ["**📝 Walkthrough**", "", text, ""]
-
-
-def _format_skipped_file_block(fr: FileReviewResult) -> list[str]:
-    """Render the one-line skip entry for a binary or deleted file."""
-    reason = "binary" if fr.is_binary else "deleted"
-    return [f"- <code>{fr.path}</code> — _skipped ({reason})_", ""]
-
-
-def _format_file_block(
-    fr: FileReviewResult,
-    files_url: str | None = None,
-    change_stats: dict[str, ChangeStat] | None = None,
-) -> list[str]:
-    # Skipped files (binary / deleted) are still listed so every touched
-    # file is accounted for — just with the skip reason instead of a review.
-    if fr.is_binary or fr.is_deleted:
-        return _format_skipped_file_block(fr)
-
-    summary = fr.total_summary or "_no summary_"
-    badge = _file_findings_badge(fr.inline_findings)
-    change = _change_badge_suffix(fr.path, change_stats)
-    ref = _file_summary_ref(fr.path, files_url, _first_finding_line(fr))
-    icon = _file_status_icon(fr.inline_findings)
-    # Files with errors open expanded so the reviewer sees them with no click.
-    has_error = any(f.severity == "error" for f in fr.inline_findings)
-    tag = "<details open>" if has_error else "<details>"
-
-    block: list[str] = [f"{tag}<summary>{icon} {ref}{badge}{change}</summary>", ""]
-    signal = _signal_note(fr.inline_findings)
-    if signal:
-        block += [signal, ""]
-    block += _format_walkthrough_block(fr)
-    block += ["**Summary**", "", summary.strip(), ""]
-    block += _format_finding_annotations(fr.inline_findings)
-    block += _format_file_step_details(fr)
-    if fr.counterfactuals:
-        block += _format_counterfactuals_block(fr)
-    block += ["</details>", ""]
-    return block
-
-
-def _citation_label(cite) -> str:
-    """Map a provenance citation to its human-readable list label."""
-    if cite.kind == "rag_rule" and cite.index is not None:
-        return f"RAG rule #{cite.index}"
-    if cite.kind == "accepted_example" and cite.index is not None:
-        return f"Accepted example #{cite.index}"
-    if cite.kind == "diff_evidence":
-        lines = ", ".join(str(ln) for ln in cite.lines)
-        return f"Diff line(s) {lines}" if lines else "Diff"
-    return cite.kind
-
-
-def _format_provenance_entry(finding: InlineFinding) -> list[str]:
-    """Render one finding's provenance header and citation bullets."""
-    prov = finding.provenance
-    header = f"**line {finding.line}**"
-    if prov.confidence is not None:
-        header += f" — model confidence {prov.confidence:.2f}"
-    lines: list[str] = [header, ""]
-    if prov.citations:
-        for cite in prov.citations:
-            note = (" — " + cite.note.strip()) if cite.note.strip() else ""
-            lines.append(f"- {_citation_label(cite)}{note}")
-    else:
-        # The provenance step ran for this finding but produced no
-        # citation. Saying so is more honest than hiding it: the reviewer
-        # learns the call rests on model judgement alone.
-        lines.append("- _model judgement — no external citation_")
-    lines.append("")
-    return lines
-
-
-def _format_provenance_block(findings: list[InlineFinding]) -> list[str]:
-    """Render an audit-trail summary for every finding that carries a
-    :class:`Provenance` object.
-
-    Every finding that carries provenance is accounted for: those with
-    citations list them, those without are flagged as resting on model
-    judgement rather than being silently dropped. Findings with no
-    provenance object at all (the feature never ran for them) are skipped,
-    and an all-skipped list renders nothing.
-    """
-    relevant = [f for f in findings if f.provenance is not None]
-    if not relevant:
-        return []
-    block: list[str] = [
-        "<details><summary>Audit trail (provenance)</summary>",
-        "",
-    ]
-    for finding in relevant:
-        block += _format_provenance_entry(finding)
-    block += ["</details>", ""]
-    return block
-
-
-_VERIFICATION_BADGE: dict[str, str] = {  # nosec B105 — display labels keyed on VerificationStatus literal, not credentials
-    "pass":  "**[verified]**",
-    "fail":  "**[FAILED]**",
-    "skip":  "_[skipped]_",
-    "error": "**[error]**",
-}
-
-_REPRO_BADGE: dict[str, str] = {
-    "stable": "**[stable]**",
-    "low":    "_[low-reproducibility]_",
-}
-
-
-def _format_reproducibility_block(findings: list[InlineFinding]) -> list[str]:
-    """Render the per-finding stable / low-repro labels."""
-    block: list[str] = [
-        "<details><summary>Finding reproducibility (two-pass)</summary>",
-        "",
-        "| Line | Label | Comment |",
-        "| ---: | --- | --- |",
-    ]
-    for f in findings:
-        badge = _REPRO_BADGE.get(f.reproducibility or "", f.reproducibility or "")
-        comment = f.comment.replace("|", "\\|").strip()
-        if len(comment) > 80:
-            comment = comment[:79].rstrip() + "..."
-        block.append(f"| {f.line} | {badge} | {comment} |")
-    block += ["", "</details>", ""]
-    return block
-
-
-def _format_verification_block(findings: list[InlineFinding]) -> list[str]:
-    """Render the sandbox-verification badges for any finding whose
-    ``suggestion`` block went through ``--verify-suggestions``."""
-    block: list[str] = [
-        "<details><summary>Suggestion verification (sandbox)</summary>",
-        "",
-        "| Line | Verdict | Verify cmd | Reason |",
-        "| ---: | --- | --- | --- |",
-    ]
-    for f in findings:
-        v = f.verification
-        if v is None:
-            continue
-        badge = _VERIFICATION_BADGE.get(v.status, v.status)
-        reason = (v.reason or "").replace("|", "\\|").strip()
-        cmd = v.verify_cmd.replace("|", "\\|")
-        block.append(f"| {f.line} | {badge} | `{cmd}` | {reason} |")
-    block += ["", "</details>", ""]
-    return block
-
-
-def _format_counterfactuals_block(fr: FileReviewResult) -> list[str]:
-    """Render counterfactual alternatives as a collapsible per-file block.
-
-    Each block points at the inline-finding it elaborates by 1-based
-    index (so the comment matches what reviewers see in the inline
-    review). Trade-off axes become a small markdown table.
-    """
-    block: list[str] = [
-        "<details><summary>Alternative implementations</summary>",
-        "",
-    ]
-    for cf in fr.counterfactuals:
-        idx = cf.finding_index
-        if 0 <= idx < len(fr.inline_findings):
-            anchor = fr.inline_findings[idx]
-            block.append(f"**Finding {idx + 1} (line {anchor.line})**")
-        else:
-            block.append(f"**Finding {idx + 1}**")
-        block.append("")
-        for opt in cf.options:
-            block.append(f"- **{opt.label}** — {opt.rationale.strip()}")
-            if opt.tradeoffs:
-                block.append("")
-                block.append("  | Axis | Impact |")
-                block.append("  | --- | --- |")
-                for axis, impact in opt.tradeoffs.items():
-                    block.append(f"  | {axis} | {impact} |")
-                block.append("")
-        block.append("")
-    block += ["</details>", ""]
-    return block
 
 
 def format_digest(result: ReviewResult, files_url: str | None = None) -> str:
@@ -1528,13 +1095,3 @@ def format_reviewer_checklist(
         "</summary>",
         "", *rows, "", "</details>",
     ])
-
-
-__all__ = [
-    "first_finding_ref",
-    "format_digest",
-    "format_pr_comment",
-    "format_pr_comment_pages",
-    "format_review_footer",
-    "format_reviewer_checklist",
-]

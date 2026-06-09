@@ -15,7 +15,7 @@ from prthinker.checks import (
     evaluate_gate,
 )
 from prthinker.dismissed import DismissedExamplesStore
-from prthinker.formatters import format_pr_comment_pages
+from prthinker.formatters import CommentOptions, format_pr_comment_pages
 from prthinker.harvest import harvest, harvest_accepted
 from prthinker.kg_visualize import build_graph_data, render_html
 from prthinker.repo_kg import (
@@ -299,18 +299,20 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
 
     _agg_delta, _agg_resolved = _review_progress(args, adapter, merged)
     pages = format_pr_comment_pages(
-        merged, marker=args.marker,
-        findings_only=getattr(args, "findings_only", False),
-        hide_info=getattr(args, "hide_info", False),
-        preliminary=_join_overview(
-            _build_preliminary_overview(args, adapter, merged),
-            _impact_note(args, merged), _agg_resolved,
+        merged, args.marker,
+        CommentOptions(
+            findings_only=getattr(args, "findings_only", False),
+            hide_info=getattr(args, "hide_info", False),
+            preliminary=_join_overview(
+                _build_preliminary_overview(args, adapter, merged),
+                _impact_note(args, merged), _agg_resolved,
+            ),
+            files_url=_pr_files_url(args),
+            delta=_agg_delta,
+            min_confidence=getattr(args, "summary_min_confidence", 0.0),
+            table=getattr(args, "summary_table", False),
+            gate=_gate_line(args, merged),
         ),
-        files_url=_pr_files_url(args),
-        delta=_agg_delta,
-        min_confidence=getattr(args, "summary_min_confidence", 0.0),
-        table=getattr(args, "summary_table", False),
-        gate=_gate_line(args, merged),
     )
     _append_report_links(args, pages)
     _append_review_footer(args, merged, pages)
