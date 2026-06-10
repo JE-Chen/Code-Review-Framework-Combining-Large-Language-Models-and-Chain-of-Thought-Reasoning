@@ -127,6 +127,8 @@ def build_chat_strings(user_content, answer):
     prefix of the full rendering, so masking the first ``prompt_len``
     tokens puts loss on the model turn only. The template appends the
     end-of-turn marker after the answer, so the model learns to stop.
+    ``_require_prompt_prefix`` enforces the token-level form of this
+    invariant during tokenization.
     """
     messages = [{"role": "user", "content": user_content}]
     prompt = tokenizer.apply_chat_template(
@@ -144,6 +146,28 @@ def build_chat_strings(user_content, answer):
 # ======================
 # Tokenization with label masking
 # ======================
+def _require_prompt_prefix(prompt_ids: list, full_ids: list) -> None:
+    """Raise if the prompt tokens are not a prefix of the full-text tokens.
+
+    The label mask blanks the first ``len(prompt_ids)`` positions, so a
+    violation would silently train on prompt tokens (tokenizer merged
+    across the model-turn boundary) or emit labels longer than the
+    truncated input (prompt alone exceeds SEQ_LEN). Fail loudly instead.
+    """
+    if full_ids[: len(prompt_ids)] == prompt_ids:
+        return
+    mismatch = next(
+        (i for i, (p, f) in enumerate(zip(prompt_ids, full_ids)) if p != f),
+        min(len(prompt_ids), len(full_ids)),
+    )
+    raise ValueError(
+        "prompt is not a token-level prefix of the full chat rendering: "
+        f"first mismatch at token {mismatch} "
+        f"(prompt_len={len(prompt_ids)}, full_len={len(full_ids)}); "
+        "label masking would be misaligned"
+    )
+
+
 def tokenize_batch(batch):
     input_ids = []
     labels = []
@@ -168,6 +192,7 @@ def tokenize_batch(batch):
 
         prompt_len = len(tok_prompt["input_ids"])
         full_ids = tok_full["input_ids"]
+        _require_prompt_prefix(tok_prompt["input_ids"], full_ids)
 
         # ⬇only answer tokens get loss
         label = [-100] * prompt_len + full_ids[prompt_len:]
