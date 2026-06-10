@@ -120,15 +120,51 @@ def build_user_content(instruction, question, think):  # pylint: disable=unused-
     )
 
 
-def build_chat_strings(user_content, answer):
-    """Render prompt and prompt+answer through the Gemma chat template.
+# Plain-text marker the template passes through verbatim; it only exists
+# to locate where assistant content lands in the rendered conversation.
+_PROBE_SENTINEL = "PRTHINKERPROBE7339"
 
-    The prompt rendering (``add_generation_prompt=True``) is a strict
-    prefix of the full rendering, so masking the first ``prompt_len``
-    tokens puts loss on the model turn only. The template appends the
-    end-of-turn marker after the answer, so the model learns to stop.
-    ``_require_prompt_prefix`` enforces the token-level form of this
-    invariant during tokenization.
+
+def _derive_turn_close() -> str:
+    """Return the literal the chat template appends after assistant content.
+
+    Gemma 4's generation prompt is NOT a prefix of its full-conversation
+    render: ``add_generation_prompt=True`` appends an empty thought
+    channel (``<|channel>thought ... <channel|>``) that the assistant-turn
+    render omits, so rendering the answered conversation would both break
+    the label mask and train a context the serve path never produces.
+    Training text is instead built as generation prompt + answer + turn
+    close; this derives the turn-close suffix from a sentinel render
+    rather than hardcoding the marker.
+    """
+    probe = tokenizer.apply_chat_template(
+        [
+            {"role": "user", "content": "probe"},
+            {"role": "assistant", "content": _PROBE_SENTINEL},
+        ],
+        tokenize=False,
+        add_generation_prompt=False,
+    )
+    _head, sep, tail = probe.partition(_PROBE_SENTINEL)
+    if not sep:
+        raise ValueError(
+            "chat template transformed the probe sentinel; cannot derive "
+            "the turn-close suffix for label masking"
+        )
+    return tail
+
+
+_TURN_CLOSE = _derive_turn_close()
+
+
+def build_chat_strings(user_content, answer):
+    """Build the masked prompt and the full training text for one row.
+
+    The prompt is the exact ``add_generation_prompt=True`` render the
+    serve path puts in front of the model (including Gemma 4's empty
+    thought channel), so the string-prefix property the label mask needs
+    holds by construction. ``_require_prompt_prefix`` still validates the
+    token-level form on every row.
     """
     messages = [{"role": "user", "content": user_content}]
     prompt = tokenizer.apply_chat_template(
@@ -136,12 +172,7 @@ def build_chat_strings(user_content, answer):
         tokenize=False,
         add_generation_prompt=True,
     )
-    full_text = tokenizer.apply_chat_template(
-        messages + [{"role": "assistant", "content": answer.strip()}],
-        tokenize=False,
-        add_generation_prompt=False,
-    )
-    return prompt, full_text
+    return prompt, prompt + answer.strip() + _TURN_CLOSE
 
 # ======================
 # Tokenization with label masking
