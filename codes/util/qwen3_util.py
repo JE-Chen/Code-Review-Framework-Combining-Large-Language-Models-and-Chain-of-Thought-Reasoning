@@ -15,9 +15,20 @@ from transformers import (
 from peft import PeftModel
 
 from codes.util.quant_guard import balanced_max_memory, densification_risk
+from codes.util.think_split import think_end_token_id, thinking_boundary
 from prthinker.pipeline import ReviewCancelledError
 
 log = logging.getLogger(__name__)
+
+# Models served in plain bf16 with a balanced dual-card split — never
+# bitsandbytes. The Qwen3-A3B pair because 4-bit + transformers>=5
+# densifies their MoE forward; Gemma 4 31B (dense, ~61 GiB bf16) because
+# it fits the same dual-L40S deploy and 8-bit would only slow decode.
+_BF16_MODELS = (
+    "Qwen/Qwen3-30B-A3B-Thinking-2507",
+    "Qwen/Qwen3-Coder-30B-A3B-Instruct",
+    "google/gemma-4-31B-it",
+)
 
 
 def _pick_attn_implementation() -> str:
@@ -119,12 +130,18 @@ def _verify_quant_safe(model) -> None:
     transformers>=5 densifies the Qwen3-A3B MoE forward (~48 MiB per input
     token, linear) and OOMs on the first multi-thousand-token review — in
     bf16 AND 4-bit alike (bf16 densification observed on 5.10.2). The
-    supported deploy pins transformers<5, whose MoE forward routes sparsely.
-    Fail loudly at boot instead of OOMing mid-review. Override with
+    supported Qwen3 deploy pins transformers<5, whose MoE forward routes
+    sparsely. Fail loudly at boot instead of OOMing mid-review.
+
+    Model-aware: the rule is scoped by ``config.model_type``. Dense
+    architectures (e.g. Gemma 4, which *requires* transformers>=5) pass;
+    only the Qwen3-MoE types — or an undetermined model_type, which fails
+    closed — are refused on >=5. Override with
     ``PRTHINKER_ALLOW_DENSIFYING_QUANT=1``.
     """
     is_4bit = bool(getattr(model, "is_loaded_in_4bit", False))
-    risk = densification_risk(is_4bit, transformers.__version__)
+    model_type = getattr(getattr(model, "config", None), "model_type", None)
+    risk = densification_risk(is_4bit, transformers.__version__, model_type)
     if risk is None:
         return
     if os.environ.get(
@@ -217,7 +234,7 @@ def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3
     print("Loading model across all GPUs...")
     attn_impl = _pick_attn_implementation()
     print(f"Attention implementation: {attn_impl}")
-    if model_name in ["Qwen/Qwen3-30B-A3B-Thinking-2507", "Qwen/Qwen3-Coder-30B-A3B-Instruct"]:
+    if model_name in _BF16_MODELS:
         # bf16, NOT 4-bit. On transformers>=5 a 4-bit A3B MoE densifies its
         # forward (allocation linear in input length) and OOMs the L40S.
         # bf16 across both cards (device_map="auto") avoids that entirely;
@@ -393,10 +410,11 @@ def qwen3_ask(prompt: str, model, tokenizer, max_new_tokens: int = 16784, cancel
 
     output_ids = generated_ids[0][len(model_inputs.input_ids[0]):].tolist()
 
-    try:
-        index = len(output_ids) - output_ids[::-1].index(151668)
-    except ValueError:
-        index = 0
+    # Model-aware reasoning split: resolve the closing marker from the
+    # tokenizer's own vocabulary (151668 on Qwen3) instead of hardcoding
+    # the Qwen id. Vocabularies without the marker (e.g. Gemma) get
+    # boundary 0 — the whole generation is content.
+    index = thinking_boundary(output_ids, think_end_token_id(tokenizer))
 
     thinking_content = tokenizer.decode(output_ids[:index], skip_special_tokens=True).strip("\n")
     content = tokenizer.decode(output_ids[index:], skip_special_tokens=True).strip("\n")

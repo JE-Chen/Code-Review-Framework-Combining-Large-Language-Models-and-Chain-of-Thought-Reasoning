@@ -71,3 +71,38 @@ def test_risk_unknown_version_treated_safe():
     # Cannot prove >=5 → do not block (fail open).
     assert densification_risk(True, "weird") is None
     assert densification_risk(False, "dev") is None
+
+
+# --- model-aware scoping (config.model_type) ----------------------------
+
+def test_qwen3_moe_on_transformers_5_is_risk():
+    msg = densification_risk(False, "5.10.2", "qwen3_moe")
+    assert msg is not None
+    assert "qwen3_moe" in msg
+
+
+def test_dense_model_types_pass_on_transformers_5():
+    # Dense architectures have no MoE forward to densify; Gemma 4 in
+    # particular REQUIRES transformers>=5 and must not be blocked.
+    assert densification_risk(False, "5.10.2", "gemma4_text") is None
+    assert densification_risk(True, "5.10.2", "gemma4") is None
+    assert densification_risk(False, "5.7.0", "llama") is None
+    assert densification_risk(False, "5.7.0", "qwen3") is None
+
+
+def test_unknown_model_type_fails_closed_on_transformers_5():
+    # Cannot prove the model is not the A3B MoE → block (fail closed).
+    for unknown in (None, "", "   "):
+        msg = densification_risk(False, "5.9.0", unknown)
+        assert msg is not None
+        assert "unknown" in msg
+
+
+def test_model_type_matching_is_case_insensitive():
+    assert densification_risk(False, "5.9.0", "Qwen3_MoE") is not None
+    assert densification_risk(False, "5.9.0", "Gemma4_Text") is None
+
+
+def test_dense_model_type_safe_on_transformers_4_too():
+    assert densification_risk(False, "4.57.3", "gemma4_text") is None
+    assert densification_risk(True, "4.57.3", "qwen3_moe") is None

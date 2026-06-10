@@ -380,7 +380,11 @@ allocate **110 GiB** (`quant=none`). The 4.x MoE forward routes sparsely and doe
 not densify; 4.51+ carries the Qwen3-MoE architecture the model needs. Because
 `load_qwen3_model()` requests bf16 and never passes a `BitsAndBytesConfig`, the
 `<5` pin does **not** re-engage bitsandbytes 4-bit. `_verify_quant_safe()` refuses
-to boot on transformers ≥ 5 (bf16 or 4-bit), and `_probe_generation()` runs a real
+to boot on transformers ≥ 5 (bf16 or 4-bit) — **model-aware** via
+`config.model_type`: only the Qwen3-MoE types (`qwen3_moe`) are refused, an
+undetermined model_type fails closed, and dense architectures (e.g.
+`google/gemma-4-31B-it`, which *requires* transformers ≥ 5.7 and is served from
+its own image, never the Qwen pin's) pass. `_probe_generation()` runs a real
 ~4 K-token generate at boot — do **not** set `PRTHINKER_SKIP_BOOT_PROBE`, or a
 densifying build serves and OOMs on the first review. Override the guard only with
 `PRTHINKER_ALLOW_DENSIFYING_QUANT=1` once a fixed 5.x is verified.

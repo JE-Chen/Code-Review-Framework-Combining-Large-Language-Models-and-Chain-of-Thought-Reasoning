@@ -57,6 +57,9 @@ _LORA_BY_MODEL: dict[str, str] = {
     "Qwen/Qwen3-1.7B": "../train/outputs-lora-qwen3-1.7b",
     "Qwen/Qwen2.5-Coder-7B-Instruct": "../train/outputs-lora-qwen2.5-coder-7b",
     "Qwen/Qwen3-Coder-30B-A3B-Instruct": "/home/nknul40s/LLM_Research/codes/train/outputs-lora-qwen3-coder-30b",
+    # Dense Gemma 4 — needs transformers>=5.7 (gemma4 model_type), which
+    # the Qwen3-A3B deploy's <5 pin forbids; serve it from its own image.
+    "google/gemma-4-31B-it": "../train/outputs-qlora-gemma-4-31b-it",
 }
 _DEFAULT_LORA = "../train/outputs-lora-qwen3-30b"
 
