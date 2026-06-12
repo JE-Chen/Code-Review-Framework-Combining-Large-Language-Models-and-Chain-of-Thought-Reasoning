@@ -25,42 +25,32 @@ from prthinker.cli_review_helpers import (
     build_cache_telemetry,
     build_dialogue_block,
 )
-# Re-exported with redundant aliases so they stay importable as
-# ``prthinker.cli_review.<name>`` (the test-suite reaches several of them
-# that way) while ruff treats each as an intentional re-export, not a dead
-# import. The publish flow below also calls into this module.
-from prthinker.cli_review_emit import (  # pylint: disable=useless-import-alias
-    _append_api_impact as _append_api_impact,
-    _append_report_links as _append_report_links,
-    _append_review_footer as _append_review_footer,
-    _apply_ignore_spec as _apply_ignore_spec,
-    _artifact_link as _artifact_link,
-    _author_reply_note as _author_reply_note,
-    _build_preliminary_overview as _build_preliminary_overview,
-    _change_map_note as _change_map_note,
-    _close_review_gate as _close_review_gate,
-    _code_scanning_link as _code_scanning_link,
-    _emit_review_artifacts as _emit_review_artifacts,
-    _extra_sections as _extra_sections,
-    _gate_line as _gate_line,
-    _impact_note as _impact_note,
-    _inline_post_breakdown as _inline_post_breakdown,
-    _join_overview as _join_overview,
-    _kg_imports as _kg_imports,
-    _maybe_set_labels as _maybe_set_labels,
-    _maybe_update_pr_body as _maybe_update_pr_body,
-    _maybe_write_job_summary as _maybe_write_job_summary,
-    _postprocess_findings as _postprocess_findings,
-    _pr_files_url as _pr_files_url,
-    _progress_blocks as _progress_blocks,
-    _prthinker_version as _prthinker_version,
-    _report_links_footer as _report_links_footer,
-    _resolve_review_event as _resolve_review_event,
-    _review_order_note as _review_order_note,
-    _review_progress as _review_progress,
-    _risk_note as _risk_note,
-    _submit_inline_review as _submit_inline_review,
+# The publish flow below calls these helpers; importing them here also
+# keeps them reachable as ``prthinker.cli_review.<name>``.
+from prthinker.cli_review_emit import (
+    _append_api_impact,
+    _append_report_links,
+    _append_review_footer,
+    _build_preliminary_overview,
+    _close_review_gate,
+    _emit_review_artifacts,
+    _extra_sections,
+    _gate_line,
+    _impact_note,
+    _inline_post_breakdown,
+    _join_overview,
+    _maybe_set_labels,
+    _maybe_update_pr_body,
+    _maybe_write_job_summary,
+    _postprocess_findings,
+    _pr_files_url,
+    _review_progress,
+    _submit_inline_review,
 )
+# Not called in this module — re-exported on its own statement (so the
+# suppressions sit on the reported line) because the test-suite imports it
+# via ``prthinker.cli_review``.
+from prthinker.cli_review_emit import _report_links_footer  # noqa: F401  # pylint: disable=unused-import
 from prthinker.ci_signals import (
     fetch_ci_failure_signals,
     format_signals_block,
@@ -133,6 +123,7 @@ def _build_config(args: argparse.Namespace) -> Config:
         cache=cache_cfg,
         telemetry=telemetry_cfg,
     )
+
 
 # Remote calls keep the historical default: the inference server pins the
 # qwen-era embedding index, whose calibrated cutoff is 0.7. The local FAISS
