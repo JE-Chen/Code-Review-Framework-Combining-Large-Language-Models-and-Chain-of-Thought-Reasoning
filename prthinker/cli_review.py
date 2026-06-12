@@ -29,11 +29,10 @@ from prthinker.cli_review_helpers import (
 # ``prthinker.cli_review.<name>`` (the test-suite reaches several of them
 # that way) while ruff treats each as an intentional re-export, not a dead
 # import. The publish flow below also calls into this module.
-from prthinker.cli_review_emit import (
+from prthinker.cli_review_emit import (  # pylint: disable=useless-import-alias
     _append_api_impact as _append_api_impact,
     _append_report_links as _append_report_links,
     _append_review_footer as _append_review_footer,
-    _apply_inline_ignore as _apply_inline_ignore,
     _apply_ignore_spec as _apply_ignore_spec,
     _artifact_link as _artifact_link,
     _author_reply_note as _author_reply_note,

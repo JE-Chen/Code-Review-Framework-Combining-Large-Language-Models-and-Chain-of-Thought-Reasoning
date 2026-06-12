@@ -6,14 +6,12 @@ import torch
 from codes.util.qwen3_util import qwen3_ask, load_qwen3_model
 from codes.util.prompt_define import question_prompt_define, question_prompt_define_2
 
-_TS_FMT = "%Y-%m-%d %H:%M:%S"
-
 model, tokenizer = load_qwen3_model()
 
 
 # === 多輪推理 ===
 for i in range(10):
-    print(datetime.datetime.now().strftime(_TS_FMT))
+    print(datetime.datetime.now().isoformat(sep=" ", timespec="seconds"))
 
     gc.collect()
     torch.cuda.empty_cache()
@@ -33,4 +31,4 @@ for i in range(10):
     with open(f"qwen_response_{i}_2.md", "w", encoding="utf-8") as file:
         file.write(result)
 
-    print(datetime.datetime.now().strftime(_TS_FMT))
+    print(datetime.datetime.now().isoformat(sep=" ", timespec="seconds"))

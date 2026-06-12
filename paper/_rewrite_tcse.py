@@ -34,26 +34,36 @@ def has_img(p):
     return bool(p._p.findall(".//" + qn("w:drawing")))
 
 
+def _delete_text_paras(paras):
+    """刪除純文字段（含圖之段保留）。"""
+    for p in paras:
+        if has_img(p):
+            continue
+        p._p.getparent().remove(p._p)
+
+
+def _new_para_after(cursor, kind, text):
+    """於 cursor 後插入一段，套用 T[kind] 之段落 / run 格式。"""
+    new_p = OxmlElement("w:p")
+    cursor.addnext(new_p)
+    ppr, rpr = T[kind]
+    if ppr is not None:
+        new_p.append(copy.deepcopy(ppr))
+    para = Paragraph(new_p, parent)
+    run = para.add_run(text)
+    if rpr is not None:
+        run._element.insert(0, copy.deepcopy(rpr))
+    return new_p
+
+
 def replace_between(after_sub, before_sub, items):
     paras = doc.paragraphs
     ai = next(i for i, p in enumerate(paras) if after_sub in p.text)
     bi = next(i for i, p in enumerate(paras) if before_sub in p.text and i > ai)
-    for p in paras[ai + 1:bi]:
-        if has_img(p):
-            continue
-        p._p.getparent().remove(p._p)
+    _delete_text_paras(paras[ai + 1:bi])
     cursor = paras[ai]._p
     for kind, text in items:
-        new_p = OxmlElement("w:p")
-        cursor.addnext(new_p)
-        ppr, rpr = T[kind]
-        if ppr is not None:
-            new_p.append(copy.deepcopy(ppr))
-        para = Paragraph(new_p, parent)
-        run = para.add_run(text)
-        if rpr is not None:
-            run._element.insert(0, copy.deepcopy(rpr))
-        cursor = new_p
+        cursor = _new_para_after(cursor, kind, text)
     print(f"OK 〔{after_sub[:14]}…〕 +{len(items)} 段")
 
 

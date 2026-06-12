@@ -45,40 +45,55 @@ def merge(lines):
     return re.sub(rf"(?<=[{_CJK}])\s+(?=[{_CJK}])", "", text)
 
 
-def extract_typed(header_prefix):
-    start = next(i for i, l in enumerate(MD) if l.startswith(header_prefix))
-    items, cur, cur_kind, in_c = [], [], None, False
+class _TypedCollector:
+    """Accumulates blockquote content lines into (kind, merged-text) items."""
 
-    def flush():
-        nonlocal cur, cur_kind
-        if cur:
-            items.append((cur_kind, merge(cur)))
-            cur, cur_kind = [], None
+    def __init__(self):
+        self.items = []
+        self._cur = []
+        self._cur_kind = None
+        self._in_content = False
 
-    for l in MD[start + 1:]:
-        if l.startswith("### ") or l.rstrip() == "---":
-            break
-        if l.startswith("**內容**") or l.startswith("**標題與內容**"):
-            in_c = True
-            continue
-        if not in_c:
-            continue
-        if not l.startswith(">"):
-            if l.strip() == "":
-                flush()
-            continue
-        c = l[1:].strip()
-        if c == "":
-            flush()
-            continue
-        k = classify(c)
-        if k in ("h2", "h3", "bullet", "listnum", "listalpha") or cur_kind is None:
-            flush()
-            cur_kind, cur = (k if k != "body" else "body"), [c]
+    def flush(self):
+        if self._cur:
+            self.items.append((self._cur_kind, merge(self._cur)))
+            self._cur, self._cur_kind = [], None
+
+    def feed(self, line):
+        if line.startswith("**內容**") or line.startswith("**標題與內容**"):
+            self._in_content = True
+            return
+        if not self._in_content:
+            return
+        if not line.startswith(">"):
+            if line.strip() == "":
+                self.flush()
+            return
+        self._feed_quoted(line[1:].strip())
+
+    def _feed_quoted(self, content):
+        if content == "":
+            self.flush()
+            return
+        kind = classify(content)
+        # A heading / list item always starts a new item; body prose only
+        # starts one when nothing is being accumulated yet.
+        if kind != "body" or self._cur_kind is None:
+            self.flush()
+            self._cur_kind, self._cur = kind, [content]
         else:
-            cur.append(c)
-    flush()
-    return items
+            self._cur.append(content)
+
+
+def extract_typed(header_prefix):
+    start = next(i for i, line in enumerate(MD) if line.startswith(header_prefix))
+    collector = _TypedCollector()
+    for line in MD[start + 1:]:
+        if line.startswith("### ") or line.rstrip() == "---":
+            break
+        collector.feed(line)
+    collector.flush()
+    return collector.items
 
 
 def parse_inline(text):
@@ -113,17 +128,25 @@ def fmt_of(p):
     return ppr, rpr
 
 
-def make_para(after_elem, parent, kind, text, T):
+def _para_style(kind, T):
     if kind == "h2":
-        ppr, rpr, bold = (*T["h2"], True)
-    elif kind == "h3":
-        ppr, rpr, bold = (*T["h3"], True)
-    else:
-        ppr, rpr, bold = (*T["body"], False)
+        return (*T["h2"], True)
+    if kind == "h3":
+        return (*T["h3"], True)
+    return (*T["body"], False)
+
+
+def _para_text(kind, text):
     if kind in ("h2", "h3"):  # normalise "3.5  標題" → "3.5 標題" (match the doc's one-space headings)
-        text = re.sub(r"^(\d+(?:\.\d+)+)\s{2,}", r"\1 ", text, count=1)
+        return re.sub(r"^(\d+(?:\.\d+)+)\s{2,}", r"\1 ", text, count=1)
     if kind == "bullet":
-        text = "‧ " + (text[2:] if text.startswith("- ") else text)
+        return "‧ " + (text[2:] if text.startswith("- ") else text)
+    return text
+
+
+def make_para(after_elem, parent, kind, text, T):
+    ppr, rpr, bold = _para_style(kind, T)
+    text = _para_text(kind, text)
     new_p = OxmlElement("w:p")
     after_elem.addnext(new_p)
     if ppr is not None:

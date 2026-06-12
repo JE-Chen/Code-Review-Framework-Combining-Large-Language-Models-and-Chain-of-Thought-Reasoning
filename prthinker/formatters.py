@@ -35,7 +35,7 @@ from prthinker.formatters_blocks import (
     _format_file_block,
     _format_legend,
     _format_persona_conflicts_block,
-    _format_provenance_block,  # noqa: F401  # re-exported for prthinker.formatters._format_provenance_block
+    _format_provenance_block,  # noqa: F401  # pylint: disable=unused-import  # re-exported: tests reach it via prthinker.formatters
     _format_step_detail,
     _loc_ref,
     _sort_files_by_severity,

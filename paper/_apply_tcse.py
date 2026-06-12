@@ -21,34 +21,48 @@ _CJK = r"‘-‟　-〿㐀-鿿＀-￯"
 _INLINE = re.compile(r"\*\*(.+?)\*\*|``([^`]+?)``|`([^`]+?)`")
 
 
-def extract_paras(header_prefix):
-    """Return the blockquote paragraphs of an INSERT block as merged strings."""
-    start = next(i for i, l in enumerate(MD) if l.startswith(header_prefix))
-    groups, cur, in_content = [], [], False
-    for l in MD[start + 1:]:
-        if l.startswith("### ") or l.rstrip() == "---":
-            break
-        if l.startswith("**內容**") or l.startswith("**標題與內容**"):
+def _block_start(header_prefix):
+    """Index of the INSERT block heading line in MD."""
+    return next(i for i, line in enumerate(MD) if line.startswith(header_prefix))
+
+
+def _block_lines(header_prefix):
+    """Yield the content-area lines of the INSERT block at header_prefix."""
+    in_content = False
+    for line in MD[_block_start(header_prefix) + 1:]:
+        if line.startswith("### ") or line.rstrip() == "---":
+            return
+        if line.startswith("**內容**") or line.startswith("**標題與內容**"):
             in_content = True
             continue
-        if not in_content:
-            continue
-        if l.startswith(">"):
-            c = l[1:].strip()
-            if not c:
-                if cur:
-                    groups.append(cur)
-                    cur = []
-            else:
-                cur.append(c)
-        elif l.strip() == "":          # blank line also separates paragraphs
-            if cur:
+        if in_content:
+            yield line
+
+
+def _group_paragraphs(lines):
+    """Group blockquote lines into paragraphs; blank lines separate them."""
+    groups, cur = [], []
+    for line in lines:
+        if not line.startswith(">"):
+            if line.strip() == "" and cur:   # blank line also separates paragraphs
                 groups.append(cur)
                 cur = []
+            continue
+        content = line[1:].strip()
+        if content:
+            cur.append(content)
+        elif cur:
+            groups.append(cur)
+            cur = []
     if cur:
         groups.append(cur)
+    return groups
+
+
+def extract_paras(header_prefix):
+    """Return the blockquote paragraphs of an INSERT block as merged strings."""
     out = []
-    for lines in groups:
+    for lines in _group_paragraphs(_block_lines(header_prefix)):
         text = " ".join(lines).replace("\\ ", "")           # RST zero-width escape
         text = re.sub(rf"(?<=[{_CJK}])\s+(?=[{_CJK}])", "", text)  # drop CJK-internal spaces
         out.append(text)

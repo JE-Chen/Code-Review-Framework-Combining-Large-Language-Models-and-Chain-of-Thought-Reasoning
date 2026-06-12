@@ -10,7 +10,7 @@ the entire generation as content instead of splitting.
 
 from __future__ import annotations
 
-THINK_END_TOKEN = "</think>"
+THINK_END_TOKEN = "</think>"  # nosec B105  # vocab marker token, not a credential
 
 
 def think_end_token_id(tokenizer) -> int | None:

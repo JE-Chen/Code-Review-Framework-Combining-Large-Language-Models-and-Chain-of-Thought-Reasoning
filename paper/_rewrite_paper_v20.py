@@ -63,16 +63,21 @@ def _new_body_after(cursor_el, text):
     return new_p
 
 
+def _delete_text_paras(paras):
+    """刪除純文字段（含圖 / 表之段保留）。"""
+    for p in paras:
+        if has_img(p):
+            continue
+        p._p.getparent().remove(p._p)
+
+
 def replace_between(after_sub, before_sub, items):
     """以章節標題為錨：刪除 after_sub 之後、before_sub 之前的所有文字段（保留圖 / 表），
     再於 after_sub 後依序插入 items（皆 body）。"""
     paras = doc.paragraphs
     ai = next(i for i, p in enumerate(paras) if after_sub in p.text)
     bi = next(i for i, p in enumerate(paras) if before_sub in p.text and i > ai)
-    for p in paras[ai + 1:bi]:
-        if has_img(p):
-            continue
-        p._p.getparent().remove(p._p)
+    _delete_text_paras(paras[ai + 1:bi])
     cursor = paras[ai]._p
     for text in items:
         cursor = _new_body_after(cursor, text)

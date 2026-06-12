@@ -32,6 +32,18 @@ def set_text(t, s):
         t.set(qn("xml:space"), "preserve")
 
 
+def _rewrite_spans(spans, idx, end, new):
+    """Blank out [idx, end) across the runs, writing new into the first hit."""
+    first = True
+    for a, b, t in spans:
+        if b <= idx or a >= end:
+            continue
+        seg = t.text or ""
+        lo, hi = max(idx - a, 0), min(end - a, len(seg))
+        set_text(t, seg[:lo] + (new if first else "") + seg[hi:])
+        first = False
+
+
 def replace_once_in_para(p, old, new):
     """Span-aware replace of the first occurrence of old in paragraph p."""
     ts = p.findall(".//" + W_T)
@@ -43,15 +55,7 @@ def replace_once_in_para(p, old, new):
     idx = joined.find(old)
     if idx == -1:
         return False
-    end = idx + len(old)
-    first = True
-    for a, b, t in spans:
-        if b <= idx or a >= end:
-            continue
-        seg = t.text or ""
-        lo, hi = max(idx - a, 0), min(end - a, len(seg))
-        set_text(t, seg[:lo] + (new if first else "") + seg[hi:])
-        first = False
+    _rewrite_spans(spans, idx, idx + len(old), new)
     return True
 
 
@@ -202,26 +206,47 @@ def _cjkish(ch):
             or "＀" <= ch <= "￯" or ch in "—…•")
 
 
-def convert_punct(text):
-    chars = list(text)
+def _nearest_visible(seq):
+    """First non-space char in seq, or '' when none."""
+    return next((c for c in seq if c != " "), "")
+
+
+def _paren_is_cjk(text, j, i):
+    """True when the (j, i) paren pair sits in CJK context."""
+    seg_cjk = any(_cjkish(c) for c in text[j + 1:i])
+    prev = _nearest_visible(reversed(text[:j]))
+    nxt = _nearest_visible(text[i + 1:])
+    prev_cjk = bool(prev) and _cjkish(prev)
+    nxt_cjk = bool(nxt) and _cjkish(nxt)
+    return seg_cjk or prev_cjk or nxt_cjk
+
+
+def _convert_parens(text, chars):
+    """Full-width-ify balanced ASCII parens that sit in CJK context."""
     stack = []
     for i, ch in enumerate(chars):
         if ch == "(":
             stack.append(i)
         elif ch == ")" and stack:
             j = stack.pop()
-            seg = text[j + 1:i]
-            prev = next((c for c in reversed(text[:j]) if c != " "), "")
-            nxt = next((c for c in text[i + 1:] if c != " "), "")
-            if (any(_cjkish(c) for c in seg) or (prev and _cjkish(prev))
-                    or (nxt and _cjkish(nxt))):
+            if _paren_is_cjk(text, j, i):
                 chars[j], chars[i] = "（", "）"
+
+
+def _convert_marks(chars):
+    """Full-width-ify mapped punctuation adjacent to CJK text."""
     for i, ch in enumerate(chars):
         if ch in PUNCT_MAP:
-            prev = next((c for c in reversed(chars[:i]) if c != " "), "")
-            nxt = next((c for c in chars[i + 1:] if c != " "), "")
+            prev = _nearest_visible(reversed(chars[:i]))
+            nxt = _nearest_visible(chars[i + 1:])
             if _cjkish(prev) or _cjkish(nxt):
                 chars[i] = PUNCT_MAP[ch]
+
+
+def convert_punct(text):
+    chars = list(text)
+    _convert_parens(text, chars)
+    _convert_marks(chars)
     return "".join(chars)
 
 
