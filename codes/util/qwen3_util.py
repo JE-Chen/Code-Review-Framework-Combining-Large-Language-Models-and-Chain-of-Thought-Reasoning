@@ -242,13 +242,28 @@ def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3
         # each card below physical so the base splits evenly and leaves room
         # for the unmerged LoRA loaded afterwards (else GPU 0 fills and the
         # adapter OOMs).
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            device_map="auto",
-            torch_dtype=torch.bfloat16,
-            attn_implementation=attn_impl,
-            max_memory=_gpu_max_memory(),
-        )
+        try:
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                device_map="auto",
+                torch_dtype=torch.bfloat16,
+                attn_implementation=attn_impl,
+                max_memory=_gpu_max_memory(),
+            )
+        except ValueError:
+            # Gemma 4 checkpoints are multimodal
+            # (Gemma4ForConditionalGeneration); AutoModelForCausalLM
+            # refuses them. The image-text class wraps the same language
+            # model and generates identically for text-only prompts.
+            from transformers import AutoModelForImageTextToText  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+
+            model = AutoModelForImageTextToText.from_pretrained(
+                model_name,
+                device_map="auto",
+                torch_dtype=torch.bfloat16,
+                attn_implementation=attn_impl,
+                max_memory=_gpu_max_memory(),
+            )
     elif not quantization:
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
