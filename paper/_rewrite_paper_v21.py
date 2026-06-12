@@ -145,6 +145,11 @@ EDITS = [
     # §3.1 原文為半形括號之重複 gloss（prthinker 首次於 §1.5、RAG 首次於 §2.6）
     ("隨附開源框架(prthinker)於上述核心之外", "隨附開源框架於上述核心之外"),
     ("以檢索增強生成(Retrieval-Augmented Generation, RAG)取得外部知識", "以檢索增強生成取得外部知識"),
+    # QLoRA 摘要首次出現補英文原名（正文 §2.8 已有完整定義）
+    ("結合量化低秩適應（QLoRA）將大型教師模型",
+     "結合量化低秩適應（Quantized Low-Rank Adaptation, QLoRA）將大型教師模型"),
+    # 審稿意見：無統計檢定不稱「顯著」（RQ1 題目措辭屬凍結事實，不動）
+    ("三項皆顯著優於 CRSCORE++ 基準", "三項皆明顯優於 CRSCORE++ 基準"),
     # 半形冒號、「鍊」錯字、LLM-as -a 斷字
     ("關鍵字: 大型語言模型、程式碼審查、思維鍊推理", "關鍵字：大型語言模型、程式碼審查、思維鏈推理"),
     ("LLM-as -a-Judge-Our", "LLM-as-a-Judge-Our"),
@@ -154,6 +159,22 @@ for old, new in EDITS:
     if n == 0:
         raise SystemExit(f"定點改寫未命中：{old[:40]}…")
     print(f"改寫 {n} 處：{old[:28]}…")
+
+# ---------- 3b. §6.3 限制補（5）：統計檢定與 RAG 消融範圍（審稿意見之誠實回應） ----------
+lim4 = next((p for p in paras() if "部署面實證" in para_text(p)), None)
+if lim4 is None:
+    raise SystemExit("找不到 6.3（4）段")
+lim5 = copy.deepcopy(lim4)
+l5ts = lim5.findall(".//" + W_T)
+set_text(l5ts[0],
+         "（5） 統計檢定與模組消融範圍：本研究之比較以各維度平均分數呈現，受限於 44 筆樣本規模，"
+         "未進行統計顯著性檢定（如成對樣本之無母數檢定），各表分數差異之統計穩健性尚待更大樣本下確認。"
+         "消融實驗亦僅分離多階段提示詞與模型微調二者之貢獻，RAG 規則注入未單獨消融，"
+         "§5 所載結果皆於檢索層啟用之配置下取得。")
+for t in l5ts[1:]:
+    set_text(t, "")
+lim4.addnext(lim5)
+print("6.3 補入（5）統計檢定與模組消融範圍")
 
 # ---------- 4. 表次目錄補入新表一 ----------
 # 主目錄為未填值之 TOC 欄位，docx 內無頁碼可引；頁碼留空，待 Word 重新分頁後填入。
