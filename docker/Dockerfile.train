@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir \
     "peft>=0.17" \
     "datasets>=3.0" \
     "accelerate>=1.0" \
+    "sentence-transformers>=3.0" \
     tensorboard \
     sentencepiece
 

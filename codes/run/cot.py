@@ -5,6 +5,7 @@ iterates over every file in the standard test-data directories and writes
 per-step outputs to `<prefix>_<stem>/`.
 """
 
+import os
 from pathlib import Path
 
 from prthinker.backends.local import LocalQwen3Backend
@@ -13,6 +14,10 @@ from prthinker.pipeline import CoTPipeline
 from prthinker.rag import FaissRAGRetriever
 
 RUN_ON = "Qwen/Qwen3-Coder-30B-A3B-Instruct"
+
+# The qwen evaluation results were produced with the qwen-era embedding
+# index (Qwen3-Embedding-4B @ 0.7); pin it so reruns stay comparable.
+os.environ.setdefault("EMB_MODEL", "Qwen/Qwen3-Embedding-4B")
 
 _LORA_BY_MODEL: dict[str, str] = {
     "Qwen/Qwen3-1.7B": "../train/outputs-lora-qwen3-1.7b",

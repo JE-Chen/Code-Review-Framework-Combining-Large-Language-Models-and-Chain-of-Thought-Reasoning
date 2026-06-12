@@ -140,6 +140,18 @@ def _build_config(args: argparse.Namespace) -> Config:
         telemetry=telemetry_cfg,
     )
 
+# Remote calls keep the historical default: the inference server pins the
+# qwen-era embedding index, whose calibrated cutoff is 0.7. The local FAISS
+# retriever instead resolves None to the active embedding model's value.
+_WIRE_DEFAULT_RAG_THRESHOLD = 0.7
+
+
+def _wire_rag_threshold(config: Config) -> float:
+    if config.rag_threshold is None:
+        return _WIRE_DEFAULT_RAG_THRESHOLD
+    return config.rag_threshold
+
+
 def _build_retriever(args: argparse.Namespace, config: Config) -> RAGRetriever:
     if not config.rag_enabled:
         return NoOpRetriever()
@@ -148,7 +160,7 @@ def _build_retriever(args: argparse.Namespace, config: Config) -> RAGRetriever:
             raise SystemExit("--remote-rag needs --remote-url")
         return RemoteRAGRetriever(
             url=args.remote_url,
-            threshold=config.rag_threshold,
+            threshold=_wire_rag_threshold(config),
             timeout_seconds=args.remote_timeout,
             api_key=args.remote_api_key,
         )
@@ -360,7 +372,7 @@ def _server_review_request(
         code_diff=code_diff,
         file_path=file_path,
         rag_enabled=config.rag_enabled,
-        rag_threshold=config.rag_threshold,
+        rag_threshold=_wire_rag_threshold(config),
         max_new_tokens=config.max_new_tokens,
         steps=list(config.steps) or None,
         extra_rules=extra_rules,

@@ -167,10 +167,15 @@ def add_rag_args(common: argparse.ArgumentParser) -> None:
         default=env_bool("PRTHINKER_REMOTE_RAG", False),
         help="Use /rag instead of loading FAISS locally",
     )
+    rag_threshold_env = env_str("PRTHINKER_RAG_THRESHOLD", "")
     common.add_argument(
         "--rag-threshold",
         type=float,
-        default=float(env_str("PRTHINKER_RAG_THRESHOLD", "0.7") or 0.7),
+        default=float(rag_threshold_env) if rag_threshold_env else None,
+        help=(
+            "Cosine cutoff for RAG rules. Default: the calibrated value "
+            "for the local embedding model; 0.7 on remote calls."
+        ),
     )
     common.add_argument(
         "--max-new-tokens",

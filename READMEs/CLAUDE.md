@@ -226,7 +226,15 @@ package. New code that violates these is rejected at review.
 
 - Build the FAISS index **once** at import time. Never rebuild per query.
 - Use `IndexFlatIP` with L2-normalized vectors (cosine similarity).
-- Apply the relevance threshold (default `0.7`) before injecting rules.
+- Apply the relevance threshold before injecting rules. The cutoff is
+  **per embedding model** (`codes/util/embedding_config.py`): 0.32 for
+  the default `google/embeddinggemma-300m`, 0.7 for the legacy
+  `Qwen/Qwen3-Embedding-4B` (`EMB_MODEL` selects). Never reuse one
+  model's threshold with another — score distributions differ
+  (see `codes/run/embedding_threshold_calibration.md`).
+- EmbeddingGemma loads through sentence-transformers
+  (`encode_query` / `encode_document`); bare `AutoModel` mean pooling
+  is only correct for the legacy Qwen path.
 - Embedding `max_length=2048` is intentional; do not raise without GPU
   benchmarking.
 - Cache embeddings of static rule documents on disk; recompute only when

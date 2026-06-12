@@ -215,6 +215,7 @@ cython_debug/
 /codes/train/outputs-lora-gemma4-31b/
 /codes/train/tb-logs/
 /.hf_cache/
+/codes/run/embedding_threshold_calibration.*.npy
 /.claude/
 
 # Defense slides build artifacts

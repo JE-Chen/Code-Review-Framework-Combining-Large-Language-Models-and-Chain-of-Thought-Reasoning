@@ -28,6 +28,11 @@ from prthinker.backends.base import InferenceBackend
 from prthinker.pipeline import CoTPipeline
 from prthinker.rag import FaissRAGRetriever, NoOpRetriever
 
+# The 2026-06 gemma4 evaluation ran with the qwen-era embedding index
+# (Qwen3-Embedding-4B @ 0.7) so its RAG context matches the qwen3 runs
+# it is compared against; pin it so reruns stay comparable.
+os.environ.setdefault("EMB_MODEL", "Qwen/Qwen3-Embedding-4B")
+
 MODEL_NAME = os.environ.get("MODEL_NAME", "google/gemma-4-31B-it")
 LORA_PATH = os.environ.get(
     "LORA_PATH", "/workspace/codes/train/outputs-lora-gemma4-31b"
