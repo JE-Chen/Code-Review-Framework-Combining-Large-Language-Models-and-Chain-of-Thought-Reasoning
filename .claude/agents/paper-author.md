@@ -39,7 +39,7 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 - 半形標點**僅**允許出現於：英文句子內部（英文摘要、英文圖說、參考文獻
   條目）、程式碼／識別字／檔名、URL、數學記號、IEEE 引用編號的方括號
   `[N]`、以及全形括號內英文 gloss 的英文逗號（如
-  「（Chain-of-Thought, CoT，…）」中 `CoT` 前的 `, `）。
+  「（Chain-of-Thought, CoT，…）」中 `CoT` 前的半形逗號加空格）。
 - 子句以「，」連接，避免「；」堆疊（沿用 REWRITE_BRIEF §1.3）。
 - **驗證**：在 dump 上 grep
   `[一-鿿][,.;:?!()]|[,.;:?!(][一-鿿]`，逐條確認命中是否
