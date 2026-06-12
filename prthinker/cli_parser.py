@@ -96,6 +96,7 @@ def _build_parser() -> argparse.ArgumentParser:
     common = _build_common_parser()
 
     add_review_pr_parser(sub, common)
+    add_pr_summary_parser(sub, common)
     add_review_file_parser(sub, common)
     add_aggregate_parser(sub, common)
     add_harvest_parsers(sub)
@@ -160,6 +161,21 @@ def add_review_pr_parser(sub, common: argparse.ArgumentParser) -> None:
     p_pr = sub.add_parser("review-pr", parents=[common])
     _add_review_pr_platform_args(p_pr)
     _add_review_pr_gate_args(p_pr)
+
+
+def add_pr_summary_parser(sub, common: argparse.ArgumentParser) -> None:
+    """Register the ``pr-summary`` subcommand."""
+    p_sum = sub.add_parser(
+        "pr-summary",
+        parents=[common],
+        help=(
+            "Generate a Copilot-style PR summary from the PR title, "
+            "description, commit messages, and diff, then upsert it as a "
+            "dedicated PR comment. Designed to run before the per-file "
+            "review starts (e.g. the enumerate job)."
+        ),
+    )
+    _add_review_pr_platform_args(p_sum)
 
 
 def _add_review_pr_platform_args(p_pr: argparse.ArgumentParser) -> None:

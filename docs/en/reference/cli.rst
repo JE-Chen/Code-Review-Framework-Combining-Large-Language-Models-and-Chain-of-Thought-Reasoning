@@ -308,6 +308,42 @@ Env equivalents: ``PRTHINKER_AGGREGATE_FROM`` (input dir),
 floor). The standard ``GITHUB_REPOSITORY``, ``PRTHINKER_PR_NUMBER``,
 and ``GITHUB_TOKEN`` cover the rest.
 
+pr-summary
+----------
+
+Generate a Copilot-style PR summary from the PR title, description,
+commit messages, and diff, then upsert it as a dedicated PR comment
+under its own ``<!-- prthinker:pr-summary -->`` marker (separate from
+the review summary). Designed to run *before* the per-file review — the
+``enumerate`` job in :doc:`../guide/github-actions` invokes it — so
+reviewers get an at-a-glance brief while the slower review runs.
+
+.. code-block:: text
+
+   prthinker pr-summary
+       --repo OWNER/NAME            # or $GITHUB_REPOSITORY
+       --pr-number N                # or $PRTHINKER_PR_NUMBER
+       --github-token TOKEN         # or $GITHUB_TOKEN
+       [--backend {local,remote,openai,anthropic}]
+       [--remote-url URL] [--remote-api-key TOKEN]
+       [--platform {github,gitlab,gitea}]
+       [--dry-run]
+
+It reconciles what the author *wrote* (title, body, commit subjects)
+against what the diff *does* and is asked to flag any discrepancy. The
+output is GitHub-flavoured Markdown with ``### Overview``,
+``### Key changes``, ``### Areas to review`` and ``### Notes`` sections.
+
+Best-effort by design: generation goes through the injected backend and
+is retried a few times on a transient fault (a 5xx, a dropped
+connection, an empty reply); on persistent failure it logs a warning and
+exits 0, so a flaky backend never blocks the review matrix. ``--dry-run``
+prints the rendered comment to stdout instead of posting it.
+
+Env equivalents: ``PRTHINKER_BACKEND`` / ``PRTHINKER_REMOTE_URL`` /
+``PRTHINKER_REMOTE_API_KEY`` select the backend; ``GITHUB_REPOSITORY``,
+``PRTHINKER_PR_NUMBER`` and ``GITHUB_TOKEN`` cover the target.
+
 harvest-dismissed
 -----------------
 

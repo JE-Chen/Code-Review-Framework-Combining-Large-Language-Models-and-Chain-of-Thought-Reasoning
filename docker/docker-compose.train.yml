@@ -1,0 +1,56 @@
+# Gemma LoRA training + TensorBoard monitoring on the local DGX Spark.
+#
+# Local deployment policy (this machine only): Gemma deployments use
+# google/gemma-4-31B-it. Other users/environments are free to deploy other
+# models — override MODEL_NAME. See READMEs/local_gemma_deployment.md.
+#
+#   cd docker
+#   docker compose -f docker-compose.train.yml up -d --build
+#   docker logs -f gemma4-train          # training console
+#   http://localhost:6006                # loss curves (TensorBoard)
+#
+# Override hyperparams via env, e.g.:
+#   NUM_EPOCHS=5 docker compose -f docker-compose.train.yml up -d
+
+services:
+  gemma4-train:
+    build:
+      context: .
+      dockerfile: Dockerfile.train
+    image: prthinker-gemma4-train
+    container_name: gemma4-train
+    gpus: all
+    ipc: host
+    restart: "no"
+    working_dir: /workspace
+    command: python codes/train/gemma4-31b.py
+    environment:
+      MODEL_NAME: ${MODEL_NAME:-google/gemma-4-31B-it}
+      HF_TOKEN: ${HF_TOKEN:-}
+      DATA_PATH: /workspace/datas/fine_tuning_data/qwen3_train_data.jsonl
+      OUTPUT_DIR: /workspace/codes/train/outputs-lora-gemma4-31b
+      LOGGING_DIR: /workspace/codes/train/tb-logs/gemma4-31b
+      NUM_EPOCHS: ${NUM_EPOCHS:-3}
+      MICRO_BATCH_SIZE: ${MICRO_BATCH_SIZE:-1}
+      GA_STEPS: ${GA_STEPS:-64}
+      SEQ_LEN: ${SEQ_LEN:-1024}
+      LR: ${LR:-2e-5}
+    volumes:
+      - ..:/workspace
+      - hf-cache:/workspace/.hf_cache
+
+  tensorboard:
+    image: prthinker-gemma4-train
+    container_name: gemma4-tensorboard
+    restart: unless-stopped
+    depends_on:
+      - gemma4-train
+    # NGC's tensorboard wrapper already passes --bind_all; adding --host conflicts
+    command: tensorboard --logdir /workspace/codes/train/tb-logs --port 6006
+    ports:
+      - "6006:6006"
+    volumes:
+      - ..:/workspace
+
+volumes:
+  hf-cache:

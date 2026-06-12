@@ -35,16 +35,21 @@ class FaissRAGRetriever(RAGRetriever):
 
     The FAISS index is built once at module import time inside `faiss_util`;
     instantiating this class is cheap after the first import.
+
+    ``threshold=None`` (the default) resolves to the calibrated value for
+    the active embedding model (``EMB_MODEL``) — 0.32 for the default
+    EmbeddingGemma index, 0.7 for the legacy Qwen3-Embedding-4B index.
+    Pass an explicit float to pin a specific cutoff.
     """
 
-    def __init__(self, threshold: float = 0.7) -> None:
-        # Import the module (not the symbol) so its import-time side effect
-        # — building the FAISS index once — runs eagerly at construction.
-        # Deferred so callers that pick NoOpRetriever do not pay the
-        # embedding-model load cost.
-        import codes.util.faiss_util  # noqa: F401
+    def __init__(self, threshold: float | None = None) -> None:
+        # Import is deferred so callers that pick NoOpRetriever do not pay
+        # the embedding-model load cost.
+        from codes.util.faiss_util import RECOMMENDED_THRESHOLD  # noqa: F401
 
-        self._threshold = threshold
+        self._threshold = (
+            RECOMMENDED_THRESHOLD if threshold is None else threshold
+        )
 
     def retrieve(self, prompt: str) -> list[str]:
         from codes.util.faiss_util import search_docs

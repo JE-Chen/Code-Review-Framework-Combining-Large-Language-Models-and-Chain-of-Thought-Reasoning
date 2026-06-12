@@ -44,6 +44,13 @@ remembers past feedback, and explains its reasoning step by step.
   step that emits structured JSON.
 - **Per-file inline review** with GitHub `suggestion` blocks that PR
   authors can apply with one click.
+- **Copilot-style PR summary** — a pre-review `prthinker pr-summary`
+  stage reads the PR title, description, and commit messages alongside
+  the diff and upserts a dedicated, auto-updating comment (`### Overview`
+  / `### Key changes` / `### Areas to review` / `### Notes`) that
+  reconciles what the author *wrote* against what the diff *does*. Posted
+  by the `enumerate` job before the slower per-file review starts, so
+  reviewers get an at-a-glance brief immediately.
 - **RAG over global rules + per-repo `--rules-dir`** for team-specific
   coding standards.
 - **Two learned corpora**: `dismissed.jsonl` (filters repeats), `accepted.jsonl`
@@ -253,13 +260,20 @@ Copy `.github/workflows/prthinker.yml`, then set two repo secrets:
 
 The workflow fires on `pull_request` opened/synchronize/reopened and
 runs three jobs: `enumerate` lists files (after filtering noise via
-`PRTHINKER_EXCLUDE_GLOBS`), `review` is a matrix that gives each file
-its own runner + 60-minute timeout, and `aggregate` merges every
-runner's partial JSON into a single summary comment + one inline
-review + one gate close. The runner-server transport uses
-`POST /review/submit` + `GET /review/result/{id}` polling so the
-workflow stays within any reverse-proxy idle timeout (Cloudflare's
-100 s cap, for example).
+`PRTHINKER_EXCLUDE_GLOBS`) and posts the Copilot-style pre-review PR
+summary, `review` is a matrix that gives each file its own runner +
+60-minute timeout, and `aggregate` merges every runner's partial JSON
+into a single summary comment + one inline review + one gate close. The
+runner-server transport uses `POST /review/submit` +
+`GET /review/result/{id}` polling so the workflow stays within any
+reverse-proxy idle timeout (Cloudflare's 100 s cap, for example).
+
+A new commit supersedes the PR's own in-flight run: the workflow groups
+concurrency per PR with `cancel-in-progress: true`, so a re-push drops
+the stale review instead of finishing it against code that no longer
+exists. Cross-PR GPU safety is enforced **server-side** — every
+`model.generate` runs under one process-wide lock, so two PRs reviewing
+at once queue on the GPU instead of OOM-ing it.
 
 A cancelled workflow stops burning GPU: the runner posts
 `POST /review/cancel/{id}` on its way out and the backend's idle

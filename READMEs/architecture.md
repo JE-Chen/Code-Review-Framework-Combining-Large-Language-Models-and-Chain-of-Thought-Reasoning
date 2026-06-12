@@ -11,8 +11,8 @@ graph TB
 
     subgraph RAG["② 檢索層 RAG"]
         RAG_DATA["Rule Documents"]
-        EMB["Qwen3-Embedding-4B"]
-        FAISS["FAISS Index<br/>(threshold ≥ 0.7)"]
+        EMB["EmbeddingGemma-300m (default, threshold 0.32)<br/>Qwen3-Embedding-4B (legacy, threshold 0.7)"]
+        FAISS["FAISS Index<br/>(calibrated threshold per model)"]
         RAG_DATA --> EMB --> FAISS
     end
 

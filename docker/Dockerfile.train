@@ -1,0 +1,29 @@
+# Training image for DGX Spark (GB10, aarch64, sm_121).
+# NGC PyTorch ships torch built for Blackwell + CUDA 13 on arm64;
+# a stock pypi torch wheel would not see the GPU correctly here.
+FROM nvcr.io/nvidia/pytorch:25.09-py3
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_NO_CACHE_DIR=1 \
+    HF_HOME=/workspace/.hf_cache \
+    TOKENIZERS_PARALLELISM=false \
+    PYTHONUNBUFFERED=1
+
+# transformers >= 5.10 required for the gemma4 architecture
+RUN pip install --no-cache-dir \
+    "transformers>=5.10,<6" \
+    "peft>=0.17" \
+    "datasets>=3.0" \
+    "accelerate>=1.0" \
+    "sentence-transformers>=3.0" \
+    tensorboard \
+    sentencepiece
+
+# NGC ships torchao 0.13 which PEFT rejects (needs >=0.16) and errors on
+# instead of skipping; we don't use torchao, so remove it.
+RUN pip uninstall -y torchao
+
+# Code and data are bind-mounted at runtime (see docker-compose.train.yml)
+WORKDIR /workspace
+
+CMD ["python", "codes/train/gemma4-31b.py"]

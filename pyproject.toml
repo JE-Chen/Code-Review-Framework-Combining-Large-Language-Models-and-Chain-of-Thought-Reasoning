@@ -40,6 +40,10 @@ local = [
     "peft==0.19.1",
     "faiss-cpu",
     "numpy",
+    # EmbeddingGemma (the default local RAG embedding) needs the ST stack:
+    # its Dense projections + query/document prompts are not reproducible
+    # with bare AutoModel pooling. Works with transformers 4.x and 5.x.
+    "sentence-transformers>=3.0",
 ]
 server = [
     "prthinker[local]",

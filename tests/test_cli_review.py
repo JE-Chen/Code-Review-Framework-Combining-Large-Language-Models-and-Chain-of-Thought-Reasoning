@@ -497,5 +497,35 @@ def test_extra_sections_binary_note_from_diff():
     assert any("binary file(s) changed" in s for s in sections)
 
 
+def test_wire_rag_threshold_defaults_to_legacy_value():
+    config = _make_config(rag_threshold=None)
+    assert cli_review._wire_rag_threshold(config) == 0.7
+
+
+def test_wire_rag_threshold_explicit_value_passes_through():
+    config = _make_config(rag_threshold=0.32)
+    assert cli_review._wire_rag_threshold(config) == 0.32
+
+
+def test_wire_rag_threshold_zero_is_not_treated_as_unset():
+    config = _make_config(rag_threshold=0.0)
+    assert cli_review._wire_rag_threshold(config) == 0.0
+
+
+def test_config_rag_threshold_defaults_to_none():
+    assert _make_config().rag_threshold is None
+
+
+def _make_config(**overrides):
+    from prthinker.config import Config, BackendKind, RemoteBackendConfig
+
+    base = dict(
+        backend=BackendKind.REMOTE,
+        remote=RemoteBackendConfig(url="https://example.test"),
+    )
+    base.update(overrides)
+    return Config(**base)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))

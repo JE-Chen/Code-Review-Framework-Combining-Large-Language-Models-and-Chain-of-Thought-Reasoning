@@ -72,6 +72,7 @@ from prthinker.formatters import (
     format_pr_comment,
     format_pr_comment_pages,
 )
+from prthinker import pr_summary
 from prthinker.incremental_save import (
     IncrementalReviewWriter,
     ReviewMeta,
@@ -134,6 +135,18 @@ def _build_config(args: argparse.Namespace) -> Config:
         telemetry=telemetry_cfg,
     )
 
+# Remote calls keep the historical default: the inference server pins the
+# qwen-era embedding index, whose calibrated cutoff is 0.7. The local FAISS
+# retriever instead resolves None to the active embedding model's value.
+_WIRE_DEFAULT_RAG_THRESHOLD = 0.7
+
+
+def _wire_rag_threshold(config: Config) -> float:
+    if config.rag_threshold is None:
+        return _WIRE_DEFAULT_RAG_THRESHOLD
+    return config.rag_threshold
+
+
 def _build_retriever(args: argparse.Namespace, config: Config) -> RAGRetriever:
     if not config.rag_enabled:
         return NoOpRetriever()
@@ -142,7 +155,7 @@ def _build_retriever(args: argparse.Namespace, config: Config) -> RAGRetriever:
             raise SystemExit("--remote-rag needs --remote-url")
         return RemoteRAGRetriever(
             url=args.remote_url,
-            threshold=config.rag_threshold,
+            threshold=_wire_rag_threshold(config),
             timeout_seconds=args.remote_timeout,
             api_key=args.remote_api_key,
         )
@@ -354,7 +367,7 @@ def _server_review_request(
         code_diff=code_diff,
         file_path=file_path,
         rag_enabled=config.rag_enabled,
-        rag_threshold=config.rag_threshold,
+        rag_threshold=_wire_rag_threshold(config),
         max_new_tokens=config.max_new_tokens,
         steps=list(config.steps) or None,
         extra_rules=extra_rules,
@@ -742,6 +755,106 @@ def _maybe_autofix(
         token=args.github_token, comment_marker=args.marker,
     )
     _maybe_open_auto_fix_pr(gh, args, result)
+
+
+# The PR summary is best-effort, but the comment is worth a few quick
+# retries: a transient backend hiccup (a 5xx, a dropped connection, an
+# empty reply while the GPU was momentarily contended by an overlapping
+# run) otherwise drops the summary silently for the whole push.
+_PR_SUMMARY_ATTEMPTS = 3
+_PR_SUMMARY_RETRY_BACKOFF_SECONDS = 5.0
+
+
+def _generate_summary_text(
+    backend: object, prompt: str, max_new_tokens: int
+) -> str:
+    """Generate + clean the summary, retrying transient backend failures.
+
+    Returns the cleaned text, or '' when every attempt fails or yields
+    nothing. Retries cover fast failures (network error, 5xx, an empty
+    reply); a full-length timeout still consumes its attempt, but the loop
+    makes its remaining tries within the calling step's own time budget.
+    """
+    for attempt in range(1, _PR_SUMMARY_ATTEMPTS + 1):
+        try:
+            text = pr_summary.clean_summary(
+                backend.generate(prompt, max_new_tokens)
+            )
+        except Exception as exc:  # noqa: BLE001 — retry any transient failure
+            log.warning(
+                "PR summary generate attempt %d/%d failed: %s",
+                attempt, _PR_SUMMARY_ATTEMPTS, exc,
+            )
+            text = ""
+        if text:
+            return text
+        if attempt < _PR_SUMMARY_ATTEMPTS:
+            time.sleep(_PR_SUMMARY_RETRY_BACKOFF_SECONDS)
+    log.warning(
+        "PR summary produced no text after %d attempts", _PR_SUMMARY_ATTEMPTS
+    )
+    return ""
+
+
+def _generate_pr_summary_body(args: argparse.Namespace, adapter: object) -> str:
+    """Build the marker-tagged PR-summary comment body, or '' to skip."""
+    diff = adapter.fetch_diff()
+    if not diff.strip():
+        log.warning("Empty diff — skipping PR summary")
+        return ""
+    if getattr(args, "redact_secrets", False):
+        from prthinker.redaction import redact
+        diff, _ = redact(diff)
+    title, body = adapter.fetch_pr_meta()
+    commit_messages = tuple(adapter.fetch_commit_messages())
+    config = _build_config(args)
+    backend = create_backend(config)
+    try:
+        prompt = pr_summary.build_prompt(
+            diff_text=diff, title=title, body=body,
+            commit_messages=commit_messages,
+        )
+        text = _generate_summary_text(backend, prompt, config.max_new_tokens)
+    finally:
+        backend.close()
+    if not text:
+        return ""
+    return pr_summary.render_comment(text, marker=pr_summary.DEFAULT_MARKER)
+
+
+def _cmd_pr_summary(args: argparse.Namespace) -> int:
+    """Generate the Copilot-style PR summary and upsert it as its own comment.
+
+    Runs as a standalone pre-review step (e.g. the enumerate job) so the
+    summary lands before the slower per-file review starts. Best-effort: a
+    backend or network failure logs a warning and returns 0 so it never
+    blocks the review matrix.
+    """
+    from prthinker.platforms import PlatformKind, create_platform_adapter
+
+    _validate_pr_args(args)
+    adapter = create_platform_adapter(
+        PlatformKind(args.platform),
+        repo=args.repo,
+        token=args.github_token,
+        pr_number=args.pr_number,
+        comment_marker=args.marker,
+        base_url=args.platform_base_url,
+    )
+    try:
+        body = _generate_pr_summary_body(args, adapter)
+    except Exception as exc:  # noqa: BLE001 — summary must never block the matrix
+        log.warning("PR summary generation failed (%s); skipping", exc)
+        return 0
+    if not body:
+        log.info("No PR summary produced; nothing to post")
+        return 0
+    if args.dry_run:
+        sys.stdout.write(body)
+        return 0
+    adapter.upsert_marked_comment(body, marker=pr_summary.DEFAULT_MARKER)
+    log.info("Posted PR summary comment")
+    return 0
 
 
 def _publish_review_result(

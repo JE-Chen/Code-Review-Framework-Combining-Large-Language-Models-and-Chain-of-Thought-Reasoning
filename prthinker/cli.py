@@ -45,7 +45,12 @@ from prthinker.cli_commands import (
 )
 from prthinker.cli_parser import _apply_repo_defaults, _build_parser
 from prthinker.plugins import load_plugin_steps
-from prthinker.cli_review import _build_config, _cmd_review_file, _cmd_review_pr
+from prthinker.cli_review import (
+    _build_config,
+    _cmd_pr_summary,
+    _cmd_review_file,
+    _cmd_review_pr,
+)
 from prthinker.cli_triage import _cmd_triage
 
 log = logging.getLogger("prthinker")
@@ -54,6 +59,7 @@ log = logging.getLogger("prthinker")
 _COMMAND_HANDLERS: dict[str, Callable[[argparse.Namespace], int]] = {
     "review-file": _cmd_review_file,
     "review-pr": _cmd_review_pr,
+    "pr-summary": _cmd_pr_summary,
     "aggregate": _cmd_aggregate,
     "post-status": _cmd_post_status,
     "stats": _cmd_stats,

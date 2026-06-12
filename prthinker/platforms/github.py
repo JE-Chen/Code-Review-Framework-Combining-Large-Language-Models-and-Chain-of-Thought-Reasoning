@@ -105,6 +105,17 @@ class GitHubAdapter(PlatformAdapter):
     def upsert_summary_comments(self, bodies: list[str]) -> list[int]:
         return upsert_pr_comments(self._gh(), bodies)
 
+    def upsert_marked_comment(self, body: str, *, marker: str) -> int:
+        # A distinct marker means a distinct comment: upsert keys off the
+        # config's comment_marker, so swap it in for this one call.
+        cfg = GitHubConfig(
+            repo=self.repo,
+            pr_number=self.pr_number,
+            token=self.token,
+            comment_marker=marker,
+        )
+        return upsert_pr_comment(cfg, body)
+
     def submit_inline_review(
         self,
         findings: list[InlineFinding],

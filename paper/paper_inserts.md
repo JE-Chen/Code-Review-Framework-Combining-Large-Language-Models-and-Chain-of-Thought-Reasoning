@@ -711,6 +711,35 @@
 > 而未執行則 PR 永遠卡住。本子項屬部署層工程貢獻；其於真實 PR
 > 上每輪 review 之被預過濾 finding 數中位數本論文未予評估。
 >
+> (q) **審查前 Copilot 式 PR 摘要 stage**：§3.7.14 (g) 之 Overall
+> Summary 於 aggregate 階段合成且僅摘要 review 之\ *發現*\ ；本子項另
+> 於 `enumerate` job 以獨立之 `pr-summary` 子指令，於逐檔審查\ *開始
+> 前*\ 讀取 PR 標題、描述與 commit 訊息並對照 diff，要求模型核對「作
+> 者所寫」與「diff 所做」之落差，輸出 `### Overview` / `### Key
+> changes` / `### Areas to review` / `### Notes` 之 GitHub-flavoured
+> Markdown，並以專屬 marker `<!-- prthinker:pr-summary -->` upsert 一
+> 則獨立於 review summary 之留言。生成走注入之 backend 並對短暫故障
+> （5xx、連線中斷、空回應）重試，持續失敗則 exit 0 不阻擋 matrix。本
+> 子項屬部署層工程貢獻；其對 reviewer 於審查前之定向時間與留言被閱讀
+> 率之影響本論文未予評估。
+>
+> (r) **推論伺服器端之 GPU 序列化鎖與 per-PR 取代**：CI 並發策略由
+> repo 全域序列（`cancel-in-progress: false`）改為 per-PR group +
+> `cancel-in-progress: true`，使同一 PR 之新 commit 取代其自身仍在跑
+> 之 run。為使此改動不致令不同 PR 之審查並行而於單 GPU 上觸發 OOM，跨
+> PR 之 GPU 安全改於\ *伺服器端*\ 保證：本機後端之每次 `model.generate`
+> 以一道 process 級全域鎖（`prthinker.gpu_lock`）序列化，並發請求於 GPU
+> 上排隊而非同時跑兩個 forward pass。本子項屬部署層工程貢獻；其對跨 PR
+> 佇列等待時間與 OOM 發生率之量化效益本論文未予評估。
+>
+> (s) **下游採用範本與 runner 自帶安裝**：為使框架可於不 vendoring 原
+> 始碼之他倉庫採用，提供 `examples/prthinker.downstream.yml` 範本──以
+> `pip install "prthinker[runner] @ git+…"` 自 git 安裝 runner（其
+> `[runner]` extra 僅 httpx + pydantic + PyYAML，不拉入 torch / faiss），
+> 並文件化「自架 FastAPI 伺服器」與「託管 LLM（OpenAI / Anthropic 相
+> 容）」兩種後端模式。本子項屬部署層工程貢獻；其對下游採用成本之量化評
+> 估本論文未予評估。
+>
 > 本機制屬部署層設計貢獻，其對端到端 PR 流量之穩定性、wall-clock
 > 改善、reviewer 對重複留言之認知負擔等量化評估本論文未予進行，
 > 列為 §6.4.5 之未來工作。
@@ -1239,7 +1268,7 @@
 - [ ] 新增之子章節（§3.5.1–4、§3.6.1–2、**§3.7.1–23**、§5.3.1–3、
       §6.4.1–5）在 docx 內已以加粗 + 略大字級之段落呈現，不僅以段落
       換行示意。子節編號：§3.7.1–§3.7.13 為原 13 項機制、§3.7.14 為
-      部署層含 (a)–(p)、§3.7.15–§3.7.18 為 v3.1 新增之四項機制、§3.7.19
+      部署層含 (a)–(s)、§3.7.15–§3.7.18 為 v3.1 新增之四項機制、§3.7.19
       為 v3.2 新增之可觀測層工程（部署層，不計入十七項研究級機制）、
       §3.7.20 為 v3.3 新增之可操作性與輸出整合（已實作 + 測試）、§3.7.21
       為僅設計未實作之機制骨架、§3.7.22 為 v3.4 新增之審查導覽／分流輔助、

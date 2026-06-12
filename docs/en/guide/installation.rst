@@ -55,9 +55,14 @@ GPU notes
 Embedding model
 ---------------
 
-The RAG retriever uses ``Qwen/Qwen3-Embedding-4B`` (~ 8 GB VRAM). On CI
-runners you should leave the embedding model off and use the remote ``/rag``
-endpoint instead — see :doc:`../concepts/rag-and-rules`.
+The local RAG retriever defaults to ``google/embeddinggemma-300m`` (a
+gated Hugging Face repo — accept the license once and set ``HF_TOKEN``),
+loaded through sentence-transformers, with a calibrated cosine threshold
+of 0.32. Set ``EMB_MODEL=Qwen/Qwen3-Embedding-4B`` (~ 8 GB VRAM,
+threshold 0.7) to reproduce the legacy index; the bundled inference
+server pins this legacy model itself. On CI runners you should leave the
+embedding model off and use the remote ``/rag`` endpoint instead — see
+:doc:`../concepts/rag-and-rules`.
 
 Verifying the install
 ---------------------

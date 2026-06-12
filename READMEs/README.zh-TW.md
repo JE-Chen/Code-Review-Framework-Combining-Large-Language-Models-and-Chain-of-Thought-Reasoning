@@ -39,6 +39,11 @@
   結構化 JSON。
 - **逐檔 inline review**，搭配 GitHub `suggestion` 區塊，PR 作者點一下即可
   套用。
+- **Copilot 式 PR 摘要**──審查前的 `prthinker pr-summary` 階段讀取 PR
+  標題、描述與 commit 訊息並對照 diff，upsert 一則專屬、自動更新的留言
+  （`### Overview` / `### Key changes` / `### Areas to review` /
+  `### Notes`），核對作者「所寫」與 diff「所做」是否一致；由 `enumerate`
+  job 在較慢的逐檔審查開始前貼出，讓 reviewer 立刻有概覽。
 - **全域規則 + 各 repo 規則包**：透過 `--rules-dir` 把團隊自訂的 markdown
   規則加進 prompt。
 - **兩份學習語料**：`dismissed.jsonl`（用相似度過濾掉重複命中）、
@@ -203,11 +208,17 @@ monitoring overlay 把所有東西依路徑收在 host `:9000` 之下——`/gra
 
 workflow 在 `pull_request` opened / synchronize / reopened 時觸發，
 跑三個 job：`enumerate` 列出 files（依 `PRTHINKER_EXCLUDE_GLOBS` 過濾
-noise），`review` 是個 matrix──每個 file 各自一個 runner + 60 分鐘
-timeout，`aggregate` 合所有 partial JSON 為單一 summary comment +
-一個 inline review + 開關 gate 各一次。Runner ↔ server 走
-`POST /review/submit` + `GET /review/result/{id}` 輪詢，所以即使
-反向 proxy 有短 idle timeout（如 Cloudflare 100 秒）也不會撞牆。
+noise）並貼出 Copilot 式 pre-review PR 摘要，`review` 是個 matrix──每個
+file 各自一個 runner + 60 分鐘 timeout，`aggregate` 合所有 partial JSON
+為單一 summary comment + 一個 inline review + 開關 gate 各一次。
+Runner ↔ server 走 `POST /review/submit` + `GET /review/result/{id}`
+輪詢，所以即使反向 proxy 有短 idle timeout（如 Cloudflare 100 秒）也不會
+撞牆。
+
+新 commit 會取代該 PR 自己仍在跑的 run：workflow 以 PR 為單位分組
+concurrency 並設 `cancel-in-progress: true`，re-push 會丟棄過時的審查而
+非把它跑完。跨 PR 的 GPU 安全改由**伺服器端**保證──每次 `model.generate`
+都在一道 process 級全域鎖下執行，兩個 PR 同時審查時於 GPU 上排隊而非 OOM。
 
 Workflow 被取消時不會繼續燒 GPU──runner 離開前會 post
 `POST /review/cancel/{id}`\ ；backend 的 idle sweeper 也會把 180 秒

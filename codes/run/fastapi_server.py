@@ -53,6 +53,14 @@ from prthinker.schemas import (
 log = logging.getLogger("prthinker.server")
 
 RUN_ON = "Qwen/Qwen3-Coder-30B-A3B-Instruct"
+
+# This server is the qwen-era deployment: keep its original embedding
+# index (Qwen3-Embedding-4B @ 0.7) unless the operator overrides
+# EMB_MODEL. faiss_util loads lazily at retriever construction below, so
+# this setdefault still wins. New local-Gemma deployments default to
+# EmbeddingGemma instead (READMEs/local_gemma_deployment.md).
+os.environ.setdefault("EMB_MODEL", "Qwen/Qwen3-Embedding-4B")
+
 _LORA_BY_MODEL: dict[str, str] = {
     "Qwen/Qwen3-1.7B": "../train/outputs-lora-qwen3-1.7b",
     "Qwen/Qwen2.5-Coder-7B-Instruct": "../train/outputs-lora-qwen2.5-coder-7b",

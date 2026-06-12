@@ -102,6 +102,21 @@ class PlatformAdapter(ABC):
         body must already contain it.
         """
 
+    def upsert_marked_comment(self, body: str, *, marker: str) -> int:  # pylint: disable=unused-argument  # no-op default; overrides consume body
+        """Create-or-update a secondary PR comment keyed by ``marker``.
+
+        Used for auxiliary comments that live alongside — not inside — the
+        review summary comment (e.g. the Copilot-style PR summary, which
+        gets its own marker so it can be upserted independently). Default
+        logs that the platform has no support and returns ``-1``; adapters
+        that can post a marker-tagged comment override this.
+        """
+        log.info(
+            "%s does not support auxiliary marked comments; skipping",
+            type(self).__name__,
+        )
+        return -1
+
     def upsert_summary_comments(self, bodies: list[str]) -> list[int]:
         """Create / update / reconcile one-or-more summary comment pages.
 

@@ -284,6 +284,40 @@ Env equivalents: ``PRTHINKER_AGGREGATE_FROM``\ （input dir）、
 floor）。其餘由標準 ``GITHUB_REPOSITORY``\ 、\ ``PRTHINKER_PR_NUMBER``\ 、
 ``GITHUB_TOKEN`` 涵蓋。
 
+pr-summary
+----------
+
+從 PR 標題、描述、commit 訊息與 diff 產生 Copilot 式 PR 摘要，並以專屬
+marker ``<!-- prthinker:pr-summary -->`` upsert 成一則獨立留言（與
+review summary 分開）。設計為在逐檔審查\ *之前*\ 執行──由
+:doc:`../guide/github-actions` 之 ``enumerate`` job 呼叫──讓 reviewer
+在較慢的審查進行時即有概覽。
+
+.. code-block:: text
+
+   prthinker pr-summary
+       --repo OWNER/NAME            # 或 $GITHUB_REPOSITORY
+       --pr-number N                # 或 $PRTHINKER_PR_NUMBER
+       --github-token TOKEN         # 或 $GITHUB_TOKEN
+       [--backend {local,remote,openai,anthropic}]
+       [--remote-url URL] [--remote-api-key TOKEN]
+       [--platform {github,gitlab,gitea}]
+       [--dry-run]
+
+它核對作者「所寫」（標題、body、commit 主旨）與 diff「所做」是否一致，
+並被要求點出任何落差。輸出為 GitHub-flavoured Markdown，含
+``### Overview``\ 、\ ``### Key changes``\ 、\ ``### Areas to review``
+與 ``### Notes`` 等區段。
+
+設計上為 best-effort：生成走注入之 backend，遇短暫故障（5xx、連線中
+斷、空回應）會重試數次；持續失敗則 log warning 並 exit 0，使不穩定之
+backend 永不阻擋 review matrix。``--dry-run`` 將渲染後之留言印至 stdout
+而不貼出。
+
+Env equivalents：``PRTHINKER_BACKEND``\ / ``PRTHINKER_REMOTE_URL``\ /
+``PRTHINKER_REMOTE_API_KEY`` 選擇 backend；``GITHUB_REPOSITORY``\ 、
+``PRTHINKER_PR_NUMBER``\ 、\ ``GITHUB_TOKEN`` 涵蓋目標。
+
 harvest-dismissed
 -----------------
 

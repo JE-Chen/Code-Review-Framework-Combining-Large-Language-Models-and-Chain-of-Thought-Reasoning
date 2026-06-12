@@ -59,8 +59,12 @@ GPU 注意事项
 Embedding 模型
 --------------
 
-RAG 检索使用 ``Qwen/Qwen3-Embedding-4B``\ （约 8 GB VRAM）。CI runner 上不要
-加载它──请改用服务器端的 ``/rag`` endpoint，详见
+本机 RAG 检索默认使用 ``google/embeddinggemma-300m``\ （HF 上的 gated
+repo──需先在模型页同意授权并设置 ``HF_TOKEN``\ ），通过
+sentence-transformers 加载，校准后的 cosine 阈值为 0.32。设置
+``EMB_MODEL=Qwen/Qwen3-Embedding-4B``\ （约 8 GB VRAM，阈值 0.7）可复现
+旧版索引；随附的推理服务器本身即固定使用旧版模型。CI runner 上不要
+加载 embedding 模型──请改用服务器端的 ``/rag`` endpoint，详见
 :doc:`../concepts/rag-and-rules`。
 
 验证安装
