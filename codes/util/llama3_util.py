@@ -2,7 +2,7 @@ import datetime
 
 import torch
 import transformers
-from transformers import AutoTokenizer, pipeline
+from transformers import AutoTokenizer
 import os
 
 from codes.util.memory import get_max_memory

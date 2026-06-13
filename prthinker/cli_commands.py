@@ -9,17 +9,13 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from prthinker.telemetry import BackendStats
-
-
 from prthinker.backends import create_backend
 from prthinker.accepted import AcceptedExamplesStore
 from prthinker.checks import (
     evaluate_gate,
 )
 from prthinker.dismissed import DismissedExamplesStore
-from prthinker.formatters import format_pr_comment_pages
+from prthinker.formatters import CommentOptions, format_pr_comment_pages
 from prthinker.harvest import harvest, harvest_accepted
 from prthinker.kg_visualize import build_graph_data, render_html
 from prthinker.repo_kg import (
@@ -64,6 +60,9 @@ from prthinker.commit_review import build_prompt, parse_review
 from prthinker.pipeline import (
     ReviewResult,
 )
+
+if TYPE_CHECKING:
+    from prthinker.telemetry import BackendStats
 
 log = logging.getLogger("prthinker")
 
@@ -222,6 +221,45 @@ def _withhold_partial_review(
     return True
 
 
+def _build_aggregate_adapter(args: argparse.Namespace) -> object:
+    """Create the platform adapter for the aggregate-posting job."""
+    from prthinker.platforms import PlatformKind, create_platform_adapter
+
+    return create_platform_adapter(
+        PlatformKind(args.platform),
+        repo=args.repo,
+        token=args.github_token,
+        pr_number=args.pr_number,
+        comment_marker=args.marker,
+        base_url=args.platform_base_url,
+    )
+
+
+def _write_aggregate_artifacts(args: argparse.Namespace, merged: ReviewResult) -> None:
+    """Write every optional report artifact for the aggregated result."""
+    _maybe_write_sarif(args, merged)
+    _maybe_write_html_report(args, merged)
+    _maybe_write_codequality(args, merged)
+    _maybe_write_junit(args, merged)
+    _maybe_write_csv(args, merged)
+    _maybe_write_metrics(args, merged)
+    _maybe_write_markdown(args, merged)
+    _maybe_write_sonar(args, merged)
+    _maybe_write_report_dir(args, merged)
+    _maybe_emit_gha_annotations(args, merged)
+
+
+def _dry_run_aggregate(pages: list[str], merged: ReviewResult) -> int:
+    """Print what would be posted without touching the platform."""
+    sys.stdout.write("\n\n".join(pages))
+    if merged.inline_findings:
+        sys.stdout.write(
+            f"\n[would post {len(merged.inline_findings)} inline findings "
+            f"across {len(pages)} summary comment(s)]\n"
+        )
+    return 0
+
+
 def _cmd_aggregate(args: argparse.Namespace) -> int:
     """Merge partial review JSONs and post a single review to the PR.
 
@@ -252,17 +290,7 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
     if overall:
         merged.step_outputs["total_summary"] = overall
 
-    from prthinker.platforms import PlatformKind, create_platform_adapter
-
-    platform_kind = PlatformKind(args.platform)
-    adapter = create_platform_adapter(
-        platform_kind,
-        repo=args.repo,
-        token=args.github_token,
-        pr_number=args.pr_number,
-        comment_marker=args.marker,
-        base_url=args.platform_base_url,
-    )
+    adapter = _build_aggregate_adapter(args)
 
     if _withhold_partial_review(args, adapter, merged):
         return 0
@@ -271,40 +299,27 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
 
     _agg_delta, _agg_resolved = _review_progress(args, adapter, merged)
     pages = format_pr_comment_pages(
-        merged, marker=args.marker,
-        findings_only=getattr(args, "findings_only", False),
-        hide_info=getattr(args, "hide_info", False),
-        preliminary=_join_overview(
-            _build_preliminary_overview(args, adapter, merged),
-            _impact_note(args, merged), _agg_resolved,
+        merged, args.marker,
+        CommentOptions(
+            findings_only=getattr(args, "findings_only", False),
+            hide_info=getattr(args, "hide_info", False),
+            preliminary=_join_overview(
+                _build_preliminary_overview(args, adapter, merged),
+                _impact_note(args, merged), _agg_resolved,
+            ),
+            files_url=_pr_files_url(args),
+            delta=_agg_delta,
+            min_confidence=getattr(args, "summary_min_confidence", 0.0),
+            table=getattr(args, "summary_table", False),
+            gate=_gate_line(args, merged),
         ),
-        files_url=_pr_files_url(args),
-        delta=_agg_delta,
-        min_confidence=getattr(args, "summary_min_confidence", 0.0),
-        table=getattr(args, "summary_table", False),
-        gate=_gate_line(args, merged),
     )
     _append_report_links(args, pages)
     _append_review_footer(args, merged, pages)
     _maybe_write_job_summary(pages[0])
-    _maybe_write_sarif(args, merged)
-    _maybe_write_html_report(args, merged)
-    _maybe_write_codequality(args, merged)
-    _maybe_write_junit(args, merged)
-    _maybe_write_csv(args, merged)
-    _maybe_write_metrics(args, merged)
-    _maybe_write_markdown(args, merged)
-    _maybe_write_sonar(args, merged)
-    _maybe_write_report_dir(args, merged)
-    _maybe_emit_gha_annotations(args, merged)
+    _write_aggregate_artifacts(args, merged)
     if args.dry_run:
-        sys.stdout.write("\n\n".join(pages))
-        if merged.inline_findings:
-            sys.stdout.write(
-                f"\n[would post {len(merged.inline_findings)} inline findings "
-                f"across {len(pages)} summary comment(s)]\n"
-            )
-        return 0
+        return _dry_run_aggregate(pages, merged)
 
     comment_ids = adapter.upsert_summary_comments(pages)
     log.info("Posted %d summary comment(s): %s", len(comment_ids), comment_ids)
@@ -316,6 +331,7 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
     _maybe_update_pr_body(args, adapter, merged)
 
     return 0
+
 
 _STATUS_PLACEHOLDER = (
     "## CoT Code Review\n\n"

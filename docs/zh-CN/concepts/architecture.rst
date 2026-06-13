@@ -5,6 +5,86 @@
 每个扩展点都对应其中之一，加新 step、新 backend、新 retriever 都只是把
 代码塞进现有缝隙──不会动到 pipeline。
 
+一句话说明
+----------
+
+在谈设计模式之前，先给所有人一段话：当开发者提议一项代码变更
+（一个 *Pull Request*）时，``prthinker`` 会像一位细心的资深工程师那样
+审查它──总结这次改了什么、指出 bug 与风险点、把评论直接贴在受影响的
+行上，其中许多还附带一键「应用此修复」按钮。它记得反馈（团队拒绝过的
+评论不再重复；采纳过的建议会被当成示例重用），并且可以设成合并前的
+必需 gate。
+
+整个代码库分成**两个半边**：
+
+* 轻量的 **runner**\ （``prthinker/`` 包）负责跟 GitHub 对话、组 prompt、
+  回帖结果。它不需要 GPU──只靠 ``httpx`` 与 ``pydantic``。
+* 较重的 **AI 大脑**\ （``codes/`` 树）──语言模型本身，加上它的训练与
+  FastAPI 推理服务器。这部分需要 GPU，也可以改用 OpenAI 或 Anthropic
+  之类的付费 API 取代。
+
+仓库结构
+--------
+
+.. only:: html
+
+   .. mermaid::
+
+      graph TD
+          GHA[".github/workflows<br/>自动审查每个 PR"] --> CLI
+
+          subgraph RUNNER["prthinker/ &mdash; runner（轻量、免 GPU）"]
+              direction TB
+              CLI["CLI 与入口<br/>cli*.py"]
+              PIPE["Pipeline 与步骤<br/>pipeline.py · steps.py · findings.py"]
+              BACK["Backends &mdash; 可替换的 AI 大脑<br/>local · remote · OpenAI · Anthropic · Gemini…"]
+              PLAT["Platforms &mdash; 代码平台<br/>GitHub · GitLab · Gitea"]
+              CORP["记忆 / 语料<br/>accepted · dismissed · lessons · RAG · 知识图谱"]
+              SIG["免模型导航信号<br/>orientation · bidi · 合并标记 · 残留 debug…"]
+              EXT["研究级扩展（opt-in）<br/>personas · counterfactual · risk-score…"]
+              OUT["报告与输出<br/>Markdown · HTML · SARIF · JUnit · Sonar · CSV"]
+              SEC["安全<br/>redaction · injection guard · sandbox"]
+              CLI --> PIPE
+              PIPE --> BACK & PLAT & CORP & SIG & EXT & OUT & SEC
+          end
+
+          subgraph SERVER["codes/ &mdash; 训练与推理（重、需 GPU）"]
+              direction TB
+              FAST["FastAPI 推理服务器<br/>codes/run/fastapi_server.py"]
+              PROMPT["Prompt 模板（真实来源）<br/>codes/run/CoT_Prompts/"]
+              TRAIN["LoRA 微调<br/>codes/train/（Qwen3-Coder-30B…）"]
+              UTIL["模型 + FAISS 工具<br/>codes/util/"]
+          end
+
+          BACK -. "HTTP /review · /ask" .-> FAST
+          FAST --- PROMPT & UTIL
+          TRAIN -. "产出模型" .-> FAST
+
+.. only:: latex
+
+   .. code-block:: text
+
+      .github/workflows  ── 自动审查每个 PR，驱动 runner
+      prthinker/         ── RUNNER（轻量、免 GPU）
+        cli*.py            命令行入口
+        pipeline / steps   一步步的审查引擎
+        backends/          可替换的 AI 大脑（local · OpenAI · Anthropic · Gemini…）
+        platforms/         代码平台（GitHub · GitLab · Gitea）
+        corpora            记忆（accepted · dismissed · lessons · RAG · 知识图谱）
+        signals            免模型导航信号 + 研究级扩展
+        reports / safety   输出格式 + redaction / injection guard / sandbox
+      codes/             ── AI 大脑（重、需 GPU）
+        run/fastapi_server.py   runner 通过 HTTP 调用的推理服务器
+        run/CoT_Prompts/        prompt 模板（单一真实来源）
+        train/                  LoRA 微调（Qwen3-Coder-30B…）
+        util/                   模型加载 + FAISS 检索
+
+runner 通过两种 HTTP 形状（``/ask`` 与 ``/review``，详见下方
+`Runner 与 server 的分工`_）连到大脑。支撑用的目录落在两个半边之外：
+``docs/``（这个三语 Sphinx 站点）、``docker/``（一键自托管）、``datas/``
+（RAG 规则文档、架构图、fixtures）、``paper/``（论文与幻灯片）与
+``tests/``。
+
 设计模式总览
 ------------
 

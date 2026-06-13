@@ -12,7 +12,7 @@ no claim is made about empirical detection quality.
 
 from __future__ import annotations
 
-from prthinker.review_modes import register_mode
+from prthinker.review_modes._registry import register_mode
 
 _SEVERITY_VALUES = "info/warning/error"
 _EMPTY_ARRAY = "[]"

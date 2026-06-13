@@ -180,6 +180,22 @@ def _extract_json_array(raw_output: str) -> list | None:
     return data if isinstance(data, list) else None
 
 
+_MIN_CONFLICT_PERSONAS = 2
+
+
+def _valid_conflict_names(entry: dict, valid_names: set[str]) -> list[str] | None:
+    """Return the in-set persona names of a conflict entry, or ``None``.
+
+    ``None`` means the entry must be dropped (missing list, or fewer than
+    two recognised personas after filtering).
+    """
+    names = entry.get("personas")
+    if not isinstance(names, list) or len(names) < _MIN_CONFLICT_PERSONAS:
+        return None
+    filtered = [n for n in names if isinstance(n, str) and n in valid_names]
+    return filtered if len(filtered) >= _MIN_CONFLICT_PERSONAS else None
+
+
 def _coerce_conflict_entry(entry, valid_names: set[str]) -> PersonaConflict | None:
     """Validate one raw entry and return a :class:`PersonaConflict` or
     ``None`` if it must be dropped. Single-persona entries and entries
@@ -187,11 +203,8 @@ def _coerce_conflict_entry(entry, valid_names: set[str]) -> PersonaConflict | No
     """
     if not isinstance(entry, dict):
         return None
-    names = entry.get("personas")
-    if not isinstance(names, list) or len(names) < 2:
-        return None
-    filtered = [n for n in names if isinstance(n, str) and n in valid_names]
-    if len(filtered) < 2:
+    filtered = _valid_conflict_names(entry, valid_names)
+    if filtered is None:
         return None
     payload = dict(entry)
     payload["personas"] = filtered

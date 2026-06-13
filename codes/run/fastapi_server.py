@@ -52,7 +52,13 @@ from prthinker.schemas import (
 
 log = logging.getLogger("prthinker.server")
 
-RUN_ON = "Qwen/Qwen3-Coder-30B-A3B-Instruct"
+# PRTHINKER_MODEL_NAME selects the served model (same env the CLI's
+# local backend uses); the gemma4 compose overlay sets it to
+# google/gemma-4-31B-it. PRTHINKER_LORA_PATH overrides the adapter
+# lookup below for deploys whose adapter lives outside _LORA_BY_MODEL.
+RUN_ON = os.environ.get(
+    "PRTHINKER_MODEL_NAME", "Qwen/Qwen3-Coder-30B-A3B-Instruct"
+)
 
 # This server is the qwen-era deployment: keep its original embedding
 # index (Qwen3-Embedding-4B @ 0.7) unless the operator overrides
@@ -65,6 +71,9 @@ _LORA_BY_MODEL: dict[str, str] = {
     "Qwen/Qwen3-1.7B": "../train/outputs-lora-qwen3-1.7b",
     "Qwen/Qwen2.5-Coder-7B-Instruct": "../train/outputs-lora-qwen2.5-coder-7b",
     "Qwen/Qwen3-Coder-30B-A3B-Instruct": "/home/nknul40s/LLM_Research/codes/train/outputs-lora-qwen3-coder-30b",
+    # Dense Gemma 4 — needs transformers>=5.7 (gemma4 model_type), which
+    # the Qwen3-A3B deploy's <5 pin forbids; serve it from its own image.
+    "google/gemma-4-31B-it": "../train/outputs-qlora-gemma-4-31b-it",
 }
 _DEFAULT_LORA = "../train/outputs-lora-qwen3-30b"
 
@@ -88,7 +97,8 @@ except ImportError:
 _backend = LocalQwen3Backend(
     LocalBackendConfig(
         model_name=RUN_ON,
-        lora_path=_LORA_BY_MODEL.get(RUN_ON, _DEFAULT_LORA),
+        lora_path=os.environ.get("PRTHINKER_LORA_PATH")
+        or _LORA_BY_MODEL.get(RUN_ON, _DEFAULT_LORA),
     )
 )
 _retriever = FaissRAGRetriever(threshold=0.7)
@@ -532,5 +542,5 @@ def ask_cancel(job_id: str) -> dict[str, str | bool]:
 
 
 class _NoOpRetriever:
-    def retrieve(self, prompt: str) -> list[str]:
+    def retrieve(self, prompt: str) -> list[str]:  # pylint: disable=unused-argument  # retriever interface signature
         return []

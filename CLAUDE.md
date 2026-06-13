@@ -380,7 +380,11 @@ allocate **110 GiB** (`quant=none`). The 4.x MoE forward routes sparsely and doe
 not densify; 4.51+ carries the Qwen3-MoE architecture the model needs. Because
 `load_qwen3_model()` requests bf16 and never passes a `BitsAndBytesConfig`, the
 `<5` pin does **not** re-engage bitsandbytes 4-bit. `_verify_quant_safe()` refuses
-to boot on transformers ≥ 5 (bf16 or 4-bit), and `_probe_generation()` runs a real
+to boot on transformers ≥ 5 (bf16 or 4-bit) — **model-aware** via
+`config.model_type`: only the Qwen3-MoE types (`qwen3_moe`) are refused, an
+undetermined model_type fails closed, and dense architectures (e.g.
+`google/gemma-4-31B-it`, which *requires* transformers ≥ 5.7 and is served from
+its own image, never the Qwen pin's) pass. `_probe_generation()` runs a real
 ~4 K-token generate at boot — do **not** set `PRTHINKER_SKIP_BOOT_PROBE`, or a
 densifying build serves and OOMs on the first review. Override the guard only with
 `PRTHINKER_ALLOW_DENSIFYING_QUANT=1` once a fixed 5.x is verified.
@@ -458,6 +462,29 @@ invent benchmark numbers, RQs, comparison targets, or references. The framework-
 **code + corpora + unit tests** only — empirical claims belong in a separate evaluation
 paper that has actually run the experiments. New mechanisms get a §3.7.x design subsection
 and a matching §6.4.5 future-work skeleton; both must carry a "本論文未予評估" disclaimer.
+
+### Architecture Diagrams
+
+The draw.io architecture diagrams live under `datas/Architecture/v<MAJOR>.<MINOR>/`
+(four per version: `系統架構` / `訓練流程` / `程式碼審查流程` / `LLM-as-a-Judge流程`).
+When adding a version, restyling, or fixing diagram layout, **use the
+`architecture-diagram-author` subagent** (`.claude/agents/architecture-diagram-author.md`)
+— it encodes the house style and the routing rules. Non-negotiables it captures:
+
+- **`系統架構` MUST use the AWS icon style** (`mxgraph.aws4.resourceIcon`),
+  not plain boxes; concept clusters / hubs stay as rounded boxes.
+- The draw.io **export renderer follows edge waypoints literally and never
+  routes around obstacles** — so edges crossing boxes/text are a layout bug
+  you must hand-fix (order bands by flow, keep hub lanes clear with staggered
+  side-spokes, route long edges in the margin/gutter lanes, avoid full-width
+  boxes blocking a crossing, prefer layered adjacency over long connectors).
+- **Always verify by exporting to PNG and looking at it** (the portable
+  draw.io build via `gh release download jgraph/drawio-desktop`, then
+  `draw.io.exe -x -f png -s 2 --no-sandbox`); iterate edit → export → view
+  until no edge crosses a box. `choco`/`winget` need admin; the portable zip
+  does not.
+- Per `paper_rule.md`, never invent components; mirror only what the code
+  actually has.
 
 ### GitHub Actions / CI Resilience Patterns
 

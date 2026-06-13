@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from xml.etree import ElementTree as ET  # noqa: S405 — parsing our own output
+from xml.etree import ElementTree as ET  # noqa: S405 — parsing our own output  # nosec B405
 
 from prthinker.junit_report import to_junit_xml, write_junit
 from prthinker.pipeline import ReviewResult
@@ -20,7 +20,7 @@ def _result(findings=None, code_diff="diff") -> ReviewResult:
 
 
 def _root(xml: str):
-    return ET.fromstring(xml)  # noqa: S314 — input is our own generated XML
+    return ET.fromstring(xml)  # noqa: S314 — input is our own generated XML  # nosec B314
 
 
 def test_empty_result_is_well_formed_zero_tests():

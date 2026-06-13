@@ -221,3 +221,6 @@ cython_debug/
 # Defense slides build artifacts
 gen-paper/node_modules/
 /gen-paper/
+
+# Claude Code transient runtime state
+.claude/scheduled_tasks.lock

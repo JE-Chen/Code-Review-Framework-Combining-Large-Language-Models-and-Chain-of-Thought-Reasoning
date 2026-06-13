@@ -9,7 +9,7 @@ of truth and lives here; the mode registers itself on import.
 
 from __future__ import annotations
 
-from prthinker.review_modes import register_mode
+from prthinker.review_modes._registry import register_mode
 
 _FOCUS_CHECKLIST = (
     "- Changed or added behaviour that lacks a corresponding test.\n"

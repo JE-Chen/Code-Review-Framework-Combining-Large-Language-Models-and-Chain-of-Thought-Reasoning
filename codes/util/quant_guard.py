@@ -19,7 +19,17 @@ def major_version(version: str) -> int | None:
         return None
 
 
-def densification_risk(is_4bit: bool, transformers_version: str) -> str | None:
+# Architectures whose transformers>=5 forward densifies. Only the
+# Qwen3-A3B-style MoE is known to; dense models (gemma4, llama, dense
+# qwen3, ...) have no expert tensors to densify and pass on >=5.
+_DENSIFYING_MODEL_TYPES = frozenset({"qwen3_moe"})
+
+
+def densification_risk(
+    is_4bit: bool,
+    transformers_version: str,
+    model_type: str | None = None,
+) -> str | None:
     """Return an error message when transformers>=5 will densify the MoE, else None.
 
     transformers>=5 densifies the Qwen3-A3B MoE forward to a
@@ -30,16 +40,28 @@ def densification_risk(is_4bit: bool, transformers_version: str) -> str | None:
     is not specific to quantization. The 4.x MoE forward routes sparsely and
     is safe. An unparseable version fails open (cannot prove >=5).
     ``is_4bit`` only sharpens the message.
+
+    Model-aware: ``model_type`` (HF ``config.model_type``) scopes the rule
+    to the architectures that actually densify. A recognised dense type
+    (e.g. ``gemma4_text``) is safe on any version; an absent/empty type
+    fails CLOSED on >=5 — we cannot prove the model is not the A3B MoE,
+    and a silent pass would reintroduce the mid-review OOM.
     """
     major = major_version(transformers_version)
     if major is None or major < 5:
         return None
+    normalized = (model_type or "").strip().lower()
+    if normalized and normalized not in _DENSIFYING_MODEL_TYPES:
+        return None
     quant = "4-bit" if is_4bit else "bf16"
+    described = normalized or "unknown"
     return (
         f"transformers {transformers_version} densifies the Qwen3-A3B MoE "
         f"forward in {quant} (~48 MiB per input token, linear) and OOMs the "
-        "GPU on a multi-thousand-token review. Pin transformers<5 — the 4.x "
-        "MoE forward routes sparsely; the supported deploy loads bf16."
+        f"GPU on a multi-thousand-token review (model_type={described!r}; "
+        "an undetermined model_type fails closed). Pin transformers<5 for "
+        "Qwen3 MoE models — the 4.x MoE forward routes sparsely; the "
+        "supported deploy loads bf16."
     )
 
 

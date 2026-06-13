@@ -106,7 +106,7 @@ def convert_with_mmdc(
         if config_file.is_file():
             cmd += ["-c", str(config_file)]
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=60, shell=True, env=env,
+            cmd, capture_output=True, text=True, timeout=60, check=False, env=env,
         )
         if result.returncode != 0:
             print(f"  [ERROR] mmdc failed: {result.stderr.strip()}")
@@ -162,7 +162,7 @@ def main():
         if success:
             print(f"  OK ({out_file.stat().st_size / 1024:.1f} KB)")
         else:
-            print(f"  FAILED")
+            print("  FAILED")
 
     print("\nDone.")
 

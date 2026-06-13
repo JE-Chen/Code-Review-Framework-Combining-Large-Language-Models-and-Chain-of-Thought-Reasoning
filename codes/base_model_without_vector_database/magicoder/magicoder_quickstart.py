@@ -32,5 +32,5 @@ for i in range(10):
 
     print(result)
 
-    with open(f"magicoder_response_{i}.md", "w+") as file:
+    with open(f"magicoder_response_{i}.md", "w+", encoding="utf-8") as file:
         file.write(result)

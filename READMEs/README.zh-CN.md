@@ -12,6 +12,26 @@
 下次会被过滤掉，被采纳的建议会以示例（exemplar）的形式注入下一轮 prompt──
 并且可以作为合并前的必需状态检查。
 
+## 一句话说明（给所有人）
+
+没碰过代码也没关系，整个概念用几句话就能讲完：
+
+- **它做什么**──当开发者开出一个 Pull Request（提议的代码变更）时，
+  `prthinker` 会像一位细心的资深工程师那样审查：总结这次改了什么、指出
+  bug 与风险点、标出风格与设计问题，并把评论直接贴在受影响的行上──
+  其中许多还附带一键「应用此修复」按钮。
+- **它会学你们团队的口味**──团队拒绝过的评论，它不再重复；团队采纳过的
+  建议，下次会被当成示例重用。
+- **它能守住合并按钮**──你可以把它设成必需检查，让 Pull Request 在严重
+  问题尚未解决前无法被合并。
+- **两个半边**──轻量的 **runner** 负责跟 GitHub 对话、不需要特殊硬件；
+  较重的 **AI「大脑」**（语言模型）则跑在另一台 GPU 服务器上，或通过
+  OpenAI / Anthropic 之类的付费 API。下方 [仓库结构](#仓库结构) 的图
+  说明各部分如何衔接。
+
+可以把它想成一位随时待命、永不疲倦、记得过往反馈、并且会一步步说明推理
+过程的审查员。
+
 ## 你会得到什么
 
 - **五步 CoT pipeline**──`first_summary` → `first_code_review` → `linter` →
@@ -239,17 +259,82 @@ py -m sphinx -b html docs docs/_build/html
 
 ## 仓库结构
 
+整个 repo 分成**两个半边**：轻量的 **runner**（`prthinker/`──读取 PR、
+执行审查、回帖结果，不需要 GPU）与较重的 **训练 + 推理** 侧（`codes/`──
+在 GPU 上跑 AI 模型）。其余目录（`docs/`、`docker/`、`datas/`、`paper/`、
+`tests/`、GitHub Action）都是支撑这两者。
+
+```mermaid
+graph TD
+    GHA[".github/workflows<br/>自动审查每个 PR"] --> CLI
+
+    subgraph RUNNER["prthinker/ &mdash; runner（轻量、免 GPU）"]
+        direction TB
+        CLI["CLI 与入口<br/>cli*.py"]
+        PIPE["Pipeline 与步骤<br/>pipeline.py · steps.py · findings.py"]
+        BACK["Backends &mdash; 可替换的 AI 大脑<br/>local · remote · OpenAI · Anthropic · Gemini…"]
+        PLAT["Platforms &mdash; 代码平台<br/>GitHub · GitLab · Gitea"]
+        CORP["记忆 / 语料<br/>accepted · dismissed · lessons · RAG · 知识图谱"]
+        SIG["免模型导航信号<br/>orientation · bidi · 合并标记 · 残留 debug…"]
+        EXT["研究级扩展（opt-in）<br/>personas · counterfactual · risk-score · diff-entropy…"]
+        OUT["报告与输出<br/>Markdown · HTML · SARIF · JUnit · Sonar · CSV"]
+        SEC["安全<br/>redaction · injection guard · sandbox"]
+        CLI --> PIPE
+        PIPE --> BACK & PLAT & CORP & SIG & EXT & OUT & SEC
+    end
+
+    subgraph SERVER["codes/ &mdash; 训练与推理（重、需 GPU）"]
+        direction TB
+        FAST["FastAPI 推理服务器<br/>codes/run/fastapi_server.py"]
+        PROMPT["Prompt 模板（真实来源）<br/>codes/run/CoT_Prompts/"]
+        TRAIN["LoRA 微调<br/>codes/train/（Qwen3-Coder-30B…）"]
+        UTIL["模型 + FAISS 工具<br/>codes/util/"]
+    end
+
+    BACK -. "HTTP /review · /ask" .-> FAST
+    FAST --- PROMPT & UTIL
+    TRAIN -. "产出模型" .-> FAST
+
+    DOCS["docs/<br/>Sphinx · EN + 繁中 + 简中"]
+    DOCKER["docker/<br/>一键自托管"]
+    DATA["datas/<br/>RAG 规则 · 图表 · fixtures"]
+    PAPER["paper/<br/>论文与幻灯片"]
 ```
-prthinker/        独立 Python 包（Strategy / Factory / Registry）
-codes/run/           原本的脚本；cot.py 与 fastapi_server.py 现在会调用包
-codes/run/CoT_Prompts/  Prompt templates（单一真实来源）
-codes/train/         LoRA 微调脚本（Qwen3.1-7B、Qwen2.5-Coder-7B、Qwen3-30B、Qwen3-Coder-30B）
-codes/util/          模型加载 + FAISS 检索工具
-datas/               测试数据、RAG 规则文档
-paper/               论文 + slide build
-.github/workflows/   prthinker.yml──GHA 集成
-docs/                Sphinx 文档
+
+**逐目录说明：**
+
+```text
+Code-Review-Framework/
+├── prthinker/            # RUNNER — 读 PR、做审查、回帖结果（免 GPU）
+│   ├── cli*.py           #   命令行入口（review-pr、review-file、triage…）
+│   ├── pipeline.py       #   一步步的审查引擎 …
+│   ├── steps.py          #   … 与各个审查步骤
+│   ├── backends/         #   可替换的「AI 大脑」：本机模型、自托管服务器、OpenAI、Anthropic、Gemini…
+│   ├── platforms/        #   可替换的代码平台：GitHub、GitLab、Gitea
+│   ├── prompts/          #   随包捆绑的审查 prompt 模板（与 codes/ 保持同步）
+│   ├── review_modes/     #   聚焦审查：security、performance、PII、IaC、accessibility…
+│   ├── accepted.py       #   记忆：团队采纳过的建议（重用为示例）
+│   ├── dismissed.py      #   记忆：团队拒绝过的评论（下次过滤掉）
+│   ├── *_report.py       #   输出格式：Markdown、HTML、SARIF、JUnit、Sonar、CSV
+│   ├── redaction.py      #   安全：调用外部 API 前先擦掉密钥
+│   ├── injection_guard.py#   安全：拦截藏在 diff 里的 prompt-injection 攻击
+│   └──（orientation、personas、risk_score、counterfactual…）  # 信号 + 研究级扩展
+├── codes/                # AI 大脑 — 训练 + 推理服务器（需要 GPU）
+│   ├── run/fastapi_server.py  #   runner 调用的模型服务器
+│   ├── run/CoT_Prompts/       #   Prompt 模板（单一真实来源）
+│   ├── train/                 #   微调脚本（Qwen3-Coder-30B、Qwen3-30B、Qwen2.5-7B…）
+│   └── util/                  #   模型加载 + FAISS 检索
+├── docs/                 # 本文档（英文 + 繁体中文 + 简体中文），以 Sphinx 构建
+├── docker/               # 一键自托管（base + 可选 TLS + 监控）
+├── datas/                # RAG 规则文档、架构图、测试 fixtures
+├── paper/                # 学术论文与幻灯片
+├── tests/                # 自动化测试
+└── .github/workflows/    # 自动审查每个 PR 的 GitHub Action
 ```
+
+设计模式视角（Strategy / Factory / Registry / Repository）与运行期数据流
+图，请见 [`READMEs/architecture.md`](architecture.md) 与
+[`docs/zh-CN/concepts/architecture.rst`](../docs/zh-CN/concepts/architecture.rst)。
 
 ## 引用
 

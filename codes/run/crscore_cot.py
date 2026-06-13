@@ -24,36 +24,40 @@ match RUN_ON:
             lora_path="../train/outputs-lora-qwen3-30b")
 
 
+def _read_inputs(folder_path: Path) -> tuple[str | None, str | None]:
+    results: dict[str, str | None] = {
+        "code_smell_result.md": None,
+        "linter_result.md": None,
+    }
+    for file_path in folder_path.iterdir():
+        if file_path.is_file() and file_path.name in results:
+            with open(file_path, "r", encoding="utf-8") as f:
+                results[file_path.name] = f.read()
+    return results["code_smell_result.md"], results["linter_result.md"]
+
+
+def _process_folder(folder_path: Path) -> None:
+    code_smell_result, linter_result = _read_inputs(folder_path)
+    step_by_step_analysis = STEP_BY_STEP_ANALYSIS_TEMPLATE.format(
+        linter_result=linter_result,
+        code_smell_result=code_smell_result
+    )
+    step_by_step_analysis_result = qwen3_ask(
+        step_by_step_analysis, gen_tokenizer, gen_model, max_new_tokens=32768)[0]
+    with open(str(Path(str(folder_path) + "/" + "step_by_step_analysis_result.md")), "w",
+              encoding="utf-8") as f:
+        f.write(step_by_step_analysis_result)
+    print(
+        f"Folder: {folder_path.absolute()}'s step_by_step_analysis_result "
+        f"generation done {datetime.datetime.now()}"
+    )
+
+
 def list_and_ask_qwen(root_folder: str):
     root_path = Path(root_folder)
     for folder_path in root_path.rglob("*"):
-        if "cot" in folder_path.name:
-            if folder_path.is_dir():
-                code_smell_result = None
-                linter_result = None
-                for file_path in folder_path.iterdir():
-                    if file_path.is_file() and file_path.name in (
-                            "code_smell_result.md", "linter_result.md"
-                    ):
-                        if file_path.name == "code_smell_result.md":
-                            with open(file_path, "r", encoding="utf-8") as f:
-                                code_smell_result = f.read()
-                        if file_path.name == "linter_result.md":
-                            with open(file_path, "r", encoding="utf-8") as f:
-                                linter_result = f.read()
-                step_by_step_analysis = STEP_BY_STEP_ANALYSIS_TEMPLATE.format(
-                    linter_result=linter_result,
-                    code_smell_result=code_smell_result
-                )
-                step_by_step_analysis_result = qwen3_ask(
-                    step_by_step_analysis, gen_tokenizer, gen_model, max_new_tokens=32768)[0]
-                with open(str(Path(str(folder_path) + "/" + "step_by_step_analysis_result.md")), "w",
-                          encoding="utf-8") as f:
-                    f.write(step_by_step_analysis_result)
-                print(
-                    f"Folder: {folder_path.absolute()}'s step_by_step_analysis_result "
-                    f"generation done {datetime.datetime.now()}"
-                )
+        if "cot" in folder_path.name and folder_path.is_dir():
+            _process_folder(folder_path)
 
 
 if __name__ == "__main__":

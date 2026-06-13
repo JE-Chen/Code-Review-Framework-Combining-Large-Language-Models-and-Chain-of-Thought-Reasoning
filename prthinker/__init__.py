@@ -9,7 +9,12 @@ Public API:
 """
 
 from prthinker.config import BackendKind, Config
-from prthinker.pipeline import CoTPipeline, ReviewContext, ReviewResult
+from prthinker.pipeline import (
+    CoTPipeline,
+    PerFileReviewOptions,
+    ReviewContext,
+    ReviewResult,
+)
 from prthinker.steps import ReviewStep, register_step
 from prthinker.backends import create_backend
 
@@ -17,6 +22,7 @@ __all__ = [
     "BackendKind",
     "Config",
     "CoTPipeline",
+    "PerFileReviewOptions",
     "ReviewContext",
     "ReviewResult",
     "ReviewStep",

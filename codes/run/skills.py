@@ -76,6 +76,7 @@ def ai_response(code_for_review: str, code_file_path: Path, folder_prefix_name: 
     with open(str(Path(str(folder_path) + "/" + "code_review.md")), "w", encoding="utf-8") as f:
         f.write(result)
 
+
 if __name__ == "__main__":
 
     copilot_bad_data_file_path_list = [f for f in

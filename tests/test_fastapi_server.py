@@ -60,6 +60,9 @@ def server_module():
         _install_fake_module(
             "codes.util.faiss_util",
             search_docs=lambda *a, **k: [],
+            # rag.py resolves threshold=None to this calibrated default;
+            # the server passes an explicit 0.7 so the value is inert here.
+            RECOMMENDED_THRESHOLD=0.7,
         ),
     ]
     orig_thread_start = threading.Thread.start

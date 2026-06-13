@@ -107,6 +107,7 @@ else:
         return get_embedding(text)
 
 
+
 # =========================
 # Build FAISS index
 # =========================

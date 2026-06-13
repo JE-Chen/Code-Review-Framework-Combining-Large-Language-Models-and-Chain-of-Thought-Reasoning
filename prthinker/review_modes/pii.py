@@ -8,7 +8,7 @@ supplied unified diff. The prompt is the source of truth and lives here.
 
 from __future__ import annotations
 
-from prthinker.review_modes import register_mode
+from prthinker.review_modes._registry import register_mode
 
 SEVERITY_LEVELS = "info/warning/error"
 EMPTY_ARRAY = "[]"

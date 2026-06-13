@@ -51,6 +51,29 @@ rule index (`codes/util/faiss_util.py`); `EMB_MODEL` overrides it, e.g.
 - GPU arch is sm_121 (Blackwell) on aarch64: use NGC PyTorch base images
   (`nvcr.io/nvidia/pytorch:25.09-py3` or newer), not pypi torch wheels.
 
+## Inference server (FastAPI)
+
+```bash
+cd docker
+export HF_TOKEN=...   # EmbeddingGemma is a gated HF repo
+docker compose -f docker-compose.server-gemma4.yml up -d --build
+docker logs -f gemma4-server       # boot ≈ 10 min (bf16 load + LoRA
+                                   # + boot probe + FAISS index)
+curl http://localhost:9000/healthz
+```
+
+- Serves `google/gemma-4-31B-it` + the local LoRA
+  (`codes/train/outputs-lora-gemma4-31b`) through
+  `codes/run/fastapi_server.py` (`/ask`, `/rag`, `/review`, async jobs).
+- `PRTHINKER_MODEL_NAME` / `PRTHINKER_LORA_PATH` select the model and
+  adapter; the compose file pins the policy defaults.
+- RAG uses the EmbeddingGemma index. Remote callers must send
+  `rag_threshold: 0.32` explicitly — the wire default (0.7) is the
+  qwen-era index's cutoff and retrieves nothing here.
+- The image strips NGC's bundled flash-attn: gemma-4-31B's head_dim
+  exceeds flash-attn's 256 limit, so attention must dispatch to SDPA;
+  with flash-attn present the auto-probe picks it and the load fails.
+
 ## Training (LoRA fine-tune)
 
 ```bash
