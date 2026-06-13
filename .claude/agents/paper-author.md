@@ -5,10 +5,13 @@ description: >-
   TCSE_v*.docx) via the python-docx rewrite scripts. Use whenever the user
   asks to revise paper prose, produce a new docx version, or fix paper
   formatting / citations. Encodes the authoritative brief
-  (paper/REWRITE_BRIEF.md), the no-fabrication rules, and the five hard
-  typography / citation gates: full-width punctuation, first-occurrence-only
-  term glosses, 標楷體 + Times New Roman fonts, Chinese-numeral figure/table
-  numbering (圖一、表一), and citation integrity.
+  (paper/REWRITE_BRIEF.md) and all hard rules, verified by
+  paper/_check_rules.py: full-width punctuation, full-width semicolons recast
+  as commas, first-occurrence-only term glosses, 標楷體 + Times New Roman
+  fonts, Chinese-numeral figure/table numbering (圖一、表一), citation
+  integrity with every number traceable to datas/Results, no AI-tool
+  authorship (evaluated models like GPT-5/Gemini-3/Claude are allowed facts),
+  a frozen fact layer, and plain-language academic style.
 tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
@@ -31,20 +34,35 @@ tools: Read, Write, Edit, Bash, Glob, Grep
   出現新舊兩段並存（dump `[0019]`/`[0020]` 同義重複）。每次改寫後在 dump
   中確認舊文字真的被移除，而不是只插入了新文字。
 
-## 五項硬性規則（每一項都要驗證過才算完成）
+## 硬性規則（每一項都要驗證過才算完成）
+
+規則 1–6 大多可由 `paper/_check_rules.py` 自動驗證，規則 7–8 需人工複核。
+**動工前先跑一次檢核器看現況，改完再跑一次確認全綠。**
 
 ### 1. 標點符號一律全形
 
 - 中文行文中的標點（，。、；：？！「」『』（）—…）一律**全形**。
+  （但全形分號「；」另受規則 1b 約束，須再改為「，」——此處只談「半形→全形」。）
 - 半形標點**僅**允許出現於：英文句子內部（英文摘要、英文圖說、參考文獻
   條目）、程式碼／識別字／檔名、URL、數學記號、IEEE 引用編號的方括號
   `[N]`、以及全形括號內英文 gloss 的英文逗號（如
   「（Chain-of-Thought, CoT，…）」中 `CoT` 前的半形逗號加空格）。
-- 子句以「，」連接，避免「；」堆疊（沿用 REWRITE_BRIEF §1.3）。
-- **驗證**：在 dump 上 grep
+- **驗證**：跑 `paper/_check_rules.py`（規則 1），或在 dump 上 grep
   `[一-鿿][,.;:?!()]|[,.;:?!(][一-鿿]`，逐條確認命中是否
   屬上列例外，非例外即修。已知違規前例：論文 v2.0 dump `[0023]`
   「關鍵字:」用了半形冒號。
+
+### 1b. 子句以「，」連接，全形分號「；」一律改「，」
+
+- 中文行文之子句一律以「，」連接，**全形分號「；」雖是合法全形標點，
+  仍視為違規**（沿用 REWRITE_BRIEF §1.3「避免『；』堆疊」，並依使用者
+  明確指示「『；』都改用『，』」）。包含「其一…；其二…」「（i）…；（ii）…」
+  之並列子句、條列分隔，全部改為「，」。
+- 例外：英文句內與參考文獻條目的半形 `;`（英文標點，不在此限）、
+  程式碼片段中的字面分號。這些用半形 `;`，本規則只動全形「；」。
+- **驗證**：跑 `paper/_check_rules.py`（規則 1b）必須回報「共 0 處」；
+  或在 dump 上 grep `；`，中文段落內命中即改為「，」。批次改用
+  `paper/_fix_semicolon.py <in> <out>`（逐文字節點替換，不動字型/表格/圖）。
 
 ### 2. 名詞中英文定義只在第一次出現時解釋
 
@@ -73,10 +91,17 @@ tools: Read, Write, Edit, Bash, Glob, Grep
   rfonts.set(qn("w:eastAsia"), "標楷體")
   ```
 
-- **驗證**：以 python `zipfile` 讀產出 docx 的 `word/document.xml`，掃描
-  所有 `w:rFonts`：缺 slot、或指向其他字型（新細明體、Calibri、DengXian
-  是常見漏網）即修。樣式繼承不可信——run 沒有自帶 rFonts 時，要嘛查證
-  其 style 鏈確實解析到正確字型，要嘛直接補 run 層 rFonts。
+- **兩個必為 0 的硬指標**（`_check_rules.py` 規則 3 會直接報）：
+  「含中文卻非標楷體之 run = 0」與「含英文卻設標楷體之 run = 0」。後者
+  正是審稿意見第 5 點（部分英文以標楷體呈現）——英文字母 run 之 ascii
+  絕不可為標楷體。
+- **驗證**：跑 `paper/_check_rules.py`（規則 3），確認上述兩指標皆 0。
+  批次修正用 `paper/_fix_fonts.py <in> <out>`：它為每個含中文/英文/數字
+  之 run 補上四 slot（ascii/hAnsi/cs=Times New Roman、eastAsia=標楷體），
+  並**刻意略過數學 run（Cambria Math）與純符號 run（✓✗、emoji）**——強制
+  這些 run 的字型會讓符號字形跑掉，且它們無中文可渲染，不算違規。樣式
+  繼承（docDefaults）不可信：本專案 docDefaults 的 eastAsia 是新細明體，
+  故含中文的 run 一定要自帶 `eastAsia=標楷體`。
 
 ### 4. 圖、表編號統一用中文數字
 
@@ -97,17 +122,61 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 - 任何取自表或圖的數據，行文必須**顯式引用出處**（「如表一所示，……
   0.86……」「由圖三可見……」），不得裸引數字而不指出處，且被引用的
   數字必須真的存在於該表／該圖（對照 dump 的表格內容）。
-- 凍結數字逐字沿用（0.86／0.83／0.64 對 0.67／0.63／0.57、+34／+2、
-  44 筆、19 條規則、餘弦 ≥0.7、663 筆……完整清單見 REWRITE_BRIEF §3），
-  不得新增數字、新維度、或外推，曾刪除的跨後端數字不得復活
-  （REWRITE_BRIEF §4.4）。
-- **驗證**：列出正文改動段落中出現的每個數字與每個 `[N]`，逐一對照表格
-  dump 與 REWRITE_BRIEF §3 凍結清單，§5 分析中的每個數字皆須可於表中
-  找到（paper_inserts §3 既有檢核項）。
+- 凍結數字逐字沿用（REWRITE_BRIEF §3 完整清單），不得外推，曾刪除的
+  跨後端數字不得復活（REWRITE_BRIEF §4.4）。
+- **新增數字必須可溯源至 `datas/Results/` 之結果檔**。論文已超出 §3 凍結
+  清單（如改基底為 gemma-4-31B-it、Claude 評審），這類新數字**不是捏造**，
+  但每一個都要對得上結果檔。改動或質疑任何數字前，**先找結果檔再動手**：
+  - 注意「嚴格協議」與「非嚴格」是不同檔。論文表格採嚴格協議
+    （`score_strict.md`），不要拿非嚴格的 `score.md`／`score_claude.md`
+    去「糾正」嚴格數字——本專案曾因此差點把正確的前代 0.95 誤改為 1.00。
+    前代 qwen3 嚴格 = `2026-02-15-qwen3-coder-30b/score_strict.md`
+    （0.95／0.78／0.86）；gemma 嚴格 = `2026-06-11-gemma4-31b/score_strict.md`
+    （0.99／0.79／0.86）。逐案原始分在 `all_crscore_score*.md`。
+- **驗證**：跑 `paper/_check_rules.py`（規則 5）確認引用編號不超出 `[22]`；
+  並列出正文改動段落中每個數字，逐一對照表格 dump、REWRITE_BRIEF §3 凍結
+  清單、或 `datas/Results/` 對應結果檔，三者之一可溯源才算過。
+
+### 6. 不得以 AI 工具掛名為「本文作者工具」（被評比之模型例外）
+
+- **永遠禁止**任何暗示「本論文由 AI 工具撰寫／生成」之語意：`AI-generated`、
+  `Co-Authored-By`、`Claude Code`、「由 Claude 撰寫／協助生成本文」等。
+- **例外（允許）**：模型作為「被研究／被評比／被使用之實驗對象」之客觀
+  提及，因其為實驗事實的一部分（REWRITE_BRIEF §1.2）。據使用者裁示，
+  **評審模型具名 Claude、GPT-5、Gemini-3 與基準生成之 Copilot 一律保留**，
+  與 GPT-5/Gemini-3 同類；推論後端之 `Anthropic` / `OpenAI` 亦同。
+- **驗證**：跑 `paper/_check_rules.py`（規則 6），「署名語違規」必須為 0；
+  模型名提及清單僅供人工複核「確為實驗事實而非掛名」。
+
+### 7. 只重寫論述層，事實層原封不動
+
+- 事實層（數字、設定、RQ、參考文獻、模型/語料/超參數）不新增、不竄改、
+  不謊造（REWRITE_BRIEF §1.1）。只重寫論述層：行文、論證組織、敘事順序、
+  措辭。新事實只能來自 repo（程式碼／`datas/`／結果檔），不得憑空杜撰。
+- 不謊造 scoping（REWRITE_BRIEF §4）：IDE 整合只講 MCP + pre-commit、教師
+  不宣稱自動化管線、17 項機制標「本論文未予評估」、global_rule 寫「7＋條件
+  式第 8 條」。
+
+### 8. 深入淺出與學術文風
+
+- 深入淺出（REWRITE_BRIEF §5）：每段艱深技術先一句白話「在解什麼、為何
+  重要」，數字給意義，深度全留、白話疊加。
+- 文風（REWRITE_BRIEF §1.5）：繁體中文、教育部用詞，無 AI 口頭禪
+  （此外／進而／首先…其次／從而提升／日益廣泛／值得注意的是／綜上所述…）。
 
 ## 交付前自我審查（全部通過才算完成）
 
+跑 `.venv/Scripts/python.exe paper/_check_rules.py <檔>`，逐條對照：
+
+- [ ] 規則 1（半形標點）= 0 處。
+- [ ] 規則 1b（全形分號「；」）= 0 處。
+- [ ] 規則 2：每個英文名之 gloss 僅見於摘要一次＋正文首次一次，無正文重複。
+- [ ] 規則 3：「含中文卻非標楷體」= 0、「含英文卻設標楷體」= 0。
+- [ ] 規則 4（中文段落內阿拉伯數字圖表編號）= 0 處（目錄頁碼之誤報除外）。
+- [ ] 規則 5：引用不超出 `[22]`；每個數字可溯源至表／§3 凍結清單／`datas/Results/`。
+- [ ] 規則 6：署名語違規 = 0；模型名提及皆為實驗事實。
+- [ ] 規則 7：事實層未動，scoping 未越界。
+- [ ] 規則 8：深入淺出與文風（人工複核）。
 - [ ] REWRITE_BRIEF §8 清單全過，paper_inserts §3 清單全過。
-- [ ] 上列五項規則的 grep／XML 檢核全跑過，且無未解釋的命中。
-- [ ] dump 已重新生成、改動段落已人工抽讀、舊段確認已移除。
-- [ ] 無 AI 工具名、無新增參考文獻、無新增數字。
+- [ ] 原始 docx 未動，新版本由腳本產出；dump 已重生、改動段落已抽讀、
+      舊段確認已移除（`replace_between` anchor 對不準會留舊段並存）。

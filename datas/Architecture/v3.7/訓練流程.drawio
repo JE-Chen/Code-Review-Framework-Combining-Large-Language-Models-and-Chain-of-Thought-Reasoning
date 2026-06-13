@@ -1,0 +1,39 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="訓練流程" id="v37-training-flow">
+    <mxGraphModel dx="900" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="720" pageHeight="1320" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=20;fontStyle=1;" value="Training &amp; Deployment Flow (v3.7)" vertex="1"><mxGeometry x="110" y="20" width="500" height="36" as="geometry" /></mxCell>
+
+        <mxCell id="actor" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fontSize=20;" value="Researcher" vertex="1"><mxGeometry x="70" y="95" width="50" height="90" as="geometry" /></mxCell>
+
+        <mxCell id="s1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=20;fontStyle=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Distil data from teacher LLM" vertex="1"><mxGeometry x="260" y="100" width="300" height="60" as="geometry" /></mxCell>
+        <mxCell id="s2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=20;fontStyle=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Build JSONL dataset" vertex="1"><mxGeometry x="260" y="195" width="300" height="60" as="geometry" /></mxCell>
+        <mxCell id="s3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=20;fontStyle=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Preprocess dataset" vertex="1"><mxGeometry x="260" y="290" width="300" height="60" as="geometry" /></mxCell>
+        <mxCell id="s4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=20;fontStyle=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Load base model (QLoRA)" vertex="1"><mxGeometry x="260" y="385" width="300" height="60" as="geometry" /></mxCell>
+        <mxCell id="s5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=20;fontStyle=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Attach LoRA adapter" vertex="1"><mxGeometry x="260" y="480" width="300" height="60" as="geometry" /></mxCell>
+        <mxCell id="s6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=20;fontStyle=1;fillColor=#e1d5e7;strokeColor=#9673a6;" value="Train LoRA adapter" vertex="1"><mxGeometry x="260" y="575" width="300" height="60" as="geometry" /></mxCell>
+        <mxCell id="s7" parent="1" style="rhombus;whiteSpace=wrap;html=1;fontSize=20;fontStyle=1;" value="Merge into base?" vertex="1"><mxGeometry x="290" y="670" width="240" height="120" as="geometry" /></mxCell>
+        <mxCell id="s8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=20;fontStyle=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Merge adapter into base" vertex="1"><mxGeometry x="40" y="700" width="180" height="60" as="geometry" /></mxCell>
+        <mxCell id="s9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=20;fontStyle=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Save adapter" vertex="1"><mxGeometry x="260" y="830" width="300" height="60" as="geometry" /></mxCell>
+        <mxCell id="s10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=20;fontStyle=1;fillColor=#d4edda;strokeColor=#28a745;" value="Deploy server&#10;(bf16 · dual-card)" vertex="1"><mxGeometry x="260" y="925" width="300" height="70" as="geometry" /></mxCell>
+        <mxCell id="s11" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=20;fontStyle=1;fillColor=#f8d7da;strokeColor=#dc3545;" value="Boot guards (refuse on OOM-prone config)" vertex="1"><mxGeometry x="260" y="1030" width="300" height="70" as="geometry" /></mxCell>
+
+        <mxCell id="e0" parent="1" edge="1" source="actor" target="s1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=classic;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e1" parent="1" edge="1" source="s1" target="s2" style="endArrow=classic;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" parent="1" edge="1" source="s2" target="s3" style="endArrow=classic;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" parent="1" edge="1" source="s3" target="s4" style="endArrow=classic;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" parent="1" edge="1" source="s4" target="s5" style="endArrow=classic;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5" parent="1" edge="1" source="s5" target="s6" style="endArrow=classic;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e6" parent="1" edge="1" source="s6" target="s7" style="endArrow=classic;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7yes" parent="1" edge="1" source="s7" target="s8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=classic;html=1;exitX=0;exitY=0.5;entryX=0.5;entryY=0;fontSize=20;" value="Yes"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7no" parent="1" edge="1" source="s7" target="s9" style="endArrow=classic;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;fontSize=20;" value="No"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e8" parent="1" edge="1" source="s8" target="s9" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;html=1;exitX=0.5;exitY=1;entryX=0;entryY=0.5;"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e9" parent="1" edge="1" source="s9" target="s10" style="endArrow=classic;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e10" parent="1" edge="1" source="s10" target="s11" style="endArrow=classic;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
