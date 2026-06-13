@@ -1,8 +1,10 @@
-"""Produce TCSE_v2.12.docx from TCSE_v2.11.docx (original untouched): shorten the
-§6.2 cross-model sentence to a single conclusion clause to bring the paper back
-under the 6-page limit. No number, table, or other content is changed.
-One-off helper, mirrors the underscore-prefixed paper/ scripts.
-Usage: .venv/Scripts/python.exe paper/_rewrite_tcse_v212.py"""
+"""Produce TCSE_v2.14.docx from TCSE_v2.13.docx (original untouched): trim ~200
+characters so the paper returns to 6 pages. The CRSCORE++ numbers now live only
+in 表一 and its caption note (single source); the repeated number-tuples are
+removed from the abstract, §5.2 and §6.1 prose, which reference 表一 instead, and
+the §6.2 / caption sentences are tightened. No claim or number is changed; only
+redundant repetition is cut. One-off helper, mirrors the underscore-prefixed
+paper/ scripts. Usage: .venv/Scripts/python.exe paper/_rewrite_tcse_v214.py"""
 import re
 import sys
 
@@ -10,7 +12,7 @@ from docx import Document
 from docx.oxml.ns import qn
 
 sys.stdout.reconfigure(encoding="utf-8")
-SRC, DST = "paper/TCSE_v2.11.docx", "paper/TCSE_v2.12.docx"
+SRC, DST = "paper/TCSE_v2.13.docx", "paper/TCSE_v2.14.docx"
 doc = Document(SRC)
 body = doc.element.body
 W_T, W_P, W_R, W_RPR = qn("w:t"), qn("w:p"), qn("w:r"), qn("w:rPr")
@@ -52,20 +54,41 @@ def replace_once(old, new):
     raise SystemExit(f"定點改寫未命中：{old[:40]}…")
 
 
-OLD = (
-    "另，跨模型重放已完成——框架基底現已更換為 gemma-4-31B-it 並加掛專屬 LoRA "
-    "轉接器，於同一 44 筆基準資料與同一管線端到端重放；以同一 judge（Claude）重評 "
-    "gemma 與前代學生模型之 CRSCORE++，二者三維幾乎相等（1.00／0.79／0.86 對 "
-    "1.00／0.78／0.86），先前以不同 judge 觀察到之差異主要反映評審寬鬆度而非模型"
-    "能力。本文表一至表三之數字仍保留前代學生模型配置（如表一欄名所列）之原始評分"
-    "未動，其餘維度與成本延遲之比較仍屬未來工作。"
-)
-NEW = (
-    "另，框架基底已更換為 gemma-4-31B-it 並於同一基準與管線完成重放，以同一 judge "
-    "重評之 CRSCORE++ 顯示其與前代學生模型幾乎相等，餘屬未來工作。"
-)
-replace_once(OLD, NEW)
-print("§6.2 縮短為單句結論")
+EDITS = [
+    # 摘要：移除重複之數字組，改引表一
+    ("於 CRSCORE++ 指標上，以同一 judge 評分，本框架以 gemma-4-31B-it 與前代學生"
+     "模型為基底之品質相當（1.00／0.79／0.86 對 1.00／0.78／0.86），且高於基準；"
+     "完整性因該 judge 飽和而資訊量有限。",
+     "於 CRSCORE++ 指標上，同一 judge 下本框架以 gemma-4-31B-it 與前代學生模型為"
+     "基底之品質相當（見表一），且高於基準；完整性因評審飽和而參考性有限。"),
+    # §5.2：移除重複數字組
+    ("以同一 judge（Claude）評分，本框架以 gemma-4-31B-it 與前代學生模型為基底之 "
+     "CRSCORE++ 三維度幾乎相等（1.00／0.79／0.86 對 1.00／0.78／0.86，表一），顯示"
+     "更換基座未損及審查品質；二者於簡潔性與相關性高於 CRSCORE++ 基準，惟基準為"
+     "不同 judge、完整性因評審飽和而資訊量有限。",
+     "以同一 judge（Claude）評分，本框架以 gemma-4-31B-it 與前代學生模型為基底之 "
+     "CRSCORE++ 三維度幾乎相等（表一），顯示更換基座未損及審查品質；二者於簡潔性"
+     "與相關性高於基準，惟基準為不同 judge、完整性因飽和而參考性有限。"),
+    # §6.1：移除重複數字組
+    ("於同一 judge 下，所提框架以 gemma-4-31B-it 與前代學生模型為基底之品質相當"
+     "（表一：1.00 / 0.79 / 0.86 對 1.00 / 0.78 / 0.86），並由人工評分交叉驗證。",
+     "於同一 judge 下，所提框架以 gemma-4-31B-it 與前代學生模型為基底之品質相當"
+     "（表一），並由人工評分交叉驗證。"),
+    # §6.2：精簡
+    ("另，框架基底已更換為 gemma-4-31B-it 並於同一基準與管線完成重放，以同一 judge "
+     "重評之 CRSCORE++ 顯示其與前代學生模型幾乎相等，餘屬未來工作。",
+     "另，框架基底已更換為 gemma-4-31B-it 並完成同基準重放，同 judge 重評顯示與前代"
+     "相當，餘屬未來工作。"),
+    # 表一註：精簡（完整性飽和已於摘要說明）
+    ("註：Ours 欄為 gemma-4-31B-it（judge：Claude）；同一 judge 下前代學生模型為 "
+     "1.00／0.78／0.86，二者相等；標 † 欄為不同 judge 之參考，該 judge 對完整性"
+     "普遍給滿分。",
+     "註：Ours 欄為 gemma-4-31B-it（Claude 評）；同 judge 下前代基底為 "
+     "1.00／0.78／0.86，二者相等；† 欄為不同 judge 之參考。"),
+]
+for old, new in EDITS:
+    replace_once(old, new)
+print(f"精簡改寫 {len(EDITS)} 處")
 
 # ---------- 全形標點正規化 ----------
 PUNCT_MAP = {",": "，", ";": "，", ":": "：", "?": "？", "!": "！"}
