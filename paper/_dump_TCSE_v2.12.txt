@@ -1,4 +1,4 @@
-wrote paper\_dump_TCSE_v2.10.txt (102 blocks)
+wrote paper\_dump_TCSE_v2.12.txt (102 blocks)
 思維鏈推理的程式碼審查框架
 [0001] <Normal 14.0pt> A Code Review Framework based on Large Language Models
 [0002] <Normal 14.0pt> and Chain-of-Thought Reasoning

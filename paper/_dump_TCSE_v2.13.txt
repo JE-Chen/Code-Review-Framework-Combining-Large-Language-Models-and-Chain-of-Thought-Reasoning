@@ -1,4 +1,4 @@
-wrote paper\_dump_TCSE_v2.11.txt (102 blocks)
+wrote paper\_dump_TCSE_v2.13.txt (103 blocks)
 思維鏈推理的程式碼審查框架
 [0001] <Normal 14.0pt> A Code Review Framework based on Large Language Models
 [0002] <Normal 14.0pt> and Chain-of-Thought Reasoning
@@ -59,50 +59,51 @@ wrote paper\_dump_TCSE_v2.11.txt (102 blocks)
 [0062] <Normal 10.0pt> 5.1 RQ 與表格對應
 [0063] <Normal 10.0pt> 為釐清四個研究問題與實驗結果之對應關係：表一以 CRSCORE++ 之三項自動化指標回答 RQ1（完整框架之多階段提示詞加 LoRA 微調 vs CRSCORE++ 基準）與 RQ2（相同參數規模、僅多階段提示詞之效益），藉此排除模型容量差異後分離出提示詞之單獨貢獻。表二拆解完整方法、微調加單一提示詞、未微調加多階段提示詞三種設定，兩兩之差距分別量化提示詞與微調之邊際貢獻以對應 RQ3。表三則為相同三組設定之人工評分，作為對 LLM-as-a-Judge 之交叉驗證以對應 RQ4。
 [0064] <Normal 10.0pt> 表一、CRSCORE++ 整體評估
+[0065] <Normal 10.0pt> 註：Ours 欄為 gemma-4-31B-it（judge：Claude）；同一 judge 下前代學生模型為 1.00／0.78／0.86，二者相等；標 † 欄為不同 judge 之參考，該 judge 對完整性普遍給滿分。
 [TABLE 4x5] hdr: 維度 | Ours
-Qwen3-Coder-30B | CRSCORE ++ | Ours
-Qwen3 7B | Ours
+(gemma-4-31B-it | CRSCORE ++ † | Ours
+Qwen3 7B † | Ours
 Qwen2.5
 Coder
 7
-[0065] <Normal 10.0pt> 5.2 RQ1：整體品質與既有基準之比較
-[0066] <Normal 10.0pt> 所提出之整合框架相較 CRSCORE++，在 comprehensiveness（0.86 vs 0.67）、conciseness（0.64 vs 0.57）與 relevance（0.83 vs 0.63）三個面向皆明顯提升（表一，三項皆介於 0 至 1，越接近 1 越好），其中以完整性之增幅最為明顯：0.86 對 0.67 代表更少漏看真正該提的問題，此即多階段拆解、RAG 規則注入與微調整合後的整體效果。
-[0067] <Normal 10.0pt> 5.3 RQ2：多階段提示詞之單獨效益
-[0068] <Normal 10.0pt> 於相同參數量之未微調模型上套用多階段提示詞，其 comprehensiveness 與 relevance 仍明顯優於 CRSCORE++，僅 conciseness 略遜（表一），顯示即使未經微調、在同等模型容量下，光是把審查流程結構化為多階段本身就能帶來實質之品質效益，可見多階段流程是整合框架中舉足輕重的一環，但如下節所示，它與微調、RAG 解決的是不同問題而仍需三者協同。
-[0069] <Normal 10.0pt> 5.4 RQ3：提示詞與微調之邊際貢獻
-[0070] <Normal 10.0pt> 由表二之消融結果可將整合框架之成效分解為各元件之貢獻：自單一提示詞改為多階段提示詞所帶來之貢獻達 +34 分（百分制，約等於整體品質跳了三分之一個量級），導入 LoRA 微調之邊際貢獻則約 +2 分。此一分解並非要在二者之間分高下，而是說明它們解決的是不同問題：多階段提示詞重塑了審查的「流程結構」，使模型逐步推理而較少漏看，故為單項貢獻最大之一環，LoRA 微調則是在有限資源下保留並穩定教師之審查能力、使輕量學生模型得以部署，與提示詞流程互補而非競爭。二者各司其職，缺一則無法同時達成一致性與可落地之可維護性，不應將微調視為可有可無。
-[0071] <Normal 10.0pt> 表二、提示詞設計比較（LLM 評分）
+[0066] <Normal 10.0pt> 5.2 RQ1：整體品質與既有基準之比較
+[0067] <Normal 10.0pt> 以同一 judge（Claude）評分，本框架以 gemma-4-31B-it 與前代學生模型為基底之 CRSCORE++ 三維度幾乎相等（1.00／0.79／0.86 對 1.00／0.78／0.86，表一），顯示更換基座未損及審查品質；二者於簡潔性與相關性高於 CRSCORE++ 基準，惟基準為不同 judge、完整性因評審飽和而資訊量有限。
+[0068] <Normal 10.0pt> 5.3 RQ2：多階段提示詞之單獨效益
+[0069] <Normal 10.0pt> 於相同參數量之未微調模型上套用多階段提示詞，其 comprehensiveness 與 relevance 仍明顯優於 CRSCORE++，僅 conciseness 略遜（表一），顯示即使未經微調、在同等模型容量下，光是把審查流程結構化為多階段本身就能帶來實質之品質效益，可見多階段流程是整合框架中舉足輕重的一環，但如下節所示，它與微調、RAG 解決的是不同問題而仍需三者協同。
+[0070] <Normal 10.0pt> 5.4 RQ3：提示詞與微調之邊際貢獻
+[0071] <Normal 10.0pt> 由表二之消融結果可將整合框架之成效分解為各元件之貢獻：自單一提示詞改為多階段提示詞所帶來之貢獻達 +34 分（百分制，約等於整體品質跳了三分之一個量級），導入 LoRA 微調之邊際貢獻則約 +2 分。此一分解並非要在二者之間分高下，而是說明它們解決的是不同問題：多階段提示詞重塑了審查的「流程結構」，使模型逐步推理而較少漏看，故為單項貢獻最大之一環，LoRA 微調則是在有限資源下保留並穩定教師之審查能力、使輕量學生模型得以部署，與提示詞流程互補而非競爭。二者各司其職，缺一則無法同時達成一致性與可落地之可維護性，不應將微調視為可有可無。
+[0072] <Normal 10.0pt> 表二、提示詞設計比較（LLM 評分）
 [TABLE 6x4] hdr: 維度 | 微調模型跟提示詞設計 | 單提示詞微調後模型 | 基礎模型跟提示詞設計
-[0072] <Normal 10.0pt> 表三、提示詞設計比較（人工評分）
+[0073] <Normal 10.0pt> 表三、提示詞設計比較（人工評分）
 [TABLE 6x4] hdr: 維度 | 微調模型跟提示詞設計 | 單提示詞微調後模型 | 基礎模型跟提示詞設計
-[0074] <Normal 10.0pt> 5.5 RQ4：人工評分交叉驗證
-[0075] <Normal 10.0pt> 表三之人工評分結果與表二之 LLM 評分呈現一致之趨勢，於 Maintainability、Correctness、Multi-Review Coverage 與 conciseness 四個維度上，人工評分皆與 LLM 評分一致地支持完整方法之優勢，僅 Readability 略低。此一高度一致性一方面驗證了 LLM-as-a-Judge 自動化評分之可信度，另一方面亦從人工觀點佐證上述貢獻分解：多階段流程之優勢並非孤立成立，而是與 RAG 之領域規則注入、KD/QLoRA 之輕量化互補，三者整合方使審查同時達成三性質。不論交給機器或交給人來評，結論都指向「整合」而非「單一元件」才是成效之來
-[0076] <Normal 11.0pt> 六、結論
-[0077] <Normal 10.0pt> 6.1 研究成果與貢獻
-[0078] <Normal 10.0pt> 本研究針對將 LLM 用於程式碼審查時的三大問題——幻覺、輸出不穩定、缺乏領域規範——提出一套整合框架作為正面回應，以多階段 CoT 推理換取一致性、以 RAG 注入專案規範換取可解釋性、以知識蒸餾與 QLoRA 換取可落地之可維護性。三者整合，使審查同時具備此三性質。
-[0079] <Normal 10.0pt> 經 LLM-as-a-Judge 與 CRSCORE++ 量化評估，所提框架於完整性、簡潔性與相關性面向均優於基準（表一：0.86 / 0.64 / 0.83 對 0.67 / 0.57 / 0.63），並由人工評分交叉驗證。消融分析則將此成效分解為各元件之貢獻：多階段流程之結構化設計為單項貢獻最大之一環（+34 分），LoRA 微調在有限資源下保留並穩定教師之審查能力（+2 分），RAG 則提供領域規範之接地，三者互補而缺一不可。本研究的核心發現不在於某一元件勝出，而在於唯有三者整合方能同時改善三性質、回應前述三大問題。
-[0080] <Normal 10.0pt> 6.2 研究限制與未來工作
-[0081] <Normal 10.0pt> 本研究仍有若干限制與發展方向。在資料集方面，目前以 44 筆、以 Python 為主之測試資料驗證，規模相對有限，未來可擴展至涵蓋多程式語言、多框架與真實開源專案之大規模資料集。在模型能力方面，本研究主要對單一學生模型微調，未來可探索多模型協作（multi-agent）機制，使各模型分別負責特定審查面向（如安全、效能、風格）。在評估範圍方面，§3.2 所述之框架雖已部署於 GitHub Actions CI/CD、MCP 與 pre-commit 等路徑實際運作，但其可替換之多後端推論的品質、成本與延遲比較仍屬未來工作而未於本文實測，反饋語料累積之效益、以及十七項擴充機制之端到端品質效益，亦均
-[0082] <Normal 11.0pt> 參考文獻
-[0083] <Normal 10.0pt> [1]	I. Jaoua, O. B. Sghaier, and H. Sahraoui, "Combining large language models with static analyzers for code review generation," in 2025 IEEE/ACM 22nd International Conference on Mining Software Repositories (MSR), 2025: IEEE, pp. 174–186.
-[0084] <Normal 10.0pt> [2]	F. S. Aðalsteinsson, B. B. Magnússon, M. Milicevic, A. N. Davidsson, and C.-H. Cheng, "Rethinking code review workflows with LLM assistance: An empirical study," in 2025 ACM/IEEE International Symposium on Empirical Software Engineering and Measurement (ESEM), 2025, pp. 488–497.
-[0085] <Normal 10.0pt> [3]	P. J. S. Xuan and Y. Lee, "Automated Code Review and Bug Detection," in 2024 19th International Joint Symposium on Artificial Intelligence and Natural Language Processing (iSAI-NLP), 2024: IEEE, pp. 1–6.
-[0086] <Normal 10.0pt> [4]	A. Frömmgen et al., "Resolving code review comments with machine learning," in Proceedings of the 46th international conference on software engineering: software engineering in practice, 2024, pp. 204–215.
-[0087] <Normal 10.0pt> [5]	M. Vijayvergiya et al., "AI-assisted assessment of coding practices in modern code review," in Proceedings of the 1st ACM international conference on AI-powered software, 2024, pp. 85–93.
-[0088] <Normal 10.0pt> [6]	Z. Rasheed et al., "AI-powered code review with LLMs: Early results," arXiv preprint arXiv:2404.18496, 2024.
-[0089] <Normal 10.0pt> [7]	A. Naik, M. Alenius, D. Fried, and C. Rose, "CRScore: Grounding automated evaluation of code review comments in code claims and smells," in Proceedings of the 2025 Conference of the Nations of the Americas Chapter of the Association for Computational Linguistics: Human Language Technologies (Vol
-[0090] <Normal 10.0pt> [8]	T. Sharanarthi and S. Polineni, "Multi-Agent LLM Collaboration for Adaptive Code Review, Debugging, and Security Analysis," in 2025 International Conference on Mechatronics, Robotics, and Artificial Intelligence (MRAI), 2025: IEEE, pp. 541–546.
-[0091] <Normal 10.0pt> [9]	C. Adapa, S. S. Avulamanda, A. Anjana, and A. Victor, "AI-powered code review assistant for streamlining pull request merging," presented at the 2024 IEEE International Conference for Women in Innovation, Technology & Entrepreneurship (ICWITE), 2024.
-[0092] <Normal 10.0pt> [10]	M. N. Kapadnis, A. Naik, and C. Rose, "CRScore++: Reinforcement learning with verifiable tool and AI feedback for code review," arXiv preprint arXiv:2506.00296, 2025.
-[0093] <Normal 10.0pt> [11]	G. Crupi, R. Tufano, A. Velasco, A. Mastropaolo, D. Poshyvanyk, and G. Bavota, "On the Effectiveness of LLM-as-a-judge for Code Generation and Summarization," IEEE Transactions on Software Engineering, 2025.
-[0094] <Normal 10.0pt> [12]	L. Yang and Y. Chen, "Integrating RAG and LLM for Automated Code Review in Practice," in 2025 10th International Conference on Computer and Information Processing Technology (ISCIPT), 2025: IEEE, pp. 591–596.
-[0095] <Normal 10.0pt> [13]	T. Kakimoto, H. Inayoshi, H. Uwano, and A. Monden, "Evaluating the Source Code Review Performance of LLM-based AI Chatbots," in 2025 IEEE/ACIS 29th International Conference on Software Engineering, Artificial Intelligence, Networking and Parallel/Distributed Computing (SNPD), 2025: IEEE, pp. 59
-[0096] <Normal 10.0pt> [14]	O. B. Sghaier, M. Weyssow, and H. Sahraoui, "Harnessing large language models for curated code reviews," in 2025 IEEE/ACM 22nd International Conference on Mining Software Repositories (MSR), 2025: IEEE, pp. 187–198.
-[0097] <Normal 10.0pt> [15]	D. O. Salem, Y. Alahmed, R. Fnich, M. Mazroub, and M. Fnich, "AI-Driven Continuous Integration: Automating Code Review and Deployment with LLMs," in 2025 10th International Conference on Fog and Mobile Edge Computing (FMEC), 2025: IEEE, pp. 268–274.
-[0098] <Normal 10.0pt> [16]	J. Lu, L. Yu, X. Li, L. Yang, and C. Zuo, "Llama-reviewer: Advancing code review automation with large language models through parameter-efficient fine-tuning," in 2023 IEEE 34th International Symposium on Software Reliability Engineering (ISSRE), 2023: IEEE, pp. 647–658.
-[0099] <Normal 10.0pt> [17]	M. A. Haider, A. B. Mostofa, S. S. B. Mosaddek, A. Iqbal, and T. Ahmed, "Prompting and fine-tuning large language models for automated code review comment generation," arXiv preprint arXiv:2411.10129, 2024.
-[0100] <Normal 10.0pt> [18]	C. Liu, H. Y. Lin, and P. Thongtanunam, "Too noisy to learn: Enhancing data quality for code review comment generation," in 2025 IEEE/ACM 22nd International Conference on Mining Software Repositories (MSR), 2025: IEEE, pp. 236–248.
-[0101] <Normal 10.0pt> [19]	Y. Chen, "AutoReview: An LLM-based Multi-Agent System for Security Issue-Oriented Code Review," in Proceedings of the 33rd ACM International Conference on the Foundations of Software Engineering, 2025, pp. 1022–1024.
-[0102] <EndNote Bibliography 10.0pt> [20]	Y. Zhang, Y. Zhang, Z. Sun, Y. Jiang, and H. Liu, "Laura: Enhancing code review generation with context-enriched retrieval-augmented LLM," in 2025 40th IEEE/ACM International Conference on Automated Software Engineering (ASE), 2025: IEEE, pp. 2983–2995.
-[0103] <Normal 10.0pt> [21]	T. Dettmers, A. Pagnoni, A. Holtzman, and L. Zettlemoyer, "QLoRA: Efficient finetuning of quantized LLMs," Advances in neural information processing systems, vol. 36, pp. 10088–10115, 2023.
-[0104] <Normal 10.0pt> [22]	G. Hinton, O. Vinyals, and J. Dean, "Distilling the knowledge in a neural network," arXiv preprint arXiv:1503.02531, 2015.
+[0075] <Normal 10.0pt> 5.5 RQ4：人工評分交叉驗證
+[0076] <Normal 10.0pt> 表三之人工評分結果與表二之 LLM 評分呈現一致之趨勢，於 Maintainability、Correctness、Multi-Review Coverage 與 conciseness 四個維度上，人工評分皆與 LLM 評分一致地支持完整方法之優勢，僅 Readability 略低。此一高度一致性一方面驗證了 LLM-as-a-Judge 自動化評分之可信度，另一方面亦從人工觀點佐證上述貢獻分解：多階段流程之優勢並非孤立成立，而是與 RAG 之領域規則注入、KD/QLoRA 之輕量化互補，三者整合方使審查同時達成三性質。不論交給機器或交給人來評，結論都指向「整合」而非「單一元件」才是成效之來
+[0077] <Normal 11.0pt> 六、結論
+[0078] <Normal 10.0pt> 6.1 研究成果與貢獻
+[0079] <Normal 10.0pt> 本研究針對將 LLM 用於程式碼審查時的三大問題——幻覺、輸出不穩定、缺乏領域規範——提出一套整合框架作為正面回應，以多階段 CoT 推理換取一致性、以 RAG 注入專案規範換取可解釋性、以知識蒸餾與 QLoRA 換取可落地之可維護性。三者整合，使審查同時具備此三性質。
+[0080] <Normal 10.0pt> 經 LLM-as-a-Judge 與 CRSCORE++ 量化評估，於同一 judge 下，所提框架以 gemma-4-31B-it 與前代學生模型為基底之品質相當（表一：1.00 / 0.79 / 0.86 對 1.00 / 0.78 / 0.86），並由人工評分交叉驗證。消融分析則將此成效分解為各元件之貢獻：多階段流程之結構化設計為單項貢獻最大之一環（+34 分），LoRA 微調在有限資源下保留並穩定教師之審查能力（+2 分），RAG 則提供領域規範之接地，三者互補而缺一不可。本研究的核心發現不在於某一元件勝出，而在於唯有三者整合方能同時改善三性質、回應前述三大問題。
+[0081] <Normal 10.0pt> 6.2 研究限制與未來工作
+[0082] <Normal 10.0pt> 本研究仍有若干限制與發展方向。在資料集方面，目前以 44 筆、以 Python 為主之測試資料驗證，規模相對有限，未來可擴展至涵蓋多程式語言、多框架與真實開源專案之大規模資料集。在模型能力方面，本研究主要對單一學生模型微調，未來可探索多模型協作（multi-agent）機制，使各模型分別負責特定審查面向（如安全、效能、風格）。在評估範圍方面，§3.2 所述之框架雖已部署於 GitHub Actions CI/CD、MCP 與 pre-commit 等路徑實際運作，但其可替換之多後端推論的品質、成本與延遲比較仍屬未來工作而未於本文實測，反饋語料累積之效益、以及十七項擴充機制之端到端品質效益，亦均
+[0083] <Normal 11.0pt> 參考文獻
+[0084] <Normal 10.0pt> [1]	I. Jaoua, O. B. Sghaier, and H. Sahraoui, "Combining large language models with static analyzers for code review generation," in 2025 IEEE/ACM 22nd International Conference on Mining Software Repositories (MSR), 2025: IEEE, pp. 174–186.
+[0085] <Normal 10.0pt> [2]	F. S. Aðalsteinsson, B. B. Magnússon, M. Milicevic, A. N. Davidsson, and C.-H. Cheng, "Rethinking code review workflows with LLM assistance: An empirical study," in 2025 ACM/IEEE International Symposium on Empirical Software Engineering and Measurement (ESEM), 2025, pp. 488–497.
+[0086] <Normal 10.0pt> [3]	P. J. S. Xuan and Y. Lee, "Automated Code Review and Bug Detection," in 2024 19th International Joint Symposium on Artificial Intelligence and Natural Language Processing (iSAI-NLP), 2024: IEEE, pp. 1–6.
+[0087] <Normal 10.0pt> [4]	A. Frömmgen et al., "Resolving code review comments with machine learning," in Proceedings of the 46th international conference on software engineering: software engineering in practice, 2024, pp. 204–215.
+[0088] <Normal 10.0pt> [5]	M. Vijayvergiya et al., "AI-assisted assessment of coding practices in modern code review," in Proceedings of the 1st ACM international conference on AI-powered software, 2024, pp. 85–93.
+[0089] <Normal 10.0pt> [6]	Z. Rasheed et al., "AI-powered code review with LLMs: Early results," arXiv preprint arXiv:2404.18496, 2024.
+[0090] <Normal 10.0pt> [7]	A. Naik, M. Alenius, D. Fried, and C. Rose, "CRScore: Grounding automated evaluation of code review comments in code claims and smells," in Proceedings of the 2025 Conference of the Nations of the Americas Chapter of the Association for Computational Linguistics: Human Language Technologies (Vol
+[0091] <Normal 10.0pt> [8]	T. Sharanarthi and S. Polineni, "Multi-Agent LLM Collaboration for Adaptive Code Review, Debugging, and Security Analysis," in 2025 International Conference on Mechatronics, Robotics, and Artificial Intelligence (MRAI), 2025: IEEE, pp. 541–546.
+[0092] <Normal 10.0pt> [9]	C. Adapa, S. S. Avulamanda, A. Anjana, and A. Victor, "AI-powered code review assistant for streamlining pull request merging," presented at the 2024 IEEE International Conference for Women in Innovation, Technology & Entrepreneurship (ICWITE), 2024.
+[0093] <Normal 10.0pt> [10]	M. N. Kapadnis, A. Naik, and C. Rose, "CRScore++: Reinforcement learning with verifiable tool and AI feedback for code review," arXiv preprint arXiv:2506.00296, 2025.
+[0094] <Normal 10.0pt> [11]	G. Crupi, R. Tufano, A. Velasco, A. Mastropaolo, D. Poshyvanyk, and G. Bavota, "On the Effectiveness of LLM-as-a-judge for Code Generation and Summarization," IEEE Transactions on Software Engineering, 2025.
+[0095] <Normal 10.0pt> [12]	L. Yang and Y. Chen, "Integrating RAG and LLM for Automated Code Review in Practice," in 2025 10th International Conference on Computer and Information Processing Technology (ISCIPT), 2025: IEEE, pp. 591–596.
+[0096] <Normal 10.0pt> [13]	T. Kakimoto, H. Inayoshi, H. Uwano, and A. Monden, "Evaluating the Source Code Review Performance of LLM-based AI Chatbots," in 2025 IEEE/ACIS 29th International Conference on Software Engineering, Artificial Intelligence, Networking and Parallel/Distributed Computing (SNPD), 2025: IEEE, pp. 59
+[0097] <Normal 10.0pt> [14]	O. B. Sghaier, M. Weyssow, and H. Sahraoui, "Harnessing large language models for curated code reviews," in 2025 IEEE/ACM 22nd International Conference on Mining Software Repositories (MSR), 2025: IEEE, pp. 187–198.
+[0098] <Normal 10.0pt> [15]	D. O. Salem, Y. Alahmed, R. Fnich, M. Mazroub, and M. Fnich, "AI-Driven Continuous Integration: Automating Code Review and Deployment with LLMs," in 2025 10th International Conference on Fog and Mobile Edge Computing (FMEC), 2025: IEEE, pp. 268–274.
+[0099] <Normal 10.0pt> [16]	J. Lu, L. Yu, X. Li, L. Yang, and C. Zuo, "Llama-reviewer: Advancing code review automation with large language models through parameter-efficient fine-tuning," in 2023 IEEE 34th International Symposium on Software Reliability Engineering (ISSRE), 2023: IEEE, pp. 647–658.
+[0100] <Normal 10.0pt> [17]	M. A. Haider, A. B. Mostofa, S. S. B. Mosaddek, A. Iqbal, and T. Ahmed, "Prompting and fine-tuning large language models for automated code review comment generation," arXiv preprint arXiv:2411.10129, 2024.
+[0101] <Normal 10.0pt> [18]	C. Liu, H. Y. Lin, and P. Thongtanunam, "Too noisy to learn: Enhancing data quality for code review comment generation," in 2025 IEEE/ACM 22nd International Conference on Mining Software Repositories (MSR), 2025: IEEE, pp. 236–248.
+[0102] <Normal 10.0pt> [19]	Y. Chen, "AutoReview: An LLM-based Multi-Agent System for Security Issue-Oriented Code Review," in Proceedings of the 33rd ACM International Conference on the Foundations of Software Engineering, 2025, pp. 1022–1024.
+[0103] <EndNote Bibliography 10.0pt> [20]	Y. Zhang, Y. Zhang, Z. Sun, Y. Jiang, and H. Liu, "Laura: Enhancing code review generation with context-enriched retrieval-augmented LLM," in 2025 40th IEEE/ACM International Conference on Automated Software Engineering (ASE), 2025: IEEE, pp. 2983–2995.
+[0104] <Normal 10.0pt> [21]	T. Dettmers, A. Pagnoni, A. Holtzman, and L. Zettlemoyer, "QLoRA: Efficient finetuning of quantized LLMs," Advances in neural information processing systems, vol. 36, pp. 10088–10115, 2023.
+[0105] <Normal 10.0pt> [22]	G. Hinton, O. Vinyals, and J. Dean, "Distilling the knowledge in a neural network," arXiv preprint arXiv:1503.02531, 2015.
