@@ -1,0 +1,43 @@
+# Inference-server image for the local DGX Spark (GB10, aarch64, sm_121).
+# Serves google/gemma-4-31B-it + the local LoRA through
+# codes/run/fastapi_server.py. NGC PyTorch is required: pypi torch wheels
+# do not support sm_121. transformers>=5.10 is required by the gemma4
+# architecture — this deploy is exempt from the qwen server's <5 pin
+# because gemma4 is dense (no A3B MoE densification; the boot guard is
+# model-aware). flash-attn is NOT installed: gemma-4-31B's head_dim
+# exceeds flash-attn's 256 limit, so attention dispatches to SDPA.
+FROM nvcr.io/nvidia/pytorch:25.09-py3
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_NO_CACHE_DIR=1 \
+    HF_HOME=/workspace/.hf_cache \
+    TOKENIZERS_PARALLELISM=false \
+    PYTHONUNBUFFERED=1
+
+RUN pip install --no-cache-dir \
+    "transformers>=5.10,<6" \
+    "peft>=0.17" \
+    "accelerate>=1.0" \
+    "sentence-transformers>=3.0" \
+    "faiss-cpu" \
+    "fastapi>=0.115" \
+    "uvicorn>=0.30" \
+    "pydantic>=2.11" \
+    "prometheus-fastapi-instrumentator>=7.1" \
+    "httpx" \
+    "PyYAML" \
+    sentencepiece
+
+# NGC ships torchao 0.13 which PEFT rejects (needs >=0.16) and errors on
+# instead of skipping; we don't use torchao, so remove it. NGC also ships
+# flash-attn, which _pick_attn_implementation() would auto-select — but
+# gemma-4-31B's head_dim exceeds flash-attn's 256 limit and the load
+# fails. Removing it makes attention dispatch to SDPA.
+RUN pip uninstall -y torchao flash-attn
+
+# Code is bind-mounted at runtime (see docker-compose.server-gemma4.yml)
+WORKDIR /workspace
+
+# 0.0.0.0 is intentional: the bind is scoped to the container's network
+# namespace and only the compose port mapping exposes it.
+CMD ["uvicorn", "codes.run.fastapi_server:app", "--host", "0.0.0.0", "--port", "9000"]

@@ -52,7 +52,13 @@ from prthinker.schemas import (
 
 log = logging.getLogger("prthinker.server")
 
-RUN_ON = "Qwen/Qwen3-Coder-30B-A3B-Instruct"
+# PRTHINKER_MODEL_NAME selects the served model (same env the CLI's
+# local backend uses); the gemma4 compose overlay sets it to
+# google/gemma-4-31B-it. PRTHINKER_LORA_PATH overrides the adapter
+# lookup below for deploys whose adapter lives outside _LORA_BY_MODEL.
+RUN_ON = os.environ.get(
+    "PRTHINKER_MODEL_NAME", "Qwen/Qwen3-Coder-30B-A3B-Instruct"
+)
 
 # This server is the qwen-era deployment: keep its original embedding
 # index (Qwen3-Embedding-4B @ 0.7) unless the operator overrides
@@ -91,7 +97,8 @@ except ImportError:
 _backend = LocalQwen3Backend(
     LocalBackendConfig(
         model_name=RUN_ON,
-        lora_path=_LORA_BY_MODEL.get(RUN_ON, _DEFAULT_LORA),
+        lora_path=os.environ.get("PRTHINKER_LORA_PATH")
+        or _LORA_BY_MODEL.get(RUN_ON, _DEFAULT_LORA),
     )
 )
 _retriever = FaissRAGRetriever(threshold=0.7)
