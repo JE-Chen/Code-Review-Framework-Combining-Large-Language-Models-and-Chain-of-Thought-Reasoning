@@ -46,7 +46,9 @@ RUN apt-get update \
 WORKDIR /app
 
 # Copy only metadata first so dependency layer caches across code changes.
-COPY pyproject.toml ./
+# README.md + LICENSE are required by pyproject's [project] readme/license
+# fields when pip resolves the package metadata.
+COPY pyproject.toml README.md LICENSE ./
 COPY prthinker/ ./prthinker/
 COPY codes/ ./codes/
 COPY datas/RAG_data/ ./datas/RAG_data/
