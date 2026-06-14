@@ -61,8 +61,11 @@ RUN mkdir -p /cache/huggingface /data
 
 EXPOSE 9000
 
-# Healthcheck hits the bundled /healthz endpoint.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
+# Healthcheck hits the bundled /healthz endpoint. Long start-period: the
+# 30B load + LoRA + boot probe + FAISS index takes ~5 min before /healthz
+# answers (rebuild-server.sh waits up to 300s), so a shorter window would
+# flap the container to unhealthy during a normal boot.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=600s --retries=3 \
   CMD curl -fsS http://127.0.0.1:9000/healthz || exit 1
 
 CMD ["uvicorn", "codes.run.fastapi_server:app", "--host", "0.0.0.0", "--port", "9000"]
