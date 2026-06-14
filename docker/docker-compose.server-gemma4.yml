@@ -11,11 +11,19 @@
 #                                     # + LoRA + boot probe + FAISS index)
 #   curl http://localhost:9000/healthz
 #
+# The TLS / monitoring overlays target the `prthinker` service, so they
+# stack on this deploy too, e.g.:
+#   docker compose -f docker-compose.server-gemma4.yml -f docker-compose.monitoring.yml up -d
+#
 # Shares the hf-cache volume with docker-compose.train.yml so base model,
 # LoRA-era downloads, and embedding models are reused across stacks.
 
 services:
-  gemma4-server:
+  # Service name is `prthinker` (not gemma4-server) so the TLS / monitoring
+  # overlays — which override the `prthinker` service and proxy to its
+  # network alias — stack on this deploy too. The container keeps the
+  # gemma4-server name for `docker logs` / `docker compose` ergonomics.
+  prthinker:
     build:
       context: .
       dockerfile: Dockerfile.server-gemma4

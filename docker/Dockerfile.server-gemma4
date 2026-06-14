@@ -38,6 +38,14 @@ RUN pip uninstall -y torchao flash-attn
 # Code is bind-mounted at runtime (see docker-compose.server-gemma4.yml)
 WORKDIR /workspace
 
+EXPOSE 9000
+
+# Long start-period: the 31B bf16 load + LoRA + boot probe + FAISS index
+# build takes ~10 min before /healthz answers. Use python (always present
+# in the NGC image) rather than assuming curl is installed.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=720s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/healthz')" || exit 1
+
 # 0.0.0.0 is intentional: the bind is scoped to the container's network
 # namespace and only the compose port mapping exposes it.
 CMD ["uvicorn", "codes.run.fastapi_server:app", "--host", "0.0.0.0", "--port", "9000"]
