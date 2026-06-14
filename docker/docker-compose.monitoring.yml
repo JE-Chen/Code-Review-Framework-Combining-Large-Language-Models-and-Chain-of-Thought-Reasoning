@@ -4,7 +4,7 @@
 # reverse proxy.
 #
 # Usage:
-#   docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+#   docker compose -f docker-compose.server-qwen3-coder.yml -f docker-compose.monitoring.yml up -d
 #
 # Public surface (host:9000, behind any upstream proxy / Cloudflare):
 #   - /healthz, /review/*, /ask/*, /metrics, ... → prthinker

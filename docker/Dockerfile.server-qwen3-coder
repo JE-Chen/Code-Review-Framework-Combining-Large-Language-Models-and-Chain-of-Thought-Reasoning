@@ -1,4 +1,8 @@
-# prthinker inference server image.
+# prthinker inference server image — Qwen3-Coder-30B-A3B (portable deploy).
+#
+# This is the legacy/portable Qwen3-Coder-30B-A3B server image. The current
+# Gemma-4-31B-it deploy (local DGX Spark, aarch64) lives in
+# Dockerfile.server-gemma4 + docker-compose.server-gemma4.yml.
 #
 # Built on the NVIDIA CUDA runtime so torch + bitsandbytes load on the GPU;
 # the matching host driver must expose `--gpus all` (set via

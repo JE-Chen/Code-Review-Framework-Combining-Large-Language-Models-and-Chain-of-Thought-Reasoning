@@ -1,8 +1,12 @@
-# prthinker self-hosted deployment.
+# prthinker self-hosted deployment — Qwen3-Coder-30B server image.
+#
+# This is the portable Qwen3-Coder-30B-A3B deploy (CUDA runtime base,
+# transformers<5, bf16, device_map="auto"). For the current Gemma-4-31B-it
+# deploy on the local DGX Spark see docker-compose.server-gemma4.yml.
 #
 # Usage:
 #   cp .env.example .env       # then edit values
-#   docker compose up -d
+#   docker compose -f docker-compose.server-qwen3-coder.yml up -d
 #   curl http://localhost:9000/healthz
 #
 # Single service:
@@ -16,7 +20,7 @@ services:
   prthinker:
     build:
       context: ..
-      dockerfile: docker/Dockerfile.server
+      dockerfile: docker/Dockerfile.server-qwen3-coder
       args:
         CUDA_VERSION: ${CUDA_VERSION:-13.0.1}
     image: prthinker:server-latest
