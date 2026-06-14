@@ -221,22 +221,25 @@ uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 9000
 curl http://my-host:9000/healthz   # → {"status": "ok", "model": "..."}
 ```
 
-**或用 Docker compose**（`docker/` bundle，免手動建 venv）：
+**或用 Docker compose**（`docker/` bundle，免手動建 venv）。提供兩個伺服器
+映像:可攜的 Qwen3-Coder-30B 部署(`docker-compose.server-qwen3-coder.yml`,
+如下)與本機 DGX Spark 上目前的 Gemma-4-31B-it 部署
+(`docker-compose.server-gemma4.yml`)：
 
 ```bash
 cd docker
 cp .env.example .env            # PRTHINKER_HOST_PORT 預設 9000
-docker compose up -d            # base：prthinker FastAPI on :9000
+docker compose -f docker-compose.server-qwen3-coder.yml up -d   # base：prthinker FastAPI on :9000
 curl http://my-host:9000/healthz
 
 # 可選 TLS overlay — nginx TLS + bearer-token 驗證 on :443：
 #   .env 內 PRTHINKER_BACKEND_TOKEN=$(openssl rand -hex 32)
-docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
+docker compose -f docker-compose.server-qwen3-coder.yml -f docker-compose.tls.yml up -d
 curl https://my-host/healthz -H "Authorization: Bearer $PRTHINKER_BACKEND_TOKEN"
 
 # 可選 monitoring overlay — Prometheus + Grafana + DCGM + cAdvisor，
 # 全部依路徑收在 host :9000 之下：
-docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+docker compose -f docker-compose.server-qwen3-coder.yml -f docker-compose.monitoring.yml up -d
 #   http://my-host:9000/grafana/     Grafana   （預設 admin / admin）
 #   http://my-host:9000/prometheus/  Prometheus UI
 #   http://my-host:9000/cadvisor/    cAdvisor

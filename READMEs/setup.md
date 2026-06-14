@@ -229,22 +229,26 @@ Confirm:
 curl http://my-host:9000/healthz   # → {"status": "ok", "model": "..."}
 ```
 
-**Or with Docker compose** (the `docker/` bundle — no manual venv):
+**Or with Docker compose** (the `docker/` bundle — no manual venv). Two
+server images ship: the portable Qwen3-Coder-30B deploy
+(`docker-compose.server-qwen3-coder.yml`, shown below) and the current
+Gemma-4-31B-it deploy on the local DGX Spark
+(`docker-compose.server-gemma4.yml`):
 
 ```bash
 cd docker
 cp .env.example .env            # PRTHINKER_HOST_PORT defaults to 9000
-docker compose up -d            # base: prthinker FastAPI on :9000
+docker compose -f docker-compose.server-qwen3-coder.yml up -d   # base: prthinker FastAPI on :9000
 curl http://my-host:9000/healthz
 
 # Optional TLS overlay — nginx TLS + bearer-token auth on :443:
 #   PRTHINKER_BACKEND_TOKEN=$(openssl rand -hex 32) in .env
-docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
+docker compose -f docker-compose.server-qwen3-coder.yml -f docker-compose.tls.yml up -d
 curl https://my-host/healthz -H "Authorization: Bearer $PRTHINKER_BACKEND_TOKEN"
 
 # Optional monitoring overlay — Prometheus + Grafana + DCGM + cAdvisor,
 # all routed under host :9000 by path:
-docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+docker compose -f docker-compose.server-qwen3-coder.yml -f docker-compose.monitoring.yml up -d
 #   http://my-host:9000/grafana/     Grafana   (admin / admin by default)
 #   http://my-host:9000/prometheus/  Prometheus UI
 #   http://my-host:9000/cadvisor/    cAdvisor

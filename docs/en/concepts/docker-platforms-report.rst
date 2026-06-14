@@ -22,7 +22,7 @@ if you use the TLS overlay):
 * NVIDIA GPU with a driver that matches the configured CUDA version
   (default ``13.0.1``).
 * Docker 24+ with the NVIDIA container runtime
-  (``runtime: nvidia`` declared in ``docker-compose.yml``).
+  (``runtime: nvidia`` declared in ``docker-compose.server-qwen3-coder.yml``).
 * (TLS overlay only) A TLS certificate (Let's Encrypt or self-signed)
   mounted into the nginx container.
 
@@ -34,13 +34,20 @@ Files:
 
    * - file
      - role
-   * - ``docker/Dockerfile.server``
-     - CUDA-runtime base + Python 3.12 + ``pip install -e .[server]``.
-       Model weights NOT baked in — pulled into a volume at first run.
-   * - ``docker/docker-compose.yml``
-     - Default deploy: one service (``prthinker``), exposed on
-       ``${PRTHINKER_HOST_PORT:-9000}``, two volumes (``hf_cache``,
-       ``data``). HTTP only — no TLS.
+   * - ``docker/Dockerfile.server-qwen3-coder``
+     - Qwen3-Coder-30B image: CUDA-runtime base + Python 3.12 +
+       ``pip install -e .[server]``. Model weights NOT baked in — pulled
+       into a volume at first run.
+   * - ``docker/docker-compose.server-qwen3-coder.yml``
+     - Portable Qwen3-Coder-30B deploy: one service (``prthinker``),
+       exposed on ``${PRTHINKER_HOST_PORT:-9000}``, two volumes
+       (``hf_cache``, ``data``). HTTP only — no TLS.
+   * - ``docker/Dockerfile.server-gemma4`` +
+       ``docker/docker-compose.server-gemma4.yml``
+     - Current Gemma-4-31B-it deploy for the local DGX Spark (NGC PyTorch
+       base, ``transformers>=5.10``, code bind-mounted). See
+       ``READMEs/local_gemma_deployment.md`` — the TLS / monitoring
+       overlays below target the Qwen3-Coder compose only.
    * - ``docker/docker-compose.tls.yml``
      - Optional TLS overlay: adds an ``nginx`` service for TLS +
        bearer-token auth, hides ``prthinker`` behind it on the internal
@@ -82,7 +89,7 @@ Bring-up (default — HTTP on :9000):
 
    cd docker
    cp .env.example .env       # PRTHINKER_HOST_PORT defaults to 9000
-   docker compose up -d
+   docker compose -f docker-compose.server-qwen3-coder.yml up -d
 
    # verify
    curl http://your-host:9000/healthz
@@ -95,7 +102,7 @@ Bring-up (overlay — TLS + bearer token on :443):
    # edit .env:
    #   PRTHINKER_BACKEND_TOKEN=$(openssl rand -hex 32)
    #   TLS_CERT_DIR=/etc/letsencrypt/live/your-host
-   docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
+   docker compose -f docker-compose.server-qwen3-coder.yml -f docker-compose.tls.yml up -d
 
    curl https://your-host/healthz \
        -H "Authorization: Bearer $PRTHINKER_BACKEND_TOKEN"
@@ -108,7 +115,7 @@ Bring-up (monitoring overlay — dashboards on :9000):
    # optional in .env:
    #   GRAFANA_ADMIN_USER=admin
    #   GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 16)
-   docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+   docker compose -f docker-compose.server-qwen3-coder.yml -f docker-compose.monitoring.yml up -d
 
    # everything is behind the single host port (default 9000):
    curl http://your-host:9000/healthz          # prthinker
@@ -182,7 +189,7 @@ build's peak RAM collide with the running model container and trip the
 kernel OOM-killer — which tends to take ``cloudflared`` / ``sshd`` down
 first, presenting as "the GPU server disconnects mid-build".
 ``docker/rebuild-server.sh`` encodes the safe sequence: stop the model
-container to free its host RAM, pull the latest ``Dockerfile.server``,
+container to free its host RAM, pull the latest ``Dockerfile.server-qwen3-coder``,
 build while snapshotting ``free -h``, scan ``dmesg`` afterwards for an
 OOM-killer fingerprint, then bring the server back up and block until
 ``/healthz`` returns 200 and the boot guard confirms a non-eager

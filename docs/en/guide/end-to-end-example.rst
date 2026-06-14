@@ -75,7 +75,7 @@ Health check:
 
    cd prthinker/docker
    cp .env.example .env       # PRTHINKER_HOST_PORT defaults to 9000
-   docker compose up -d
+   docker compose -f docker-compose.server-qwen3-coder.yml up -d
 
    curl http://your-host:9000/healthz
 
@@ -92,7 +92,7 @@ hides the prthinker container behind it.
    # edit .env:
    #   PRTHINKER_BACKEND_TOKEN=<long random string>   # openssl rand -hex 32
    #   TLS_CERT_DIR=/etc/letsencrypt/live/your-host
-   docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
+   docker compose -f docker-compose.server-qwen3-coder.yml -f docker-compose.tls.yml up -d
 
    curl https://your-host/healthz \
        -H "Authorization: Bearer $PRTHINKER_BACKEND_TOKEN"
