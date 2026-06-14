@@ -22,7 +22,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.server-qwen3-coder
       args:
-        CUDA_VERSION: ${CUDA_VERSION:-13.0.1}
+        CUDA_VERSION: ${CUDA_VERSION:-12.2.0}
     image: prthinker:server-latest
     restart: unless-stopped
     runtime: nvidia
@@ -35,6 +35,10 @@ services:
       PRTHINKER_TELEMETRY_PATH: /data/telemetry.sqlite
       PRTHINKER_CACHE_ENABLED:    "true"
       PRTHINKER_TELEMETRY_ENABLED: "true"
+      # The adapter is bind-mounted (see volumes) at this in-container path;
+      # this env override wins over the model->adapter map in
+      # codes/run/fastapi_server.py, so the host directory can live anywhere.
+      PRTHINKER_LORA_PATH: /app/codes/train/outputs-lora-qwen3-coder-30b
       HF_HOME: /cache/huggingface
       # The hub cache lives at $HF_HOME/hub. The image's Dockerfile sets
       # the deprecated TRANSFORMERS_CACHE=/cache/huggingface (no /hub),
@@ -59,11 +63,10 @@ services:
     volumes:
       - hf_cache:/cache/huggingface
       - data:/data
-      # LoRA adapter weights live on the host (trained out-of-band) and the
-      # server references them via an absolute host path baked into
-      # codes/run/fastapi_server.py. Mount the same path read-only so the
-      # in-container resolver finds them.
-      - /home/nknul40s/LLM_Research/codes/train/outputs-lora-qwen3-coder-30b:/home/nknul40s/LLM_Research/codes/train/outputs-lora-qwen3-coder-30b:ro
+      # LoRA adapter weights live on the host (trained out-of-band). Mount
+      # the host directory (PRTHINKER_LORA_HOST_PATH, default below) to the
+      # in-container path PRTHINKER_LORA_PATH points at, read-only.
+      - ${PRTHINKER_LORA_HOST_PATH:-/home/nknul40s/LLM_Research/codes/train/outputs-lora-qwen3-coder-30b}:/app/codes/train/outputs-lora-qwen3-coder-30b:ro
     ports:
       - "${PRTHINKER_HOST_PORT:-9000}:9000"
     deploy:
