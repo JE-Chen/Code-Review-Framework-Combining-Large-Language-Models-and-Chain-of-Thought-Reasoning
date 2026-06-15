@@ -53,7 +53,7 @@ server = [
     "prometheus-fastapi-instrumentator>=7.1",
 ]
 # NOTE: flash-attn is intentionally NOT a dependency and is NOT installed
-# in docker/Dockerfile.server. On the supported deploy the 30B-A3B model
+# in docker/Dockerfile.server-qwen3-coder. On the supported deploy the 30B-A3B model
 # runs bf16 + SDPA; installing flash-attn (or re-pinning transformers<5)
 # nudges bitsandbytes 4-bit back into effect, which densifies the A3B MoE
 # forward (an allocation linear in input length) and OOMs the L40S. See

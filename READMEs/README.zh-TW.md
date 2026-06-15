@@ -181,14 +181,16 @@ pip install -e ".[server]"
 uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 9000
 ```
 
-或使用 `docker/` compose bundle。base 部署把 FastAPI 伺服器 expose 在
-`:9000`；其上可再疊兩個可選 overlay：
+或使用 `docker/` compose bundle。提供兩個伺服器映像:可攜的 Qwen3-Coder-30B
+部署(`docker-compose.server-qwen3-coder.yml`,如下)與本機 DGX Spark 上目前的
+Gemma-4-31B-it 部署(`docker-compose.server-gemma4.yml`)。base 部署把 FastAPI
+伺服器 expose 在 `:9000`;其上可再疊兩個可選 overlay:
 
 ```bash
 cd docker && cp .env.example .env
-docker compose up -d                                                  # :9000
-docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d        # +TLS+token :443
-docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d # +儀表板 :9000
+docker compose -f docker-compose.server-qwen3-coder.yml up -d                                  # :9000
+docker compose -f docker-compose.server-qwen3-coder.yml -f docker-compose.tls.yml up -d        # +TLS+token :443
+docker compose -f docker-compose.server-qwen3-coder.yml -f docker-compose.monitoring.yml up -d # +儀表板 :9000
 ```
 
 monitoring overlay 把所有東西依路徑收在 host `:9000` 之下——`/grafana/`

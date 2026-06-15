@@ -233,14 +233,17 @@ pip install -e ".[server]"
 uvicorn codes.run.fastapi_server:app --host 0.0.0.0 --port 9000
 ```
 
-Or use the `docker/` compose bundle. Base deploy publishes the FastAPI
-server on `:9000`; two optional overlays stack on top:
+Or use the `docker/` compose bundle. Two server images ship: the portable
+Qwen3-Coder-30B deploy (`docker-compose.server-qwen3-coder.yml`, shown
+below) and the current Gemma-4-31B-it deploy on the local DGX Spark
+(`docker-compose.server-gemma4.yml`). The base deploy publishes the
+FastAPI server on `:9000`; two optional overlays stack on top:
 
 ```bash
 cd docker && cp .env.example .env
-docker compose up -d                                                  # :9000
-docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d        # +TLS+token :443
-docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d # +dashboards :9000
+docker compose -f docker-compose.server-qwen3-coder.yml up -d                                  # :9000
+docker compose -f docker-compose.server-qwen3-coder.yml -f docker-compose.tls.yml up -d        # +TLS+token :443
+docker compose -f docker-compose.server-qwen3-coder.yml -f docker-compose.monitoring.yml up -d # +dashboards :9000
 ```
 
 The monitoring overlay routes everything under host `:9000` by path —

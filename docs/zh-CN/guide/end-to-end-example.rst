@@ -72,7 +72,7 @@ overlay\ ）\ 。
 
    cd prthinker/docker
    cp .env.example .env       # PRTHINKER_HOST_PORT 默认 9000
-   docker compose up -d
+   docker compose -f docker-compose.server-qwen3-coder.yml up -d
 
    curl http://your-host:9000/healthz
 
@@ -88,7 +88,7 @@ termination 与 bearer-token 闸门\ ，prthinker container 藏在它后面\ 。
    # 编辑 .env：
    #   PRTHINKER_BACKEND_TOKEN=<长随机字符串>   # openssl rand -hex 32
    #   TLS_CERT_DIR=/etc/letsencrypt/live/your-host
-   docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
+   docker compose -f docker-compose.server-qwen3-coder.yml -f docker-compose.tls.yml up -d
 
    curl https://your-host/healthz \
        -H "Authorization: Bearer $PRTHINKER_BACKEND_TOKEN"

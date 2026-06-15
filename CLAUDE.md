@@ -393,7 +393,7 @@ Also do **NOT install flash-attn** — the image must dispatch attention to SDPA
 flash-attn nudges bitsandbytes 4-bit back into effect (per-token nf4 dequant of the
 MoE crushes decode to ~4.5 tok/s).
 
-The supported deploy is the `docker/Dockerfile.server` shipped here: CUDA
+The supported deploy is the `docker/Dockerfile.server-qwen3-coder` shipped here: CUDA
 `12.2.0-runtime` base, **no** flash-attn step, `[local]` deps with `transformers<5`,
 `device_map="auto"` (dual-card), LoRA left **unmerged** and CPU-staged (see "the LoRA
 stays UNMERGED" below — never `merge_and_unload`). Keep

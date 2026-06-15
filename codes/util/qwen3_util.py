@@ -57,7 +57,7 @@ def _pick_attn_implementation() -> str:
         log.warning(
             "flash_attn not importable; falling back to SDPA. "
             "Rebuild the server image to compile flash-attn (see "
-            "docker/Dockerfile.server) if review prompts exceed ~16K "
+            "docker/Dockerfile.server-qwen3-coder) if review prompts exceed ~16K "
             "tokens — SDPA's math fallback can still OOM on very "
             "long contexts."
         )

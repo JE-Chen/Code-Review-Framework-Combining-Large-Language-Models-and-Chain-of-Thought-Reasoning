@@ -8,7 +8,7 @@
 #      free before the build starts. Skipping this is a common cause of
 #      the OOM-killer killing cloudflared / sshd mid-build and producing
 #      the "GPU server disconnects during build" symptom.
-#   2. Pull origin/dev so the build uses the latest Dockerfile.server.
+#   2. Pull origin/dev so the build uses the latest Dockerfile.server-qwen3-coder.
 #   3. Run docker compose build with --progress=plain | tee to a log,
 #      while a background loop snapshots `free -h` every 2 seconds so
 #      a post-mortem can identify when peak RAM hit.
@@ -44,7 +44,7 @@ DMESG_MARK="$(dmesg -T 2>/dev/null | tail -1 || true)"
 # server. Without it, `up -d` would recreate prthinker with its own
 # 9000 host binding and the monitoring containers would be left behind.
 # Set PRTHINKER_WITH_MONITORING=0 to rebuild the bare server only.
-COMPOSE="docker compose -f docker/docker-compose.yml"
+COMPOSE="docker compose -f docker/docker-compose.server-qwen3-coder.yml"
 if [ "${PRTHINKER_WITH_MONITORING:-1}" != "0" ]; then
     COMPOSE="$COMPOSE -f docker/docker-compose.monitoring.yml"
 fi

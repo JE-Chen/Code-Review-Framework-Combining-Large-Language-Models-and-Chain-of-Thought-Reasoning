@@ -1,0 +1,51 @@
+# Build-context hygiene for docker/Dockerfile.server-qwen3-coder, whose
+# build context is the repo root (context: ..). Only pyproject.toml,
+# README.md, LICENSE, prthinker/, codes/, and datas/RAG_data/ are COPYed
+# into the image; the rest of the ~1.5 GB working tree (1.3 GB of it
+# .venv) must not be tarred to the docker daemon on every build.
+#
+# The Gemma / training images build from the docker/ directory as context
+# (context: .) and bind-mount the repo at runtime, so this root file does
+# not affect them.
+
+# Virtualenvs, VCS, IDE, CI
+.venv/
+venv/
+.git/
+.gitignore
+.github/
+.idea/
+.vscode/
+
+# Python caches and build artifacts
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.ruff_cache/
+**/.mypy_cache/
+*.egg-info/
+build/
+dist/
+
+# Docs, paper, examples, tests, extra READMEs — not needed in the image
+docs/
+paper/
+examples/
+tests/
+READMEs/
+
+# Local runtime state and rebuild logs
+.prthinker/
+
+# Large data: RAG_data is COPYed explicitly and must stay; drop the rest
+datas/*
+!datas/RAG_data
+
+# Trained adapters are mounted from the host at runtime, never baked in
+codes/train/outputs-*/
+codes/train/tb-logs/
+**/*.log
+
+# Secrets
+.env
+**/.env

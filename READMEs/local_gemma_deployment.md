@@ -73,6 +73,14 @@ curl http://localhost:9000/healthz
 - The image strips NGC's bundled flash-attn: gemma-4-31B's head_dim
   exceeds flash-attn's 256 limit, so attention must dispatch to SDPA;
   with flash-attn present the auto-probe picks it and the load fails.
+- The TLS and monitoring overlays target the `prthinker` service, which
+  this compose now uses (the container is still named `gemma4-server`), so
+  they stack on the Gemma deploy too:
+
+  ```bash
+  docker compose -f docker-compose.server-gemma4.yml \
+      -f docker-compose.monitoring.yml up -d
+  ```
 
 ## Training (LoRA fine-tune)
 

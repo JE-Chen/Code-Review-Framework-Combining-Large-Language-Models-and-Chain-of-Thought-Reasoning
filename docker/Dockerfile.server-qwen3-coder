@@ -1,4 +1,8 @@
-# prthinker inference server image.
+# prthinker inference server image — Qwen3-Coder-30B-A3B (portable deploy).
+#
+# This is the legacy/portable Qwen3-Coder-30B-A3B server image. The current
+# Gemma-4-31B-it deploy (local DGX Spark, aarch64) lives in
+# Dockerfile.server-gemma4 + docker-compose.server-gemma4.yml.
 #
 # Built on the NVIDIA CUDA runtime so torch + bitsandbytes load on the GPU;
 # the matching host driver must expose `--gpus all` (set via
@@ -42,7 +46,9 @@ RUN apt-get update \
 WORKDIR /app
 
 # Copy only metadata first so dependency layer caches across code changes.
-COPY pyproject.toml ./
+# README.md + LICENSE are required by pyproject's [project] readme/license
+# fields when pip resolves the package metadata.
+COPY pyproject.toml README.md LICENSE ./
 COPY prthinker/ ./prthinker/
 COPY codes/ ./codes/
 COPY datas/RAG_data/ ./datas/RAG_data/
@@ -55,8 +61,11 @@ RUN mkdir -p /cache/huggingface /data
 
 EXPOSE 9000
 
-# Healthcheck hits the bundled /healthz endpoint.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
+# Healthcheck hits the bundled /healthz endpoint. Long start-period: the
+# 30B load + LoRA + boot probe + FAISS index takes ~5 min before /healthz
+# answers (rebuild-server.sh waits up to 300s), so a shorter window would
+# flap the container to unhealthy during a normal boot.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=600s --retries=3 \
   CMD curl -fsS http://127.0.0.1:9000/healthz || exit 1
 
 CMD ["uvicorn", "codes.run.fastapi_server:app", "--host", "0.0.0.0", "--port", "9000"]
