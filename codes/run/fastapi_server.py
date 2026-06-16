@@ -101,7 +101,23 @@ _backend = LocalQwen3Backend(
         or _LORA_BY_MODEL.get(RUN_ON, _DEFAULT_LORA),
     )
 )
-_retriever = FaissRAGRetriever(threshold=0.7)
+
+
+def _warm_rag_index() -> None:
+    """Build the FAISS index at boot instead of on the first request.
+
+    Constructing a ``FaissRAGRetriever`` imports ``codes.util.faiss_util``,
+    whose module body loads the embedding model and builds the rule index
+    exactly once. Triggering that here means the boot probe exercises the
+    embedding stack and the first ``/review`` / ``/rag`` does not pay the
+    one-off index-build cost. The retriever instance is intentionally
+    discarded — every request builds its own with the request's threshold;
+    only the import-time side effect is wanted.
+    """
+    FaissRAGRetriever(threshold=0.7)
+
+
+_warm_rag_index()
 
 
 def _build_dismissed_filter() -> DismissedFilter | None:

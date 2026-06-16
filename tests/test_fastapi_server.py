@@ -81,6 +81,28 @@ def server_module():
                 sys.modules[name] = prev
 
 
+def test_warm_rag_index_constructs_default_retriever(server_module, monkeypatch):
+    """_warm_rag_index warms the FAISS index by building a default retriever.
+
+    The helper exists only for its import-time side effect (loading the
+    embedding stack + building the index once); it returns nothing and the
+    retriever it constructs is discarded. We spy on the constructor to assert
+    it is built at the legacy 0.7 threshold without touching a real model.
+    """
+    thresholds: list[float | None] = []
+
+    class _SpyRetriever:
+        def __init__(self, threshold: float | None = None) -> None:
+            thresholds.append(threshold)
+
+    monkeypatch.setattr(server_module, "FaissRAGRetriever", _SpyRetriever)
+
+    result = server_module._warm_rag_index()
+
+    assert result is None
+    assert thresholds == [0.7]
+
+
 def test_cancel_if_idle_sets_event_when_idle(server_module):
     """An idle running job gets its cancel_event set."""
     now = time.time()
