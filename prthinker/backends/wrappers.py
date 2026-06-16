@@ -16,7 +16,6 @@ wrapper's ``last_cache_hit`` flag.
 from __future__ import annotations
 
 import logging
-import threading
 import time
 from typing import Iterator
 
@@ -188,62 +187,4 @@ class InstrumentedBackend(InferenceBackend):
         self._inner.close()
 
 
-class SerializingBackend(InferenceBackend):
-    """Serialise GPU access so only one generation runs at a time.
-
-    The single-GPU server has no other concurrency guard, so overlapping
-    review / ask jobs (multiple pushes, or a PR summary landing during a
-    review) issue concurrent ``model.generate`` calls that time-slice the one
-    card and slow *every* request 2-3x. A lock makes each generation run at
-    full isolated speed and queues the rest, improving total throughput. The
-    lock is released between calls, so multi-step reviews still interleave
-    fairly at step boundaries instead of one job starving the others.
-    """
-
-    def __init__(
-        self, inner: InferenceBackend, lock: threading.Lock | None = None
-    ) -> None:
-        self._inner = inner
-        self._lock = lock if lock is not None else threading.Lock()
-
-    def __getattr__(self, name: str) -> object:
-        # Only reached when normal lookup fails. Delegate to the wrapped
-        # backend so server-side attribute probes (e.g. ``_tokenizer``)
-        # still resolve through the wrapper.
-        inner = self.__dict__.get("_inner")
-        if inner is None:
-            raise AttributeError(name)
-        return getattr(inner, name)
-
-    def backend_kind(self) -> str:
-        return self._inner.backend_kind()
-
-    def model_name(self) -> str:
-        return self._inner.model_name()
-
-    def last_usage(self) -> Usage | None:
-        return self._inner.last_usage()
-
-    def generate(
-        self,
-        prompt: str,
-        max_new_tokens: int,
-        *,
-        cancel_event: "object | None" = None,
-    ) -> str:
-        with self._lock:
-            return self._inner.generate(
-                prompt, max_new_tokens, cancel_event=cancel_event
-            )
-
-    def stream_generate(
-        self, prompt: str, max_new_tokens: int
-    ) -> Iterator[str]:
-        with self._lock:
-            yield from self._inner.stream_generate(prompt, max_new_tokens)
-
-    def close(self) -> None:
-        self._inner.close()
-
-
-__all__ = ["CachingBackend", "InstrumentedBackend", "SerializingBackend"]
+__all__ = ["CachingBackend", "InstrumentedBackend"]
