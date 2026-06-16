@@ -408,6 +408,22 @@ either dispatches to the memory-efficient kernel or raises a clear "no available
 backend" error — never the silent 127 GiB attention-score materialisation that the
 default dispatcher fell into at ~35K total tokens.
 
+### GPU Server: optional FP8 weights via `PRTHINKER_QUANT=fp8`
+
+Decode on a single memory-bandwidth-bound card (e.g. the DGX Spark GB10 serving the
+dense `google/gemma-4-31B-it`) is gated by the bytes read per token, not attention
+compute — so flash-attn does **not** help, but **FP8 weights roughly halve those bytes**
+and speed decode. Set `PRTHINKER_QUANT=fp8` to load the bf16-family models through
+transformers-native `FineGrainedFP8Config` (E4M3, dependency-free, native FP8 matmul on
+Blackwell). The default (`bf16` / unset / `none` / `off`) keeps the current bf16 weights;
+an unknown value fails fast at boot. The selector logic is the torch-free
+`codes.util.quant_guard.normalize_quant_mode`; the GPU-side config build is
+`qwen3_util._quant_config_for_mode`. FP8 is **opt-in and reversible** (it only changes
+weight precision) and the boot probe still validates the assembled base+LoRA model before
+serving — so a broken FP8+adapter combination fails loudly at boot, not mid-review. This
+is independent of the Qwen `transformers<5` pin above (FP8 targets the dense gemma deploy
+on transformers≥5.7, not the Qwen3-MoE image).
+
 ### GPU Server: the LoRA stays UNMERGED — CPU-stage it, never `merge_and_unload`
 
 The ~13 GB r=64 expert LoRA (`codes/train/outputs-lora-qwen3-coder-30b`, targeting
