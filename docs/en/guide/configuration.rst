@@ -271,7 +271,7 @@ Output and logging
      - *(all registered)*
    * - ``--max-new-tokens N``
      - ``PRTHINKER_MAX_NEW_TOKENS``
-     - ``8192``
+     - ``32768``
    * - ``--output-dir PATH``
      - *(review-file only)*
      - *(none)*

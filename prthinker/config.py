@@ -202,7 +202,7 @@ class Config:
     # calibrated threshold for the active embedding model; remote calls
     # send the historical 0.7 (the server pins the qwen-era index).
     rag_threshold: float | None = None
-    max_new_tokens: int = 8192
+    max_new_tokens: int = 32768
     steps: tuple[str, ...] = field(default_factory=tuple)
     cache: CacheConfig = field(default_factory=CacheConfig)
     telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)

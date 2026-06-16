@@ -264,7 +264,7 @@ CLI 在讀。
      - *(全部註冊的 step)*
    * - ``--max-new-tokens N``
      - ``PRTHINKER_MAX_NEW_TOKENS``
-     - ``8192``
+     - ``32768``
    * - ``--output-dir PATH``
      - *(只在 review-file)*
      - *(無)*

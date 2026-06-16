@@ -22,7 +22,7 @@ Schema
 
    # .prthinker.yaml — 把所有開關都打開的範例
    backend: openai                # local | remote | openai | anthropic
-   max_new_tokens: 8192
+   max_new_tokens: 32768
 
    per_file: true
    inline_review: true
