@@ -32,6 +32,7 @@ from prthinker.accepted import (
     AcceptedExamplesStore,
 )
 from prthinker.backends.local import LocalQwen3Backend
+from prthinker.backends.wrappers import SerializingBackend
 from prthinker.config import LocalBackendConfig
 from prthinker.dismissed import DismissedExamplesStore, DismissedFilter
 from prthinker.pipeline import CoTPipeline, ReviewCancelledError
@@ -94,11 +95,15 @@ except ImportError:
 # One-time module-level initialization (per project perf rules).
 # ---------------------------------------------------------------------------
 
-_backend = LocalQwen3Backend(
-    LocalBackendConfig(
-        model_name=RUN_ON,
-        lora_path=os.environ.get("PRTHINKER_LORA_PATH")
-        or _LORA_BY_MODEL.get(RUN_ON, _DEFAULT_LORA),
+# Wrap the GPU backend so concurrent review/ask jobs serialise onto the one
+# card instead of time-slicing it (which slowed every overlapping request).
+_backend = SerializingBackend(
+    LocalQwen3Backend(
+        LocalBackendConfig(
+            model_name=RUN_ON,
+            lora_path=os.environ.get("PRTHINKER_LORA_PATH")
+            or _LORA_BY_MODEL.get(RUN_ON, _DEFAULT_LORA),
+        )
     )
 )
 
