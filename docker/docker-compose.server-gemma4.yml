@@ -7,7 +7,7 @@
 #
 #   cd docker
 #   docker compose -f docker-compose.server-gemma4.yml up -d --build
-#   docker logs -f gemma4-server      # boot takes ~10 min (31B bf16 load
+#   docker logs -f gemma4-server      # boot takes ~10 min (31B FP8 load
 #                                     # + LoRA + boot probe + FAISS index)
 #   curl http://localhost:9000/healthz
 #
@@ -42,6 +42,10 @@ services:
       # Overrides the server's qwen-era setdefault: local Gemma deploys
       # use the EmbeddingGemma index (calibrated threshold 0.32).
       EMB_MODEL: ${EMB_MODEL:-google/embeddinggemma-300m}
+      # FP8 weights (transformers-native FineGrainedFP8) roughly halve the
+      # bytes read per token, the bottleneck on the memory-bandwidth-bound
+      # single GB10 decode. Override with PRTHINKER_QUANT=bf16 to roll back.
+      PRTHINKER_QUANT: ${PRTHINKER_QUANT:-fp8}
       HF_TOKEN: ${HF_TOKEN:-}
       HF_HUB_DISABLE_XET: "1"
     volumes:
