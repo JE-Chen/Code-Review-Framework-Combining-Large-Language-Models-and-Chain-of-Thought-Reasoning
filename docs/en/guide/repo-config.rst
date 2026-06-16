@@ -25,7 +25,7 @@ Schema
 
    # .prthinker.yaml — example with everything turned on
    backend: openai                # local | remote | openai | anthropic
-   max_new_tokens: 16384
+   max_new_tokens: 8192
 
    per_file: true
    inline_review: true

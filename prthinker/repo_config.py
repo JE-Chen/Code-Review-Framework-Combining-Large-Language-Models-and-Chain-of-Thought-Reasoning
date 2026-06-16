@@ -113,7 +113,7 @@ class RepoConfig(BaseModel):
     """The full ``.prthinker.yaml`` schema."""
 
     backend: str = "remote"  # local | remote | openai | anthropic
-    max_new_tokens: int = 16384
+    max_new_tokens: int = 8192
     per_file: bool = False
     inline_review: bool = False
     max_findings_per_file: int = 10

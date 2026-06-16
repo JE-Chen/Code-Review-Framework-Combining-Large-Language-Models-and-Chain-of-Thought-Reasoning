@@ -143,7 +143,7 @@ class ReviewRequest(BaseModel):
     steps: list[str] | None = None
     rag_enabled: bool = True
     rag_threshold: float = 0.7
-    max_new_tokens: int = 16384
+    max_new_tokens: int = 8192
     extra_rules: list[str] = Field(default_factory=list)
 
 

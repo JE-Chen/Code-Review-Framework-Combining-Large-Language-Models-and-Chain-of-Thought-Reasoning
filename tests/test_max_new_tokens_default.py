@@ -1,9 +1,9 @@
-"""Lock the review ``max_new_tokens`` default at 16384.
+"""Lock the review ``max_new_tokens`` default at 8192.
 
 A per-file CoT review fans a prompt through ~9 sequential steps; on the
 single-card GPU backend each step generated up to the old 32768-token cap,
 pushing a file past 15 minutes and risking the per-file poll budget. The
-default was halved to 16384 — this test pins every declaration in the review
+default was halved to 8192 — this test pins every declaration in the review
 chain so a future edit cannot silently drift one of them back up.
 """
 
@@ -16,7 +16,7 @@ from prthinker.config import BackendKind, Config, RemoteBackendConfig
 from prthinker.repo_config import RepoConfig
 from prthinker.schemas import ReviewRequest
 
-_REVIEW_DEFAULT = 16384
+_REVIEW_DEFAULT = 8192
 
 
 def test_config_default():
