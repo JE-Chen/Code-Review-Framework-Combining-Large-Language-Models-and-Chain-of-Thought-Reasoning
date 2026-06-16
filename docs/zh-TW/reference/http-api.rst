@@ -104,7 +104,7 @@ POST /review
      "steps": null,
      "rag_enabled": true,
      "rag_threshold": 0.7,
-     "max_new_tokens": 32768,
+     "max_new_tokens": 16384,
      "extra_rules": ["Always use Path.resolve", "..."]
    }
 

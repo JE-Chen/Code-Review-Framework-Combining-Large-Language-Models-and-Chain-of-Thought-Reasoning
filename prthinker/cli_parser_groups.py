@@ -180,7 +180,7 @@ def add_rag_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--max-new-tokens",
         type=int,
-        default=int(env_str("PRTHINKER_MAX_NEW_TOKENS", "32768") or 32768),
+        default=int(env_str("PRTHINKER_MAX_NEW_TOKENS", "16384") or 16384),
     )
     common.add_argument(
         "--steps",

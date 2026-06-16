@@ -151,7 +151,7 @@ def test_shared_config_defaults(monkeypatch):
     cfg = mcp_server._config_from_env()
     assert cfg.rag_enabled is True
     assert cfg.rag_threshold == 0.7
-    assert cfg.max_new_tokens == 32768
+    assert cfg.max_new_tokens == 16384
     assert cfg.cache.enabled is False
     assert cfg.cache.path == ".prthinker/cache.sqlite"
     assert cfg.telemetry.enabled is False

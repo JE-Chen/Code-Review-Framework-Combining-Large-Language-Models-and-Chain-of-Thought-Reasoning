@@ -204,7 +204,7 @@ review-file
        [--api-consistency] [--pr-classify] [--reproducibility-check]
        [--dep-upgrade-check] [--personas LIST]
        [--risk-weighted] [--diff-entropy]
-       [--max-new-tokens 32768]
+       [--max-new-tokens 16384]
        [--steps a,b,c]
        [--output-dir PATH]
 

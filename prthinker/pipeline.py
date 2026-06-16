@@ -126,7 +126,7 @@ def _invoke_on_file_done(
 # Char-level cap applied to a step's output BEFORE it is read by the
 # next step's build_prompt. The CoT pipeline's final ``total_summary``
 # step concatenates every prior step's output into one prompt; with the
-# default ``max_new_tokens=32768`` each prior step can emit ~120 KB, so
+# default ``max_new_tokens=16384`` each prior step can emit ~60 KB, so
 # the final prompt grows to hundreds of thousands of tokens and triggers
 # OOM in attention (~300 GiB for 50K tokens × 64 heads). 6000 chars is
 # roughly 1500 tokens, leaving a comfortable budget for the system
@@ -245,7 +245,7 @@ class CoTPipeline:
         backend: InferenceBackend,
         retriever: RAGRetriever,
         steps: tuple[str, ...] = (),
-        max_new_tokens: int = 32768,
+        max_new_tokens: int = 16384,
         extra_rules: tuple[str, ...] = (),
         dismissed_filter: DismissedFilter | None = None,
         accepted_retriever: AcceptedExamplesRetriever | None = None,

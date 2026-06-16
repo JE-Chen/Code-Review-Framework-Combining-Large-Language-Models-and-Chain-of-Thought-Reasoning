@@ -150,7 +150,7 @@ def _config_from_env() -> Config:
         anthropic=kwargs["anthropic"],
         rag_enabled=env_bool("PRTHINKER_RAG_ENABLED", True),
         rag_threshold=float(env_str("PRTHINKER_RAG_THRESHOLD", "0.7") or 0.7),
-        max_new_tokens=int(env_str("PRTHINKER_MAX_NEW_TOKENS", "32768") or 32768),
+        max_new_tokens=int(env_str("PRTHINKER_MAX_NEW_TOKENS", "16384") or 16384),
         cache=_cache_config(),
         telemetry=_telemetry_config(),
     )
