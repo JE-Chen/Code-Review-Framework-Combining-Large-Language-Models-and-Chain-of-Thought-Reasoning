@@ -98,7 +98,7 @@ Patterns at a glance
 Pattern             Where it lives
 ================== ================================================================
 Strategy            ``prthinker.backends.base.InferenceBackend`` with
-                    ``LocalQwen3Backend`` and ``RemoteHttpBackend`` implementations.
+                    ``LocalHFBackend`` and ``RemoteHttpBackend`` implementations.
 Factory             ``prthinker.backends.create_backend(config)`` is the only
                     way to build a backend. Heavy imports (torch, transformers)
                     are deferred inside the concrete backend.
@@ -130,7 +130,7 @@ Component map
    │  pipeline.CoTPipeline ─── backends.InferenceBackend ◀──┐   │
    │      │           │              │                     │   │
    │      │           │              ▼                     │   │
-   │      │           │     LocalQwen3Backend   RemoteHttpBackend
+   │      │           │     LocalHFBackend       RemoteHttpBackend
    │      │           │            (GPU)        (HTTP /ask)      │
    │      │           ▼                                          │
    │      │     rag.RAGRetriever ◀── FaissRAGRetriever            │

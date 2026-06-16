@@ -291,7 +291,7 @@ Code-Review-Framework/
 ├── codes/                            # Research / training scripts (legacy)
 │   ├── run/                          #   cot.py / skills.py / fastapi_server.py
 │   ├── train/                        #   LoRA fine-tuning entry points
-│   └── util/                         #   qwen3_util.py + faiss_util.py + server_metrics.py
+│   └── util/                         #   hf_model_util.py + faiss_util.py + server_metrics.py
 ├── datas/                            # RAG rules + experiment fixtures
 ├── docs/                             # Sphinx (en + zh-TW + zh-CN, single tree)
 ├── docker/                           # Self-host: Dockerfile + compose (port 9000)

@@ -4,7 +4,7 @@ Two thin clients of the FastAPI server:
 
 - RemoteHttpBackend       - runs a single prompt through the async /ask job
                             (submit + poll). Plugs into CoTPipeline like
-                            LocalQwen3Backend, so the pipeline orchestration
+                            LocalHFBackend, so the pipeline orchestration
                             stays on the runner.
 
 - RemotePipelineClient    - calls /review once and gets the full structured

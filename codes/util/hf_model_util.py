@@ -295,7 +295,7 @@ def _load_bf16_family(model_name: str, attn_impl: str):
         )
 
 
-def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3B-Thinking-2507", quantization: bool = True):
+def load_hf_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3B-Thinking-2507", quantization: bool = True):
 
     print("Loading model across all GPUs...")
     attn_impl = _pick_attn_implementation()
@@ -402,7 +402,7 @@ def _force_efficient_sdpa():
     yield
 
 
-def qwen3_ask(prompt: str, model, tokenizer, max_new_tokens: int = 16784, cancel_event=None):
+def hf_generate(prompt: str, model, tokenizer, max_new_tokens: int = 16784, cancel_event=None):
     messages = [
         {"role": "user", "content": prompt}
     ]

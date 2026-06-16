@@ -35,7 +35,7 @@ required Check Run before merges.
 - `codes/run/Skills/` — Skills-style prompts (used by `skills.py`).
 - `codes/train/` — LoRA fine-tuning scripts (Qwen3.1-7B, Qwen2.5-Coder-7B,
   Qwen3-30B, Qwen3-Coder-30B).
-- `codes/util/` — `qwen3_util.py` (model loading), `faiss_util.py`
+- `codes/util/` — `hf_model_util.py` (model loading), `faiss_util.py`
   (FAISS-backed RAG).
 - `datas/` — test data, RAG rule documents, prompt copies.
 - `docs/` — Sphinx documentation, single tree containing all three
@@ -169,7 +169,7 @@ package. New code that violates these is rejected at review.
    provider means adding one class + one factory branch.
 2. **Factory Pattern** — All model instantiation (tokenizer + base model
    + LoRA adapter + quantization) must go through a single factory entry
-   point (`load_qwen3_model()` for models, `create_backend()` for
+   point (`load_hf_model()` for models, `create_backend()` for
    backends). Do not construct models ad-hoc.
 3. **Template Method Pattern** — Prompt construction always goes through
    template builders (`build_global_rule_template`,
