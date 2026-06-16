@@ -582,11 +582,25 @@ jobs:
 
           python -m prthinker aggregate
 
+      # Detect whether aggregate actually wrote a SARIF. On the skip-notice
+      # path (no partials) and on a clean run with zero findings, no SARIF
+      # file exists, so the upload below must be genuinely skipped rather
+      # than left to error with "Path does not exist".
+      - name: Check for SARIF report
+        id: sarif
+        if: ${{ always() }}
+        run: |
+          if [ -f "${{ runner.temp }}/prthinker.sarif" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # Upload the merged findings to GitHub code scanning so they also
       # appear in the Security tab and as native diff annotations. Best
       # effort: skipped when no SARIF was produced (e.g. skip notice).
       - name: Upload SARIF to code scanning
-        if: ${{ always() }}
+        if: ${{ always() && steps.sarif.outputs.exists == 'true' }}
         continue-on-error: true
         uses: github/codeql-action/upload-sarif@v3
         with:
