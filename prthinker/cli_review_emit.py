@@ -37,7 +37,7 @@ from prthinker.formatters import (
     format_reviewer_checklist,
 )
 from prthinker.gha_annotations import print_gha_annotations
-from prthinker.github_api import count_findings_on_diff, findings_off_diff
+from prthinker.github_api import findings_off_diff
 from prthinker.html_report import write_report
 from prthinker.ignore import filter_findings, load_ignore
 from prthinker.impact_map import format_impact_note, impacted_files
@@ -504,8 +504,11 @@ def _inline_post_breakdown(
     """
     if not getattr(args, "inline_review", False):
         return None, ()
-    posted_count = count_findings_on_diff(result.inline_findings, result.code_diff)
+    # On-diff and off-diff findings partition the set exactly, so derive the
+    # posted count from the off-diff list instead of re-parsing the diff a
+    # second time through count_findings_on_diff.
     off_diff = tuple(findings_off_diff(result.inline_findings, result.code_diff))
+    posted_count = len(result.inline_findings) - len(off_diff)
     return posted_count, off_diff
 
 
