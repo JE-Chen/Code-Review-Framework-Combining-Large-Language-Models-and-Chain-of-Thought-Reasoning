@@ -1,3 +1,5 @@
+"""Minimal Qwen3 quickstart: load the model and run one code-review query."""
+
 import gc
 
 import torch
