@@ -61,15 +61,15 @@ def test_gpu_serialized_releases_on_exception() -> None:
 
 def test_local_backend_generate_runs_under_the_lock(monkeypatch) -> None:
     # Construct the backend without loading a model (object.__new__) and
-    # stub the lazy qwen3_ask import, so generate() needs no torch/GPU.
+    # stub the lazy hf_generate import, so generate() needs no torch/GPU.
     import sys
 
     from prthinker.backends import local as local_mod
     from prthinker.backends.local import LocalHFBackend
 
-    fake_qwen3 = types.ModuleType("codes.util.qwen3_util")
-    fake_qwen3.qwen3_ask = lambda *a, **k: ("hello", None)
-    monkeypatch.setitem(sys.modules, "codes.util.qwen3_util", fake_qwen3)
+    fake_qwen3 = types.ModuleType("codes.util.hf_model_util")
+    fake_qwen3.hf_generate = lambda *a, **k: ("hello", None)
+    monkeypatch.setitem(sys.modules, "codes.util.hf_model_util", fake_qwen3)
 
     entered: list[bool] = []
 

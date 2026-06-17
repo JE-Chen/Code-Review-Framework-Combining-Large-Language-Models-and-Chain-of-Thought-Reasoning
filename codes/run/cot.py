@@ -8,7 +8,7 @@ per-step outputs to `<prefix>_<stem>/`.
 import os
 from pathlib import Path
 
-from prthinker.backends.local import LocalQwen3Backend
+from prthinker.backends.local import LocalHFBackend
 from prthinker.config import LocalBackendConfig
 from prthinker.pipeline import CoTPipeline
 from prthinker.rag import FaissRAGRetriever
@@ -29,7 +29,7 @@ _DEFAULT_LORA = "../train/outputs-lora-qwen3-30b"
 
 def _build_pipeline() -> CoTPipeline:
     lora = _LORA_BY_MODEL.get(RUN_ON, _DEFAULT_LORA)
-    backend = LocalQwen3Backend(LocalBackendConfig(model_name=RUN_ON, lora_path=lora))
+    backend = LocalHFBackend(LocalBackendConfig(model_name=RUN_ON, lora_path=lora))
     retriever = FaissRAGRetriever(threshold=0.7)
     return CoTPipeline(backend=backend, retriever=retriever)
 

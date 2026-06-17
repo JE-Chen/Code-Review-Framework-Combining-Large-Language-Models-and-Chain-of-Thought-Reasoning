@@ -1,4 +1,4 @@
-"""Regression test for the LoRA adapter load device in codes.util.qwen3_util.
+"""Regression test for the LoRA adapter load device in codes.util.hf_model_util.
 
 The 30B-A3B deploy loads the base bf16 across both L40S cards and then
 attaches an unmerged ~13 GiB r=64 expert LoRA. PEFT defaults the adapter
@@ -22,8 +22,8 @@ _A3B_MODEL = "Qwen/Qwen3-Coder-30B-A3B-Instruct"
 
 
 @pytest.fixture
-def _qwen3_util(monkeypatch):
-    """Import codes.util.qwen3_util with torch/transformers/peft stubbed."""
+def _hf_model_util(monkeypatch):
+    """Import codes.util.hf_model_util with torch/transformers/peft stubbed."""
     fake_torch = SimpleNamespace(
         bfloat16=object(),
         cuda=SimpleNamespace(
@@ -49,10 +49,10 @@ def _qwen3_util(monkeypatch):
         "prthinker.pipeline",
         SimpleNamespace(ReviewCancelledError=type("RCE", (Exception,), {})),
     )
-    sys.modules.pop("codes.util.qwen3_util", None)
-    module = importlib.import_module("codes.util.qwen3_util")
+    sys.modules.pop("codes.util.hf_model_util", None)
+    module = importlib.import_module("codes.util.hf_model_util")
     yield module
-    sys.modules.pop("codes.util.qwen3_util", None)
+    sys.modules.pop("codes.util.hf_model_util", None)
 
 
 def _stub_load_pipeline(module, monkeypatch, recorder):
@@ -86,11 +86,11 @@ def _stub_load_pipeline(module, monkeypatch, recorder):
     return fake_model
 
 
-def test_lora_adapter_staged_on_cpu(_qwen3_util, monkeypatch):
+def test_lora_adapter_staged_on_cpu(_hf_model_util, monkeypatch):
     recorder: dict = {}
-    base = _stub_load_pipeline(_qwen3_util, monkeypatch, recorder)
+    base = _stub_load_pipeline(_hf_model_util, monkeypatch, recorder)
 
-    model, tokenizer = _qwen3_util.load_qwen3_model(
+    model, tokenizer = _hf_model_util.load_hf_model(
         lora_path="/some/adapter", model_name=_A3B_MODEL, quantization=False
     )
 
@@ -101,11 +101,11 @@ def test_lora_adapter_staged_on_cpu(_qwen3_util, monkeypatch):
     assert tokenizer is not None
 
 
-def test_no_lora_skips_peft_load(_qwen3_util, monkeypatch):
+def test_no_lora_skips_peft_load(_hf_model_util, monkeypatch):
     recorder: dict = {}
-    _stub_load_pipeline(_qwen3_util, monkeypatch, recorder)
+    _stub_load_pipeline(_hf_model_util, monkeypatch, recorder)
 
-    _qwen3_util.load_qwen3_model(
+    _hf_model_util.load_hf_model(
         lora_path=None, model_name=_A3B_MODEL, quantization=False
     )
 

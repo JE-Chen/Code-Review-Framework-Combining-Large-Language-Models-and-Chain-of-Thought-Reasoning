@@ -12,9 +12,22 @@ from transformers import (
     StoppingCriteria,
     StoppingCriteriaList,
 )
+
+try:
+    # transformers-native FP8 (E4M3). Absent on builds without FP8 support;
+    # PRTHINKER_QUANT=fp8 then fails loudly in _quant_config_for_mode.
+    from transformers import FineGrainedFP8Config
+except ImportError:
+    FineGrainedFP8Config = None
+
 from peft import PeftModel
 
-from codes.util.quant_guard import balanced_max_memory, densification_risk
+from codes.util.quant_guard import (
+    QUANT_MODE_FP8,
+    balanced_max_memory,
+    densification_risk,
+    normalize_quant_mode,
+)
 from codes.util.think_split import think_end_token_id, thinking_boundary
 from prthinker.pipeline import ReviewCancelledError
 
@@ -229,41 +242,66 @@ def _gpu_max_memory():
     )
 
 
-def load_qwen3_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3B-Thinking-2507", quantization: bool = True):
+def _quant_config_for_mode(mode: str):
+    """Build the transformers ``quantization_config`` for a normalized mode.
+
+    ``fp8`` -> ``FineGrainedFP8Config``: transformers-native, dependency-free
+    FP8 (E4M3) weight quantization with native FP8 matmul on Blackwell. It
+    roughly halves the bytes read per generated token — the bottleneck on a
+    memory-bandwidth-bound single-GPU decode. Any other mode -> None (bf16).
+    """
+    if mode == QUANT_MODE_FP8:
+        if FineGrainedFP8Config is None:
+            raise RuntimeError(
+                "PRTHINKER_QUANT=fp8 requires a transformers build with "
+                "FineGrainedFP8Config; this install lacks FP8 support."
+            )
+        return FineGrainedFP8Config()
+    return None
+
+
+def _load_bf16_family(model_name: str, attn_impl: str):
+    """Load a dense / A3B model in bf16 (default) or FP8 (PRTHINKER_QUANT=fp8).
+
+    bf16, NOT 4-bit: on transformers>=5 a 4-bit A3B MoE densifies its forward
+    (allocation linear in input length) and OOMs the card; see CLAUDE.md "GPU
+    Server: bf16, no flash-attn". ``max_memory`` caps each card below physical
+    so the base splits evenly and leaves room for the unmerged LoRA loaded
+    afterwards (else GPU 0 fills and the adapter OOMs). FP8 is opt-in and only
+    changes weight precision; the boot probe still validates the assembled
+    model before serving.
+    """
+    mode = normalize_quant_mode(os.environ.get("PRTHINKER_QUANT"))
+    print(f"Quantization mode: {mode}")
+    load_kwargs = {
+        "device_map": "auto",
+        "torch_dtype": torch.bfloat16,
+        "attn_implementation": attn_impl,
+        "max_memory": _gpu_max_memory(),
+    }
+    quant_config = _quant_config_for_mode(mode)
+    if quant_config is not None:
+        load_kwargs["quantization_config"] = quant_config
+    try:
+        return AutoModelForCausalLM.from_pretrained(model_name, **load_kwargs)
+    except ValueError:
+        # Gemma 4 checkpoints are multimodal (Gemma4ForConditionalGeneration);
+        # AutoModelForCausalLM refuses them. The image-text class wraps the
+        # same language model and generates identically for text-only prompts.
+        from transformers import AutoModelForImageTextToText  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+
+        return AutoModelForImageTextToText.from_pretrained(
+            model_name, **load_kwargs
+        )
+
+
+def load_hf_model(lora_path: str = None, model_name: str = "Qwen/Qwen3-30B-A3B-Thinking-2507", quantization: bool = True):
 
     print("Loading model across all GPUs...")
     attn_impl = _pick_attn_implementation()
     print(f"Attention implementation: {attn_impl}")
     if model_name in _BF16_MODELS:
-        # bf16, NOT 4-bit. On transformers>=5 a 4-bit A3B MoE densifies its
-        # forward (allocation linear in input length) and OOMs the L40S.
-        # bf16 across both cards (device_map="auto") avoids that entirely;
-        # see CLAUDE.md "GPU Server: bf16, no flash-attn". max_memory caps
-        # each card below physical so the base splits evenly and leaves room
-        # for the unmerged LoRA loaded afterwards (else GPU 0 fills and the
-        # adapter OOMs).
-        try:
-            model = AutoModelForCausalLM.from_pretrained(
-                model_name,
-                device_map="auto",
-                torch_dtype=torch.bfloat16,
-                attn_implementation=attn_impl,
-                max_memory=_gpu_max_memory(),
-            )
-        except ValueError:
-            # Gemma 4 checkpoints are multimodal
-            # (Gemma4ForConditionalGeneration); AutoModelForCausalLM
-            # refuses them. The image-text class wraps the same language
-            # model and generates identically for text-only prompts.
-            from transformers import AutoModelForImageTextToText  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-
-            model = AutoModelForImageTextToText.from_pretrained(
-                model_name,
-                device_map="auto",
-                torch_dtype=torch.bfloat16,
-                attn_implementation=attn_impl,
-                max_memory=_gpu_max_memory(),
-            )
+        model = _load_bf16_family(model_name, attn_impl)
     elif not quantization:
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
@@ -364,7 +402,7 @@ def _force_efficient_sdpa():
     yield
 
 
-def qwen3_ask(prompt: str, model, tokenizer, max_new_tokens: int = 16784, cancel_event=None):
+def hf_generate(prompt: str, model, tokenizer, max_new_tokens: int = 16784, cancel_event=None):
     messages = [
         {"role": "user", "content": prompt}
     ]

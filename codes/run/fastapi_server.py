@@ -31,7 +31,7 @@ from prthinker.accepted import (
     AcceptedExamplesRetriever,
     AcceptedExamplesStore,
 )
-from prthinker.backends.local import LocalQwen3Backend
+from prthinker.backends.local import LocalHFBackend
 from prthinker.config import LocalBackendConfig
 from prthinker.dismissed import DismissedExamplesStore, DismissedFilter
 from prthinker.pipeline import CoTPipeline, ReviewCancelledError
@@ -94,7 +94,7 @@ except ImportError:
 # One-time module-level initialization (per project perf rules).
 # ---------------------------------------------------------------------------
 
-_backend = LocalQwen3Backend(
+_backend = LocalHFBackend(
     LocalBackendConfig(
         model_name=RUN_ON,
         lora_path=os.environ.get("PRTHINKER_LORA_PATH")

@@ -15,16 +15,16 @@ class LocalHFBackend(InferenceBackend):
     chat template. Heavy imports (torch, transformers) are deferred so a
     runner that only uses online backends does not pay the import cost.
 
-    LoRA adapter and 4-bit / 8-bit quantization come from the existing
-    `codes/util/qwen3_util.load_qwen3_model` factory (the name is
-    historical; the function accepts any HF id).
+    LoRA adapter and 4-bit / 8-bit quantization come from the
+    `codes/util/hf_model_util.load_hf_model` factory (model-agnostic;
+    it accepts any HF id).
     """
 
     def __init__(self, config: LocalBackendConfig) -> None:
-        from codes.util.qwen3_util import load_qwen3_model
+        from codes.util.hf_model_util import load_hf_model
 
         self._config = config
-        model, tokenizer = load_qwen3_model(
+        model, tokenizer = load_hf_model(
             model_name=config.model_name,
             lora_path=config.lora_path,
             quantization=config.quantization,
@@ -46,12 +46,12 @@ class LocalHFBackend(InferenceBackend):
         *,
         cancel_event: "object | None" = None,
     ) -> str:
-        from codes.util.qwen3_util import qwen3_ask
+        from codes.util.hf_model_util import hf_generate
 
         # Serialize the forward pass: the server runs many request threads
         # against one GPU, and two concurrent generates OOM the card.
         with gpu_serialized():
-            content, _thinking = qwen3_ask(
+            content, _thinking = hf_generate(
                 prompt,
                 self._model,
                 self._tokenizer,
@@ -63,8 +63,3 @@ class LocalHFBackend(InferenceBackend):
     def close(self) -> None:
         self._model = None
         self._tokenizer = None
-
-
-# Backwards-compatible alias — old code / docs still importing
-# `LocalQwen3Backend` keeps working until the deprecation cycle ends.
-LocalQwen3Backend = LocalHFBackend

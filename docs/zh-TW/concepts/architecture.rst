@@ -95,7 +95,7 @@ runner 透過兩種 HTTP 形狀（``/ask`` 與 ``/review``，詳見下方
      - 對應實作
    * - Strategy
      - ``prthinker.backends.base.InferenceBackend`` 加上
-       ``LocalQwen3Backend`` 與 ``RemoteHttpBackend`` 兩個實作。
+       ``LocalHFBackend`` 與 ``RemoteHttpBackend`` 兩個實作。
    * - Factory
      - ``prthinker.backends.create_backend(config)`` 是建造 backend 的
        唯一入口。耗資源的 import（torch、transformers）延後到 concrete
@@ -127,7 +127,7 @@ runner 透過兩種 HTTP 形狀（``/ask`` 與 ``/review``，詳見下方
    │  pipeline.CoTPipeline ─── backends.InferenceBackend ◀──┐   │
    │      │           │              │                     │   │
    │      │           │              ▼                     │   │
-   │      │           │     LocalQwen3Backend   RemoteHttpBackend
+   │      │           │     LocalHFBackend       RemoteHttpBackend
    │      │           │            (GPU)        (HTTP /ask)      │
    │      │           ▼                                          │
    │      │     rag.RAGRetriever ◀── FaissRAGRetriever            │

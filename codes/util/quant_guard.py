@@ -102,4 +102,44 @@ def balanced_max_memory(
     return caps
 
 
-__all__ = ["balanced_max_memory", "densification_risk", "major_version"]
+# Quantization modes selectable via PRTHINKER_QUANT. Default keeps the bf16
+# weights; "fp8" halves the bytes read per token, the bottleneck on a
+# memory-bandwidth-bound single-GPU decode.
+QUANT_MODE_BF16 = "bf16"
+QUANT_MODE_FP8 = "fp8"
+_QUANT_MODE_ALIASES = {
+    "": QUANT_MODE_BF16,
+    "bf16": QUANT_MODE_BF16,
+    "none": QUANT_MODE_BF16,
+    "off": QUANT_MODE_BF16,
+    "fp8": QUANT_MODE_FP8,
+}
+
+
+def normalize_quant_mode(raw: str | None) -> str:
+    """Canonicalise a ``PRTHINKER_QUANT`` value to ``bf16`` or ``fp8``.
+
+    Empty / ``none`` / ``off`` / ``bf16`` keep the default bf16 weights;
+    ``fp8`` selects FP8 weight quantization. Matching is case-insensitive and
+    ignores surrounding whitespace. An unrecognised value raises so a typo
+    fails fast at boot instead of silently serving the wrong precision. Pure:
+    no torch / transformers import, so it is unit-testable without the GPU
+    stack.
+    """
+    key = (raw or "").strip().lower()
+    mode = _QUANT_MODE_ALIASES.get(key)
+    if mode is None:
+        raise ValueError(
+            f"Unsupported PRTHINKER_QUANT={raw!r}; use 'bf16' (default) or 'fp8'"
+        )
+    return mode
+
+
+__all__ = [
+    "QUANT_MODE_BF16",
+    "QUANT_MODE_FP8",
+    "balanced_max_memory",
+    "densification_risk",
+    "major_version",
+    "normalize_quant_mode",
+]

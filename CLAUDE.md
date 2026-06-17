@@ -44,7 +44,7 @@ code that violates them is rejected at review.
    (`LocalHFBackend` / `RemoteHttpBackend` / `OpenAICompatBackend` / `AnthropicBackend`). Adding a
    new provider means adding one class + one factory branch.
 2. **Factory Pattern** — All model and backend instantiation goes through a single factory entry
-   point (`load_qwen3_model()` for models, `create_backend()` for backends). Do not construct
+   point (`load_hf_model()` for models, `create_backend()` for backends). Do not construct
    models ad-hoc.
 3. **Template Method Pattern** — Prompt construction always goes through template builders
    (`build_global_rule_template`, `format_examples_block`, etc.). Never inline prompt strings in
@@ -88,7 +88,7 @@ code that violates them is rejected at review.
   GHA matrix `enumerate`-time pre-filter.
 - Use generators and iterators for large corpora to minimize memory footprint.
 - For the 30B model: **eager attention is forbidden at runtime**. The boot guard
-  (`codes.util.qwen3_util._verify_non_eager_attention`) refuses to start the server if
+  (`codes.util.hf_model_util._verify_non_eager_attention`) refuses to start the server if
   `model.config._attn_implementation` resolves to anything other than `"flash_attention_2"` or
   `"sdpa"`. Override only with `PRTHINKER_ALLOW_EAGER_ATTENTION=1` on a GPU with enough headroom.
 
@@ -299,7 +299,7 @@ the GitHub Actions runner installs on every PR**:
 - **Runner-safe**: `prthinker/*.py` (every module top-level, except the lazy `from prthinker.
   redaction import redact` patterns gated by an opt-in flag). The CLI, platforms, schemas,
   pipeline orchestration, all extension modules.
-- **Server-only**: `codes/run/fastapi_server.py`, `codes/util/qwen3_util.py`, `codes/train/`,
+- **Server-only**: `codes/run/fastapi_server.py`, `codes/util/hf_model_util.py`, `codes/train/`,
   anything that imports `torch` / `transformers` at module top.
 
 #### Testing runner-safe modules
@@ -351,8 +351,8 @@ runner version. Tests in `tests/test_schemas_roundtrip.py` lock the contract.
 
 ### Boot-Time Attention Guard
 
-`codes.util.qwen3_util._verify_non_eager_attention(model)` runs at the end of
-`load_qwen3_model()` and again after `PeftModel.from_pretrained`. If
+`codes.util.hf_model_util._verify_non_eager_attention(model)` runs at the end of
+`load_hf_model()` and again after `PeftModel.from_pretrained`. If
 `model.config._attn_implementation` is anything other than `"flash_attention_2"` or `"sdpa"`,
 the server refuses to start. This is intentional: eager attention OOMs around 1500 tokens of
 input on a 30B-class model with a 44 GiB GPU, and the failure mode is an opaque
@@ -364,7 +364,7 @@ eager attention — see the next section — but eager would also OOM, so the gu
 ### GPU Server: bf16, no flash-attn, transformers pinned `<5`
 
 The FastAPI server (`Qwen/Qwen3-Coder-30B-A3B-Instruct` + the unmerged 13 GB LoRA) is
-only fast in **bf16**, and now loads it **deterministically**: `load_qwen3_model()`
+only fast in **bf16**, and now loads it **deterministically**: `load_hf_model()`
 requests bf16 directly for the A3B models (`torch_dtype=torch.bfloat16`, no
 `BitsAndBytesConfig`) — ~75 GB across the two 46 GB L40S with `device_map="auto"`
 (base ~28 GB/card; with the CPU-staged LoRA attached the steady-state signature is
@@ -378,7 +378,7 @@ as the 4-bit "269 GiB" OOM, but it is **NOT specific to quantization** — it al
 densifies in plain **bf16**: observed on **5.10.2** a 2357-token file tried to
 allocate **110 GiB** (`quant=none`). The 4.x MoE forward routes sparsely and does
 not densify; 4.51+ carries the Qwen3-MoE architecture the model needs. Because
-`load_qwen3_model()` requests bf16 and never passes a `BitsAndBytesConfig`, the
+`load_hf_model()` requests bf16 and never passes a `BitsAndBytesConfig`, the
 `<5` pin does **not** re-engage bitsandbytes 4-bit. `_verify_quant_safe()` refuses
 to boot on transformers ≥ 5 (bf16 or 4-bit) — **model-aware** via
 `config.model_type`: only the Qwen3-MoE types (`qwen3_moe`) are refused, an
@@ -401,12 +401,28 @@ stays UNMERGED" below — never `merge_and_unload`). Keep
 obeys the deprecated var and looks in an empty dir, hanging (online) or OSErroring
 (offline) on load even though the weights are cached.
 
-`qwen3_ask` wraps `model.generate` in a `sdpa_kernel([FLASH, EFFICIENT])` context
+`hf_generate` wraps `model.generate` in a `sdpa_kernel([FLASH, EFFICIENT])` context
 (falls back to `torch.backends.cuda.sdp_kernel(enable_math=False)` on older PyTorch).
 The math backend is *explicitly disabled* for the generate call so a long-context run
 either dispatches to the memory-efficient kernel or raises a clear "no available SDPA
 backend" error — never the silent 127 GiB attention-score materialisation that the
 default dispatcher fell into at ~35K total tokens.
+
+### GPU Server: optional FP8 weights via `PRTHINKER_QUANT=fp8`
+
+Decode on a single memory-bandwidth-bound card (e.g. the DGX Spark GB10 serving the
+dense `google/gemma-4-31B-it`) is gated by the bytes read per token, not attention
+compute — so flash-attn does **not** help, but **FP8 weights roughly halve those bytes**
+and speed decode. Set `PRTHINKER_QUANT=fp8` to load the bf16-family models through
+transformers-native `FineGrainedFP8Config` (E4M3, dependency-free, native FP8 matmul on
+Blackwell). The default (`bf16` / unset / `none` / `off`) keeps the current bf16 weights;
+an unknown value fails fast at boot. The selector logic is the torch-free
+`codes.util.quant_guard.normalize_quant_mode`; the GPU-side config build is
+`hf_model_util._quant_config_for_mode`. FP8 is **opt-in and reversible** (it only changes
+weight precision) and the boot probe still validates the assembled base+LoRA model before
+serving — so a broken FP8+adapter combination fails loudly at boot, not mid-review. This
+is independent of the Qwen `transformers<5` pin above (FP8 targets the dense gemma deploy
+on transformers≥5.7, not the Qwen3-MoE image).
 
 ### GPU Server: the LoRA stays UNMERGED — CPU-stage it, never `merge_and_unload`
 
@@ -414,7 +430,7 @@ The ~13 GB r=64 expert LoRA (`codes/train/outputs-lora-qwen3-coder-30b`, targeti
 `q/k/v/o_proj` + the MoE `gate/up/down_proj`) is attached at runtime with
 `PeftModel.from_pretrained(...)` and **MUST stay unmerged**. Do **NOT** call
 `merge_and_unload()`, `merge_adapter()`, or otherwise fold the adapter into the base
-weights — not in `load_qwen3_model()`, not in a "fix the OOM" patch, not anywhere.
+weights — not in `load_hf_model()`, not in a "fix the OOM" patch, not anywhere.
 This is a hard rule, not a preference.
 
 **Why unmerged (and why merging is the wrong instinct):**

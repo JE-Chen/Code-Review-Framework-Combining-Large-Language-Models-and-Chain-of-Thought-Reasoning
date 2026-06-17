@@ -32,6 +32,7 @@ from prthinker.findings import build_provenance_block, parse_inline_findings
 from prthinker.judge import parse_verdict
 from prthinker.rag import RAGRetriever
 from prthinker.review_cache import CacheKey, ReviewCache
+from prthinker.undefined_guard import suppress_phantom_undefined
 from prthinker.schemas import (
     ApiDriftFinding,
     CounterfactualBlock,
@@ -835,6 +836,9 @@ class CoTPipeline:
         findings = self._parse_findings(
             ctx.results["inline_findings"], fd, rag_docs,
             n_accepted_examples, provenance,
+        )
+        findings = suppress_phantom_undefined(
+            findings, diff_text=fd.raw, path=fd.path,
         )
         if reproducibility_check:
             findings = self._reproducibility_label(

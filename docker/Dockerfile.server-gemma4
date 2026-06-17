@@ -35,6 +35,12 @@ RUN pip install --no-cache-dir \
 # fails. Removing it makes attention dispatch to SDPA.
 RUN pip uninstall -y torchao flash-attn
 
+# FP8 weights (PRTHINKER_QUANT=fp8) need the HF `kernels` package to fetch
+# the finegrained-fp8 matmul kernel at runtime. Pin to the range transformers
+# 5.12 expects (<0.13: newer kernels changed LayerRepository and breaks the
+# transformers import). Verified loading on GB10/sm_121.
+RUN pip install --no-cache-dir "kernels>=0.12,<0.13"
+
 # Code is bind-mounted at runtime (see docker-compose.server-gemma4.yml)
 WORKDIR /workspace
 

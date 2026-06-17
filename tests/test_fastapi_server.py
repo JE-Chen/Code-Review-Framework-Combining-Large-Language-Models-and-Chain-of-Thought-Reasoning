@@ -1,6 +1,6 @@
 """Unit tests for the idle-job sweeper helpers in ``codes.run.fastapi_server``.
 
-The server module constructs a real ``LocalQwen3Backend`` (which loads the 30B
+The server module constructs a real ``LocalHFBackend`` (which loads the 30B
 model) and a FAISS retriever (which builds an embedding index) at import time,
 and spawns a daemon sweeper thread. None of that is needed to exercise the pure
 idle-cancel logic, so we inject lightweight fakes into ``sys.modules`` for the
@@ -32,7 +32,7 @@ class _FakeJob:
 
 
 class _FakeModel:
-    """Eval-able placeholder so ``LocalQwen3Backend.__init__`` succeeds."""
+    """Eval-able placeholder so ``LocalHFBackend.__init__`` succeeds."""
 
     def eval(self) -> "_FakeModel":
         return self
@@ -53,9 +53,9 @@ def server_module():
     """Import the server module with heavy ``codes.util`` deps stubbed out."""
     records = [
         _install_fake_module(
-            "codes.util.qwen3_util",
-            load_qwen3_model=lambda *a, **k: (_FakeModel(), object()),
-            qwen3_ask=lambda *a, **k: ("", ""),
+            "codes.util.hf_model_util",
+            load_hf_model=lambda *a, **k: (_FakeModel(), object()),
+            hf_generate=lambda *a, **k: ("", ""),
         ),
         _install_fake_module(
             "codes.util.faiss_util",

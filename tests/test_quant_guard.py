@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import pytest
+
 from codes.util.quant_guard import (
+    QUANT_MODE_BF16,
+    QUANT_MODE_FP8,
     balanced_max_memory,
     densification_risk,
     major_version,
+    normalize_quant_mode,
 )
 
 
@@ -106,3 +111,25 @@ def test_model_type_matching_is_case_insensitive():
 def test_dense_model_type_safe_on_transformers_4_too():
     assert densification_risk(False, "4.57.3", "gemma4_text") is None
     assert densification_risk(True, "4.57.3", "qwen3_moe") is None
+
+
+# --- normalize_quant_mode (PRTHINKER_QUANT parsing, torch-free) ----------
+
+def test_quant_mode_defaults_to_bf16_when_unset():
+    assert normalize_quant_mode(None) == QUANT_MODE_BF16
+    assert normalize_quant_mode("") == QUANT_MODE_BF16
+
+
+def test_quant_mode_bf16_aliases():
+    for raw in ("bf16", "none", "off", "BF16", "  None  "):
+        assert normalize_quant_mode(raw) == QUANT_MODE_BF16
+
+
+def test_quant_mode_fp8_case_and_whitespace_insensitive():
+    for raw in ("fp8", "FP8", "  fp8 "):
+        assert normalize_quant_mode(raw) == QUANT_MODE_FP8
+
+
+def test_quant_mode_unknown_raises():
+    with pytest.raises(ValueError, match="Unsupported PRTHINKER_QUANT"):
+        normalize_quant_mode("int4")

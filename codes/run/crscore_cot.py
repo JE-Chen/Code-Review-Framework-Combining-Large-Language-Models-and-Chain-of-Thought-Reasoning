@@ -2,25 +2,25 @@ import datetime
 from pathlib import Path
 
 from codes.run.CoT_Prompts.step_by_step_analysis import STEP_BY_STEP_ANALYSIS_TEMPLATE
-from codes.util.qwen3_util import load_qwen3_model, qwen3_ask
+from codes.util.hf_model_util import load_hf_model, hf_generate
 
 RUN_ON = "Qwen/Qwen3-Coder-30B-A3B-Instruct"
 
 # 載入 Qwen 的生成模型，用來生成答案
 match RUN_ON:
     case "Qwen3.1-7B":
-        gen_tokenizer, gen_model = load_qwen3_model(
+        gen_tokenizer, gen_model = load_hf_model(
             model_name="Qwen/Qwen3-1.7B",
             lora_path="../train/outputs-lora-qwen3-1.7b")
     case "Qwen2.5-Coder":
-        gen_tokenizer, gen_model = load_qwen3_model(
+        gen_tokenizer, gen_model = load_hf_model(
             model_name="Qwen/Qwen2.5-Coder-7B-Instruct",
             lora_path="../train/outputs-lora-qwen2.5-coder-7b")
     case "Qwen/Qwen3-Coder-30B-A3B-Instruct":
-        gen_tokenizer, gen_model = load_qwen3_model(
+        gen_tokenizer, gen_model = load_hf_model(
             model_name="Qwen/Qwen3-Coder-30B-A3B-Instruct")
     case _:
-        gen_tokenizer, gen_model = load_qwen3_model(
+        gen_tokenizer, gen_model = load_hf_model(
             lora_path="../train/outputs-lora-qwen3-30b")
 
 
@@ -42,7 +42,7 @@ def _process_folder(folder_path: Path) -> None:
         linter_result=linter_result,
         code_smell_result=code_smell_result
     )
-    step_by_step_analysis_result = qwen3_ask(
+    step_by_step_analysis_result = hf_generate(
         step_by_step_analysis, gen_tokenizer, gen_model, max_new_tokens=32768)[0]
     with open(str(Path(str(folder_path) + "/" + "step_by_step_analysis_result.md")), "w",
               encoding="utf-8") as f:

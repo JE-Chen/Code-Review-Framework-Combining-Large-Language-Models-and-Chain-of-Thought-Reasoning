@@ -71,7 +71,7 @@ def _log(*parts: object) -> None:
 
 
 class GemmaLocalBackend(InferenceBackend):
-    """Local gemma-4 + LoRA backend, chat-templated like qwen3_ask."""
+    """Local gemma-4 + LoRA backend, chat-templated like hf_generate."""
 
     def __init__(self, model_name: str, lora_path: str | None) -> None:
         _log("Loading base model", model_name)

@@ -3,26 +3,26 @@ from Skills.code_explainer import CODE_EXPLAINER_TEMPLATE
 from pathlib import Path
 
 from codes.run.ask_functions import get_rag_docs
-from codes.util.qwen3_util import load_qwen3_model, qwen3_ask
+from codes.util.hf_model_util import load_hf_model, hf_generate
 
 RUN_ON = "Qwen/Qwen3-Coder-30B-A3B-Instruct"
 
 # 載入 Qwen 的生成模型，用來生成答案
 match RUN_ON:
     case "Qwen3.1-7B":
-        gen_tokenizer, gen_model = load_qwen3_model(
+        gen_tokenizer, gen_model = load_hf_model(
             model_name="Qwen/Qwen3-1.7B",
             lora_path="../train/outputs-lora-qwen3-1.7b")
     case "Qwen2.5-Coder":
-        gen_tokenizer, gen_model = load_qwen3_model(
+        gen_tokenizer, gen_model = load_hf_model(
             model_name="Qwen/Qwen2.5-Coder-7B-Instruct",
             lora_path="../train/outputs-lora-qwen2.5-coder-7b")
     case "Qwen/Qwen3-Coder-30B-A3B-Instruct":
-        gen_tokenizer, gen_model = load_qwen3_model(
+        gen_tokenizer, gen_model = load_hf_model(
             model_name="Qwen/Qwen3-Coder-30B-A3B-Instruct",
             lora_path="../train/outputs-lora-qwen3-coder-30b")
     case _:
-        gen_tokenizer, gen_model = load_qwen3_model(
+        gen_tokenizer, gen_model = load_hf_model(
             lora_path="../train/outputs-lora-qwen3-30b")
 
 rag_prompt = """
@@ -58,7 +58,7 @@ def ai_response(code_for_review: str, code_file_path: Path, folder_prefix_name: 
         rag_rules=rag_docs
     )
     print(code_explainer_prompt)
-    result = qwen3_ask(code_explainer_prompt, gen_tokenizer, gen_model, max_new_tokens=32768)[0]
+    result = hf_generate(code_explainer_prompt, gen_tokenizer, gen_model, max_new_tokens=32768)[0]
 
     with open(str(Path(str(folder_path) + "/" + "code_explainer.md")), "w", encoding="utf-8") as f:
         f.write(result)
@@ -72,7 +72,7 @@ def ai_response(code_for_review: str, code_file_path: Path, folder_prefix_name: 
 
     print(code_review_prompt)
 
-    result = qwen3_ask(code_review_prompt, gen_tokenizer, gen_model, max_new_tokens=32768)[0]
+    result = hf_generate(code_review_prompt, gen_tokenizer, gen_model, max_new_tokens=32768)[0]
     with open(str(Path(str(folder_path) + "/" + "code_review.md")), "w", encoding="utf-8") as f:
         f.write(result)
 
