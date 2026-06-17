@@ -18,6 +18,13 @@ updates:
     commit-message:
       prefix: "chore(deps)"
       include: "scope"
+    ignore:
+      # transformers is pinned <5 on purpose: v5 densifies the Qwen3-A3B
+      # MoE forward (~48 MiB/token) and OOMs the GPU server, and the boot
+      # guard refuses to start on transformers>=5 for Qwen3-MoE. See the
+      # note in pyproject.toml and CLAUDE.md. A major bump is a no-go.
+      - dependency-name: "transformers"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
