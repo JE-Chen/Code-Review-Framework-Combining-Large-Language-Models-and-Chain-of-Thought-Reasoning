@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import ast
 import builtins
+import keyword
 import logging
 import re
 from typing import Sequence
@@ -61,6 +62,16 @@ _CLASS_RE = re.compile(r"^\s*class\s+(\w+)")
 _ASSIGN_RE = re.compile(r"^\s*(\w+)\s*(?::[^=]+)?=(?!=)")
 _FOR_RE = re.compile(r"^\s*for\s+(\w+)\s+in\b")
 _AS_RE = re.compile(r"\bas\s+(\w+)")
+
+
+def _is_bindable_name(token: str) -> bool:
+    """Return whether ``token`` can name a binding.
+
+    ``str.isidentifier`` alone accepts Python keywords (``class``,
+    ``for``), which can never be a bound symbol; excluding them stops a
+    keyword from being mistaken for a defined name.
+    """
+    return token.isidentifier() and not keyword.iskeyword(token)
 
 
 def _hunk_heading(line: str) -> str:
@@ -131,7 +142,7 @@ def _split_import_clause(clause: str, *, dotted_head: bool) -> set[str]:
     out: set[str] = set()
     for part in cleaned.split(","):
         name = _bound_name_of_import_token(part, dotted_head=dotted_head)
-        if name is not None and name.isidentifier():
+        if name is not None and _is_bindable_name(name):
             out.add(name)
     return out
 
@@ -153,7 +164,7 @@ def _bound_names_in_line(line: str) -> set[str]:
         if match:
             names.add(match.group(1))
     names.update(_AS_RE.findall(line))
-    return names
+    return {name for name in names if _is_bindable_name(name)}
 
 
 def _regex_bound_names(source: str) -> set[str]:
@@ -189,7 +200,7 @@ def claimed_missing_name(comment: str) -> str | None:
         return None
     for pattern in _SUBJECT_RES:
         match = pattern.search(comment)
-        if match and match.group(1).isidentifier():
+        if match and _is_bindable_name(match.group(1)):
             return match.group(1)
     return None
 

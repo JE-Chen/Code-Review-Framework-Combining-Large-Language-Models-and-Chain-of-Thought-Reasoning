@@ -105,6 +105,16 @@ def test_collect_bound_names_empty_source_has_builtins_only() -> None:
     assert "gc" not in names
 
 
+def test_collect_bound_names_excludes_keywords() -> None:
+    # Leading indent forces the regex fallback; a keyword on the left of
+    # ``=`` must not be recorded as a bound name.
+    fragment = "    import os\nvalue = 1\nclass = 2\n"
+    names = collect_bound_names(fragment)
+    assert "value" in names
+    assert "os" in names
+    assert "class" not in names
+
+
 # --------------------------------------------------------------------------
 # claimed_missing_name
 # --------------------------------------------------------------------------
@@ -134,6 +144,12 @@ def test_claim_returns_none_when_no_identifier_subject() -> None:
     # Keyword present but no "<name> is ..." subject to verify against —
     # without a concrete identifier the guard must not act.
     assert claimed_missing_name("Undefined symbol usage detected here.") is None
+
+
+def test_claim_ignores_python_keyword_subject() -> None:
+    # A Python keyword can never be the missing symbol — do not act on it.
+    assert claimed_missing_name("name 'class' is not defined") is None
+    assert claimed_missing_name("`import` is not defined") is None
 
 
 # --------------------------------------------------------------------------
