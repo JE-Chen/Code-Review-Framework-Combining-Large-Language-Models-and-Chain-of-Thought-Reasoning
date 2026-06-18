@@ -1,8 +1,9 @@
 prthinker
 ============
 
-A Chain-of-Thought code review framework for GitHub Pull Requests, backed
-by a fine-tuned Qwen3-Coder model with retrieval-augmented prompting.
+A Chain-of-Thought code review framework for GitHub, GitLab, and Gitea
+pull / merge requests, backed by a fine-tuned Qwen3-Coder model with
+retrieval-augmented prompting.
 
 ``prthinker`` reads a PR diff, runs a five-step Chain-of-Thought review,
 and posts a structured summary plus one-click ``suggestion`` blocks back
@@ -23,6 +24,9 @@ What you get
 * **CI failure signals** prepended to the diff for grounded review.
 * **Pre-merge Check Run gate** — wire as a required status check.
 * **Pluggable backends**: local in-process Qwen + LoRA, or HTTP remote.
+* **Forge-agnostic frontend**: GitHub, GitLab, and Gitea behind one
+  ``PlatformAdapter``; a ready-to-use GitLab pipeline ships at
+  ``.gitlab-ci.yml``.
 
 .. toctree::
    :maxdepth: 2
@@ -32,6 +36,7 @@ What you get
    guide/quickstart
    guide/end-to-end-example
    guide/github-actions
+   guide/gitlab-ci
    guide/configuration
    guide/repo-config
 
