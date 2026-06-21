@@ -1,0 +1,69 @@
+# GitLab CI reference pipeline for the prthinker code review.
+#
+# Counterpart of .github/workflows/prthinker.yml. It demonstrates that the
+# review frontend is platform-agnostic: the same runner CLI
+# (`python -m prthinker review-pr`) drives the GitLab merge-request adapter
+# (prthinker/platforms/gitlab.py) instead of the GitHub one. Platform
+# selection and identifiers come entirely from environment variables the
+# CLI already resolves, so swapping forge needs no code change:
+#
+#   PRTHINKER_PLATFORM=gitlab  -> create_platform_adapter(PlatformKind.GITLAB)
+#   $CI_PROJECT_PATH           -> --repo       (group/project)
+#   $CI_MERGE_REQUEST_IID      -> --pr-number  (MR iid)
+#   $GITLAB_TOKEN              -> API token
+#
+# Unlike the GitHub Actions workflow there is no enumerate / matrix /
+# aggregate split: that fan-out exists only to shard the single shared GPU
+# backend. `review-pr` reviews every changed file in one process and posts
+# the summary note, inline discussions, and the `prthinker` commit-status
+# gate directly, so a single job is a complete frontend.
+#
+# Required CI/CD variables (Settings > CI/CD > Variables):
+#   GITLAB_TOKEN               Project/Group access token or PAT with the
+#                              `api` scope. The built-in CI_JOB_TOKEN cannot
+#                              post MR notes. Mark "Masked".
+#   PRTHINKER_BACKEND_URL      HTTPS URL of the inference backend (the GPU
+#                              server). The CI runner itself needs no GPU.
+#   PRTHINKER_BACKEND_API_KEY  Bearer token for the backend. Mark "Masked".
+#
+# The gate is the `prthinker` commit status (mirrors GitHub's Check Run),
+# not the job exit code. To hard-block merges, require that status under
+# Settings > Merge requests (merge checks) or the protected-branch rules.
+
+stages:
+  - review
+
+prthinker-review:
+  stage: review
+  image: python:3.12-slim
+  rules:
+    # Mirror the GitHub `pull_request` trigger: run only on merge requests.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  variables:
+    PRTHINKER_PLATFORM: "gitlab"
+    # Same exclusion set as the GitHub workflow.
+    PRTHINKER_EXCLUDE_GLOBS: ".idea/*,.idea/**/*,datas/*,datas/**/*,.prthinker/*,.prthinker/**/*,*.md,*.lock,*.json,docs/**/*"
+    # Talk to the shared inference backend over HTTP (CI runner has no GPU).
+    PRTHINKER_BACKEND: "remote"
+    PRTHINKER_USE_REMOTE_PIPELINE: "true"
+    PRTHINKER_REMOTE_URL: "$PRTHINKER_BACKEND_URL"
+    PRTHINKER_REMOTE_API_KEY: "$PRTHINKER_BACKEND_API_KEY"
+    PRTHINKER_REMOTE_TIMEOUT: "1800"
+    PRTHINKER_REMOTE_RAG: "true"
+    # Per-file inline review — same knobs as the GitHub per-shard job.
+    PRTHINKER_PER_FILE: "true"
+    PRTHINKER_INLINE_REVIEW: "true"
+    PRTHINKER_MAX_FINDINGS_PER_FILE: "10"
+    PRTHINKER_RAG_ENABLED: "true"
+    PRTHINKER_HIDE_INFO: "true"
+    # Fail the gate (commit status) on an error-severity finding.
+    PRTHINKER_GATE_ON: "error"
+  script:
+    - python -m pip install --upgrade pip
+    - pip install -e ".[runner]"
+    - |
+      if [ -z "$PRTHINKER_REMOTE_URL" ]; then
+        echo "PRTHINKER_BACKEND_URL is not set — add it under CI/CD variables." >&2
+        exit 1
+      fi
+    - python -m prthinker review-pr
