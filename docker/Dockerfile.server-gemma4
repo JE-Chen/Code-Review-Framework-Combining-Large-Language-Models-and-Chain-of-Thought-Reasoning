@@ -6,7 +6,7 @@
 # because gemma4 is dense (no A3B MoE densification; the boot guard is
 # model-aware). flash-attn is NOT installed: gemma-4-31B's head_dim
 # exceeds flash-attn's 256 limit, so attention dispatches to SDPA.
-FROM nvcr.io/nvidia/pytorch:25.09-py3
+FROM nvcr.io/nvidia/pytorch:26.06-py3
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
