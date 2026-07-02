@@ -105,9 +105,26 @@ Feature parity
 --------------
 
 The review itself — the CoT pipeline, RAG, learned corpora, inline
-suggestions, and the gate — is identical across forges. Two GitHub-only
-extras degrade gracefully on GitLab (each is logged and skipped, never a
-crash): the CI-failure-signal prepend and the auto-fix draft PR.
+suggestions, and the gate — is identical across forges, and the GitLab
+adapter covers the platform extras too:
+
+* **CI failure signals** (``--include-ci-signals``) read the failed
+  pipeline jobs' trace tails via ``/projects/:id/jobs/:id/trace``.
+* **Auto-fix** (``--auto-fix-threshold``) opens a ``Draft:`` merge
+  request with the applied suggestions — the MR counterpart of the
+  GitHub draft PR.
+* **Labels, description digest, and PR summary** (``--pr-labels``,
+  ``--pr-body-summary``, the ``pr-summary`` subcommand) reconcile the
+  managed MR labels, upsert the marker-delimited description block, and
+  maintain the standalone summary note. Long reviews paginate across
+  several notes; stale pages from a previous longer run are deleted.
+* **Verdicts** map onto the approvals API: ``APPROVE`` approves the MR
+  and ``REQUEST_CHANGES`` revokes a prior approval (best-effort — a
+  token that cannot approve logs a warning and the verdict stays in the
+  discussion bodies).
+* Inline findings are pre-filtered against the MR's diff hunks before
+  posting, so one hallucinated line number costs one dropped finding
+  instead of a run of failed discussion POSTs.
 
 Self-hosted GitLab works by pointing the adapter at your instance's API
 with ``--platform-base-url`` (or ``$PRTHINKER_PLATFORM_BASE_URL``),

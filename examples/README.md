@@ -1,5 +1,24 @@
 # Examples
 
+## `multi-model-review.sh` — agent-CLI reviewers + arbitration panel
+
+Three ready-to-adapt invocations:
+
+1. **Local review via the `claude` CLI** (`--backend claude-cli`) — the
+   staged diff goes in over stdin and `--claude-cli-allowed-tools
+   "Read,Grep,Glob"` grants the CLI read access to the working tree, so
+   the review can consult surrounding code with the full local toolchain.
+2. **Local review via the `codex` CLI** (`--backend codex-cli`) — runs
+   `codex exec --json` headless with a `read-only` sandbox.
+3. **Multi-model PR review** — the primary backend produces the inline
+   findings, then `--arbitration --arbitration-backends
+   claude-cli,codex-cli` has both CLIs vote confirm/reject on every
+   finding; the majority decides what gets posted. Arbitration fails
+   open: a crashed arbiter abstains and unvoted findings are kept.
+
+All of it is opt-in — without these flags the reviewer runs exactly as
+before.
+
 ## `prthinker.downstream.yml` — adopt PRThinker in another repository
 
 A ready-to-copy GitHub Actions workflow that gives any repository the full

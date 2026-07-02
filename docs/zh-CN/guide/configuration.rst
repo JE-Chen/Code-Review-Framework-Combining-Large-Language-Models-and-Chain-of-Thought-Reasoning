@@ -14,7 +14,7 @@ Backend 选择
    * - CLI flag
      - 环境变量
      - 默认
-   * - ``--backend {local,remote,openai,anthropic}``
+   * - ``--backend {local,remote,openai,anthropic,gemini,cohere,mistral,claude-cli,codex-cli}``
      - ``PRTHINKER_BACKEND``
      - ``remote``
    * - ``--remote-url URL``
@@ -89,6 +89,129 @@ Anthropic Claude（\ ``--backend anthropic``\ ）
    * - ``--anthropic-version VER``
      - ``PRTHINKER_ANTHROPIC_VERSION``
      - ``2023-06-01``
+
+本机 agent CLI（\ ``--backend claude-cli``\ ）
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+以非交互 print 模式（\ ``claude -p``\ ）运行本机安装的 ``claude`` CLI，
+每次生成起一个子进程。Prompt 走 stdin 传入──评审 prompt 内嵌整份 diff，
+作为命令行参数会撞上 Windows 的长度上限──响应则要求
+``--output-format json``\ ，让结果文本与 token 用量能确定性解析
+（纯文本输出会原样退回）。
+
+与 HTTP backend 不同，CLI 可通过 ``--claude-cli-allowed-tools``
+（转发为 ``--allowedTools``\ ）获得工具集，让评审能以完整的本机工具链
+查阅工作树──读文件、grep、追 import──而不是只看 prompt 文本。
+``--claude-cli-workdir`` 界定工具作用的目录。
+
+.. list-table::
+   :header-rows: 1
+   :widths: 38 34 28
+
+   * - CLI flag
+     - 环境变量
+     - 默认
+   * - ``--claude-cli-path PATH``
+     - ``PRTHINKER_CLAUDE_CLI_PATH``
+     - ``claude``
+   * - ``--claude-cli-model NAME``
+     - ``PRTHINKER_CLAUDE_CLI_MODEL``
+     - *(CLI 自身默认)*
+   * - ``--claude-cli-workdir PATH``
+     - ``PRTHINKER_CLAUDE_CLI_WORKDIR``
+     - ``.``
+   * - ``--claude-cli-allowed-tools LIST``
+     - ``PRTHINKER_CLAUDE_CLI_ALLOWED_TOOLS``
+     - *(未设──沿用 CLI 自身工具策略)*
+   * - ``--claude-cli-timeout SECONDS``
+     - ``PRTHINKER_CLAUDE_CLI_TIMEOUT``
+     - ``3600``
+
+本机 agent CLI（\ ``--backend codex-cli``\ ）
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+以 headless 模式运行本机安装的 ``codex`` CLI（\ ``codex exec --json
+--skip-git-repo-check -C <workdir> -``\ ），每次生成起一个子进程。
+Prompt 走 stdin 传入（结尾的 ``-``\ ）；输出为 NDJSON，最后一个
+``agent_message`` 事件即为答案，token 用量取自 ``turn.completed``\ 。
+
+Sandbox 模式默认 ``read-only``\ ：CLI 可用自身工具链读取工作树，但
+绝不改动它。受信任的环境可改用 ``workspace-write`` 或
+``danger-full-access``\ 。
+
+.. list-table::
+   :header-rows: 1
+   :widths: 38 34 28
+
+   * - CLI flag
+     - 环境变量
+     - 默认
+   * - ``--codex-cli-path PATH``
+     - ``PRTHINKER_CODEX_CLI_PATH``
+     - ``codex``
+   * - ``--codex-cli-model NAME``
+     - ``PRTHINKER_CODEX_CLI_MODEL``
+     - *(CLI 自身默认)*
+   * - ``--codex-cli-workdir PATH``
+     - ``PRTHINKER_CODEX_CLI_WORKDIR``
+     - ``.``
+   * - ``--codex-cli-sandbox {read-only,workspace-write,danger-full-access}``
+     - ``PRTHINKER_CODEX_CLI_SANDBOX``
+     - ``read-only``
+   * - ``--codex-cli-timeout SECONDS``
+     - ``PRTHINKER_CODEX_CLI_TIMEOUT``
+     - ``3600``
+
+多模型仲裁
+----------
+
+默认关闭。开启 ``--arbitration`` 后，``--arbitration-backends`` 列出的
+每个 backend 会重新评判主模型的 inline findings：每个仲裁者收到
+findings 清单加 diff，逐条投 ``confirm`` / ``reject``\ ，再由策略合并
+票数──被否决的 finding 在发布前就被剔除。
+
+每个仲裁者沿用它作为主 backend 时的同一组 flags / 环境变量
+（\ ``openai`` 仲裁者读 ``--openai-*``\ ，``claude-cli`` 仲裁者读
+``--claude-cli-*``\ ，依此类推）。
+
+这一层采用 fail-open：仲裁者出错或输出不可解析视为弃权，没有任何有效
+票的 finding 一律保留。仲裁只会删噪音──不会因仲裁者不稳而丢失 finding。
+
+.. list-table::
+   :header-rows: 1
+   :widths: 42 34 24
+
+   * - CLI flag
+     - 环境变量
+     - 默认
+   * - ``--arbitration``
+     - ``PRTHINKER_ARBITRATION``
+     - ``false``
+   * - ``--arbitration-backends a,b``
+     - ``PRTHINKER_ARBITRATION_BACKENDS``
+     - *(未设)*
+   * - ``--arbitration-strategy {majority,unanimous,any}``
+     - ``PRTHINKER_ARBITRATION_STRATEGY``
+     - ``majority``
+   * - ``--arbitration-max-new-tokens N``
+     - ``PRTHINKER_ARBITRATION_MAX_NEW_TOKENS``
+     - ``4096``
+
+``majority`` 只有 reject 多于 confirm 才剔除（平票保留），
+``unanimous`` 只要有一票 reject 就剔除，``any`` 只要有一票 confirm
+就保留。
+
+由两个本机 agent CLI 组成仲裁小组的多模型评审
+（完整脚本见 ``examples/multi-model-review.sh``\ ）：
+
+.. code-block:: bash
+
+   prthinker review-pr \
+       --repo owner/name --pr-number 42 \
+       --per-file --inline-review \
+       --arbitration \
+       --arbitration-backends claude-cli,codex-cli \
+       --arbitration-strategy majority
 
 RAG 与规则
 ----------
@@ -222,6 +345,10 @@ CI 信号
    * - ``--ci-signal-tail-chars N``
      - ``PRTHINKER_CI_SIGNAL_TAIL_CHARS``
      - ``4000``
+
+信号通过 platform adapter 获取：GitHub 读失败的 Actions job log，
+GitLab 读失败 pipeline job 的 trace。没有 CI API 的平台会记一行 log
+后跳过。
 
 服务器端
 --------

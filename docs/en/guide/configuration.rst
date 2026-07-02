@@ -16,7 +16,7 @@ Backend selection
    * - CLI flag
      - Env var
      - Default
-   * - ``--backend {local,remote,openai,anthropic}``
+   * - ``--backend {local,remote,openai,anthropic,gemini,cohere,mistral,claude-cli,codex-cli}``
      - ``PRTHINKER_BACKEND``
      - ``remote``
    * - ``--remote-url URL``
@@ -93,6 +93,137 @@ Anthropic Claude (``--backend anthropic``)
    * - ``--anthropic-version VER``
      - ``PRTHINKER_ANTHROPIC_VERSION``
      - ``2023-06-01``
+
+Local agent CLI (``--backend claude-cli``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Runs the locally installed ``claude`` CLI in non-interactive print mode
+(``claude -p``), one subprocess per generation. The prompt travels over
+stdin — a review prompt embeds whole diffs, which would overflow the
+Windows command-line length cap as an argument — and the response is
+requested as ``--output-format json`` so the result text and token
+usage parse deterministically (plain-text output falls back verbatim).
+
+Unlike the HTTP backends, the CLI can be granted a tool set with
+``--claude-cli-allowed-tools`` (forwarded as ``--allowedTools``),
+letting the review consult the working tree — read files, grep, follow
+imports — with the full local toolchain instead of seeing only the
+prompt text. ``--claude-cli-workdir`` scopes which tree those tools
+operate on.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 38 34 28
+
+   * - CLI flag
+     - Env var
+     - Default
+   * - ``--claude-cli-path PATH``
+     - ``PRTHINKER_CLAUDE_CLI_PATH``
+     - ``claude``
+   * - ``--claude-cli-model NAME``
+     - ``PRTHINKER_CLAUDE_CLI_MODEL``
+     - *(CLI's own default)*
+   * - ``--claude-cli-workdir PATH``
+     - ``PRTHINKER_CLAUDE_CLI_WORKDIR``
+     - ``.``
+   * - ``--claude-cli-allowed-tools LIST``
+     - ``PRTHINKER_CLAUDE_CLI_ALLOWED_TOOLS``
+     - *(unset — CLI's own tool policy)*
+   * - ``--claude-cli-timeout SECONDS``
+     - ``PRTHINKER_CLAUDE_CLI_TIMEOUT``
+     - ``3600``
+
+Local agent CLI (``--backend codex-cli``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Runs the locally installed ``codex`` CLI headless (``codex exec --json
+--skip-git-repo-check -C <workdir> -``), one subprocess per generation.
+The prompt travels over stdin (the trailing ``-``); output is NDJSON and
+the last ``agent_message`` event is the answer, with token usage taken
+from ``turn.completed``.
+
+The sandbox mode defaults to ``read-only``: the CLI may read the
+working tree with its own toolchain but never mutate it.
+``workspace-write`` and ``danger-full-access`` are available for
+trusted setups.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 38 34 28
+
+   * - CLI flag
+     - Env var
+     - Default
+   * - ``--codex-cli-path PATH``
+     - ``PRTHINKER_CODEX_CLI_PATH``
+     - ``codex``
+   * - ``--codex-cli-model NAME``
+     - ``PRTHINKER_CODEX_CLI_MODEL``
+     - *(CLI's own default)*
+   * - ``--codex-cli-workdir PATH``
+     - ``PRTHINKER_CODEX_CLI_WORKDIR``
+     - ``.``
+   * - ``--codex-cli-sandbox {read-only,workspace-write,danger-full-access}``
+     - ``PRTHINKER_CODEX_CLI_SANDBOX``
+     - ``read-only``
+   * - ``--codex-cli-timeout SECONDS``
+     - ``PRTHINKER_CODEX_CLI_TIMEOUT``
+     - ``3600``
+
+Multi-model arbitration
+-----------------------
+
+Off by default. With ``--arbitration``, every backend kind listed in
+``--arbitration-backends`` re-judges the primary model's inline
+findings: each arbiter receives the findings plus the diff and votes
+``confirm`` / ``reject`` per finding, and the strategy combines the
+votes — out-voted findings are dropped before anything is posted.
+
+Each arbiter is configured by the same flags / env vars it would use as
+the primary backend (an ``openai`` arbiter reads ``--openai-*``, a
+``claude-cli`` arbiter reads ``--claude-cli-*``, and so on).
+
+The layer fails open: an arbiter that errors or returns unparseable
+output abstains, and a finding with no countable votes is kept.
+Arbitration can only remove noise — it never loses findings to arbiter
+flakiness.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 42 34 24
+
+   * - CLI flag
+     - Env var
+     - Default
+   * - ``--arbitration``
+     - ``PRTHINKER_ARBITRATION``
+     - ``false``
+   * - ``--arbitration-backends a,b``
+     - ``PRTHINKER_ARBITRATION_BACKENDS``
+     - *(unset)*
+   * - ``--arbitration-strategy {majority,unanimous,any}``
+     - ``PRTHINKER_ARBITRATION_STRATEGY``
+     - ``majority``
+   * - ``--arbitration-max-new-tokens N``
+     - ``PRTHINKER_ARBITRATION_MAX_NEW_TOKENS``
+     - ``4096``
+
+``majority`` drops a finding only when rejects outnumber confirms (a
+tie keeps it), ``unanimous`` drops on any reject, ``any`` keeps on a
+single confirm.
+
+A multi-model review with the two local agent CLIs on the panel
+(see ``examples/multi-model-review.sh`` for the full script):
+
+.. code-block:: bash
+
+   prthinker review-pr \
+       --repo owner/name --pr-number 42 \
+       --per-file --inline-review \
+       --arbitration \
+       --arbitration-backends claude-cli,codex-cli \
+       --arbitration-strategy majority
 
 RAG and rules
 -------------
@@ -229,6 +360,10 @@ CI signals
    * - ``--ci-signal-tail-chars N``
      - ``PRTHINKER_CI_SIGNAL_TAIL_CHARS``
      - ``4000``
+
+Signals are fetched through the platform adapter: failed GitHub Actions
+job logs on GitHub, failed pipeline-job traces on GitLab. Platforms
+without a CI API skip the prepend with a log line.
 
 Server-side
 -----------

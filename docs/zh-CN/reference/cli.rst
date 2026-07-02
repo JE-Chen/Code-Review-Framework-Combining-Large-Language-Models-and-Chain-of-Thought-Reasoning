@@ -24,7 +24,7 @@ review-pr
        --repo OWNER/NAME           # 或 $GITHUB_REPOSITORY
        --pr-number N
        --github-token TOKEN        # 或 $GITHUB_TOKEN
-       [--backend {local,remote}]
+       [--backend {local,remote,openai,anthropic,gemini,cohere,mistral,claude-cli,codex-cli}]
        [--remote-url URL]
        [--use-remote-pipeline]
        [--no-rag] [--remote-rag] [--rag-threshold 0.7]
@@ -37,6 +37,8 @@ review-pr
        [--dep-upgrade-check]
        [--personas LIST] [--risk-weighted] [--risk-workdir PATH] [--diff-entropy]
        [--judge] [--self-correct]
+       [--arbitration] [--arbitration-backends a,b]
+       [--arbitration-strategy {majority,unanimous,any}]
        [--gate-on {none,warning,error}]
        [--include-ci-signals] [--ci-signal-max-jobs 5] [--ci-signal-tail-chars 4000]
        [--marker '<!-- prthinker:summary -->']
@@ -193,7 +195,7 @@ review-file
 .. code-block:: text
 
    prthinker review-file PATH
-       [--backend {local,remote}]
+       [--backend {local,remote,openai,anthropic,gemini,cohere,mistral,claude-cli,codex-cli}]
        [--remote-url URL] [--remote-api-key TOKEN]
        [--model-name NAME] [--lora-path PATH]
        [--no-rag] [--remote-rag] [--rag-threshold 0.7]
@@ -299,7 +301,7 @@ review summary 分开）。设计为在逐文件审查\ *之前*\ 执行──�
        --repo OWNER/NAME            # 或 $GITHUB_REPOSITORY
        --pr-number N                # 或 $PRTHINKER_PR_NUMBER
        --github-token TOKEN         # 或 $GITHUB_TOKEN
-       [--backend {local,remote,openai,anthropic}]
+       [--backend {local,remote,openai,anthropic,gemini,cohere,mistral,claude-cli,codex-cli}]
        [--remote-url URL] [--remote-api-key TOKEN]
        [--platform {github,gitlab,gitea}]
        [--dry-run]
@@ -363,7 +365,7 @@ SQLite\ 。本子命令\ **不输出**\ 任何汇总检测率 —— 聚合计�
    prthinker adversarial-eval
        --corpus PATH                # JSONL 语料（参考 seed.jsonl）
        --outcomes-path PATH         # SQLite 输出文件
-       [--backend {local,remote,openai,anthropic}]
+       [--backend {local,remote,openai,anthropic,gemini,cohere,mistral,claude-cli,codex-cli}]
        [--remote-url URL] [--remote-api-key TOKEN]
        [--openai-model NAME] [--openai-api-key TOKEN]
        [--anthropic-model NAME] [--anthropic-api-key TOKEN]

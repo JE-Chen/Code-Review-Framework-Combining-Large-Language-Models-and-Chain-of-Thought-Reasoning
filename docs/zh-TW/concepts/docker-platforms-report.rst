@@ -258,9 +258,10 @@ adapter 掩蓋之 wire-format 差異
        ``state=pending|success|failed``\ ）
    * - review verdict
      - 原生 ``event: APPROVE`` / ``REQUEST_CHANGES`` / ``COMMENT``
-     - GitLab discussions 無原生 verb，於 body 加前綴
-       ``**Verdict: APPROVE**``\ （未來工作：APPROVE 時實際呼叫
-       ``POST /merge_requests/:iid/approve``\ ）
+     - discussions 無原生 verb；body 加前綴
+       ``**Verdict: APPROVE**``\ ，並把判定鏡射到 approvals API
+       （APPROVE 時呼叫 ``POST /merge_requests/:iid/approve``\ ，
+       REQUEST_CHANGES 時呼叫 ``/unapprove``\ ，best-effort）
    * - 驗證 header
      - ``Authorization: Bearer <token>``
      - ``PRIVATE-TOKEN: <token>``
@@ -290,17 +291,18 @@ CLI 用法
 ``--platform`` 自動判斷該讀哪個。\ ``--repo`` 也接受 GitLab CI 之
 ``CI_PROJECT_PATH``\ 。
 
-目前仍僅支援 GitHub 之功能
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+GitLab 上之平台附加功能
+~~~~~~~~~~~~~~~~~~~~~~~
 
-兩處仍直打 GitHub Actions API，在 GitLab 上會以一行 log 跳過：
+過去僅支援 GitHub 之兩項功能改經 adapter 解析，GitLab 亦已實作：
 
-* **CI 訊號注入**\ （\ ``--include-ci-signals``\ ）──用 Actions 之
-  ``/jobs/:id/logs``\ 。GitLab 對應為
-  ``/projects/:id/jobs/:id/trace``\ ，已列入未來工作。
-* **Auto-fix draft PR**\ （\ ``--auto-fix-threshold``\ ）──用 GitHub
-  pulls API 建立修補 PR；GitLab 對應為 Merge Requests API。
+* **CI 訊號注入**\ （\ ``--include-ci-signals``\ ）──GitHub 讀
+  Actions 之 ``/jobs/:id/logs``\ ；GitLab 讀 pipeline job trace
+  （\ ``/projects/:id/jobs/:id/trace``\ ）。
+* **Auto-fix**\ （\ ``--auto-fix-threshold``\ ）──GitHub 以 pulls API
+  開草稿 PR；GitLab 以 Merge Requests API 開 ``Draft:`` MR。
 
+兩者皆無之平台（如 Gitea）仍優雅降級──記 log 跳過，絕不 crash。
 其他功能（CoT pipeline、gate、inline review、judge、self-correct）
 GitHub 與 GitLab 皆支援。
 
