@@ -22,6 +22,7 @@ from prthinker.config import (
 )
 from prthinker.cli_review_helpers import (
     BACKEND_CONFIG_BUILDERS,
+    apply_arbitration,
     build_cache_telemetry,
     build_dialogue_block,
 )
@@ -51,10 +52,7 @@ from prthinker.cli_review_emit import (
 # suppressions sit on the reported line) because the test-suite imports it
 # via ``prthinker.cli_review``.
 from prthinker.cli_review_emit import _report_links_footer  # noqa: F401  # pylint: disable=unused-import
-from prthinker.ci_signals import (
-    fetch_ci_failure_signals,
-    format_signals_block,
-)
+from prthinker.ci_signals import format_signals_block
 from prthinker.diff import parse_unified_diff
 from prthinker.formatters import (
     CommentOptions,
@@ -98,6 +96,7 @@ def _build_config(args: argparse.Namespace) -> Config:
     sub_configs: dict[str, object] = {
         "local": None, "remote": None, "openai": None, "anthropic": None,
         "gemini": None, "cohere": None, "mistral": None,
+        "claude_cli": None, "codex_cli": None,
     }
     builder = BACKEND_CONFIG_BUILDERS.get(backend)
     if builder is not None:
@@ -116,6 +115,8 @@ def _build_config(args: argparse.Namespace) -> Config:
         gemini=sub_configs["gemini"],
         cohere=sub_configs["cohere"],
         mistral=sub_configs["mistral"],
+        claude_cli=sub_configs["claude_cli"],
+        codex_cli=sub_configs["codex_cli"],
         rag_enabled=not args.no_rag,
         rag_threshold=args.rag_threshold,
         max_new_tokens=args.max_new_tokens,
@@ -615,12 +616,15 @@ def _run_review(
                 report.summary(),
             )
     if args.use_remote_pipeline:
-        return _review_via_server(args, config, diff_text)
-    return _review_via_pipeline(
-        args, config, diff_text,
-        output_dir=output_dir,
-        dialogue_block=dialogue_block,
-    )
+        result = _review_via_server(args, config, diff_text)
+    else:
+        result = _review_via_pipeline(
+            args, config, diff_text,
+            output_dir=output_dir,
+            dialogue_block=dialogue_block,
+        )
+    apply_arbitration(args, result)
+    return result
 
 def _cmd_review_file(args: argparse.Namespace) -> int:
     config = _build_config(args)
@@ -664,17 +668,17 @@ def _resolve_head_sha(args: argparse.Namespace, adapter: object) -> str | None:
     return adapter.fetch_head_sha() if needs else None
 
 def _maybe_prepend_ci_signals(
-    args: argparse.Namespace, diff: str, head_sha: str | None, platform_kind: object,
+    args: argparse.Namespace, diff: str, head_sha: str | None, adapter: object,
 ) -> str:
-    """Prepend CI failure signals to the diff (GitHub only) when enabled."""
-    from prthinker.platforms import PlatformKind
+    """Prepend the platform's CI failure signals to the diff when enabled.
+
+    The adapter decides what "CI" means (Actions runs on GitHub,
+    pipelines on GitLab); platforms without a CI API return no signals.
+    """
     if not (args.include_ci_signals and head_sha is not None):
         return diff
-    if platform_kind is not PlatformKind.GITHUB:
-        log.info("CI signals not yet supported on %s — skipping", platform_kind.value)
-        return diff
-    signals = fetch_ci_failure_signals(
-        args.repo, head_sha, args.github_token,
+    signals = adapter.fetch_ci_failure_signals(
+        head_sha,
         max_jobs=args.ci_signal_max_jobs,
         log_tail_chars=args.ci_signal_tail_chars,
     )
@@ -731,20 +735,26 @@ def _emit_partial_json(result: ReviewResult, output_json: str) -> int:
     return 0
 
 def _maybe_autofix(
-    args: argparse.Namespace, result: ReviewResult, platform_kind: object,
+    args: argparse.Namespace,
+    result: ReviewResult,
+    platform_kind: object,
+    adapter: object,
 ) -> None:
-    """Open a draft auto-fix PR (GitHub only) when the threshold is set."""
+    """Open a draft auto-fix PR / MR when the threshold is set."""
     from prthinker.platforms import PlatformKind
     if not (args.auto_fix_threshold and not args.dry_run):
         return
-    if platform_kind is not PlatformKind.GITHUB:
-        log.info("Auto-fix not yet supported on %s — skipping", platform_kind.value)
+    if platform_kind is PlatformKind.GITHUB:
+        gh = GitHubConfig(
+            repo=args.repo, pr_number=args.pr_number,
+            token=args.github_token, comment_marker=args.marker,
+        )
+        _maybe_open_auto_fix_pr(gh, args, result)
         return
-    gh = GitHubConfig(
-        repo=args.repo, pr_number=args.pr_number,
-        token=args.github_token, comment_marker=args.marker,
-    )
-    _maybe_open_auto_fix_pr(gh, args, result)
+    if platform_kind is PlatformKind.GITLAB:
+        _maybe_open_auto_fix_mr(args, result, adapter)
+        return
+    log.info("Auto-fix not yet supported on %s — skipping", platform_kind.value)
 
 
 # The PR summary is best-effort, but the comment is worth a few quick
@@ -898,7 +908,7 @@ def _publish_review_result(
 
     _maybe_set_labels(args, adapter, result)
     _maybe_update_pr_body(args, adapter, result)
-    _maybe_autofix(args, result, platform_kind)
+    _maybe_autofix(args, result, platform_kind, adapter)
     return 0
 
 
@@ -926,7 +936,7 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
 
     _maybe_fetch_pr_meta(args, adapter)
     head_sha = _resolve_head_sha(args, adapter)
-    diff = _maybe_prepend_ci_signals(args, diff, head_sha, platform_kind)
+    diff = _maybe_prepend_ci_signals(args, diff, head_sha, adapter)
     gate_handle = _open_gate_if_needed(args, adapter, head_sha)
     dialogue_block = build_dialogue_block(args, adapter)
 
@@ -953,6 +963,21 @@ def _resolve_auto_fix_base_branch(
         log.warning("Auto-fix: could not fetch base branch: %s", exc)
         return None
 
+def _report_auto_fix_outcome(auto_result: object | None, ref_prefix: str) -> None:
+    """Log the auto-fix outcome uniformly for the PR and MR paths."""
+    if auto_result is None:
+        log.info("Auto-fix: no edits applied (every suggestion conflicted or "
+                 "the target files did not exist)")
+        return
+    log.info(
+        "Auto-fix %s%s opened: %s (applied=%d skipped=%d files=%d)",
+        ref_prefix, auto_result.pr_number, auto_result.pr_url,
+        auto_result.total_findings_applied,
+        auto_result.total_findings_skipped,
+        len(auto_result.files_changed),
+    )
+
+
 def _open_auto_fix_pr_and_report(
     gh: GitHubConfig,
     findings_by_file: dict[str, list[InlineFinding]],
@@ -973,25 +998,12 @@ def _open_auto_fix_pr_and_report(
         log.error("Auto-fix failed: %s", exc)
         return
 
-    if auto_result is None:
-        log.info("Auto-fix: no edits applied (every suggestion conflicted or "
-                 "the target files did not exist)")
-        return
+    _report_auto_fix_outcome(auto_result, "PR #")
 
-    log.info(
-        "Auto-fix PR #%s opened: %s (applied=%d skipped=%d files=%d)",
-        auto_result.pr_number, auto_result.pr_url,
-        auto_result.total_findings_applied,
-        auto_result.total_findings_skipped,
-        len(auto_result.files_changed),
-    )
-
-def _maybe_open_auto_fix_pr(
-    gh: GitHubConfig,
-    args: argparse.Namespace,
-    result: ReviewResult,
-) -> None:
-    """Apply ``--auto-fix-threshold`` to surviving warning suggestions."""
+def _collect_auto_fix_findings(
+    args: argparse.Namespace, result: ReviewResult
+) -> dict[str, list[InlineFinding]] | None:
+    """Group threshold-passing warning suggestions per file, or None to skip."""
     eligible = [
         f for f in result.inline_findings
         if f.severity == "warning" and f.suggestion is not None
@@ -1001,14 +1013,70 @@ def _maybe_open_auto_fix_pr(
             "Auto-fix: %d eligible suggestion(s) below threshold %d — skipped",
             len(eligible), args.auto_fix_threshold,
         )
-        return
-
+        return None
     findings_by_file: dict[str, list[InlineFinding]] = {}
     for f in eligible:
         findings_by_file.setdefault(f.path, []).append(f)
+    return findings_by_file
+
+
+def _maybe_open_auto_fix_pr(
+    gh: GitHubConfig,
+    args: argparse.Namespace,
+    result: ReviewResult,
+) -> None:
+    """Apply ``--auto-fix-threshold`` to surviving warning suggestions."""
+    findings_by_file = _collect_auto_fix_findings(args, result)
+    if findings_by_file is None:
+        return
 
     base_branch = _resolve_auto_fix_base_branch(gh, args)
     if base_branch is None:
         return
 
     _open_auto_fix_pr_and_report(gh, findings_by_file, base_branch)
+
+
+def _resolve_mr_base_branch(
+    args: argparse.Namespace, adapter: object
+) -> str | None:
+    """Return the auto-fix target branch, asking the adapter when unset."""
+    if args.auto_fix_base_branch:
+        return args.auto_fix_base_branch
+    try:
+        return adapter.fetch_base_branch() or None
+    except Exception as exc:  # noqa: BLE001 — auto-fix is best-effort
+        log.warning("Auto-fix: could not fetch MR base branch: %s", exc)
+        return None
+
+
+def _maybe_open_auto_fix_mr(
+    args: argparse.Namespace,
+    result: ReviewResult,
+    adapter: object,
+) -> None:
+    """GitLab twin of ``_maybe_open_auto_fix_pr``: open a draft MR."""
+    findings_by_file = _collect_auto_fix_findings(args, result)
+    if findings_by_file is None:
+        return
+
+    base_branch = _resolve_mr_base_branch(args, adapter)
+    if base_branch is None:
+        return
+
+    from prthinker.auto_fix import GitLabMRTarget, open_auto_fix_mr
+
+    target = GitLabMRTarget(
+        project=args.repo,
+        token=args.github_token,
+        mr_iid=int(args.pr_number),
+        base_url=getattr(adapter, "base_url", "https://gitlab.com/api/v4"),
+    )
+    try:
+        auto_result = open_auto_fix_mr(
+            target, findings_by_file, base_branch, Path.cwd()
+        )
+    except Exception as exc:  # noqa: BLE001 — auto-fix must never fail the review
+        log.error("Auto-fix failed: %s", exc)
+        return
+    _report_auto_fix_outcome(auto_result, "MR !")

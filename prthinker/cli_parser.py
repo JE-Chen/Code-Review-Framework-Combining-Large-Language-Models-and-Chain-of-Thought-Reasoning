@@ -12,6 +12,7 @@ from pathlib import Path
 
 from prthinker.cli_parser_groups import (
     add_analysis_args,
+    add_arbitration_args,
     add_backend_args,
     add_cache_telemetry_args,
     add_diff_cache_args,
@@ -67,6 +68,7 @@ def _build_common_parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     add_backend_args(common)
     add_provider_args(common)
+    add_arbitration_args(common)
     add_rag_args(common)
     add_per_file_args(common)
     add_review_feature_args(common)

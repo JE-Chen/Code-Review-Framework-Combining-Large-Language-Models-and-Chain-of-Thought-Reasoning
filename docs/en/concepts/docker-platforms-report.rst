@@ -275,9 +275,10 @@ Wire-format differences that the adapter hides
        ``state=pending|success|failed``)
    * - review verdict
      - native ``event: APPROVE`` / ``REQUEST_CHANGES`` / ``COMMENT``
-     - GitLab has no native verb on discussions; we prefix the body
-       with ``**Verdict: APPROVE**`` (future work: actually call
-       ``POST /merge_requests/:iid/approve`` when event == APPROVE)
+     - no native verb on discussions; the body is prefixed with
+       ``**Verdict: APPROVE**`` and the verdict is mirrored onto the
+       approvals API (``POST /merge_requests/:iid/approve`` on
+       APPROVE, ``/unapprove`` on REQUEST_CHANGES, best-effort)
    * - auth header
      - ``Authorization: Bearer <token>``
      - ``PRIVATE-TOKEN: <token>``
@@ -307,20 +308,21 @@ The ``--github-token`` flag accepts ``GITLAB_TOKEN`` as a fallback env
 var; the CLI knows which one to use based on ``--platform``. The
 ``--repo`` flag accepts ``CI_PROJECT_PATH`` for GitLab CI compatibility.
 
-Features that are GitHub-only today
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Platform extras on GitLab
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Two pieces of the pipeline still talk directly to the GitHub Actions
-API and are skipped on GitLab with a log line:
+The two pieces that used to be GitHub-only are resolved through the
+adapter and implemented for GitLab as well:
 
-* **CI signal injection** (``--include-ci-signals``) — uses the
-  Actions ``/jobs/:id/logs`` endpoint. The GitLab equivalent is
-  ``/projects/:id/jobs/:id/trace`` and is on the roadmap.
-* **Auto-fix draft PR** (``--auto-fix-threshold``) — uses the GitHub
-  pulls API to create the fix-up PR. The GitLab equivalent is the
+* **CI signal injection** (``--include-ci-signals``) — GitHub reads
+  the Actions ``/jobs/:id/logs`` endpoint; GitLab reads the pipeline
+  job traces at ``/projects/:id/jobs/:id/trace``.
+* **Auto-fix** (``--auto-fix-threshold``) — GitHub opens a draft PR
+  via the pulls API; GitLab opens a ``Draft:`` merge request via the
   Merge Requests API.
 
-Both are tracked as future work. Everything else (CoT pipeline, gate,
+Platforms without either API (e.g. Gitea) still degrade gracefully —
+logged and skipped, never a crash. Everything else (CoT pipeline, gate,
 inline review, judge, self-correct) works on both platforms today.
 
 ``prthinker report`` — longitudinal summary

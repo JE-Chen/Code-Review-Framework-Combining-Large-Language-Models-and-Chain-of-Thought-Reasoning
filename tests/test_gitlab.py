@@ -286,3 +286,311 @@ def test_submit_inline_review_posts_summary_note() -> None:
         if p[0].endswith("/notes") and p[1].get("body") == "overall summary"
     ]
     assert len(notes) == 1
+
+
+# ----- full-feature parity: scripted routing client --------------------------
+
+_HUNK_DIFF = (
+    "diff --git a/a.py b/a.py\n"
+    "--- a/a.py\n"
+    "+++ b/a.py\n"
+    "@@ -1,2 +1,3 @@\n"
+    " kept\n"
+    "+added\n"
+    " tail\n"
+)
+
+
+class _ScriptedFullClient:
+    """Routes GETs by path suffix; records every mutating call."""
+
+    def __init__(
+        self,
+        *,
+        mr: dict | None = None,
+        notes: list[dict] | None = None,
+        commits: list[dict] | None = None,
+        diffs: list[dict] | None = None,
+        raw_diff: str = "",
+        raw_diff_status: int = 200,
+    ) -> None:
+        self._mr = mr or {"diff_refs": dict(_DIFF_REFS)}
+        self._notes = notes or []
+        self._commits = commits or []
+        self._diffs = diffs or []
+        self._raw_diff = raw_diff
+        self._raw_diff_status = raw_diff_status
+        self.posts: list[tuple[str, dict]] = []
+        self.puts: list[tuple[str, dict]] = []
+        self.deletes: list[str] = []
+        self._next_id = 500
+
+    def __enter__(self) -> _ScriptedFullClient:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+    @staticmethod
+    def _json_response(payload: object, status: int = 200) -> httpx.Response:
+        return httpx.Response(
+            status, request=httpx.Request("GET", "http://test"), json=payload
+        )
+
+    def get(self, path: str, params: dict | None = None) -> httpx.Response:
+        page = (params or {}).get("page", 1)
+        if path.endswith("/raw_diffs"):
+            return httpx.Response(
+                self._raw_diff_status,
+                request=httpx.Request("GET", "http://test/raw_diffs"),
+                text=self._raw_diff,
+            )
+        for suffix, items in (
+            ("/commits", self._commits),
+            ("/diffs", self._diffs),
+            ("/notes", self._notes),
+        ):
+            if path.endswith(suffix):
+                return self._json_response(items if page == 1 else [])
+        return self._json_response(self._mr)
+
+    def post(self, path: str, json: dict | None = None) -> httpx.Response:
+        self.posts.append((path, json or {}))
+        self._next_id += 1
+        return httpx.Response(
+            201,
+            request=httpx.Request("POST", "http://test" + path),
+            json={"id": self._next_id},
+        )
+
+    def put(self, path: str, json: dict | None = None) -> httpx.Response:
+        self.puts.append((path, json or {}))
+        return self._json_response({"id": 1})
+
+    def delete(self, path: str) -> httpx.Response:
+        self.deletes.append(path)
+        return httpx.Response(
+            204, request=httpx.Request("DELETE", "http://test" + path)
+        )
+
+
+def _full_adapter(client: _ScriptedFullClient) -> GitLabAdapter:
+    adapter = GitLabAdapter(project="g/p", token="t", mr_iid=7)  # nosec B106 - test fixture token, not a credential
+    adapter._client = lambda: client  # type: ignore[method-assign]  # noqa: SLF001
+    return adapter
+
+
+# ----- fetch_commit_messages / fetch_changed_paths ----------------------------
+
+
+def test_fetch_commit_messages_oldest_first_with_title_fallback() -> None:
+    client = _ScriptedFullClient(commits=[
+        {"message": "newest"},
+        {"title": "middle-title"},
+        {"message": "oldest"},
+    ])
+    adapter = _full_adapter(client)
+    assert adapter.fetch_commit_messages() == [
+        "oldest", "middle-title", "newest",
+    ]
+
+
+def test_fetch_commit_messages_empty() -> None:
+    assert _full_adapter(_ScriptedFullClient()).fetch_commit_messages() == []
+
+
+def test_fetch_changed_paths_prefers_new_path() -> None:
+    client = _ScriptedFullClient(diffs=[
+        {"new_path": "a.py", "old_path": "a_old.py"},
+        {"new_path": None, "old_path": "deleted.py"},
+        {"new_path": "", "old_path": ""},
+    ])
+    assert _full_adapter(client).fetch_changed_paths() == [
+        "a.py", "deleted.py",
+    ]
+
+
+# ----- set_labels / update_body_section ---------------------------------------
+
+
+def test_set_labels_keeps_human_labels_and_replaces_managed() -> None:
+    client = _ScriptedFullClient(
+        mr={"labels": ["prthinker/size-l", "human-tag"]}
+    )
+    adapter = _full_adapter(client)
+    adapter.set_labels(["prthinker/size-s", "prthinker/clean"])
+    put_path, payload = client.puts[0]
+    assert put_path.endswith("/merge_requests/7")
+    assert payload["labels"] == "human-tag,prthinker/size-s,prthinker/clean"
+    label_posts = [p for p in client.posts if p[0].endswith("/labels")]
+    assert [p[1]["name"] for p in label_posts] == [
+        "prthinker/size-s", "prthinker/clean",
+    ]
+
+
+def test_update_body_section_appends_marked_block() -> None:
+    client = _ScriptedFullClient(mr={"description": "original text"})
+    adapter = _full_adapter(client)
+    adapter.update_body_section("verdict here")
+    _, payload = client.puts[0]
+    assert "original text" in payload["description"]
+    assert "verdict here" in payload["description"]
+    assert "<!-- prthinker:body:start -->" in payload["description"]
+
+
+def test_update_body_section_noop_when_unchanged() -> None:
+    body = (
+        "original\n\n<!-- prthinker:body:start -->\nsame\n"
+        "<!-- prthinker:body:end -->\n"
+    )
+    client = _ScriptedFullClient(mr={"description": body})
+    adapter = _full_adapter(client)
+    adapter.update_body_section("same")
+    assert client.puts == []
+
+
+# ----- upsert_marked_comment / upsert_summary_comments -------------------------
+
+
+def test_upsert_marked_comment_creates_when_absent() -> None:
+    client = _ScriptedFullClient(notes=[_note(1, body="unrelated")])
+    adapter = _full_adapter(client)
+    new_id = adapter.upsert_marked_comment("body <!-- m -->", marker="<!-- m -->")
+    assert new_id == 501
+    assert client.posts[0][1]["body"] == "body <!-- m -->"
+
+
+def test_upsert_marked_comment_updates_existing() -> None:
+    client = _ScriptedFullClient(notes=[_note(42, body="old <!-- m -->")])
+    adapter = _full_adapter(client)
+    assert adapter.upsert_marked_comment("new <!-- m -->", marker="<!-- m -->") == 42
+    assert client.puts[0][0].endswith("/notes/42")
+
+
+def test_upsert_summary_comments_updates_creates_and_deletes() -> None:
+    client = _ScriptedFullClient(notes=[
+        _note(10, body=f"page1 {_MARKER}"),
+        _note(11, body=f"page2 {_MARKER}"),
+        _note(12, body=f"page3 {_MARKER}"),
+    ])
+    adapter = _full_adapter(client)
+    ids = adapter.upsert_summary_comments(
+        [f"new1 {_MARKER}", f"new2 {_MARKER}"]
+    )
+    assert ids == [10, 11]
+    assert [p.rsplit("/", 1)[1] for p, _ in client.puts] == ["10", "11"]
+    assert client.deletes[0].endswith("/notes/12")
+
+
+def test_upsert_summary_comments_creates_overflow_pages() -> None:
+    client = _ScriptedFullClient(notes=[_note(10, body=f"page1 {_MARKER}")])
+    adapter = _full_adapter(client)
+    ids = adapter.upsert_summary_comments(
+        [f"new1 {_MARKER}", f"new2 {_MARKER}"]
+    )
+    assert ids == [10, 501]
+    assert client.deletes == []
+
+
+def test_upsert_summary_comments_empty_is_noop() -> None:
+    client = _ScriptedFullClient()
+    assert _full_adapter(client).upsert_summary_comments([]) == []
+    assert client.posts == [] and client.puts == []
+
+
+# ----- inline-review diff pre-filter -------------------------------------------
+
+
+def test_submit_inline_review_prefilters_off_hunk_findings() -> None:
+    client = _ScriptedFullClient(raw_diff=_HUNK_DIFF)
+    adapter = _full_adapter(client)
+    adapter.submit_inline_review(
+        [_finding("a.py", 2), _finding("a.py", 99), _finding("zzz.py", 1)],
+        summary_body=None,
+        event="COMMENT",
+    )
+    discussions = [p for p in client.posts if p[0].endswith("/discussions")]
+    assert len(discussions) == 1
+    assert discussions[0][1]["position"]["new_line"] == 2
+
+
+def test_submit_inline_review_fail_open_when_diff_fetch_fails() -> None:
+    client = _ScriptedFullClient(raw_diff="", raw_diff_status=500)
+    adapter = _full_adapter(client)
+    adapter.submit_inline_review(
+        [_finding("a.py", 99)], summary_body=None, event="COMMENT"
+    )
+    discussions = [p for p in client.posts if p[0].endswith("/discussions")]
+    assert len(discussions) == 1
+
+
+def test_submit_inline_review_fail_open_when_diff_has_no_hunks() -> None:
+    client = _ScriptedFullClient(raw_diff="not a diff at all")
+    adapter = _full_adapter(client)
+    adapter.submit_inline_review(
+        [_finding("a.py", 99)], summary_body=None, event="COMMENT"
+    )
+    discussions = [p for p in client.posts if p[0].endswith("/discussions")]
+    assert len(discussions) == 1
+
+
+# ----- approvals mirror ---------------------------------------------------------
+
+
+def test_submit_inline_review_approve_hits_approvals_endpoint() -> None:
+    client = _ScriptedFullClient(raw_diff=_HUNK_DIFF)
+    adapter = _full_adapter(client)
+    adapter.submit_inline_review(
+        [_finding("a.py", 2)], summary_body=None, event="APPROVE"
+    )
+    assert any(p[0].endswith("/merge_requests/7/approve") for p in client.posts)
+
+
+def test_submit_inline_review_request_changes_unapproves() -> None:
+    client = _ScriptedFullClient(raw_diff=_HUNK_DIFF)
+    adapter = _full_adapter(client)
+    adapter.submit_inline_review(
+        [_finding("a.py", 2)], summary_body=None, event="REQUEST_CHANGES"
+    )
+    assert any(
+        p[0].endswith("/merge_requests/7/unapprove") for p in client.posts
+    )
+
+
+def test_submit_inline_review_comment_leaves_approvals_alone() -> None:
+    client = _ScriptedFullClient(raw_diff=_HUNK_DIFF)
+    adapter = _full_adapter(client)
+    adapter.submit_inline_review(
+        [_finding("a.py", 2)], summary_body=None, event="COMMENT"
+    )
+    assert not any("approve" in p[0] for p in client.posts)
+
+
+# ----- CI failure signals delegation --------------------------------------------
+
+
+def test_fetch_ci_failure_signals_delegates(monkeypatch) -> None:
+    from prthinker.platforms import gitlab as gitlab_mod
+
+    seen = {}
+
+    def _fake(project, head_sha, token, *, base_url, max_jobs, log_tail_chars):
+        seen.update(
+            project=project, head_sha=head_sha, token=token,
+            base_url=base_url, max_jobs=max_jobs,
+            log_tail_chars=log_tail_chars,
+        )
+        return []
+
+    monkeypatch.setattr(
+        gitlab_mod, "fetch_gitlab_ci_failure_signals", _fake
+    )
+    adapter = GitLabAdapter(project="g/p", token="t", mr_iid=7)  # nosec B106 - test fixture token, not a credential
+    assert adapter.fetch_ci_failure_signals(
+        "sha1", max_jobs=2, log_tail_chars=99
+    ) == []
+    assert seen == {
+        "project": "g/p", "head_sha": "sha1", "token": "t",
+        "base_url": "https://gitlab.com/api/v4",
+        "max_jobs": 2, "log_tail_chars": 99,
+    }

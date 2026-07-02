@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from prthinker.arbitration import STRATEGY_NAMES
 from prthinker.config import BackendKind, env_bool, env_str
 
 _KG_STORE_DEFAULT = ".prthinker/repo-kg.sqlite"
@@ -60,6 +61,76 @@ def add_provider_args(common: argparse.ArgumentParser) -> None:
     """Add hosted-provider (OpenAI / Anthropic / Gemini / Cohere / Mistral) arguments."""
     _add_openai_anthropic_args(common)
     _add_gemini_cohere_mistral_args(common)
+    _add_claude_cli_args(common)
+    _add_codex_cli_args(common)
+
+
+def _add_claude_cli_args(common: argparse.ArgumentParser) -> None:
+    """Add local claude-CLI subprocess backend arguments."""
+    common.add_argument(
+        "--claude-cli-path",
+        default=env_str("PRTHINKER_CLAUDE_CLI_PATH", "claude"),
+        help="Executable for --backend claude-cli (name on PATH or full "
+             "path). The CLI runs in non-interactive print mode (-p).",
+    )
+    common.add_argument(
+        "--claude-cli-model",
+        default=env_str("PRTHINKER_CLAUDE_CLI_MODEL"),
+        help="Optional model override passed to the CLI via --model.",
+    )
+    common.add_argument(
+        "--claude-cli-workdir",
+        default=env_str("PRTHINKER_CLAUDE_CLI_WORKDIR", "."),
+        help="Working directory the CLI (and its tools) runs in.",
+    )
+    common.add_argument(
+        "--claude-cli-allowed-tools",
+        default=env_str("PRTHINKER_CLAUDE_CLI_ALLOWED_TOOLS", ""),
+        help="Tool allowlist forwarded as --allowedTools (e.g. "
+             "'Read,Grep,Glob'), so the review can consult the working "
+             "tree with the full local toolchain. Empty (default) leaves "
+             "the CLI's own tool policy in place.",
+    )
+    common.add_argument(
+        "--claude-cli-timeout",
+        type=float,
+        default=float(env_str("PRTHINKER_CLAUDE_CLI_TIMEOUT", "3600") or 3600),
+        help="Seconds before one CLI invocation is killed.",
+    )
+
+
+def _add_codex_cli_args(common: argparse.ArgumentParser) -> None:
+    """Add local codex-CLI subprocess backend arguments."""
+    common.add_argument(
+        "--codex-cli-path",
+        default=env_str("PRTHINKER_CODEX_CLI_PATH", "codex"),
+        help="Executable for --backend codex-cli (name on PATH or full "
+             "path). The CLI runs headless via `codex exec --json`.",
+    )
+    common.add_argument(
+        "--codex-cli-model",
+        default=env_str("PRTHINKER_CODEX_CLI_MODEL"),
+        help="Optional model override passed to the CLI via -m.",
+    )
+    common.add_argument(
+        "--codex-cli-workdir",
+        default=env_str("PRTHINKER_CODEX_CLI_WORKDIR", "."),
+        help="Working directory the CLI (and its tools) runs in (-C).",
+    )
+    common.add_argument(
+        "--codex-cli-sandbox",
+        choices=["read-only", "workspace-write", "danger-full-access"],
+        default=env_str("PRTHINKER_CODEX_CLI_SANDBOX", "read-only"),
+        help="Sandbox mode forwarded as `-c sandbox_mode=...`. read-only "
+             "(default) lets the review consult the working tree without "
+             "mutating it.",
+    )
+    common.add_argument(
+        "--codex-cli-timeout",
+        type=float,
+        default=float(env_str("PRTHINKER_CODEX_CLI_TIMEOUT", "3600") or 3600),
+        help="Seconds before one CLI invocation is killed.",
+    )
 
 
 def _add_openai_anthropic_args(common: argparse.ArgumentParser) -> None:
@@ -151,6 +222,41 @@ def _add_gemini_cohere_mistral_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--mistral-base-url",
         default=env_str("PRTHINKER_MISTRAL_BASE_URL", "https://api.mistral.ai/v1"),
+    )
+
+
+def add_arbitration_args(common: argparse.ArgumentParser) -> None:
+    """Add the opt-in multi-model finding-arbitration arguments."""
+    common.add_argument(
+        "--arbitration",
+        action="store_true",
+        default=env_bool("PRTHINKER_ARBITRATION", False),
+        help="After the review, have extra model backends vote "
+             "confirm/reject on each inline finding and drop the "
+             "off-voted ones. Fail-open: arbiter failures keep findings.",
+    )
+    common.add_argument(
+        "--arbitration-backends",
+        default=env_str("PRTHINKER_ARBITRATION_BACKENDS", ""),
+        help="Comma-separated backend kinds acting as arbiters (e.g. "
+             "'openai,anthropic,claude-cli'). Each is configured by the "
+             "same flags / env vars as when used as the primary backend.",
+    )
+    common.add_argument(
+        "--arbitration-strategy",
+        choices=list(STRATEGY_NAMES),
+        default=env_str("PRTHINKER_ARBITRATION_STRATEGY", "majority"),
+        help="How votes combine: majority (rejects must outnumber "
+             "confirms to drop), unanimous (any reject drops), any "
+             "(one confirm keeps).",
+    )
+    common.add_argument(
+        "--arbitration-max-new-tokens",
+        type=int,
+        default=int(
+            env_str("PRTHINKER_ARBITRATION_MAX_NEW_TOKENS", "4096") or 4096
+        ),
+        help="Generation budget for each arbiter's vote call.",
     )
 
 

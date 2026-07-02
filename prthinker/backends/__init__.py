@@ -77,6 +77,18 @@ def _create_inner_backend(config: Config) -> InferenceBackend:
             timeout_seconds=config.mistral.timeout_seconds,
         )
 
+    if config.backend is BackendKind.CLAUDE_CLI:
+        from prthinker.backends.claude_cli import ClaudeCliBackend
+
+        assert config.claude_cli is not None
+        return ClaudeCliBackend(config.claude_cli)
+
+    if config.backend is BackendKind.CODEX_CLI:
+        from prthinker.backends.codex_cli import CodexCliBackend
+
+        assert config.codex_cli is not None
+        return CodexCliBackend(config.codex_cli)
+
     raise ValueError(f"Unsupported backend: {config.backend!r}")
 
 

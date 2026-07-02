@@ -7,6 +7,8 @@ the pure functions are what the test suite locks in.
 
 from __future__ import annotations
 
+import httpx
+
 from prthinker.auto_fix import apply_suggestions_to_text, detect_conflicts
 from prthinker.schemas import InlineFinding
 
@@ -129,3 +131,73 @@ def test_detect_conflicts_no_edges_no_overlap() -> None:
     report = detect_conflicts(edits)
     assert len(report.applied) == 2
     assert report.skipped == []
+
+
+# ----- GitLab draft-MR opener --------------------------------------------
+
+def test_draft_body_renders_platform_ref() -> None:
+    from prthinker.auto_fix import _draft_pr_body  # noqa: SLF001
+
+    body = _draft_pr_body("!7", 2, 1, ["a.py"])
+    assert "blocks from !7." in body
+    assert "**2** suggestion(s) applied" in body
+    assert "- `a.py`" in body
+
+
+def test_gitlab_mr_target_default_base_url() -> None:
+    from prthinker.auto_fix import GitLabMRTarget
+
+    target = GitLabMRTarget(project="g/p", token="t", mr_iid=7)  # nosec B106 - test fixture token, not a credential
+    assert target.base_url == "https://gitlab.com/api/v4"
+
+
+class _ScriptedMRClient:
+    """Stands in for httpx.Client; records the create-MR POST."""
+
+    instances: list["_ScriptedMRClient"] = []
+
+    def __init__(self, **kwargs: object) -> None:
+        self.kwargs = kwargs
+        self.posts: list[tuple[str, dict]] = []
+        _ScriptedMRClient.instances.append(self)
+
+    def __enter__(self) -> "_ScriptedMRClient":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+    def post(self, path: str, json: dict | None = None):
+        self.posts.append((path, json or {}))
+        return httpx.Response(
+            201,
+            request=httpx.Request("POST", "http://test" + path),
+            json={"iid": 55, "web_url": "https://gl.example/mr/55"},
+        )
+
+
+def test_open_draft_mr_payload_and_result(monkeypatch) -> None:
+    from prthinker import auto_fix
+    from prthinker.auto_fix import GitLabMRTarget, _open_draft_mr  # noqa: SLF001
+
+    _ScriptedMRClient.instances.clear()
+    monkeypatch.setattr(auto_fix.httpx, "Client", _ScriptedMRClient)
+
+    target = GitLabMRTarget(project="g/p", token="t", mr_iid=7)  # nosec B106 - test fixture token, not a credential
+    mr_iid, mr_url = _open_draft_mr(
+        target=target,
+        base_branch="main",
+        head_branch="auto-fix/prthinker-mr-7",
+        total_applied=1,
+        total_skipped=0,
+        files_changed=["a.py"],
+    )
+    assert (mr_iid, mr_url) == (55, "https://gl.example/mr/55")
+    client = _ScriptedMRClient.instances[0]
+    path, payload = client.posts[0]
+    assert path == "/projects/g%2Fp/merge_requests"
+    assert payload["source_branch"] == "auto-fix/prthinker-mr-7"
+    assert payload["target_branch"] == "main"
+    assert payload["title"].startswith("Draft: ")
+    assert "!7" in payload["description"]
+    assert client.kwargs["headers"]["PRIVATE-TOKEN"] == "t"

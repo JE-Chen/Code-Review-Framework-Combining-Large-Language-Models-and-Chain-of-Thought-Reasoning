@@ -96,6 +96,13 @@ def test_base_update_body_section_is_noop() -> None:
     assert _MiniAdapter().update_body_section("digest") is None
 
 
+def test_base_ci_failure_signals_default_empty(caplog) -> None:
+    # Adapters without a CI API degrade to a review without failure context.
+    with caplog.at_level("INFO"):
+        assert _MiniAdapter().fetch_ci_failure_signals("sha") == []
+    assert "does not support CI failure signals" in caplog.text
+
+
 def test_base_upsert_comments_drops_overflow_pages(caplog) -> None:
     adapter = _MiniAdapter()
     with caplog.at_level("WARNING"):

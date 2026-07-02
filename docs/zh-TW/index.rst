@@ -1,8 +1,9 @@
 prthinker（繁體中文）
 ========================
 
-為 GitHub Pull Request 設計的思維鏈（Chain-of-Thought）程式碼審查框架，
-底層由微調後的 Qwen3-Coder 模型加上檢索增強（RAG）提示驅動。
+為 GitHub、GitLab、Gitea 的 Pull／Merge Request 設計的思維鏈
+（Chain-of-Thought）程式碼審查框架，底層由微調後的 Qwen3-Coder 模型加上
+檢索增強（RAG）提示驅動。
 
 ``prthinker`` 會讀取 PR diff、執行五步思維鏈審查、把結構化的總結與
 一鍵套用的 ``suggestion`` 區塊回貼到 PR。它會從每個 repo 的歷史中學習──
@@ -22,6 +23,9 @@ prompt──並且可以充當合併前的必要狀態檢查。
 * **CI 失敗訊號**\ 前置到 diff，提供 grounded review。
 * **合併前 Check Run gate**\ ──可設成必要狀態檢查。
 * **可替換 backend**\ ：本機 in-process Qwen + LoRA，或 HTTP 遠端推論。
+* **與 forge 無關的前端**\ ：GitHub、GitLab、Gitea 共用同一個
+  ``PlatformAdapter``\ ；並內附可直接使用的 GitLab pipeline
+  ``.gitlab-ci.yml``\ 。
 
 .. toctree::
    :maxdepth: 2
@@ -31,6 +35,7 @@ prompt──並且可以充當合併前的必要狀態檢查。
    guide/quickstart
    guide/end-to-end-example
    guide/github-actions
+   guide/gitlab-ci
    guide/configuration
    guide/repo-config
 

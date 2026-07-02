@@ -205,6 +205,17 @@ def _replace_marked_section(
     return (f"{base}\n\n{block}\n" if base else f"{block}\n")
 
 
+def replace_marked_section(
+    body: str, section: str, start: str = _BODY_START, end: str = _BODY_END
+) -> str:
+    """Platform-neutral public alias of :func:`_replace_marked_section`.
+
+    Pure text splice shared by every adapter that upserts a
+    marker-delimited block into a PR / MR description.
+    """
+    return _replace_marked_section(body, section, start, end)
+
+
 def upsert_pr_body_section(config: GitHubConfig, section: str) -> None:
     """Insert/replace the prthinker section in the PR description (body)."""
     with _client(config.token) as client:
@@ -624,6 +635,28 @@ def _filter_findings_to_diff(
     return kept
 
 
+def filter_findings_to_diff(
+    findings: list[InlineFinding], diff_text: str
+) -> list[InlineFinding]:
+    """Platform-neutral public alias of :func:`_filter_findings_to_diff`.
+
+    The hunk parsing is plain unified-diff logic, so non-GitHub adapters
+    (GitLab discussions have the same off-hunk failure mode) reuse it
+    instead of duplicating the line-map walk.
+    """
+    return _filter_findings_to_diff(findings, diff_text)
+
+
+def new_side_lines(diff_text: str) -> dict[str, set[int]]:
+    """Platform-neutral public alias of :func:`_new_side_lines`.
+
+    Lets adapters distinguish "the diff has no addressable hunks"
+    (fail-open, post everything) from "these findings are off-hunk"
+    (drop them) before calling :func:`filter_findings_to_diff`.
+    """
+    return _new_side_lines(diff_text)
+
+
 def count_findings_on_diff(
     findings: Iterable[InlineFinding], diff_text: str
 ) -> int:
@@ -783,5 +816,8 @@ __all__ = [
     "upsert_pr_comments",
     "submit_inline_review",
     "count_findings_on_diff",
+    "filter_findings_to_diff",
     "findings_off_diff",
+    "new_side_lines",
+    "replace_marked_section",
 ]

@@ -231,6 +231,26 @@ inline review 的 child comments 全部删掉、旧 `prthinker` check
 PATCH 成 *superseded* 灰色状态。完整架构见
 [`docs/zh-CN/guide/github-actions.rst`](../docs/zh-CN/guide/github-actions.rst)。
 
+## GitLab CI
+
+审查前端与 forge 无关：同一个 CLI 通过单一 `PlatformAdapter` 即可驱动
+GitHub、GitLab 与 Gitea。项目内置可直接使用的 GitLab pipeline
+[`.gitlab-ci.yml`](../.gitlab-ci.yml)。在 **Settings → CI/CD → Variables**
+设置三个 masked 变量：
+
+| 变量 | 用途 |
+| ---- | ---- |
+| `GITLAB_TOKEN`             | 具 `api` scope 的 Project／Group access token 或 PAT（内置的 `CI_JOB_TOKEN` 无法贴 MR note） |
+| `PRTHINKER_BACKEND_URL`    | 推理服务器的 base URL |
+| `PRTHINKER_BACKEND_API_KEY`| bearer token（可选） |
+
+CLI 会自动解析 GitLab-CI 环境（`$CI_PROJECT_PATH` → `--repo`、
+`$CI_MERGE_REQUEST_IID` → `--pr-number`、`$GITLAB_TOKEN`），因此单一
+`review-pr` job 就能贴出总结 note、inline 讨论，以及名为 `prthinker` 的
+commit-status gate（不需要 matrix，那只是为了分流共享 GPU）。自托管
+GitLab 与 Gitea 通过 `--platform-base-url` 即可。详见
+[`docs/zh-CN/guide/gitlab-ci.rst`](../docs/zh-CN/guide/gitlab-ci.rst)。
+
 ## 文档
 
 - **[`setup.zh-CN.md`](setup.zh-CN.md)** — 完整设置指南（六种场景、
@@ -248,7 +268,7 @@ PATCH 成 *superseded* 灰色状态。完整架构见
 
 每个版本包含：
 
-- **Guide**──安装、快速开始、配置、GitHub Actions
+- **Guide**──安装、快速开始、配置、GitHub Actions、GitLab CI
 - **Concepts**──架构、pipeline、RAG、语料库、CI 信号与 gate
 - **Reference**──CLI、HTTP API、Python API
 

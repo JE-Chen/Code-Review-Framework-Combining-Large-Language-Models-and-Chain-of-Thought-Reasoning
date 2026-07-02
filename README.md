@@ -290,6 +290,26 @@ to `neutral` with a *superseded* title. See
 [`docs/en/guide/github-actions.rst`](docs/en/guide/github-actions.rst)
 for the full architecture.
 
+## GitLab CI
+
+The review frontend is forge-agnostic — the same CLI drives GitHub,
+GitLab, and Gitea behind one `PlatformAdapter`. A ready-to-use GitLab
+pipeline ships at [`.gitlab-ci.yml`](.gitlab-ci.yml). Set three masked
+CI/CD variables (**Settings → CI/CD → Variables**):
+
+| Variable | Purpose |
+| -------- | ------- |
+| `GITLAB_TOKEN`             | Project/group access token or PAT with `api` scope (the built-in `CI_JOB_TOKEN` can't post MR notes) |
+| `PRTHINKER_BACKEND_URL`    | Base URL of your inference server |
+| `PRTHINKER_BACKEND_API_KEY`| Bearer token (optional) |
+
+The CLI auto-resolves the GitLab-CI environment (`$CI_PROJECT_PATH` →
+`--repo`, `$CI_MERGE_REQUEST_IID` → `--pr-number`, `$GITLAB_TOKEN`), so a
+single `review-pr` job posts the summary note, inline discussions, and a
+`prthinker` commit-status gate — no matrix needed (that only shards the
+shared GPU). Self-hosted GitLab and Gitea work via `--platform-base-url`.
+See [`docs/en/guide/gitlab-ci.rst`](docs/en/guide/gitlab-ci.rst).
+
 ## Documentation
 
 - **[`setup.md`](READMEs/setup.md)** — comprehensive setup walkthrough (six
@@ -302,7 +322,7 @@ Full documentation is published on Read the Docs at
 **<https://code-review-framework.readthedocs.io/en/latest/>** (source in
 [`docs/`](docs/)):
 
-- **Guide** — installation, quickstart, configuration, GitHub Actions
+- **Guide** — installation, quickstart, configuration, GitHub Actions, GitLab CI
 - **Concepts** — architecture, pipeline, RAG, corpora, CI signals, the gate
 - **Reference** — CLI, HTTP API, Python API
 

@@ -22,6 +22,7 @@ from enum import Enum
 from typing import Any
 
 from prthinker.checks import CheckResult
+from prthinker.ci_signals import FailureSignal
 from prthinker.dialogue import AuthorReply
 from prthinker.schemas import InlineFinding
 
@@ -153,6 +154,27 @@ class PlatformAdapter(ABC):
         API verb. Return the new review / discussion id, or ``None`` if
         the findings list was empty.
         """
+
+    # ----- CI failure signals -------------------------------------------
+
+    def fetch_ci_failure_signals(
+        self,
+        head_sha: str,  # pylint: disable=unused-argument  # overridable no-op; subclasses use it
+        *,
+        max_jobs: int = 5,  # pylint: disable=unused-argument
+        log_tail_chars: int = 4000,  # pylint: disable=unused-argument
+    ) -> list[FailureSignal]:
+        """Return failed-job log tails for the head commit.
+
+        Default returns ``[]`` so adapters without a CI API degrade to a
+        review without failure context. Concrete adapters override
+        (GitHub Actions runs / GitLab pipelines).
+        """
+        log.info(
+            "%s does not support CI failure signals; skipping",
+            type(self).__name__,
+        )
+        return []
 
     # ----- dialogue (closed-loop multi-turn review) ---------------------
 
