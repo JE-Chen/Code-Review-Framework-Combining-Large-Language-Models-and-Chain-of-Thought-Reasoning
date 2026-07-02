@@ -46,7 +46,7 @@ def test_review_pr_resolves_gitlab_ci_environment(
     assert args.platform == "gitlab"
     assert args.repo == "group/sub/proj"
     assert args.pr_number == 77
-    assert args.github_token == "glpat-fixture"
+    assert args.github_token == "glpat-fixture"  # nosec B105 - test fixture token, not a credential
 
 
 def test_review_pr_platform_defaults_to_github(
@@ -79,4 +79,4 @@ def test_github_repository_takes_precedence_over_gitlab(
     args = _build_parser().parse_args(["review-pr"])
 
     assert args.repo == "owner/name"
-    assert args.github_token == "gh-fixture"
+    assert args.github_token == "gh-fixture"  # nosec B105 - test fixture token, not a credential
