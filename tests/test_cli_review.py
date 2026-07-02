@@ -222,6 +222,167 @@ def test_open_auto_fix_none_result_logs_no_edits(monkeypatch, caplog):
     assert any("no edits applied" in r.message for r in caplog.records)
 
 
+# --- _maybe_open_auto_fix_mr (GitLab twin) -----------------------------------
+
+def _mr_args(**overrides):
+    defaults = {
+        "auto_fix_threshold": 1,
+        "auto_fix_base_branch": "main",
+        "repo": "g/p",
+        "github_token": "tok",
+        "pr_number": 7,
+    }
+    defaults.update(overrides)
+    return Namespace(**defaults)
+
+
+def _stub_auto_fix_module(monkeypatch, opener):
+    from prthinker.auto_fix import GitLabMRTarget
+
+    mod = types.ModuleType("prthinker.auto_fix")
+    mod.GitLabMRTarget = GitLabMRTarget
+    mod.open_auto_fix_mr = opener
+    monkeypatch.setitem(sys.modules, "prthinker.auto_fix", mod)
+    return GitLabMRTarget
+
+
+def test_auto_fix_mr_below_threshold_skips(monkeypatch):
+    opened = []
+    _stub_auto_fix_module(monkeypatch, lambda *a: opened.append(a))
+    args = _mr_args(auto_fix_threshold=3)
+    adapter = types.SimpleNamespace(base_url="https://gl/api/v4")
+    cli_review._maybe_open_auto_fix_mr(args, _result(_finding()), adapter)
+    assert opened == []
+
+
+def test_auto_fix_mr_builds_target_from_args_and_adapter(monkeypatch):
+    seen = {}
+
+    def _open(target, findings_by_file, base_branch, repo_root):
+        seen.update(
+            target=target, findings_by_file=findings_by_file,
+            base_branch=base_branch, repo_root=repo_root,
+        )
+        return None
+
+    _stub_auto_fix_module(monkeypatch, _open)
+    adapter = types.SimpleNamespace(base_url="https://gl.example/api/v4")
+    cli_review._maybe_open_auto_fix_mr(
+        _mr_args(auto_fix_base_branch="release"),
+        _result(_finding()),
+        adapter,
+    )
+    assert seen["base_branch"] == "release"
+    assert "a.py" in seen["findings_by_file"]
+    assert seen["target"].project == "g/p"
+    assert seen["target"].mr_iid == 7
+    assert seen["target"].base_url == "https://gl.example/api/v4"
+
+
+def test_auto_fix_mr_base_branch_from_adapter(monkeypatch):
+    seen = {}
+    _stub_auto_fix_module(
+        monkeypatch, lambda t, f, base_branch, r: seen.update(b=base_branch)
+    )
+    adapter = types.SimpleNamespace(
+        base_url="https://gl/api/v4",
+        fetch_base_branch=lambda: "fetched-main",
+    )
+    cli_review._maybe_open_auto_fix_mr(
+        _mr_args(auto_fix_base_branch=""), _result(_finding()), adapter
+    )
+    assert seen["b"] == "fetched-main"
+
+
+def test_auto_fix_mr_base_branch_fetch_error_aborts(monkeypatch):
+    opened = []
+    _stub_auto_fix_module(monkeypatch, lambda *a: opened.append(a))
+
+    def _raise():
+        raise RuntimeError("boom")
+
+    adapter = types.SimpleNamespace(
+        base_url="https://gl/api/v4", fetch_base_branch=_raise
+    )
+    cli_review._maybe_open_auto_fix_mr(
+        _mr_args(auto_fix_base_branch=""), _result(_finding()), adapter
+    )
+    assert opened == []
+
+
+def test_auto_fix_mr_open_error_is_swallowed(monkeypatch, caplog):
+    def _raise(*a):
+        raise RuntimeError("nope")
+
+    _stub_auto_fix_module(monkeypatch, _raise)
+    adapter = types.SimpleNamespace(base_url="https://gl/api/v4")
+    with caplog.at_level("ERROR"):
+        cli_review._maybe_open_auto_fix_mr(
+            _mr_args(), _result(_finding()), adapter
+        )
+    assert any("Auto-fix failed" in r.message for r in caplog.records)
+
+
+# --- _maybe_prepend_ci_signals (adapter polymorphism) -------------------------
+
+def _ci_args(**overrides):
+    defaults = {
+        "include_ci_signals": True,
+        "ci_signal_max_jobs": 5,
+        "ci_signal_tail_chars": 100,
+    }
+    defaults.update(overrides)
+    return Namespace(**defaults)
+
+
+def test_ci_signals_prepended_from_adapter():
+    from prthinker.ci_signals import FailureSignal
+
+    adapter = types.SimpleNamespace(
+        fetch_ci_failure_signals=lambda sha, *, max_jobs, log_tail_chars: [
+            FailureSignal(
+                workflow_name="ci", job_name="pytest",
+                conclusion="failure", log_tail="assert boom",
+            )
+        ]
+    )
+    out = cli_review._maybe_prepend_ci_signals(
+        _ci_args(), "DIFF", "sha1", adapter
+    )
+    assert out.endswith("DIFF")
+    assert "assert boom" in out
+
+
+def test_ci_signals_skipped_when_disabled():
+    def _fail(*a, **k):
+        raise AssertionError("adapter must not be called")
+
+    adapter = types.SimpleNamespace(fetch_ci_failure_signals=_fail)
+    out = cli_review._maybe_prepend_ci_signals(
+        _ci_args(include_ci_signals=False), "DIFF", "sha1", adapter
+    )
+    assert out == "DIFF"
+
+
+def test_ci_signals_skipped_without_head_sha():
+    def _fail(*a, **k):
+        raise AssertionError("adapter must not be called")
+
+    adapter = types.SimpleNamespace(fetch_ci_failure_signals=_fail)
+    assert cli_review._maybe_prepend_ci_signals(
+        _ci_args(), "DIFF", None, adapter
+    ) == "DIFF"
+
+
+def test_ci_signals_empty_leaves_diff_untouched():
+    adapter = types.SimpleNamespace(
+        fetch_ci_failure_signals=lambda sha, *, max_jobs, log_tail_chars: []
+    )
+    assert cli_review._maybe_prepend_ci_signals(
+        _ci_args(), "DIFF", "sha1", adapter
+    ) == "DIFF"
+
+
 def test_resolve_base_branch_explicit_short_circuits(monkeypatch):
     def _boom(gh):
         raise AssertionError("should not fetch when branch is set")

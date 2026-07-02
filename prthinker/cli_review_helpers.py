@@ -10,11 +10,19 @@ import argparse
 import logging
 from pathlib import Path
 
+from prthinker.arbitration import (
+    FindingArbitrator,
+    create_arbitration_strategy,
+)
+from prthinker.backends import InferenceBackend, create_backend
 from prthinker.config import (
     AnthropicConfig,
     BackendKind,
     CacheConfig,
+    ClaudeCliConfig,
+    CodexCliConfig,
     CohereConfig,
+    Config,
     GeminiConfig,
     LocalBackendConfig,
     MistralConfig,
@@ -142,6 +150,32 @@ def _mistral_backend_config(
     )
 
 
+def _claude_cli_backend_config(
+    args: argparse.Namespace,
+) -> tuple[str, ClaudeCliConfig]:
+    """Build the CLAUDE_CLI backend sub-config from CLI args."""
+    return "claude_cli", ClaudeCliConfig(
+        executable=args.claude_cli_path,
+        model=args.claude_cli_model,
+        working_dir=args.claude_cli_workdir,
+        allowed_tools=args.claude_cli_allowed_tools,
+        timeout_seconds=args.claude_cli_timeout,
+    )
+
+
+def _codex_cli_backend_config(
+    args: argparse.Namespace,
+) -> tuple[str, CodexCliConfig]:
+    """Build the CODEX_CLI backend sub-config from CLI args."""
+    return "codex_cli", CodexCliConfig(
+        executable=args.codex_cli_path,
+        model=args.codex_cli_model,
+        working_dir=args.codex_cli_workdir,
+        sandbox_mode=args.codex_cli_sandbox,
+        timeout_seconds=args.codex_cli_timeout,
+    )
+
+
 BACKEND_CONFIG_BUILDERS = {
     BackendKind.LOCAL: _local_backend_config,
     BackendKind.REMOTE: _remote_backend_config,
@@ -150,6 +184,8 @@ BACKEND_CONFIG_BUILDERS = {
     BackendKind.GEMINI: _gemini_backend_config,
     BackendKind.COHERE: _cohere_backend_config,
     BackendKind.MISTRAL: _mistral_backend_config,
+    BackendKind.CLAUDE_CLI: _claude_cli_backend_config,
+    BackendKind.CODEX_CLI: _codex_cli_backend_config,
 }
 
 
@@ -228,3 +264,82 @@ def build_dialogue_block(args: argparse.Namespace, adapter: object) -> str:
         if kg:
             block = (kg + "\n\n" + block).strip()
     return block
+
+
+# --- multi-model arbitration wiring ---------------------------------------
+
+
+def _split_arbiter_kinds(raw: str) -> list[BackendKind]:
+    """Parse the comma-separated --arbitration-backends value."""
+    kinds: list[BackendKind] = []
+    for token in (raw or "").split(","):
+        name = token.strip()
+        if not name:
+            continue
+        try:
+            kinds.append(BackendKind(name))
+        except ValueError:
+            raise SystemExit(
+                f"unknown arbitration backend kind: {name!r}"
+            ) from None
+    return kinds
+
+
+def _build_arbiter_backends(args: argparse.Namespace) -> list[InferenceBackend]:
+    """Instantiate one backend per --arbitration-backends entry.
+
+    Each arbiter reuses the same flags / env vars it would use as the
+    primary backend; cache and telemetry wrappers stay off so votes are
+    never memoized against a stale diff.
+    """
+    backends: list[InferenceBackend] = []
+    for kind in _split_arbiter_kinds(getattr(args, "arbitration_backends", "")):
+        field_name, sub_config = BACKEND_CONFIG_BUILDERS[kind](args)
+        config = Config(backend=kind, **{field_name: sub_config})
+        backends.append(create_backend(config))
+    return backends
+
+
+def _filter_per_file_findings(result: object, kept: list) -> None:
+    """Restrict every per-file finding list to the arbitration survivors."""
+    kept_ids = {id(f) for f in kept}
+    for file_result in result.per_file:
+        file_result.inline_findings = [
+            f for f in file_result.inline_findings if id(f) in kept_ids
+        ]
+
+
+def apply_arbitration(args: argparse.Namespace, result: object) -> None:
+    """Run the opt-in multi-model arbitration pass over ``result`` in place.
+
+    No-op unless ``--arbitration`` is set and the review produced
+    findings. Arbiter backends are built fresh per run and always closed.
+    """
+    if not getattr(args, "arbitration", False) or not result.inline_findings:
+        return
+    backends = _build_arbiter_backends(args)
+    if not backends:
+        log.warning(
+            "--arbitration set but --arbitration-backends is empty; skipping"
+        )
+        return
+    strategy = create_arbitration_strategy(
+        getattr(args, "arbitration_strategy", "majority")
+    )
+    arbitrator = FindingArbitrator(
+        backends, strategy,
+        max_new_tokens=int(getattr(args, "arbitration_max_new_tokens", 4096)),
+    )
+    try:
+        outcome = arbitrator.arbitrate(result.inline_findings, result.code_diff)
+    finally:
+        for backend in backends:
+            backend.close()
+    result.inline_findings = outcome.kept
+    _filter_per_file_findings(result, outcome.kept)
+    log.info(
+        "Arbitration kept %d and dropped %d finding(s) "
+        "[strategy=%s, arbiters=%d]",
+        len(outcome.kept), len(outcome.dropped),
+        strategy.name, len(backends),
+    )

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import logging
 import subprocess
+import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -188,12 +189,16 @@ def _apply_fixes_to_disk(
     return files_changed, total_applied, total_skipped
 
 
-def _commit_and_push_fixes(branch: str, files_changed: list[str], base_pr_number: int) -> None:
-    """Stage the changed files on a fresh branch, commit, and force-push."""
+def _commit_and_push_fixes(branch: str, files_changed: list[str], base_ref: str) -> None:
+    """Stage the changed files on a fresh branch, commit, and force-push.
+
+    ``base_ref`` is the platform-rendered reference of the change under
+    review (``#N`` for a GitHub PR, ``!N`` for a GitLab MR).
+    """
     _git("checkout", "-B", branch)
     for path_str in files_changed:
         _git("add", path_str)
-    _git("commit", "-m", f"Apply prthinker suggestions for #{base_pr_number}")
+    _git("commit", "-m", f"Apply prthinker suggestions for {base_ref}")
     _git("push", "--force-with-lease", "origin", branch)
 
 
@@ -216,7 +221,7 @@ def open_auto_fix_pr(
         return None
 
     branch = f"auto-fix/prthinker-pr-{base_pr_number}"
-    _commit_and_push_fixes(branch, files_changed, base_pr_number)
+    _commit_and_push_fixes(branch, files_changed, f"#{base_pr_number}")
 
     pr_url: str | None = None
     pr_number: int | None = None
@@ -245,11 +250,15 @@ def open_auto_fix_pr(
 
 
 def _draft_pr_body(
-    base_pr_number: int, total_applied: int, total_skipped: int, files_changed: list[str]
+    base_ref: str, total_applied: int, total_skipped: int, files_changed: list[str]
 ) -> str:
-    """Render the Markdown body for the auto-fix draft PR."""
+    """Render the Markdown body for the auto-fix draft PR / MR.
+
+    ``base_ref`` is the platform-rendered reference of the change under
+    review (``#N`` for a GitHub PR, ``!N`` for a GitLab MR).
+    """
     body_lines = [
-        f"Mechanically applies prthinker's `suggestion` blocks from #{base_pr_number}.",
+        f"Mechanically applies prthinker's `suggestion` blocks from {base_ref}.",
         "",
         f"- **{total_applied}** suggestion(s) applied",
     ]
@@ -284,7 +293,9 @@ def _open_draft_pr(
         "title": f"Apply prthinker suggestions from #{base_pr_number}",
         "head": head_branch,
         "base": base_branch,
-        "body": _draft_pr_body(base_pr_number, total_applied, total_skipped, files_changed),
+        "body": _draft_pr_body(
+            f"#{base_pr_number}", total_applied, total_skipped, files_changed
+        ),
         "draft": True,
     }
     with httpx.Client(
@@ -306,10 +317,108 @@ def _open_draft_pr(
         return int(data["number"]), str(data["html_url"])
 
 
+# ---------------------------------------------------------------------------
+# GitLab counterpart — same disk / git layers, draft MR instead of draft PR.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class GitLabMRTarget:
+    """Where the auto-fix draft MR goes — project, auth, and source MR."""
+
+    project: str
+    token: str
+    mr_iid: int
+    base_url: str = "https://gitlab.com/api/v4"
+
+
+def open_auto_fix_mr(
+    target: GitLabMRTarget,
+    findings_by_file: dict[str, list[InlineFinding]],
+    base_branch: str,
+    repo_root: Path,
+) -> AutoFixResult | None:
+    """GitLab twin of :func:`open_auto_fix_pr`: apply, push, open a draft MR.
+
+    Returns ``None`` when there is nothing to apply. The MR is opened as
+    a draft (GitLab's ``Draft:`` title prefix) targeting ``base_branch``.
+    """
+    files_changed, total_applied, total_skipped = _apply_fixes_to_disk(
+        findings_by_file, repo_root
+    )
+    if not files_changed:
+        return None
+
+    branch = f"auto-fix/prthinker-mr-{target.mr_iid}"
+    _commit_and_push_fixes(branch, files_changed, f"!{target.mr_iid}")
+
+    mr_url: str | None = None
+    mr_iid: int | None = None
+    try:
+        mr_iid, mr_url = _open_draft_mr(
+            target=target,
+            base_branch=base_branch,
+            head_branch=branch,
+            total_applied=total_applied,
+            total_skipped=total_skipped,
+            files_changed=files_changed,
+        )
+    except httpx.HTTPStatusError as exc:
+        log.error("Auto-fix MR creation failed: %d %s",
+                  exc.response.status_code, exc.response.text)
+
+    return AutoFixResult(
+        branch=branch,
+        pr_number=mr_iid,
+        pr_url=mr_url,
+        files_changed=files_changed,
+        total_findings_applied=total_applied,
+        total_findings_skipped=total_skipped,
+    )
+
+
+def _open_draft_mr(
+    *,
+    target: GitLabMRTarget,
+    base_branch: str,
+    head_branch: str,
+    total_applied: int,
+    total_skipped: int,
+    files_changed: list[str],
+) -> tuple[int, str]:
+    ref = f"!{target.mr_iid}"
+    payload = {
+        "source_branch": head_branch,
+        "target_branch": base_branch,
+        "title": f"Draft: Apply prthinker suggestions from {ref}",
+        "description": _draft_pr_body(
+            ref, total_applied, total_skipped, files_changed
+        ),
+    }
+    project_quoted = urllib.parse.quote(str(target.project), safe="")
+    with httpx.Client(
+        base_url=target.base_url.rstrip("/"),
+        timeout=30.0,
+        headers={
+            "PRIVATE-TOKEN": target.token,
+            "User-Agent": _USER_AGENT,
+        },
+    ) as client:
+        response = client.post(
+            f"/projects/{project_quoted}/merge_requests",
+            json=payload,
+        )
+        response.raise_for_status()
+        data = response.json()
+        return int(data["iid"]), str(data["web_url"])
+
+
 __all__ = [
     "AutoFixResult",
     "ConflictReport",
+    "GitLabMRTarget",
     "apply_suggestions_to_text",
     "detect_conflicts",
+    "open_auto_fix_mr",
     "open_auto_fix_pr",
 ]

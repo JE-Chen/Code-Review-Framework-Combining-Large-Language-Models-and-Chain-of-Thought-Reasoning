@@ -14,6 +14,10 @@ from prthinker.checks import (
     complete_check_run,
     create_check_run,
 )
+from prthinker.ci_signals import (
+    FailureSignal,
+    fetch_ci_failure_signals,
+)
 from prthinker.config import GitHubConfig
 from prthinker.dialogue import AuthorReply
 from prthinker.github_api import (
@@ -126,6 +130,20 @@ class GitHubAdapter(PlatformAdapter):
         return submit_inline_review(
             self._gh(), findings,
             summary_body=summary_body, event=event,
+        )
+
+    # ----- CI failure signals ---------------------------------------------
+
+    def fetch_ci_failure_signals(
+        self,
+        head_sha: str,
+        *,
+        max_jobs: int = 5,
+        log_tail_chars: int = 4000,
+    ) -> list[FailureSignal]:
+        return fetch_ci_failure_signals(
+            self.repo, head_sha, self.token,
+            max_jobs=max_jobs, log_tail_chars=log_tail_chars,
         )
 
     # ----- gate ----------------------------------------------------------

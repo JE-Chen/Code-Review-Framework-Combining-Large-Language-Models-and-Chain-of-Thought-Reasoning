@@ -20,6 +20,8 @@ class BackendKind(str, Enum):
     GEMINI = "gemini"
     COHERE = "cohere"
     MISTRAL = "mistral"
+    CLAUDE_CLI = "claude-cli"
+    CODEX_CLI = "codex-cli"
 
 
 @dataclass(frozen=True)
@@ -159,6 +161,62 @@ class MistralConfig:
 
 
 @dataclass(frozen=True)
+class ClaudeCliConfig:
+    """Local ``claude`` CLI in non-interactive print mode (``claude -p``).
+
+    Runs the locally installed CLI as a subprocess per generate() call.
+    ``allowed_tools`` grants the CLI a tool set (e.g. ``"Read,Grep,Glob"``)
+    so the review can consult the working tree — the full local toolchain —
+    instead of seeing only the prompt text. ``working_dir`` scopes which
+    tree those tools operate on.
+    """
+
+    executable: str = "claude"
+    model: str | None = None
+    working_dir: str = "."
+    allowed_tools: str = ""
+    timeout_seconds: float = 3600.0
+
+    def __post_init__(self) -> None:
+        if not self.executable:
+            raise ValueError("ClaudeCliConfig.executable is required")
+        if self.timeout_seconds <= 0:
+            raise ValueError("ClaudeCliConfig.timeout_seconds must be positive")
+
+
+_CODEX_SANDBOX_MODES = ("read-only", "workspace-write", "danger-full-access")
+
+
+@dataclass(frozen=True)
+class CodexCliConfig:
+    """Local ``codex`` CLI headless (``codex exec --json``).
+
+    Runs the locally installed CLI as a subprocess per generate() call.
+    ``sandbox_mode`` is forwarded as ``-c sandbox_mode=...`` and defaults
+    to ``read-only`` so the review can consult the working tree with the
+    CLI's toolchain but never mutate it. ``working_dir`` scopes which
+    tree that is (forwarded as ``-C``).
+    """
+
+    executable: str = "codex"
+    model: str | None = None
+    working_dir: str = "."
+    sandbox_mode: str = "read-only"
+    timeout_seconds: float = 3600.0
+
+    def __post_init__(self) -> None:
+        if not self.executable:
+            raise ValueError("CodexCliConfig.executable is required")
+        if self.sandbox_mode not in _CODEX_SANDBOX_MODES:
+            raise ValueError(
+                "CodexCliConfig.sandbox_mode must be one of "
+                f"{_CODEX_SANDBOX_MODES}, got {self.sandbox_mode!r}"
+            )
+        if self.timeout_seconds <= 0:
+            raise ValueError("CodexCliConfig.timeout_seconds must be positive")
+
+
+@dataclass(frozen=True)
 class GitHubConfig:
     repo: str
     pr_number: int
@@ -197,6 +255,8 @@ class Config:
     gemini: GeminiConfig | None = None
     cohere: CohereConfig | None = None
     mistral: MistralConfig | None = None
+    claude_cli: ClaudeCliConfig | None = None
+    codex_cli: CodexCliConfig | None = None
     rag_enabled: bool = True
     # None = resolve per context: the local FAISS retriever picks the
     # calibrated threshold for the active embedding model; remote calls
@@ -216,6 +276,8 @@ class Config:
             BackendKind.GEMINI: ("gemini", self.gemini),
             BackendKind.COHERE: ("cohere", self.cohere),
             BackendKind.MISTRAL: ("mistral", self.mistral),
+            BackendKind.CLAUDE_CLI: ("claude_cli", self.claude_cli),
+            BackendKind.CODEX_CLI: ("codex_cli", self.codex_cli),
         }
         name, value = required[self.backend]
         if value is None:
