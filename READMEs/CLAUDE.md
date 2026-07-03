@@ -27,7 +27,7 @@ required Check Run before merges.
   `docs/en/concepts/research-extensions.rst`).
 - `prthinker/adversarial_corpus/` — hand-authored seed corpus for the
   prompt-injection robustness suite (`seed.jsonl` — labelled "seed,
-  NOT a benchmark" per `paper_rule.md`).
+  NOT a benchmark" per `paper/paper_inserts.md`'s no-fabrication rule).
 - `codes/run/` — original entry points (`cot.py`, `skills.py`,
   `fastapi_server.py`). `cot.py` is now a thin wrapper over the package;
   `fastapi_server.py` is the inference server.
@@ -40,7 +40,12 @@ required Check Run before merges.
 - `datas/` — test data, RAG rule documents, prompt copies.
 - `docs/` — Sphinx documentation, single tree containing all three
   languages under `docs/{en,zh-TW,zh-CN}/`.
-- `paper/` — manuscript and slide build (pptxgenjs Node project).
+- `paper/` — manuscripts (`論文_v*.docx` thesis, `TCSE_v*.docx` conference
+  short paper), the python-docx tooling that produces them
+  (`_rewrite_*.py`, `_check_rules.py`, `_fix_fonts/_fix_semicolon/
+  _fix_dash.py`, `_dump_*.py`), the authoritative rewrite brief
+  (`REWRITE_BRIEF.md`), and the slide build (pptxgenjs Node project).
+  Manuscript edits go through the `paper-author` subagent.
 - `.github/workflows/` — `prthinker.yml` GHA integration with a
   preflight ping + graceful skip when the backend is unreachable.
 
@@ -52,8 +57,8 @@ Pydantic v2, httpx, Sphinx + Read the Docs.
 ### Research-grade extensions (opt-in, framework only)
 
 Seventeen mechanisms most LLM-code-review systems do not ship. Per
-`paper_rule.md`'s no-fabrication rule, code + corpora + unit tests
-are delivered; **no benchmark numbers are bundled**.
+`paper/paper_inserts.md`'s no-fabrication rule, code + corpora + unit
+tests are delivered; **no benchmark numbers are bundled**.
 
 - Adversarial robustness (`prthinker adversarial-eval`).
 - Closed-loop multi-turn dialogue (`--reply-to-author`).
@@ -672,7 +677,7 @@ Impress — do not replace this with a print-to-PDF or image-export path.
 
 ### Source of truth
 
-- `paper/論文_v1.5.docx` (and successors) — the manuscript. Re-extract
+- The highest-versioned `paper/論文_v*.docx` — the manuscript. Re-extract
   numbers from here when rebuilding slides; do not copy from older
   `slides.md` snapshots.
 - `output/*.png` — system / training / CoT flow diagrams referenced by

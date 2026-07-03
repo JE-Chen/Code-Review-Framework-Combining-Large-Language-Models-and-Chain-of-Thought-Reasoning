@@ -7,7 +7,8 @@ description: >-
   formatting / citations. Encodes the authoritative brief
   (paper/REWRITE_BRIEF.md) and all hard rules, verified by
   paper/_check_rules.py: full-width punctuation, full-width semicolons recast
-  as commas, first-occurrence-only term glosses, 標楷體 + Times New Roman
+  as commas, no prose dashes (破折號 recast as 「，」/「：」),
+  first-occurrence-only term glosses, 標楷體 + Times New Roman
   fonts, Chinese-numeral figure/table numbering (圖一、表一), citation
   integrity with every number traceable to datas/Results, no AI-tool
   authorship (evaluated models like GPT-5/Gemini-3/Claude are allowed facts),
@@ -29,7 +30,10 @@ tools: Read, Write, Edit, Bash, Glob, Grep
   影像段 `has_img` 與表格 `w:tbl` 自動保留）。執行：
   `.venv/Scripts/python.exe paper/_rewrite_*.py`。
 - **改完必重傾印**：跑 `paper/_dump_docx.py` 重新生成 `_dump_*.txt`，所有
-  文字層檢核都在 dump 上做，並人工抽讀每個改動段落。
+  文字層檢核都在 dump 上做，並人工抽讀每個改動段落。動工前先確認現有
+  dump 對應的是最新版 docx，落後就先重傾印再開工。點狀檢查另有兩個
+  輕量工具：`paper/_dump_full.py <docx> <段落索引...>` 印指定索引之段落、
+  `paper/_dump_tables.py <docx>` 印全部表格內容（核對表內數字用）。
 - **已知陷阱**：`replace_between` 若 anchor 對不準會留下舊段——v2.0 摘要曾
   出現新舊兩段並存（dump `[0019]`/`[0020]` 同義重複）。每次改寫後在 dump
   中確認舊文字真的被移除，而不是只插入了新文字。
@@ -63,6 +67,23 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 - **驗證**：跑 `paper/_check_rules.py`（規則 1b）必須回報「共 0 處」；
   或在 dump 上 grep `；`，中文段落內命中即改為「，」。批次改用
   `paper/_fix_semicolon.py <in> <out>`（逐文字節點替換，不動字型/表格/圖）。
+
+### 1c. 破折號禁作子句連接（REWRITE_BRIEF 規則 10）
+
+- 行文不得以破折號（`—`／`——`／`──`／`―`，即 U+2014／U+2500／U+2015）
+  斷句、插入或連接子句：中文一律改以「，」連接、或以「：」帶出條列，
+  英文行文改用「, 」。理由與分號規則相同：破折號讀來像 AI 之 em-dash
+  濫用，且迫使讀者把被打斷的子句懸著等它接回。前例：`論文_v3.3.docx`
+  曾夾帶 35 處 prose 破折號，v3.4／TCSE_v2.8 起清零。
+- **不是破折號、必須保留**的 dash 形符號：半形 `--`（CLI flag 如
+  `--redact-secrets`、HTML 註解標記 `<!-- … -->`）、en-dash 範圍
+  （`1–5 分`、`§3.3.2–§3.3.9`、`[1]–[22]`，U+2013）、減號 `−`（U+2212）。
+  這些 codepoint 不同，grep 破折號字元時不會誤中。
+- 批次清理用 `paper/_fix_dash.py <in.docx> <out.docx>`：以段落 anchor 定位
+  逐處替換（新的違規段落要先把 anchor 與替換標點加進腳本內的 `RULES`），
+  數量對不上即 abort，結尾另有「全檔殘留須為 0」safety net。
+- **驗證**：在 dump 上 grep `[—─―]` 必須為 0 處（英文段落亦然），或直接
+  跑 `_fix_dash.py` 確認其 safety net 回報殘留 0 處。
 
 ### 2. 名詞中英文定義只在第一次出現時解釋
 
@@ -110,8 +131,8 @@ tools: Read, Write, Edit, Bash, Glob, Grep
   「見表三」）三處用字必須一致。
 - 中文段落內不得出現「圖 1」「圖1」「表 1」「Fig. 1」「Table 1」，英文
   摘要與英文段落維持英文慣例不在此限。
-- 已知違規現況：`TCSE_v2.6.docx` 通篇使用「圖 1」「表 2」等半形數字，
-  下一版必須統一改為中文數字（題注、目錄、內文引用一起改）。
+- 歷史教訓：`TCSE_v2.6.docx` 曾通篇使用「圖 1」「表 2」等半形數字，
+  v2.7 起已統一為中文數字，改寫時不得回退（題注、目錄、內文引用一起顧）。
 - **驗證**：dump 上 grep `圖 ?[0-9]|表 ?[0-9]`，中文段落內命中即修。
 
 ### 5. 引用正確、不捏造，表與圖的數據必以引用方式陳述
@@ -127,12 +148,17 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 - **新增數字必須可溯源至 `datas/Results/` 之結果檔**。論文已超出 §3 凍結
   清單（如改基底為 gemma-4-31B-it、Claude 評審），這類新數字**不是捏造**，
   但每一個都要對得上結果檔。改動或質疑任何數字前，**先找結果檔再動手**：
-  - 注意「嚴格協議」與「非嚴格」是不同檔。論文表格採嚴格協議
-    （`score_strict.md`），不要拿非嚴格的 `score.md`／`score_claude.md`
-    去「糾正」嚴格數字——本專案曾因此差點把正確的前代 0.95 誤改為 1.00。
-    前代 qwen3 嚴格 = `2026-02-15-qwen3-coder-30b/score_strict.md`
-    （0.95／0.78／0.86）；gemma 嚴格 = `2026-06-11-gemma4-31b/score_strict.md`
-    （0.99／0.79／0.86）。逐案原始分在 `all_crscore_score*.md`。
+  - 注意「協議 × 評審」共同決定結果檔，不同組合不可混用。**現稿
+    （論文 v3.4／TCSE v2.7 起）之 CRSCORE++ 表已定案採「標準 CRSCORE++
+    評分提示詞＋同一 judge（Claude）」，嚴格協議（`score_strict.md`）已
+    棄用**：gemma = `2026-06-11-gemma4-31b/score.md`（1.00／0.79／0.86，
+    Claude 評）、前代 qwen3 = `2026-02-15-qwen3-coder-30b/score_claude.md`
+    （1.00／0.78／0.86）、7B = `2026-02-11-qwen2_5-coder-7b/score_claude.md`
+    （0.97／0.69／0.79）。不要拿 `score_strict.md` 或其他 judge 之
+    `score.md`（GPT-5／GPT-4o-mini 評）去「糾正」這些數字，也不要為
+    judge 差異加 † 註（使用者已裁示不加）。本專案曾因混用協議檔差點把
+    正確數字改錯，先確認表格採用哪一份結果檔再動手。逐案原始分在
+    `all_crscore_score*.md`。
 - **驗證**：跑 `paper/_check_rules.py`（規則 5）確認引用編號不超出 `[22]`；
   並列出正文改動段落中每個數字，逐一對照表格 dump、REWRITE_BRIEF §3 凍結
   清單、或 `datas/Results/` 對應結果檔，三者之一可溯源才算過。
@@ -170,6 +196,7 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 
 - [ ] 規則 1（半形標點）= 0 處。
 - [ ] 規則 1b（全形分號「；」）= 0 處。
+- [ ] 規則 1c（prose 破折號 `—`／`──`／`―`）= 0 處（dump grep `[—─―]`）。
 - [ ] 規則 2：每個英文名之 gloss 僅見於摘要一次＋正文首次一次，無正文重複。
 - [ ] 規則 3：「含中文卻非標楷體」= 0、「含英文卻設標楷體」= 0。
 - [ ] 規則 4（中文段落內阿拉伯數字圖表編號）= 0 處（目錄頁碼之誤報除外）。
