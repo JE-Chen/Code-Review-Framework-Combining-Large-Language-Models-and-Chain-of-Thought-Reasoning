@@ -566,8 +566,16 @@ sweep、GPU OOM、runner 超时、人工 ``ask/cancel``\ ）\ ，现有之
   comment 翻成目标语言\ 。
 * **golden-set 快照**\ （library：\ ``golden``\ ）——写入/比对 finding 稳定
   快照以检测 prompt/行为漂移（无分数）\ 。
-* **评估 harness 骨架**\ （library：\ ``benchmark``\ ）——把 case 语料跑过
-  backend 只记录原始输出；依 ``paper_rule.md`` 不输出分数或汇总数字\ 。
+* **评估 harness**\ （library：\ ``benchmark``\ ）——把 case 语料跑过
+  backend 且只记录原始输出；依 ``paper_rule.md`` 不输出分数或汇总
+  数字\ 。\ ``load_cases`` 读取规范的 ``case_id`` / ``prompt`` JSONL，
+  ``write_run_bundle`` 把每次 run 写成 ``outcomes.jsonl`` 加一份
+  ``manifest.json``\ ，记录数据集与输出之 SHA-256、git commit、
+  runtime、backend、model、seed 与生成参数——每次 run 事后皆可复现、
+  可审计\ 。离线之 ``benchmark_datasets`` adapter 把 pinned 之
+  CodeFuse-CR-Bench / SWE-PRBench 导出转成该规范 JSONL，同时确保
+  ground-truth 评论不进入 prompt；run 协议与纵贯团队研究设计见
+  ``benchmarks/``\ 。
 * **成本估算 + 预算**\ （library：\ ``cost``\ ）——由 ``pricing`` 估每次
   USD 成本，并以 ``CostBudget`` 为 PR 设上限\ 。
 * **聚焦审查模式**\ （\ ``--review-modes security,performance,…``\ ）——
@@ -644,8 +652,10 @@ monitoring overlay 另附 **Prometheus alerting 规则**\ （\
 * **按作者校准** / **自动调整 RAG 阈值** / **embedding 漂移监测**\ ——需累积
   accept/dismiss 历史与在线反馈回路；语料 store 已存在，但学习回路仅设计\ 。
   未来工作\ 。
-* **server queue + rate-limiting** 与 **per-model 指标标签**\ ——server 端
-  并发控制与更细遥测标签；为保 boot path 与指标基数稳定，仅设计\ 。未来工作\ 。
+* **per-model 指标标签**\ ——更细粒度的遥测标签；为保指标基数稳定，
+  仅设计\ 。未来工作\ 。（服务器端准入控制已不再是仅设计：推理服务器
+  通过 ``PRTHINKER_MAX_JOBS`` 为两张异步 job 表设上限，并施加
+  per-request token 预算——见 :doc:`../reference/http-api`\ 。）
 
 状态
 ----

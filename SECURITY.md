@@ -1,5 +1,17 @@
 # Security policy
 
+## Executing pull-request code
+
+Treat every pull request, generated test, build script, and dependency hook as
+untrusted code. ``prthinker verify`` defaults to Docker and requires an
+explicit image. For fork PRs, pin the image by digest, keep networking
+disabled, mount no credentials, and use an ephemeral worker. Never use
+``--sandbox none --allow-unsandboxed`` for untrusted changes.
+
+The sandbox is defense in depth, not a proof of isolation. Operators remain
+responsible for runtime patching, host-kernel hardening, image contents, and
+cleanup of compromised workers.
+
 ## Supported versions
 
 Security fixes are applied to the latest release and `main` until the project

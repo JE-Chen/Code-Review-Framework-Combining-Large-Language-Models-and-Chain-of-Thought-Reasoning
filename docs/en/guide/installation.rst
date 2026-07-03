@@ -37,6 +37,29 @@ From a checkout of the repo:
    # Server (hosts /ask, /rag, /review)
    pip install -e ".[server]"
 
+Locked environments
+-------------------
+
+For a bit-for-bit reproducible install (what CI runs on every PR), use
+the hash-locked requirement files under ``requirements/`` instead of
+letting pip re-resolve dependencies:
+
+.. code-block:: bash
+
+   # Runner profile, exact pinned wheels verified by hash
+   pip install --require-hashes -r requirements/runner.lock
+   pip install -e . --no-deps
+
+   # Full CI toolchain (pytest, ruff, bandit, build, twine)
+   pip install --require-hashes -r requirements/ci.lock
+   pip install -e . --no-deps
+
+``runner.in`` / ``ci.in`` are the human-edited inputs; regenerate the
+locks with ``pip-compile --generate-hashes`` when dependencies change
+(see ``requirements/README.md``). The GPU server stays image-locked
+instead — PyTorch/CUDA wheels are platform-specific, so its Dockerfile
+and image digest are the reproducibility boundary.
+
 Python version
 --------------
 
@@ -46,11 +69,17 @@ Python ``>=3.12`` is required — the package uses PEP 604 union syntax
 GPU notes
 ---------
 
-* ``bitsandbytes`` requires CUDA. On Windows, use the upstream
-  ``bitsandbytes-windows-webui`` wheel or run inside WSL2.
-* The Qwen3-Coder-30B model loads with 4-bit NF4 quantization
-  (≈ 18 GB VRAM). Smaller LoRA targets (Qwen3-1.7B, Qwen2.5-Coder-7B)
-  fit on a single 12 GB card.
+* The bf16-family models (``Qwen3-Coder-30B-A3B``, ``Qwen3-30B-A3B``,
+  ``gemma-4-31B-it``) load in plain **bf16** with a balanced
+  ``device_map="auto"`` split — ≈ 28 GB per card for the 30B MoE base
+  across two 46 GB cards, ~36–38 GB per card once the unmerged LoRA is
+  attached. No bitsandbytes is involved for these models; set
+  ``PRTHINKER_QUANT=fp8`` to opt into FP8 weights on
+  bandwidth-bound single-card deploys.
+* Other model names default to 8-bit bitsandbytes quantization.
+  ``bitsandbytes`` requires CUDA; on Windows, use the upstream
+  ``bitsandbytes-windows-webui`` wheel or run inside WSL2. Smaller LoRA
+  targets (Qwen3-1.7B, Qwen2.5-Coder-7B) fit on a single 12 GB card.
 
 Embedding model
 ---------------

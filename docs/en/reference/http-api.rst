@@ -1,6 +1,14 @@
 HTTP API
 ========
 
+Deterministic extension endpoints
+---------------------------------
+
+``POST /evaluation/retrieval`` accepts ``retrieved``, ``expected``, ``used``,
+and ``cited_correct`` arrays. ``POST /attestation/review`` returns an unsigned
+in-toto review statement. Neither endpoint executes repository code;
+verification remains a runner-side sandbox responsibility.
+
 The FastAPI server in ``codes/run/fastapi_server.py`` exposes a small
 synchronous surface (``/healthz``, ``/ask``, ``/rag``, ``/review``) and
 a job-pattern surface that mirrors it for long-running calls
@@ -21,6 +29,15 @@ result endpoint has not been polled for 180 s. This protects the
 GPU from continuing to chew on jobs whose client (a cancelled
 GitHub Actions runner, a hung CI job, a lost network) is no longer
 listening — see the cancel endpoints below.
+
+Both job tables are bounded (``PRTHINKER_MAX_JOBS``, default 32 per
+kind): terminal jobs are evicted first, and when every slot holds an
+active job the submit endpoints return ``503`` — retry after a poll
+interval. Requests are also budget-checked before they touch the GPU:
+a prompt over ``PRTHINKER_MAX_INPUT_TOKENS`` (default 16384) or a
+``max_new_tokens`` over ``PRTHINKER_MAX_NEW_TOKENS`` (default 32768)
+fails fast at the boundary instead of surfacing as an opaque CUDA OOM
+mid-generation.
 
 All requests support an optional ``Authorization: Bearer <token>``
 header. The server does not validate the token itself — wrap it behind a

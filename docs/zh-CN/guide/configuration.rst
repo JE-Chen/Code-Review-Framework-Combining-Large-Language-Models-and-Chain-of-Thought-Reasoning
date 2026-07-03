@@ -372,6 +372,16 @@ CLI 在读。
      - 采纳为 top-K 示例的 cosine 下限。默认 ``0.6``\ 。
    * - ``PRTHINKER_ACCEPTED_TOP_K``
      - 注入几条示例。默认 ``3``\ 。
+   * - ``PRTHINKER_MAX_JOBS``
+     - 异步 job 表（review 与 ask 各一张）的上限；先淘汰已终止的
+       job，当所有 slot 都被进行中的 job 占满时，submit 端点返回
+       ``503``\ 。默认 ``32``\ 。
+   * - ``PRTHINKER_MAX_INPUT_TOKENS``
+     - prompt 超过此 token 预算即在边界直接拒绝，而不是审查中途
+       CUDA OOM。默认 ``16384``\ 。
+   * - ``PRTHINKER_MAX_NEW_TOKENS``
+     - 服务器端生成长度上限；wire schema 会把 ``max_new_tokens``
+       clamp 到相同范围。默认 ``32768``\ 。
 
 输出与 logging
 --------------

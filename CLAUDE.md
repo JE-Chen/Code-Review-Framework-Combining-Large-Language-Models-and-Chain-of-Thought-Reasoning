@@ -40,9 +40,11 @@ code that violates them is rejected at review.
 
 1. **Strategy Pattern** — Pipeline switching (CoT / Skills / Single Prompt) and backend selection
    must be expressed as interchangeable strategies. No hardcoded `match/case` branches in
-   execution code. Concrete: `prthinker.backends.base.InferenceBackend` with four implementations
-   (`LocalHFBackend` / `RemoteHttpBackend` / `OpenAICompatBackend` / `AnthropicBackend`). Adding a
-   new provider means adding one class + one factory branch.
+   execution code. Concrete: `prthinker.backends.base.InferenceBackend` with nine backend kinds
+   (`LocalHFBackend` / `RemoteHttpBackend` / `OpenAICompatBackend` / `AnthropicBackend` /
+   `GeminiBackend` / `CohereBackend` / `MistralBackend` / `ClaudeCliBackend` / `CodexCliBackend`)
+   plus the `RouterBackend` / `EnsembleBackend` wrappers. Adding a new provider means adding one
+   class + one factory branch.
 2. **Factory Pattern** — All model and backend instantiation goes through a single factory entry
    point (`load_hf_model()` for models, `create_backend()` for backends). Do not construct
    models ad-hoc.

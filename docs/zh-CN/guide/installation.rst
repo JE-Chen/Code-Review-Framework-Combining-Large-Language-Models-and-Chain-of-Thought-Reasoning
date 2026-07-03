@@ -42,6 +42,29 @@
    # 服务器（host /ask、/rag、/review）
    pip install -e ".[server]"
 
+锁定环境
+--------
+
+若要 bit-for-bit 可复现的安装（CI 在每个 PR 上跑的就是这套），请使用
+``requirements/`` 下带 hash 锁定的 requirement 文件，而不是让 pip
+重新解析依赖：
+
+.. code-block:: bash
+
+   # Runner profile，逐一经 hash 校验的精确 pinned wheel
+   pip install --require-hashes -r requirements/runner.lock
+   pip install -e . --no-deps
+
+   # 完整 CI 工具链（pytest、ruff、bandit、build、twine）
+   pip install --require-hashes -r requirements/ci.lock
+   pip install -e . --no-deps
+
+``runner.in`` / ``ci.in`` 是人工编辑的输入；依赖变动时用
+``pip-compile --generate-hashes`` 重新生成 lock 文件（见
+``requirements/README.md``\ ）。GPU 服务器则维持 image 锁定──
+PyTorch / CUDA wheel 依平台而异，它的 Dockerfile 与 image digest
+就是可复现性的边界。
+
 Python 版本
 -----------
 
@@ -51,9 +74,15 @@ Python 版本
 GPU 注意事项
 ------------
 
-* ``bitsandbytes`` 需要 CUDA。Windows 环境请使用上游
-  ``bitsandbytes-windows-webui`` wheel，或直接在 WSL2 内运行。
-* Qwen3-Coder-30B 模型加载时使用 4-bit NF4 量化（约 18 GB VRAM）。较小的
+* bf16 家族模型（\ ``Qwen3-Coder-30B-A3B``\ 、\ ``Qwen3-30B-A3B``\ 、
+  ``gemma-4-31B-it``\ ）以纯 **bf16** 加载，并做均衡的
+  ``device_map="auto"`` 切分──30B MoE base 在两张 46 GB 卡上约每卡
+  28 GB，挂上未合并的 LoRA 后约每卡 36–38 GB。这些模型完全不经过
+  bitsandbytes；带宽受限的单卡部署可设 ``PRTHINKER_QUANT=fp8``
+  选用 FP8 权重。
+* 其他模型名默认使用 8-bit bitsandbytes 量化。
+  ``bitsandbytes`` 需要 CUDA；Windows 环境请使用上游
+  ``bitsandbytes-windows-webui`` wheel，或直接在 WSL2 内运行。较小的
   LoRA 目标（Qwen3-1.7B、Qwen2.5-Coder-7B）可在单张 12 GB 卡上跑。
 
 Embedding 模型

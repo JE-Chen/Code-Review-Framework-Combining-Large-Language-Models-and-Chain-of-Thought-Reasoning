@@ -14,7 +14,7 @@ A complete catalog of what prthinker does. For installation steps see
 
 - [Overview](#overview)
 - [The Chain-of-Thought pipeline](#the-chain-of-thought-pipeline)
-- [Four interchangeable backends](#four-interchangeable-backends)
+- [Nine interchangeable backends](#nine-interchangeable-backends)
 - [RAG with global + per-repo rules](#rag-with-global--per-repo-rules)
 - [Per-file inline review with suggestion blocks](#per-file-inline-review-with-suggestion-blocks)
 - [Two learned corpora](#two-learned-corpora)
@@ -104,19 +104,26 @@ cache invalidates automatically.
 
 ---
 
-## Four interchangeable backends
+## Nine interchangeable backends
 
 Strategy pattern under `prthinker.backends.base.InferenceBackend`:
 
 | Backend kind | Class | What it talks to |
 |---|---|---|
-| `local` | `LocalHFBackend` | Any HF causal-LM in-process — Qwen, Llama-3, Mistral, CodeLlama — with optional LoRA + 4-bit/8-bit quantization. |
+| `local` | `LocalHFBackend` | Any HF causal-LM in-process — Qwen, Llama-3, Mistral, CodeLlama — with optional LoRA. The 30B/gemma family loads in bf16 (FP8 opt-in via `PRTHINKER_QUANT=fp8`); other models default to 8-bit quantization. |
 | `remote` | `RemoteHttpBackend` + `RemotePipelineClient` | The project's own FastAPI server (`/ask`, `/rag`, `/review`). |
 | `openai` | `OpenAICompatBackend` | Any OpenAI-Chat-Completions endpoint — OpenAI, Azure, vLLM, Ollama `/v1`, LM Studio, llama.cpp server, Together, Groq, DeepInfra, OpenRouter. |
 | `anthropic` | `AnthropicBackend` | Anthropic Messages API. |
+| `gemini` | `GeminiBackend` | Google Gemini `generateContent` API. |
+| `cohere` | `CohereBackend` | Cohere Chat API. |
+| `mistral` | `MistralBackend` | Mistral Chat Completions API. |
+| `claude-cli` | `ClaudeCliBackend` | The locally installed `claude` CLI in print mode — can be granted working-tree tools. |
+| `codex-cli` | `CodexCliBackend` | The locally installed `codex` CLI headless (read-only sandbox by default). |
 
-Adding a new backend means: subclass `InferenceBackend`, add a branch to
-`create_backend()`. The pipeline doesn't change.
+`RouterBackend` (failover across a backend list) and `EnsembleBackend`
+(N-way voting) wrap any of the above. Adding a new backend means:
+subclass `InferenceBackend`, add a branch to `create_backend()`. The
+pipeline doesn't change.
 
 ---
 
@@ -674,11 +681,19 @@ docs are explicitly forbidden.
 
 ## Research-grade extensions
 
-Four mechanisms most LLM-code-review systems do not ship. All are
-**opt-in** and require `--inline-review`. Per the project's
-no-fabrication rule (`paper_rule.md`), the framework + corpora are
-delivered but **no measured benchmark numbers** are bundled. Design
-write-up: [`docs/concepts/research-extensions.rst`](../docs/concepts/research-extensions.rst).
+Seventeen mechanisms most LLM-code-review systems do not ship — the
+thirteen most visible are detailed below; active-learning lessons
+(`derive-lessons`), cross-PR finding clustering (`discover-rules`), the
+repo knowledge graph (`build-kg`), and incremental per-file save are
+covered in the design write-up. Most are **opt-in** and require
+`--inline-review`. Per the project's no-fabrication rule
+(`paper_rule.md`), the framework + corpora are delivered but **no
+measured benchmark numbers** are bundled — the `benchmark` harness
+records raw outcomes plus a reproducibility manifest (dataset/output
+hashes, git commit, seed, parameters), and offline adapters convert
+pinned CodeFuse-CR-Bench / SWE-PRBench exports (see
+[`benchmarks/`](../benchmarks/README.md)). Design write-up:
+[`docs/en/concepts/research-extensions.rst`](../docs/en/concepts/research-extensions.rst).
 
 ### Adversarial robustness — `prthinker adversarial-eval`
 

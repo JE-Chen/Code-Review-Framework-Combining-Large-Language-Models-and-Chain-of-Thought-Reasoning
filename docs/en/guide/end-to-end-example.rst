@@ -14,10 +14,10 @@ scripted reviews.
 Scenario
 --------
 
-Solo developer with one GPU box (≥ 18 GB VRAM). They run the 4-bit
-NF4-quantised ``Qwen3-Coder-30B-A3B-Instruct`` model on the GPU host,
-have GitHub Actions auto-review every pull request, and occasionally
-want to drive a one-off review from a local Python script.
+Solo developer with a dual-GPU box (2 × 46 GB). They serve
+``Qwen3-Coder-30B-A3B-Instruct`` in bf16 on the GPU host, have GitHub
+Actions auto-review every pull request, and occasionally want to drive
+a one-off review from a local Python script.
 
 
 Step 1 — Inference server (GPU host)
@@ -55,10 +55,11 @@ TLS overlay below for production with nginx + bearer-token gating).
 
 ``--workers 1`` is required — the model must load exactly once.
 
-Default model is ``Qwen/Qwen3-Coder-30B-A3B-Instruct`` with 4-bit NF4 +
-double-quant + bf16 compute. If a LoRA adapter exists at
-``codes/train/outputs-lora-qwen3-coder-30b`` it is attached as a QLoRA
-adapter; otherwise the pure quantised base is served.
+Default model is ``Qwen/Qwen3-Coder-30B-A3B-Instruct``, loaded in plain
+bf16 with a balanced dual-card split (~28 GB per card; ~36–38 GB once
+the adapter is attached). If a LoRA adapter exists at
+``codes/train/outputs-lora-qwen3-coder-30b`` it is CPU-staged and
+attached unmerged; otherwise the pure bf16 base is served.
 
 Health check:
 
@@ -318,7 +319,7 @@ At a glance
    ┌────────────────────────────────────────────────────────────────────┐
    │ Step 1: GPU host                                                   │
    │   uvicorn   ◄──  /healthz  /ask  /rag  /review                     │
-   │   ├ Qwen3-Coder-30B-A3B-Instruct (4-bit NF4 + double-quant)        │
+   │   ├ Qwen3-Coder-30B-A3B-Instruct (bf16, dual-card auto split)      │
    │   ├ optional LoRA adapter from codes/train/outputs-lora-…          │
    │   └ FAISS index on global rules                                    │
    └─────────────────────────────▲──────────────────────────────────────┘

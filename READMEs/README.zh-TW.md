@@ -62,6 +62,14 @@
 
 ### 研究級擴充（opt-in）
 
+近期新增的執行接地（execution-grounded）擴充另提供：確定性 benchmark
+評分／配對消融（`prthinker benchmark`）、有上限的平行逐檔審查
+（`--parallelism`）、可設定的步驟相依（`--step-dag`）、內容安全的軌跡
+紀錄（`--trajectory-out`）、多層級驗證（`prthinker verify`）、持久化
+回饋校準、選配的 Tree-sitter 多語言脈絡，以及 OTLP 追蹤
+（`--otel-endpoint`）。外部驗證工具在缺席時回報 `unsupported`，絕不
+偽造成功的檢查。
+
 十七個多數 LLM code review 系統未實作的機制。大多需搭配 `--inline-review`；
 依本專案不謊造原則，我們只交付框架，量化 benchmark 數字屬未來工作。
 
@@ -110,8 +118,10 @@ finding 抑制（`.prthinkerignore`）與去重、公開 API / semver 影響、G
 平台轉接器、commit message 審查、額外 HTTP 後端（Gemini / Cohere /
 Mistral）含 `RouterBackend` 故障轉移與 `EnsembleBackend` 表決、
 self-consistency 取樣、第三方 step 外掛、confidence 棄權、引用驗證、
-prompt-injection 防護、finding 在地化、golden-set 快照、評估 harness
-骨架、成本估算與預算，以及聚焦審查模式（security / performance /
+prompt-injection 防護、finding 在地化、golden-set 快照、附可重現
+run manifest 與離線公開資料集轉接器的評估 harness（CodeFuse-CR-Bench /
+SWE-PRBench──見 [`benchmarks/`](../benchmarks/)）、成本估算與預算，
+以及聚焦審查模式（security / performance /
 test-coverage / IaC / DB-migration / accessibility / secret-scan / PII）。
 
 **審查導航訊號（無需模型）**：十三個純函式檢查呈現於每則 PR 摘要下方，
@@ -349,20 +359,30 @@ Code-Review-Framework/
 ├── docs/                 # 本文件（英文 + 繁體中文 + 简体中文），以 Sphinx 建置
 ├── docker/               # 一鍵自架（base + 可選 TLS + 監控）
 ├── datas/                # RAG 規則文件、架構圖、測試 fixtures
+├── benchmarks/           # 可重現實驗執行協議＋縱貫團隊研究設計（不附帶任何分數）
+├── requirements/         # hash 鎖定的 runner／CI 環境（pip-compile --generate-hashes）
 ├── paper/                # 學術論文與投影片
 ├── tests/                # 自動化測試
-└── .github/workflows/    # 自動審查每個 PR 的 GitHub Action
+└── .github/workflows/    # CI（鎖定依賴、3.12/3.13）、release（Trusted Publishing）、PR 自動審查
 ```
 
 設計模式視角（Strategy / Factory / Registry / Repository）與執行期資料流
 圖，請見 [`READMEs/architecture.md`](architecture.md) 與
 [`docs/zh-TW/concepts/architecture.rst`](../docs/zh-TW/concepts/architecture.rst)。
 
+## 貢獻與安全
+
+鎖定的開發環境與每個 pull request 必須通過的檢查，見
+[CONTRIBUTING.md](../CONTRIBUTING.md)；如何私下回報安全弱點，見
+[SECURITY.md](../SECURITY.md)。版本沿革收錄於
+[CHANGELOG.md](../CHANGELOG.md)。
+
 ## 引用
 
-若於學術工作中使用本框架，請引用 `paper/` 下對應的論文。Read the Docs 站點
+若於學術工作中使用本框架，請引用 `paper/` 下對應的論文──引用
+metadata 收錄於 [`CITATION.cff`](../CITATION.cff)。Read the Docs 站點
 附有原始稿件連結。
 
 ## 授權
 
-請見 [LICENSE](../LICENSE)。
+MIT──見 [LICENSE](../LICENSE)。

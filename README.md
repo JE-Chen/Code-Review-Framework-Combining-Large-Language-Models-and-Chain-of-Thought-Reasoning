@@ -95,6 +95,40 @@ remembers past feedback, and explains its reasoning step by step.
 
 ### Research-grade extensions (opt-in)
 
+Recent execution-grounded extensions also provide deterministic benchmark
+scoring/paired ablations (`prthinker benchmark`), bounded parallel per-file
+review (`--parallelism`), configurable step dependencies (`--step-dag`),
+content-safe trajectory logs (`--trajectory-out`), multi-tier verification
+(`prthinker verify`), persistent feedback calibration, optional Tree-sitter
+multi-language context, and OTLP traces (`--otel-endpoint`). External
+verification tools report `unsupported` when absent; they never fabricate a
+successful check.
+
+```shell
+prthinker verify --workdir . --base-ref origin/main --head-ref HEAD --command pytest -q
+prthinker verify --workdir . --tiers static,dynamic,bounded --output evidence.json
+prthinker retrieval-eval retrieval-records.jsonl --output retrieval-score.json
+```
+
+### Evidence, sandboxing, and attestations
+
+Verification refuses local execution by default. Use a pinned, purpose-built
+container image for untrusted pull requests:
+
+```shell
+prthinker verify --workdir . --tiers static,dynamic \
+  --sandbox docker --sandbox-image registry.example/reviewer@sha256:DIGEST
+prthinker verify --workdir . --tiers dynamic \
+  --sandbox none --allow-unsandboxed  # trusted repositories only
+prthinker attest --repository https://example/repo --revision HEAD_SHA \
+  --base-revision BASE_SHA --review-file review.json --output-dir attestations/
+```
+
+The Docker executor disables networking, drops capabilities, enables
+``no-new-privileges``, uses a read-only root, and limits CPU, memory, PIDs,
+time, and temporary storage. ``--sign-image`` optionally uses cosign; when
+cosign is absent the result is ``unsupported``, never a fabricated signature.
+
 Seventeen mechanisms most LLM-code-review systems do not ship. Most
 require `--inline-review`; per the project's no-fabrication rule we
 publish the framework only — measured benchmark numbers are future
@@ -168,9 +202,12 @@ commit-message review, extra HTTP backends (Gemini / Cohere / Mistral)
 with `RouterBackend` failover and `EnsembleBackend` voting,
 self-consistency sampling, third-party step plugins, confidence-based
 abstention, citation verification, a prompt-injection guard, finding
-localization, golden-set snapshots, an evaluation-harness skeleton, cost
-estimation + budget, and focused review modes (security / performance /
-test-coverage / IaC / DB-migration / accessibility / secret-scan / PII).
+localization, golden-set snapshots, an evaluation harness with
+reproducible run manifests and offline public-dataset adapters
+(CodeFuse-CR-Bench / SWE-PRBench — see [`benchmarks/`](benchmarks/)),
+cost estimation + budget, and focused review modes (security /
+performance / test-coverage / IaC / DB-migration / accessibility /
+secret-scan / PII).
 
 See [`docs/en/concepts/research-extensions.rst`](docs/en/concepts/research-extensions.rst)
 for the design write-up.
@@ -404,9 +441,11 @@ Code-Review-Framework/
 ├── docs/                 # This documentation (English + 繁體中文 + 简体中文), built with Sphinx
 ├── docker/               # One-command self-hosting (base + optional TLS + monitoring)
 ├── datas/                # Rule documents for RAG, architecture diagrams, test fixtures
+├── benchmarks/           # Reproducible-run protocol + longitudinal study design (no scores bundled)
+├── requirements/         # Hash-locked runner/CI environments (pip-compile --generate-hashes)
 ├── paper/                # The academic manuscript and slides
 ├── tests/                # Automated tests
-└── .github/workflows/    # The GitHub Action that reviews every PR automatically
+└── .github/workflows/    # CI (locked deps, 3.12/3.13), release (Trusted Publishing), PR reviews
 ```
 
 For the design-pattern view (Strategy / Factory / Registry / Repository)
@@ -414,11 +453,19 @@ and the runtime data-flow diagrams, see
 [`READMEs/architecture.md`](READMEs/architecture.md) and
 [`docs/en/concepts/architecture.rst`](docs/en/concepts/architecture.rst).
 
+## Contributing and security
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the locked development
+environment and the checks every pull request must pass, and
+[SECURITY.md](SECURITY.md) for how to report a vulnerability privately.
+Release history lives in [CHANGELOG.md](CHANGELOG.md).
+
 ## Citation
 
 If you use this framework in academic work, please cite the underlying paper
-(`paper/`). The Read the Docs site links to the manuscript.
+(`paper/`) — citation metadata ships in [`CITATION.cff`](CITATION.cff).
+The Read the Docs site links to the manuscript.
 
 ## License
 
-See [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).

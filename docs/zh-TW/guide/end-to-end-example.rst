@@ -13,8 +13,8 @@
 情境設定
 --------
 
-Solo developer 擁有一台 GPU 機器（≥ 18 GB VRAM）\ 。在 GPU host 跑
-4-bit NF4 量化的 ``Qwen3-Coder-30B-A3B-Instruct``\ ；GitHub Actions
+Solo developer 擁有一台雙 GPU 機器（2 × 46 GB）\ 。在 GPU host 以
+bf16 跑 ``Qwen3-Coder-30B-A3B-Instruct``\ ；GitHub Actions
 在每個 PR 開起時自動審查\ ；偶爾從本機 Python 腳本對某份 diff 跑一次性
 審查\ 。
 
@@ -53,9 +53,10 @@ overlay\ ）\ 。
 
 ``--workers 1`` 必要 —— 模型只該載入一份\ 。
 
-預設模型為 ``Qwen/Qwen3-Coder-30B-A3B-Instruct``\ ，自動套用 4-bit NF4
-+ double-quant + bf16 compute\ 。若 ``codes/train/outputs-lora-qwen3-coder-30b``
-存在則會以 QLoRA 路徑掛上 adapter\ ；否則只跑量化後之 base model\ 。
+預設模型為 ``Qwen/Qwen3-Coder-30B-A3B-Instruct``\ ，以純 bf16 載入並
+平衡切分到兩張卡（每卡約 28 GB；掛上 adapter 後約 36–38 GB）\ 。若
+``codes/train/outputs-lora-qwen3-coder-30b`` 存在\ ，adapter 會以 CPU
+staging 方式掛上且不合併\ ；否則直接服務純 bf16 base\ 。
 
 健檢：
 
@@ -309,7 +310,7 @@ Step 3 — Python API
    ┌────────────────────────────────────────────────────────────────────┐
    │ Step 1: GPU host                                                   │
    │   uvicorn   ◄──  /healthz  /ask  /rag  /review                     │
-   │   ├ Qwen3-Coder-30B-A3B-Instruct (4-bit NF4 + double-quant)        │
+   │   ├ Qwen3-Coder-30B-A3B-Instruct (bf16, dual-card auto split)      │
    │   ├ 可選 LoRA adapter (codes/train/outputs-lora-…)                 │
    │   └ 全域規則 FAISS index                                           │
    └─────────────────────────────▲──────────────────────────────────────┘

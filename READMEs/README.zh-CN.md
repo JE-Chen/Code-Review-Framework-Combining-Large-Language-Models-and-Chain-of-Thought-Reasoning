@@ -62,6 +62,14 @@
 
 ### 研究级扩展（opt-in）
 
+近期新增的执行接地（execution-grounded）扩展另提供：确定性 benchmark
+评分／配对消融（`prthinker benchmark`）、有上限的并行逐文件审查
+（`--parallelism`）、可配置的步骤依赖（`--step-dag`）、内容安全的轨迹
+记录（`--trajectory-out`）、多层级验证（`prthinker verify`）、持久化
+反馈校准、可选的 Tree-sitter 多语言上下文，以及 OTLP 追踪
+（`--otel-endpoint`）。外部验证工具在缺席时报告 `unsupported`，绝不
+伪造成功的检查。
+
 十七个多数 LLM code review 系统未实作的机制。大多需搭配 `--inline-review`；
 依本项目不臆造原则，我们只交付框架，量化 benchmark 数字属于未来工作。
 
@@ -110,8 +118,10 @@ finding 抑制（`.prthinkerignore`）与去重、公开 API / semver 影响、G
 平台适配器、commit message 审查、额外 HTTP 后端（Gemini / Cohere /
 Mistral）含 `RouterBackend` 故障转移与 `EnsembleBackend` 表决、
 self-consistency 采样、第三方 step 插件、confidence 弃权、引用验证、
-prompt-injection 防护、finding 本地化、golden-set 快照、评估 harness
-骨架、成本估算与预算，以及聚焦审查模式（security / performance /
+prompt-injection 防护、finding 本地化、golden-set 快照、带可复现
+run manifest 与离线公开数据集 adapter 的评估 harness
+（CodeFuse-CR-Bench / SWE-PRBench──见 [`benchmarks/`](../benchmarks/)）、
+成本估算与预算，以及聚焦审查模式（security / performance /
 test-coverage / IaC / DB-migration / accessibility / secret-scan / PII）。
 
 **审查导航信号（无需模型）**：十三个纯函数检查呈现于每条 PR 摘要下方，
@@ -349,20 +359,30 @@ Code-Review-Framework/
 ├── docs/                 # 本文档（英文 + 繁体中文 + 简体中文），以 Sphinx 构建
 ├── docker/               # 一键自托管（base + 可选 TLS + 监控）
 ├── datas/                # RAG 规则文档、架构图、测试 fixtures
+├── benchmarks/           # 可复现实验运行协议＋纵贯团队研究设计（不附带任何分数）
+├── requirements/         # hash 锁定的 runner／CI 环境（pip-compile --generate-hashes）
 ├── paper/                # 学术论文与幻灯片
 ├── tests/                # 自动化测试
-└── .github/workflows/    # 自动审查每个 PR 的 GitHub Action
+└── .github/workflows/    # CI（锁定依赖、3.12/3.13）、release（Trusted Publishing）、PR 自动审查
 ```
 
 设计模式视角（Strategy / Factory / Registry / Repository）与运行期数据流
 图，请见 [`READMEs/architecture.md`](architecture.md) 与
 [`docs/zh-CN/concepts/architecture.rst`](../docs/zh-CN/concepts/architecture.rst)。
 
+## 贡献与安全
+
+锁定的开发环境与每个 pull request 必须通过的检查见
+[CONTRIBUTING.md](../CONTRIBUTING.md)；如何私下报告安全漏洞见
+[SECURITY.md](../SECURITY.md)。版本历史记录在
+[CHANGELOG.md](../CHANGELOG.md)。
+
 ## 引用
 
-若在学术工作中使用本框架，请引用 `paper/` 下对应的论文。Read the Docs 站点
-附有原始稿件链接。
+若在学术工作中使用本框架，请引用 `paper/` 下对应的论文──引用元数据随
+[`CITATION.cff`](../CITATION.cff) 提供。Read the Docs 站点附有原始稿件
+链接。
 
 ## 许可证
 
-请见 [LICENSE](../LICENSE)。
+MIT──见 [LICENSE](../LICENSE)。

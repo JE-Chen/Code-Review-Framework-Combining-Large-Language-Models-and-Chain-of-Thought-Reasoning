@@ -50,7 +50,7 @@ git clone <repo-url>
 cd Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning
 
 # Pick one (or stack them):
-pip install -e ".[runner]"   # thin client — httpx + pydantic only (~5 MB)
+pip install -e ".[runner]"   # thin client — httpx + pydantic + PyYAML only (~5 MB)
 pip install -e ".[local]"    # adds torch, transformers, faiss, peft, bitsandbytes
 pip install -e ".[server]"   # adds fastapi + uvicorn on top of `local`
 pip install -e ".[mcp]"      # adds the `mcp` SDK for IDE integrations
@@ -61,6 +61,15 @@ The CLI entry point is `prthinker`. Verify after install:
 
 ```bash
 prthinker --help
+```
+
+For a bit-for-bit reproducible environment (what CI installs on every
+PR), use the hash-locked files under [`requirements/`](../requirements/)
+instead of letting pip re-resolve:
+
+```bash
+pip install --require-hashes -r requirements/runner.lock   # or ci.lock
+pip install -e . --no-deps
 ```
 
 ---
@@ -904,8 +913,11 @@ local config) — burns more VRAM but doesn't need bitsandbytes.
 
 ### GPU OOM loading Qwen3-Coder-30B
 
-The 30B model needs ~ 18 GB VRAM with 4-bit NF4 quantization. Smaller
-LoRA targets fit on a 12 GB card:
+The 30B MoE model is served in plain bf16 with a balanced dual-card
+split — ~28 GB per card on 2 × 46 GB, ~36–38 GB per card once the
+unmerged LoRA is attached (4-bit quantization is deliberately not used;
+with transformers ≥ 5 it densifies the MoE forward and OOMs). Smaller
+LoRA targets fit on a single 12 GB card:
 
 ```yaml
 local:

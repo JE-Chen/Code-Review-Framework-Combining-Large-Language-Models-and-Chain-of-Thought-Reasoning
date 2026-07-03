@@ -1,5 +1,21 @@
 # Reproducible benchmark runs
 
+The unified CLI supports conversion, deterministic scoring, and paired
+ablation comparison:
+
+```shell
+prthinker benchmark convert export.jsonl cases.jsonl --dataset contextcrbench
+prthinker benchmark run cases.jsonl run/ --backend openai --openai-model MODEL
+prthinker benchmark score cases.jsonl run/outcomes.jsonl --output score.json
+prthinker benchmark compare cases.jsonl baseline/outcomes.jsonl treatment/outcomes.jsonl --output ablation.json
+```
+
+Supported adapters include CodeFuse-CR-Bench, SWE-PRBench, ContextCRBench,
+SWRBench, c-CRAB, CodeReviewQA, ContextBench, and CORE-Bench. Ground truth
+remains metadata and is never included in model prompts. CodeReviewQA uses
+choice accuracy; ContextBench/CORE-Bench use exact context-ID precision and
+recall. Dataset licenses and official evaluators remain authoritative.
+
 PRThinker keeps benchmark input, model output, and run metadata separate so
 ground-truth comments cannot leak into the review prompt.
 
@@ -23,3 +39,9 @@ ground-truth comments cannot leak into the review prompt.
 Never edit a completed run directory. Create a new run for every changed model,
 prompt, dataset revision, or generation parameter. Scoring belongs in a
 separate derived artifact and must retain both manifest hashes.
+
+`benchmark score` reports micro precision/recall/F1 plus a seeded bootstrap
+95% interval. `benchmark compare` requires identical case IDs and reports a
+paired F1 delta with wins/ties/losses. Retrieval runs can be evaluated with
+`prthinker retrieval-eval`; each JSONL record carries `retrieved`, `expected`,
+`used`, and `cited_correct` arrays.
