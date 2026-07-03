@@ -94,6 +94,9 @@ Harvesters
 .. automodule:: prthinker.harvest
    :members:
 
+.. automodule:: prthinker.gitlab_harvest
+   :members:
+
 CI signals
 ----------
 

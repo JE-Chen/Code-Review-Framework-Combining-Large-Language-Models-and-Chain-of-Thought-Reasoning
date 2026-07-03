@@ -125,8 +125,30 @@ adapter covers the platform extras too:
 * Inline findings are pre-filtered against the MR's diff hunks before
   posting, so one hallucinated line number costs one dropped finding
   instead of a run of failed discussion POSTs.
+* **Stale-thread cleanup**: each run marks its inline discussions with a
+  hidden comment and deletes the previous run's marked threads after the
+  new ones post — the MR counterpart of GitHub's stale-review dismissal,
+  so re-pushes never pile up duplicate findings.
+* **Code Quality widget**: the shipped pipeline exports the findings as
+  a CodeClimate report (``PRTHINKER_CODEQUALITY_OUT`` +
+  ``artifacts:reports:codequality``), GitLab's counterpart of the SARIF
+  upload the GitHub workflow performs. This is also the per-line channel
+  to use instead of ``--check-annotations`` — commit statuses cannot
+  carry Check-Run-style annotations, so those are logged and omitted.
+* **Learning-loop harvesting**: ``harvest-dismissed`` and
+  ``harvest-accepted`` accept ``--platform gitlab`` and read MR
+  discussions instead of PR review comments — a 👎 award emoji or a
+  dismissal-keyword reply marks a finding dismissed, and applied
+  suggestions (``Apply N suggestion(s) …`` commits) feed the accepted
+  corpus.
+* **Oversized diffs** degrade the same way as on GitHub: when the
+  whole-MR ``raw_diffs`` endpoint fails, the diff is reconstructed from
+  the paginated per-file ``diffs`` endpoint instead of failing the
+  review.
 
 Self-hosted GitLab works by pointing the adapter at your instance's API
 with ``--platform-base-url`` (or ``$PRTHINKER_PLATFORM_BASE_URL``),
-e.g. ``https://gitlab.example.com/api/v4``. The same pattern serves
-Gitea with ``--platform gitea``.
+e.g. ``https://gitlab.example.com/api/v4``. Inside GitLab CI even that
+is unnecessary — the adapter falls back to the pipeline's
+``$CI_API_V4_URL`` automatically. The same pattern serves Gitea with
+``--platform gitea``.

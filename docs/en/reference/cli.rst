@@ -349,36 +349,48 @@ Env equivalents: ``PRTHINKER_BACKEND`` / ``PRTHINKER_REMOTE_URL`` /
 harvest-dismissed
 -----------------
 
-Scan PR review comments and append dismissed findings to a JSONL store.
+Scan PR / MR review comments and append dismissed findings to a JSONL
+store.
 
 .. code-block:: text
 
    prthinker harvest-dismissed
+       [--platform github|gitlab]
+       [--platform-base-url URL]
        --repo OWNER/NAME
        --github-token TOKEN
        [--pr-number N | --max-prs 50]
        [--out .prthinker/dismissed.jsonl]
 
-When ``--pr-number`` is set, harvests only that PR. Otherwise iterates
-the ``--max-prs`` most-recently-updated closed PRs.
+When ``--pr-number`` is set, harvests only that PR / MR. Otherwise
+iterates the ``--max-prs`` most-recently-updated closed ones. On GitHub
+a finding is dismissed when its review comment carries a 👎 reaction or
+a dismissal-keyword reply; on GitLab the same signals are read from MR
+diff discussions and award emoji. ``--repo`` / ``--github-token``
+default to ``GITHUB_REPOSITORY`` / ``GITHUB_TOKEN`` and fall back to
+``CI_PROJECT_PATH`` / ``GITLAB_TOKEN``.
 
 harvest-accepted
 ----------------
 
-Scan PRs for applied suggestion blocks and append to a JSONL store.
+Scan PRs / MRs for applied suggestion blocks and append to a JSONL
+store.
 
 .. code-block:: text
 
    prthinker harvest-accepted
+       [--platform github|gitlab]
+       [--platform-base-url URL]
        --repo OWNER/NAME
        --github-token TOKEN
        [--pr-number N | --max-prs 50]
        [--out .prthinker/accepted.jsonl]
 
 A PR is considered to have accepted suggestions when any of its commits
-has a message starting with ``Apply suggestion(s) from code review``.
-Every review comment on that PR that contains a ```suggestion``` block
-is kept.
+has a message starting with ``Apply suggestion(s) from code review``
+(GitLab additionally matches its native
+``Apply N suggestion(s) to M file(s)`` message). Every review comment /
+diff note that contains a ```suggestion``` block is kept.
 
 adversarial-eval
 ----------------

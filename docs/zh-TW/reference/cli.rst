@@ -323,35 +323,44 @@ Env equivalents：``PRTHINKER_BACKEND``\ / ``PRTHINKER_REMOTE_URL``\ /
 harvest-dismissed
 -----------------
 
-掃 PR review comment，把 dismissed finding 追加到 JSONL store。
+掃 PR／MR review comment，把 dismissed finding 追加到 JSONL store。
 
 .. code-block:: text
 
    prthinker harvest-dismissed
+       [--platform github|gitlab]
+       [--platform-base-url URL]
        --repo OWNER/NAME
        --github-token TOKEN
        [--pr-number N | --max-prs 50]
        [--out .prthinker/dismissed.jsonl]
 
-設 ``--pr-number`` 時只掃那一個 PR；否則迭代最近 ``--max-prs`` 個依更新時間
-排序的 closed PR。
+設 ``--pr-number`` 時只掃那一個 PR／MR；否則迭代最近 ``--max-prs`` 個依
+更新時間排序的 closed PR／MR。GitHub 上，review comment 帶 👎 reaction
+或帶駁回關鍵字的回覆即視為 dismissed；GitLab 上則從 MR 的 diff
+discussion 與 award emoji 讀取同樣的訊號。``--repo``\ ／
+``--github-token`` 預設讀 ``GITHUB_REPOSITORY``\ ／``GITHUB_TOKEN``\ ，
+並回退到 ``CI_PROJECT_PATH``\ ／``GITLAB_TOKEN``\ 。
 
 harvest-accepted
 ----------------
 
-掃 PR 看是否有套用過的 suggestion 區塊，追加到 JSONL store。
+掃 PR／MR 看是否有套用過的 suggestion 區塊，追加到 JSONL store。
 
 .. code-block:: text
 
    prthinker harvest-accepted
+       [--platform github|gitlab]
+       [--platform-base-url URL]
        --repo OWNER/NAME
        --github-token TOKEN
        [--pr-number N | --max-prs 50]
        [--out .prthinker/accepted.jsonl]
 
-當 PR 的任一 commit message 以 ``Apply suggestion(s) from code review`` 開頭
-時即視為「有採納過建議」。該 PR 上每個帶 ```suggestion``` 區塊的留言都會
-保留。
+當 PR 的任一 commit message 以 ``Apply suggestion(s) from code review``
+開頭時即視為「有採納過建議」（GitLab 另外比對其原生的
+``Apply N suggestion(s) to M file(s)`` 訊息）。每個帶 ```suggestion```
+區塊的留言／diff note 都會保留。
 
 adversarial-eval
 ----------------
