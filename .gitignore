@@ -226,4 +226,4 @@ gen-paper/node_modules/
 .claude/scheduled_tasks.lock
 
 # pytest basetemp (transient per-test tmp dirs)
-.pytest-tmp-run/
+.pytest-tmp-*/

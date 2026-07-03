@@ -1,0 +1,7 @@
+-r runner.in
+bandit>=1.8
+build>=1.2
+pytest>=8.4
+pytest-cov>=6.2
+ruff>=0.12
+twine>=6.1
