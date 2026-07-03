@@ -71,6 +71,14 @@ where = ["."]
 include = ["prthinker*"]
 exclude = ["codes*", "datas*", "paper*", "gen-paper*"]
 
+[tool.ruff]
+# `datas/code_to_detect/` is the evaluation corpus of intentionally flawed
+# generated code the reviewer is asked to critique — linting it defeats its
+# purpose. `paper/` and `gen-paper/` hold one-off manuscript tooling, not
+# shipped code. `.pytest-tmp-run/` is pytest's basetemp (generated test
+# fixtures).
+extend-exclude = ["datas", "paper", "gen-paper", ".pytest-tmp-run"]
+
 [tool.bandit]
 # Project-wide skips for systemic false positives. Each entry below MUST
 # be paired with a justification per the suppression-conventions rule in

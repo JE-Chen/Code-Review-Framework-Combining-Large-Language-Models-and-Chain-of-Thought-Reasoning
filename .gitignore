@@ -224,3 +224,6 @@ gen-paper/node_modules/
 
 # Claude Code transient runtime state
 .claude/scheduled_tasks.lock
+
+# pytest basetemp (transient per-test tmp dirs)
+.pytest-tmp-run/
