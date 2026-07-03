@@ -10,6 +10,8 @@ from prthinker.benchmark import (
     BenchmarkCase,
     BenchmarkOutcome,
     run_cases,
+    load_cases,
+    write_run_bundle,
     write_outcomes,
 )
 
@@ -121,3 +123,32 @@ def test_dataclasses_are_frozen() -> None:
         except dataclasses.FrozenInstanceError:
             continue
         raise AssertionError("dataclass should be frozen")
+
+
+def test_load_cases_accepts_adapter_metadata(tmp_path: Path) -> None:
+    path = tmp_path / "cases.jsonl"
+    path.write_text(
+        '{"case_id":"a","prompt":"review this","metadata":{"repo":"x"}}\n',
+        encoding="utf-8",
+    )
+    assert load_cases(path) == [BenchmarkCase("a", "review this")]
+
+
+def test_write_run_bundle_hashes_inputs_and_outputs(tmp_path: Path) -> None:
+    cases = tmp_path / "cases.jsonl"
+    cases.write_text('{"case_id":"a","prompt":"p"}\n', encoding="utf-8")
+    manifest_path = write_run_bundle(
+        cases,
+        [BenchmarkOutcome("a", "result")],
+        tmp_path / "run",
+        backend="fake",
+        model="fake-1",
+        seed=7,
+        parameters={"temperature": 0},
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["schema_version"] == 1
+    assert manifest["dataset"]["sha256"]
+    assert manifest["outcomes"]["count"] == 1
+    assert manifest["backend"] == "fake"
+    assert manifest["seed"] == 7
