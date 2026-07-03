@@ -7,6 +7,8 @@ branch.
 
 from __future__ import annotations
 
+import os
+
 from prthinker.platforms.base import PlatformAdapter, PlatformKind
 
 
@@ -32,10 +34,16 @@ def create_platform_adapter(
     if kind is PlatformKind.GITLAB:
         from prthinker.platforms.gitlab import GitLabAdapter
 
+        # GitLab CI exposes the instance's API root as CI_API_V4_URL, so
+        # self-hosted pipelines work without an explicit --platform-base-url.
         return GitLabAdapter(
             project=repo, token=token, mr_iid=pr_number,
             comment_marker=comment_marker,
-            base_url=base_url or "https://gitlab.com/api/v4",
+            base_url=(
+                base_url
+                or os.environ.get("CI_API_V4_URL")
+                or "https://gitlab.com/api/v4"
+            ),
         )
 
     if kind is PlatformKind.GITEA:

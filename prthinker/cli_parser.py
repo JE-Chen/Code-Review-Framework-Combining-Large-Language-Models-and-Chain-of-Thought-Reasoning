@@ -353,27 +353,9 @@ def add_harvest_parsers(sub) -> None:
     """Register the ``harvest-dismissed`` and ``harvest-accepted`` subcommands."""
     p_harvest = sub.add_parser(
         "harvest-dismissed",
-        help="Scan PR review comments for dismissed findings; append to JSONL",
+        help="Scan PR/MR review comments for dismissed findings; append to JSONL",
     )
-    p_harvest.add_argument(
-        "--repo",
-        default=env_str("GITHUB_REPOSITORY"),
-    )
-    p_harvest.add_argument(
-        "--github-token",
-        default=env_str("GITHUB_TOKEN"),
-    )
-    p_harvest.add_argument(
-        "--pr-number",
-        type=int,
-        default=None,
-        help="Single PR to harvest (omit to scan recent closed PRs)",
-    )
-    p_harvest.add_argument(
-        "--max-prs",
-        type=int,
-        default=50,
-    )
+    _add_harvest_common_args(p_harvest)
     p_harvest.add_argument(
         "--out",
         type=Path,
@@ -383,17 +365,51 @@ def add_harvest_parsers(sub) -> None:
 
     p_acc = sub.add_parser(
         "harvest-accepted",
-        help="Scan PRs for applied suggestions; append to JSONL",
+        help="Scan PRs/MRs for applied suggestions; append to JSONL",
     )
-    p_acc.add_argument("--repo", default=env_str("GITHUB_REPOSITORY"))
-    p_acc.add_argument("--github-token", default=env_str("GITHUB_TOKEN"))
-    p_acc.add_argument("--pr-number", type=int, default=None)
-    p_acc.add_argument("--max-prs", type=int, default=50)
+    _add_harvest_common_args(p_acc)
     p_acc.add_argument(
         "--out",
         type=Path,
         default=Path(env_str("PRTHINKER_ACCEPTED_PATH", _ACCEPTED_DEFAULT) or
                      _ACCEPTED_DEFAULT),
+    )
+
+
+def _add_harvest_common_args(p_harvest: argparse.ArgumentParser) -> None:
+    """Add the platform / repo / token / selection arguments both harvesters share."""
+    p_harvest.add_argument(
+        "--platform",
+        choices=["github", "gitlab"],
+        default=env_str("PRTHINKER_PLATFORM", "github"),
+        help="Forge to harvest from. GitHub reads review-comment "
+             "reactions and replies; GitLab reads MR discussion notes "
+             "and award emoji.",
+    )
+    p_harvest.add_argument(
+        "--platform-base-url",
+        default=env_str("PRTHINKER_PLATFORM_BASE_URL"),
+        help="Override for self-hosted instances. GitLab pipelines fall "
+             "back to $CI_API_V4_URL automatically.",
+    )
+    p_harvest.add_argument(
+        "--repo",
+        default=env_str("GITHUB_REPOSITORY") or env_str("CI_PROJECT_PATH"),
+    )
+    p_harvest.add_argument(
+        "--github-token",
+        default=env_str("GITHUB_TOKEN") or env_str("GITLAB_TOKEN"),
+    )
+    p_harvest.add_argument(
+        "--pr-number",
+        type=int,
+        default=None,
+        help="Single PR/MR to harvest (omit to scan recent closed ones)",
+    )
+    p_harvest.add_argument(
+        "--max-prs",
+        type=int,
+        default=50,
     )
 
 

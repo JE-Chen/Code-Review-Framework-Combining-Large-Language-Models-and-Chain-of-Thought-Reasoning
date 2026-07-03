@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import re
 import sys
 from pathlib import Path
@@ -17,6 +18,7 @@ from prthinker.checks import (
 from prthinker.dismissed import DismissedExamplesStore
 from prthinker.formatters import CommentOptions, format_pr_comment_pages
 from prthinker.harvest import harvest, harvest_accepted
+from prthinker import gitlab_harvest
 from prthinker.kg_visualize import build_graph_data, render_html
 from prthinker.repo_kg import (
     KnowledgeGraphStore,
@@ -366,20 +368,50 @@ def _cmd_post_status(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_harvest(args: argparse.Namespace) -> int:
+def _require_harvest_args(args: argparse.Namespace) -> None:
+    """Validate the platform / repo / token arguments both harvesters share."""
+    if args.platform not in ("github", "gitlab"):
+        raise SystemExit(f"harvesting is not supported on {args.platform!r}")
     if not args.repo:
-        raise SystemExit("--repo or $GITHUB_REPOSITORY is required")
+        raise SystemExit(
+            "--repo or $GITHUB_REPOSITORY / $CI_PROJECT_PATH is required"
+        )
     if not args.github_token:
-        raise SystemExit("--github-token or $GITHUB_TOKEN is required")
+        raise SystemExit(
+            "--github-token or $GITHUB_TOKEN / $GITLAB_TOKEN is required"
+        )
+
+
+def _gitlab_harvest_base_url(args: argparse.Namespace) -> str:
+    """Resolve the GitLab API root, honouring self-hosted CI autodetect."""
+    return (
+        args.platform_base_url
+        or os.environ.get("CI_API_V4_URL")
+        or gitlab_harvest.DEFAULT_BASE_URL
+    )
+
+
+def _cmd_harvest(args: argparse.Namespace) -> int:
+    _require_harvest_args(args)
 
     store = DismissedExamplesStore(args.out)
-    stats = harvest(
-        repo=args.repo,
-        token=args.github_token,
-        store=store,
-        pr_number=args.pr_number,
-        max_prs=args.max_prs,
-    )
+    if args.platform == "gitlab":
+        stats = gitlab_harvest.harvest(
+            project=args.repo,
+            token=args.github_token,
+            store=store,
+            mr_iid=args.pr_number,
+            max_mrs=args.max_prs,
+            base_url=_gitlab_harvest_base_url(args),
+        )
+    else:
+        stats = harvest(
+            repo=args.repo,
+            token=args.github_token,
+            store=store,
+            pr_number=args.pr_number,
+            max_prs=args.max_prs,
+        )
     sys.stdout.write(
         f"PRs scanned: {stats.prs_scanned}\n"
         f"Comments scanned: {stats.comments_scanned}\n"
@@ -389,19 +421,26 @@ def _cmd_harvest(args: argparse.Namespace) -> int:
     return 0
 
 def _cmd_harvest_accepted(args: argparse.Namespace) -> int:
-    if not args.repo:
-        raise SystemExit("--repo or $GITHUB_REPOSITORY is required")
-    if not args.github_token:
-        raise SystemExit("--github-token or $GITHUB_TOKEN is required")
+    _require_harvest_args(args)
 
     store = AcceptedExamplesStore(args.out)
-    stats = harvest_accepted(
-        repo=args.repo,
-        token=args.github_token,
-        store=store,
-        pr_number=args.pr_number,
-        max_prs=args.max_prs,
-    )
+    if args.platform == "gitlab":
+        stats = gitlab_harvest.harvest_accepted(
+            project=args.repo,
+            token=args.github_token,
+            store=store,
+            mr_iid=args.pr_number,
+            max_mrs=args.max_prs,
+            base_url=_gitlab_harvest_base_url(args),
+        )
+    else:
+        stats = harvest_accepted(
+            repo=args.repo,
+            token=args.github_token,
+            store=store,
+            pr_number=args.pr_number,
+            max_prs=args.max_prs,
+        )
     sys.stdout.write(
         f"PRs scanned: {stats.prs_scanned}\n"
         f"Comments scanned: {stats.comments_scanned}\n"

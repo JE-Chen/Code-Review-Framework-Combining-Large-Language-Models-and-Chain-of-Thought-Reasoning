@@ -531,3 +531,97 @@ def test_no_withhold_when_complete() -> None:
     assert cli_commands._withhold_partial_review(
         _make_args(require_full_scan=True), adapter, merged
     ) is False
+
+
+# ----- harvest platform dispatch -------------------------------------------------
+
+
+def _harvest_args(**overrides) -> argparse.Namespace:
+    base = {
+        "platform": "github",
+        "platform_base_url": None,
+        "repo": "g/p",
+        "github_token": "tok",
+        "pr_number": None,
+        "max_prs": 50,
+        "out": Path("unused.jsonl"),
+    }
+    base.update(overrides)
+    return argparse.Namespace(**base)
+
+
+def _fake_stats():
+    from prthinker.harvest import HarvestStats
+
+    return HarvestStats(prs_scanned=1)
+
+
+def test_cmd_harvest_dispatches_to_gitlab(monkeypatch, capsys) -> None:
+    seen = {}
+
+    def _fake(project, token, *, store, mr_iid, max_mrs, base_url):
+        seen.update(project=project, token=token, mr_iid=mr_iid,
+                    max_mrs=max_mrs, base_url=base_url)
+        del store
+        return _fake_stats()
+
+    monkeypatch.setattr(cli_commands.gitlab_harvest, "harvest", _fake)
+    monkeypatch.delenv("CI_API_V4_URL", raising=False)
+    rc = cli_commands._cmd_harvest(_harvest_args(platform="gitlab", pr_number=9))
+    assert rc == 0
+    assert seen == {
+        "project": "g/p", "token": "tok", "mr_iid": 9, "max_mrs": 50,
+        "base_url": "https://gitlab.com/api/v4",
+    }
+    assert "PRs scanned: 1" in capsys.readouterr().out
+
+
+def test_cmd_harvest_github_stays_on_github_path(monkeypatch) -> None:
+    called = {}
+
+    def _fake(repo, token, *, store, pr_number, max_prs):
+        called.update(repo=repo, token=token, pr_number=pr_number,
+                      max_prs=max_prs)
+        del store
+        return _fake_stats()
+
+    monkeypatch.setattr(cli_commands, "harvest", _fake)
+    rc = cli_commands._cmd_harvest(_harvest_args())
+    assert rc == 0
+    assert called["repo"] == "g/p"
+
+
+def test_cmd_harvest_rejects_unsupported_platform() -> None:
+    with pytest.raises(SystemExit, match="not supported"):
+        cli_commands._cmd_harvest(_harvest_args(platform="gitea"))
+
+
+def test_cmd_harvest_requires_repo_and_token() -> None:
+    with pytest.raises(SystemExit, match="CI_PROJECT_PATH"):
+        cli_commands._cmd_harvest(_harvest_args(repo=""))
+    with pytest.raises(SystemExit, match="GITLAB_TOKEN"):
+        cli_commands._cmd_harvest(_harvest_args(github_token=""))
+
+
+def test_cmd_harvest_accepted_dispatches_to_gitlab(monkeypatch) -> None:
+    seen = {}
+
+    def _fake(project, token, *, store, mr_iid, max_mrs, base_url):
+        seen.update(project=project, base_url=base_url)
+        del token, store, mr_iid, max_mrs
+        return _fake_stats()
+
+    monkeypatch.setattr(
+        cli_commands.gitlab_harvest, "harvest_accepted", _fake
+    )
+    monkeypatch.setenv("CI_API_V4_URL", "https://gl.example.com/api/v4")
+    rc = cli_commands._cmd_harvest_accepted(_harvest_args(platform="gitlab"))
+    assert rc == 0
+    # Self-hosted API root autodetected from the GitLab CI environment.
+    assert seen["base_url"] == "https://gl.example.com/api/v4"
+
+
+def test_gitlab_harvest_base_url_prefers_explicit_flag(monkeypatch) -> None:
+    monkeypatch.setenv("CI_API_V4_URL", "https://gl.example.com/api/v4")
+    args = _harvest_args(platform_base_url="https://explicit/api/v4")
+    assert cli_commands._gitlab_harvest_base_url(args) == "https://explicit/api/v4"
