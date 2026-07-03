@@ -19,11 +19,12 @@ _IMPACT_LIMIT = 10
 
 def _module_candidates(path: str) -> set[str]:
     """Plausible import-target spellings for a source path."""
-    stem = path[:-3] if path.endswith(".py") else path
+    stem = path.rsplit(".", 1)[0] if "." in path.rsplit("/", 1)[-1] else path
     parts = [p for p in stem.split("/") if p and p != "."]
     if not parts:
         return set()
-    return {".".join(parts), parts[-1]}
+    dotted = ".".join(parts)
+    return {dotted, "/".join(parts), "::".join(parts), parts[-1]}
 
 
 def impacted_files(
@@ -37,8 +38,9 @@ def impacted_files(
     impacted: set[str] = set()
     for imp in imports:
         cleaned = imp.target.lstrip(".")
-        last = cleaned.split(".")[-1]
-        if (cleaned in targets or last in targets) and imp.from_file not in changed:
+        last = cleaned.replace("::", ".").replace("/", ".").split(".")[-1]
+        normalized = cleaned.replace("::", ".").replace("/", ".")
+        if (cleaned in targets or normalized in targets or last in targets) and imp.from_file not in changed:
             impacted.add(imp.from_file)
     return sorted(impacted)
 

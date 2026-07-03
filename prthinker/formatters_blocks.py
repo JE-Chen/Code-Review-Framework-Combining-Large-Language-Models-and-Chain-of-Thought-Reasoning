@@ -229,6 +229,9 @@ def _format_finding_annotations(findings: list[InlineFinding]) -> list[str]:
     block += _annotation_subblock(
         findings, lambda f: f.verification is not None, _format_verification_block
     )
+    block += _annotation_subblock(
+        findings, lambda f: bool(f.evidence), _format_evidence_block
+    )
     return block
 
 
@@ -456,6 +459,23 @@ def _format_verification_block(findings: list[InlineFinding]) -> list[str]:
         block.append(f"| {f.line} | {badge} | `{cmd}` | {reason} |")
     block += ["", "</details>", ""]
     return block
+
+
+def _format_evidence_block(findings: list[InlineFinding]) -> list[str]:
+    """Render reproducible verification evidence bound to stable findings."""
+    block = [
+        "<details><summary>Finding evidence</summary>", "",
+        "| Finding | Kind | Tool | Status | Summary |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for finding in findings:
+        for evidence in finding.evidence:
+            summary = evidence.summary.replace("|", "\\|").replace("\n", " ")
+            block.append(
+                f"| `{finding.finding_id}` | {evidence.kind} | `{evidence.tool}` | "
+                f"{evidence.status} | {summary} |"
+            )
+    return block + ["", "</details>", ""]
 
 
 def _format_counterfactuals_block(fr: FileReviewResult) -> list[str]:

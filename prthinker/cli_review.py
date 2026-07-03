@@ -26,6 +26,7 @@ from prthinker.cli_review_helpers import (
     build_cache_telemetry,
     build_dialogue_block,
 )
+
 # The publish flow below calls these helpers; importing them here also
 # keeps them reachable as ``prthinker.cli_review.<name>``.
 from prthinker.cli_review_emit import (
@@ -48,6 +49,7 @@ from prthinker.cli_review_emit import (
     _review_progress,
     _submit_inline_review,
 )
+
 # Not called in this module — re-exported on its own statement (so the
 # suppressions sit on the reported line) because the test-suite imports it
 # via ``prthinker.cli_review``.
@@ -70,6 +72,7 @@ from prthinker.pipeline import (
     PerFileReviewOptions,
     ReviewResult,
 )
+from prthinker.trajectory import TrajectorySink
 from prthinker.rag import (
     FaissRAGRetriever,
     NoOpRetriever,
@@ -87,6 +90,7 @@ _OVERALL_SUMMARY_POLL_INTERVAL = 5.0
 _OVERALL_SUMMARY_DEADLINE_SECONDS = 1800.0
 _OVERALL_SUMMARY_MAX_NEW_TOKENS = 16784
 
+
 def _build_config(args: argparse.Namespace) -> Config:
     if args.use_remote_pipeline and args.backend != BackendKind.REMOTE.value:
         log.info("--use-remote-pipeline forces --backend remote")
@@ -94,9 +98,15 @@ def _build_config(args: argparse.Namespace) -> Config:
 
     backend = BackendKind(args.backend)
     sub_configs: dict[str, object] = {
-        "local": None, "remote": None, "openai": None, "anthropic": None,
-        "gemini": None, "cohere": None, "mistral": None,
-        "claude_cli": None, "codex_cli": None,
+        "local": None,
+        "remote": None,
+        "openai": None,
+        "anthropic": None,
+        "gemini": None,
+        "cohere": None,
+        "mistral": None,
+        "claude_cli": None,
+        "codex_cli": None,
     }
     builder = BACKEND_CONFIG_BUILDERS.get(backend)
     if builder is not None:
@@ -152,10 +162,12 @@ def _build_retriever(args: argparse.Namespace, config: Config) -> RAGRetriever:
         )
     return FaissRAGRetriever(threshold=config.rag_threshold)
 
+
 def _read_stdin_or_file(path: str) -> str:
     if path == "-":
         return sys.stdin.read()
     return Path(path).read_text(encoding="utf-8")
+
 
 def _serialize_partial_review(result: ReviewResult) -> dict:
     """Pack a ReviewResult into a JSON-safe dict for the aggregate job.
@@ -185,6 +197,7 @@ def _serialize_partial_review(result: ReviewResult) -> dict:
         ],
     }
 
+
 def _deserialize_partial_review(data: dict) -> ReviewResult:
     """Reconstruct a ReviewResult from the dict produced above."""
     from prthinker.schemas import JudgeVerdict
@@ -205,9 +218,7 @@ def _deserialize_partial_review(data: dict) -> ReviewResult:
                     for f in fr.get("inline_findings", [])
                 ],
                 verdict=(
-                    JudgeVerdict.model_validate(verdict_dict)
-                    if verdict_dict
-                    else None
+                    JudgeVerdict.model_validate(verdict_dict) if verdict_dict else None
                 ),
                 is_binary=fr.get("is_binary", False),
                 is_deleted=fr.get("is_deleted", False),
@@ -221,6 +232,7 @@ def _deserialize_partial_review(data: dict) -> ReviewResult:
         per_file=per_file,
     )
 
+
 def _collect_overall_summary_inputs(per_file: list) -> list[str]:
     """Return the non-empty per-file total summaries, ready for the prompt."""
     summaries: list[str] = []
@@ -230,15 +242,16 @@ def _collect_overall_summary_inputs(per_file: list) -> list[str]:
             summaries.append(f"### {fr.path}\n{text}")
     return summaries
 
+
 def _build_overall_summary_prompt(summaries: list[str]) -> str:
     return (
         "You are summarising a code-review run. Below are per-file "
         "summaries from a single pull request. Write ONE concise PR-wide "
         "summary in 3-5 sentences. Capture the common themes, the most "
         "important findings, and the residual risk. Do not enumerate the "
-        "per-file blocks verbatim.\n\n"
-        + "\n\n".join(summaries)
+        "per-file blocks verbatim.\n\n" + "\n\n".join(summaries)
     )
+
 
 def _best_effort_cancel_ask_job(client: httpx.Client, job_id: str) -> None:
     """Tell the backend to release the GPU; ignore failures by design."""
@@ -247,9 +260,8 @@ def _best_effort_cancel_ask_job(client: httpx.Client, job_id: str) -> None:
     except httpx.HTTPError as exc:
         log.debug("Cancel for ask job %s failed (ignored): %s", job_id, exc)
 
-def _poll_overall_summary(
-    client: httpx.Client, job_id: str, deadline: float
-) -> str:
+
+def _poll_overall_summary(client: httpx.Client, job_id: str, deadline: float) -> str:
     while True:
         if time.monotonic() >= deadline:
             _best_effort_cancel_ask_job(client, job_id)
@@ -273,6 +285,7 @@ def _poll_overall_summary(
         if status == "cancelled":
             log.warning("Overall summary synthesis cancelled server-side")
             return ""
+
 
 def _synthesize_overall_summary(per_file: list) -> str:
     """Ask the remote backend for a single PR-wide summary.
@@ -317,12 +330,14 @@ def _synthesize_overall_summary(per_file: list) -> str:
         log.warning("Overall summary synthesis failed (%s); skipping", exc)
         return ""
 
+
 def _apply_target_file_filter(files: list, args: argparse.Namespace) -> list:
     """Keep only the path named by --target-file, or all files when unset."""
     target = (getattr(args, "target_file", "") or "").strip()
     if not target:
         return files
     return [fd for fd in files if fd.path == target]
+
 
 def _apply_exclude_globs_filter(files: list, args: argparse.Namespace) -> list:
     """Drop files matching any comma-separated --exclude-globs pattern."""
@@ -333,13 +348,11 @@ def _apply_exclude_globs_filter(files: list, args: argparse.Namespace) -> list:
     if not patterns:
         return files
     return [
-        fd for fd in files
-        if not any(fnmatch.fnmatch(fd.path, p) for p in patterns)
+        fd for fd in files if not any(fnmatch.fnmatch(fd.path, p) for p in patterns)
     ]
 
-def _filter_per_file_targets(
-    files: list, args: argparse.Namespace
-) -> list:
+
+def _filter_per_file_targets(files: list, args: argparse.Namespace) -> list:
     """Apply --target-file / --exclude-globs to the parsed file list.
 
     Lets a CI matrix runner pick a single path (--target-file) so per-file
@@ -349,6 +362,7 @@ def _filter_per_file_targets(
     """
     files = _apply_target_file_filter(files, args)
     return _apply_exclude_globs_filter(files, args)
+
 
 def _server_review_request(
     config: Config, code_diff: str, extra_rules: list, file_path: str | None = None
@@ -438,14 +452,11 @@ def _review_via_server(
     client = RemotePipelineClient(config.remote)
     try:
         if not args.per_file:
-            return _review_whole_diff_via_server(
-                client, config, diff_text, extra_rules
-            )
-        return _review_per_file_via_server(
-            client, args, config, diff_text, extra_rules
-        )
+            return _review_whole_diff_via_server(client, config, diff_text, extra_rules)
+        return _review_per_file_via_server(client, args, config, diff_text, extra_rules)
     finally:
         client.close()
+
 
 def _review_via_pipeline(
     args: argparse.Namespace,
@@ -465,6 +476,14 @@ def _review_via_pipeline(
         max_new_tokens=config.max_new_tokens,
         extra_rules=tuple(extra_rules),
         stream=bool(getattr(args, "stream", False)),
+        step_dependencies=json.loads(args.step_dag)
+        if getattr(args, "step_dag", "")
+        else None,
+        trajectory_sink=TrajectorySink(
+            Path(args.trajectory_out), getattr(args, "head_sha", "") or "local"
+        )
+        if getattr(args, "trajectory_out", "")
+        else None,
     )
     try:
         if args.per_file:
@@ -477,6 +496,7 @@ def _review_via_pipeline(
         if isinstance(retriever, RemoteRAGRetriever):
             retriever.close()
 
+
 def _build_review_cache(
     args: argparse.Namespace,
 ) -> tuple[ReviewCache | None, str, int]:
@@ -488,6 +508,7 @@ def _build_review_cache(
         getattr(args, "repo", "") or "",
         int(getattr(args, "pr_number", 0) or 0),
     )
+
 
 def _csv_tuple(args: argparse.Namespace, attr: str) -> tuple[str, ...]:
     """Split a comma-separated CLI string arg into a tuple of trimmed tokens."""
@@ -538,6 +559,7 @@ def _collect_risk_kwargs(args: argparse.Namespace) -> dict:
         "risk_workdir": getattr(args, "risk_workdir", None),
         "diff_entropy_check": bool(getattr(args, "diff_entropy", False)),
         "review_modes": _csv_tuple(args, "review_modes"),
+        "parallelism": max(1, int(getattr(args, "parallelism", 1))),
     }
 
 
@@ -550,6 +572,7 @@ def _per_file_kwargs(args: argparse.Namespace) -> dict:
         **_collect_risk_kwargs(args),
     }
 
+
 def _run_per_file_review(
     pipeline: CoTPipeline,
     args: argparse.Namespace,
@@ -561,8 +584,7 @@ def _run_per_file_review(
     review_cache_obj, cache_repo, cache_pr_number = _build_review_cache(args)
     incremental_writer = _build_incremental_writer(args)
     on_file_done = (
-        incremental_writer.write_file_result
-        if incremental_writer is not None else None
+        incremental_writer.write_file_result if incremental_writer is not None else None
     )
     options = PerFileReviewOptions(
         output_dir=output_dir,
@@ -577,6 +599,7 @@ def _run_per_file_review(
     if incremental_writer is not None:
         incremental_writer.write_final(result)
     return result
+
 
 def _build_incremental_writer(
     args: argparse.Namespace,
@@ -593,8 +616,10 @@ def _build_incremental_writer(
     )
     return IncrementalReviewWriter(Path(path), meta=meta)
 
+
 def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
 
 def _run_review(
     args: argparse.Namespace,
@@ -606,6 +631,7 @@ def _run_review(
 ) -> ReviewResult:
     if getattr(args, "redact_secrets", False):
         from prthinker.redaction import redact
+
         diff_text, report = redact(diff_text)
         if report:
             # nosemgrep: python.lang.security.audit.logging.logger-credential-leak.python-logger-credential-disclosure
@@ -619,25 +645,25 @@ def _run_review(
         result = _review_via_server(args, config, diff_text)
     else:
         result = _review_via_pipeline(
-            args, config, diff_text,
+            args,
+            config,
+            diff_text,
             output_dir=output_dir,
             dialogue_block=dialogue_block,
         )
     apply_arbitration(args, result)
     return result
 
+
 def _cmd_review_file(args: argparse.Namespace) -> int:
     config = _build_config(args)
     code = _read_stdin_or_file(args.path)
     result = _run_review(args, config, code, output_dir=args.output_dir)
-    sys.stdout.write(
-        format_pr_comment(result, marker="<!-- prthinker:summary -->")
-    )
+    sys.stdout.write(format_pr_comment(result, marker="<!-- prthinker:summary -->"))
     if result.inline_findings:
-        sys.stdout.write(
-            f"\n[{len(result.inline_findings)} inline findings parsed]\n"
-        )
+        sys.stdout.write(f"\n[{len(result.inline_findings)} inline findings parsed]\n")
     return 0
+
 
 def _validate_pr_args(args: argparse.Namespace) -> None:
     """Fail fast on the inputs ``review-pr`` cannot run without."""
@@ -648,6 +674,7 @@ def _validate_pr_args(args: argparse.Namespace) -> None:
     if not args.github_token:
         raise SystemExit("--github-token / $GITHUB_TOKEN / $GITLAB_TOKEN is required")
 
+
 def _maybe_fetch_pr_meta(args: argparse.Namespace, adapter: object) -> None:
     """Populate ``args.pr_title`` / ``args.pr_body`` for the classifier."""
     if not getattr(args, "pr_classify", False):
@@ -655,20 +682,28 @@ def _maybe_fetch_pr_meta(args: argparse.Namespace, adapter: object) -> None:
     try:
         pr_title, pr_body = adapter.fetch_pr_meta()
     except Exception as exc:
-        log.warning("Could not fetch PR meta for classifier (%s); "
-                    "classifier will run on diff only", exc)
+        log.warning(
+            "Could not fetch PR meta for classifier (%s); "
+            "classifier will run on diff only",
+            exc,
+        )
         return
     args.pr_title = pr_title
     args.pr_body = pr_body
     log.info("Fetched PR meta: title=%r body_len=%d", pr_title[:60], len(pr_body))
+
 
 def _resolve_head_sha(args: argparse.Namespace, adapter: object) -> str | None:
     """Fetch the head SHA only when the gate or CI signals need it."""
     needs = (args.gate_on != "none" and not args.dry_run) or args.include_ci_signals
     return adapter.fetch_head_sha() if needs else None
 
+
 def _maybe_prepend_ci_signals(
-    args: argparse.Namespace, diff: str, head_sha: str | None, adapter: object,
+    args: argparse.Namespace,
+    diff: str,
+    head_sha: str | None,
+    adapter: object,
 ) -> str:
     """Prepend the platform's CI failure signals to the diff when enabled.
 
@@ -688,8 +723,11 @@ def _maybe_prepend_ci_signals(
         log.info("Prepended %d CI failure signal(s) to diff", len(signals))
     return diff
 
+
 def _open_gate_if_needed(
-    args: argparse.Namespace, adapter: object, head_sha: str | None,
+    args: argparse.Namespace,
+    adapter: object,
+    head_sha: str | None,
 ) -> object | None:
     """Open the status gate unless this is a dry-run / partial-output run."""
     skip = (
@@ -700,17 +738,25 @@ def _open_gate_if_needed(
     )
     return None if skip else adapter.open_gate(head_sha)
 
+
 def _close_gate_on_crash(adapter: object, gate_handle: object | None) -> None:
     """Mark the gate failed when the reviewer raises before publishing."""
     if gate_handle is None:
         return
     from prthinker.checks import CheckResult
-    adapter.close_gate(gate_handle, CheckResult(
-        conclusion="failure",
-        title="Reviewer crashed",
-        summary="The CoT reviewer raised an exception. Check workflow logs.",
-        error_count=0, warning_count=0, info_count=0,
-    ))
+
+    adapter.close_gate(
+        gate_handle,
+        CheckResult(
+            conclusion="failure",
+            title="Reviewer crashed",
+            summary="The CoT reviewer raised an exception. Check workflow logs.",
+            error_count=0,
+            warning_count=0,
+            info_count=0,
+        ),
+    )
+
 
 def _emit_dry_run(result: ReviewResult, body: str) -> int:
     """Write the would-be comment to stdout for ``--dry-run``."""
@@ -721,6 +767,7 @@ def _emit_dry_run(result: ReviewResult, body: str) -> int:
         )
     return 0
 
+
 def _emit_partial_json(result: ReviewResult, output_json: str) -> int:
     """Persist a partial ReviewResult for the aggregate job."""
     Path(output_json).parent.mkdir(parents=True, exist_ok=True)
@@ -730,9 +777,12 @@ def _emit_partial_json(result: ReviewResult, output_json: str) -> int:
     )
     log.info(
         "Wrote partial review (files=%d, findings=%d) to %s",
-        len(result.per_file), len(result.inline_findings), output_json,
+        len(result.per_file),
+        len(result.inline_findings),
+        output_json,
     )
     return 0
+
 
 def _maybe_autofix(
     args: argparse.Namespace,
@@ -742,12 +792,15 @@ def _maybe_autofix(
 ) -> None:
     """Open a draft auto-fix PR / MR when the threshold is set."""
     from prthinker.platforms import PlatformKind
+
     if not (args.auto_fix_threshold and not args.dry_run):
         return
     if platform_kind is PlatformKind.GITHUB:
         gh = GitHubConfig(
-            repo=args.repo, pr_number=args.pr_number,
-            token=args.github_token, comment_marker=args.marker,
+            repo=args.repo,
+            pr_number=args.pr_number,
+            token=args.github_token,
+            comment_marker=args.marker,
         )
         _maybe_open_auto_fix_pr(gh, args, result)
         return
@@ -765,9 +818,7 @@ _PR_SUMMARY_ATTEMPTS = 3
 _PR_SUMMARY_RETRY_BACKOFF_SECONDS = 5.0
 
 
-def _generate_summary_text(
-    backend: object, prompt: str, max_new_tokens: int
-) -> str:
+def _generate_summary_text(backend: object, prompt: str, max_new_tokens: int) -> str:
     """Generate + clean the summary, retrying transient backend failures.
 
     Returns the cleaned text, or '' when every attempt fails or yields
@@ -777,22 +828,20 @@ def _generate_summary_text(
     """
     for attempt in range(1, _PR_SUMMARY_ATTEMPTS + 1):
         try:
-            text = pr_summary.clean_summary(
-                backend.generate(prompt, max_new_tokens)
-            )
+            text = pr_summary.clean_summary(backend.generate(prompt, max_new_tokens))
         except Exception as exc:  # noqa: BLE001 — retry any transient failure
             log.warning(
                 "PR summary generate attempt %d/%d failed: %s",
-                attempt, _PR_SUMMARY_ATTEMPTS, exc,
+                attempt,
+                _PR_SUMMARY_ATTEMPTS,
+                exc,
             )
             text = ""
         if text:
             return text
         if attempt < _PR_SUMMARY_ATTEMPTS:
             time.sleep(_PR_SUMMARY_RETRY_BACKOFF_SECONDS)
-    log.warning(
-        "PR summary produced no text after %d attempts", _PR_SUMMARY_ATTEMPTS
-    )
+    log.warning("PR summary produced no text after %d attempts", _PR_SUMMARY_ATTEMPTS)
     return ""
 
 
@@ -804,6 +853,7 @@ def _generate_pr_summary_body(args: argparse.Namespace, adapter: object) -> str:
         return ""
     if getattr(args, "redact_secrets", False):
         from prthinker.redaction import redact
+
         diff, _ = redact(diff)
     title, body = adapter.fetch_pr_meta()
     commit_messages = tuple(adapter.fetch_commit_messages())
@@ -811,7 +861,9 @@ def _generate_pr_summary_body(args: argparse.Namespace, adapter: object) -> str:
     backend = create_backend(config)
     try:
         prompt = pr_summary.build_prompt(
-            diff_text=diff, title=title, body=body,
+            diff_text=diff,
+            title=title,
+            body=body,
             commit_messages=commit_messages,
         )
         text = _generate_summary_text(backend, prompt, config.max_new_tokens)
@@ -871,14 +923,16 @@ def _publish_review_result(
     delta_line, progress_block = _review_progress(args, adapter, result)
     files_url = _pr_files_url(args)
     pages = format_pr_comment_pages(
-        result, args.marker,
+        result,
+        args.marker,
         CommentOptions(
             posted_count=posted_count,
             findings_only=getattr(args, "findings_only", False),
             hide_info=getattr(args, "hide_info", False),
             preliminary=_join_overview(
                 _build_preliminary_overview(args, adapter, result),
-                _impact_note(args, result), progress_block,
+                _impact_note(args, result),
+                progress_block,
             ),
             files_url=files_url,
             delta=delta_line,
@@ -917,6 +971,7 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
     _validate_pr_args(args)
 
     from prthinker.platforms import PlatformKind, create_platform_adapter
+
     platform_kind = PlatformKind(args.platform)
     adapter = create_platform_adapter(
         platform_kind,
@@ -927,8 +982,9 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
         base_url=args.platform_base_url,
     )
 
-    log.info("Fetching diff for %s %s#%d",
-             platform_kind.value, args.repo, args.pr_number)
+    log.info(
+        "Fetching diff for %s %s#%d", platform_kind.value, args.repo, args.pr_number
+    )
     diff = adapter.fetch_diff()
     if not diff.strip():
         log.warning("Empty diff — skipping review")
@@ -948,6 +1004,7 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
 
     return _publish_review_result(args, adapter, result, gate_handle, platform_kind)
 
+
 def _resolve_auto_fix_base_branch(
     gh: GitHubConfig, args: argparse.Namespace
 ) -> str | None:
@@ -957,21 +1014,27 @@ def _resolve_auto_fix_base_branch(
         return base_branch
 
     from prthinker.github_api import fetch_pr_base_branch
+
     try:
         return fetch_pr_base_branch(gh)
     except Exception as exc:
         log.warning("Auto-fix: could not fetch base branch: %s", exc)
         return None
 
+
 def _report_auto_fix_outcome(auto_result: object | None, ref_prefix: str) -> None:
     """Log the auto-fix outcome uniformly for the PR and MR paths."""
     if auto_result is None:
-        log.info("Auto-fix: no edits applied (every suggestion conflicted or "
-                 "the target files did not exist)")
+        log.info(
+            "Auto-fix: no edits applied (every suggestion conflicted or "
+            "the target files did not exist)"
+        )
         return
     log.info(
         "Auto-fix %s%s opened: %s (applied=%d skipped=%d files=%d)",
-        ref_prefix, auto_result.pr_number, auto_result.pr_url,
+        ref_prefix,
+        auto_result.pr_number,
+        auto_result.pr_url,
         auto_result.total_findings_applied,
         auto_result.total_findings_skipped,
         len(auto_result.files_changed),
@@ -1000,18 +1063,21 @@ def _open_auto_fix_pr_and_report(
 
     _report_auto_fix_outcome(auto_result, "PR #")
 
+
 def _collect_auto_fix_findings(
     args: argparse.Namespace, result: ReviewResult
 ) -> dict[str, list[InlineFinding]] | None:
     """Group threshold-passing warning suggestions per file, or None to skip."""
     eligible = [
-        f for f in result.inline_findings
+        f
+        for f in result.inline_findings
         if f.severity == "warning" and f.suggestion is not None
     ]
     if len(eligible) < args.auto_fix_threshold:
         log.info(
             "Auto-fix: %d eligible suggestion(s) below threshold %d — skipped",
-            len(eligible), args.auto_fix_threshold,
+            len(eligible),
+            args.auto_fix_threshold,
         )
         return None
     findings_by_file: dict[str, list[InlineFinding]] = {}
@@ -1037,9 +1103,7 @@ def _maybe_open_auto_fix_pr(
     _open_auto_fix_pr_and_report(gh, findings_by_file, base_branch)
 
 
-def _resolve_mr_base_branch(
-    args: argparse.Namespace, adapter: object
-) -> str | None:
+def _resolve_mr_base_branch(args: argparse.Namespace, adapter: object) -> str | None:
     """Return the auto-fix target branch, asking the adapter when unset."""
     if args.auto_fix_base_branch:
         return args.auto_fix_base_branch

@@ -11,7 +11,9 @@ Two modes:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+import hashlib
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from prthinker import (
@@ -58,6 +60,8 @@ from prthinker.steps import (
     WalkthroughStep,
     resolve_steps,
 )
+from prthinker.trajectory import TrajectorySink
+from prthinker.otel import operation_span
 
 log = logging.getLogger(__name__)
 
@@ -120,7 +124,8 @@ def _invoke_on_file_done(
     except Exception as exc:  # noqa: BLE001 — hook must never break the run
         log.warning(
             "on_file_done hook failed for %s (ignored): %s",
-            file_result.path, exc,
+            file_result.path,
+            exc,
         )
 
 
@@ -177,6 +182,7 @@ class _PerFileOptions:
     verify_workdir: Path | None
     verify_cmd: str
     verify_timeout: float
+    parallelism: int
 
 
 @dataclass
@@ -238,6 +244,7 @@ class PerFileReviewOptions:
     diff_entropy_check: bool = False
     review_modes: tuple[str, ...] = ()
     on_file_done: "object | None" = None
+    parallelism: int = 1
 
 
 class CoTPipeline:
@@ -254,6 +261,8 @@ class CoTPipeline:
         stream_sink: "object | None" = None,
         cancel_event: "object | None" = None,
         max_step_result_chars: int = _DEFAULT_MAX_STEP_RESULT_CHARS,
+        step_dependencies: dict[str, object] | None = None,
+        trajectory_sink: TrajectorySink | None = None,
     ) -> None:
         self._backend = backend
         self._retriever = retriever
@@ -271,6 +280,9 @@ class CoTPipeline:
         self._cancel_event = cancel_event
         # See _DEFAULT_MAX_STEP_RESULT_CHARS — 0 disables the cap.
         self._max_step_result_chars = max(0, int(max_step_result_chars))
+        self._step_dependencies = step_dependencies or {}
+        self._dag_cache: dict[str, object] = {}
+        self._trajectory = trajectory_sink
 
     def _check_cancel(self) -> None:
         if self._cancel_event is not None and self._cancel_event.is_set():
@@ -305,7 +317,21 @@ class CoTPipeline:
         if output_dir is not None:
             output_dir.mkdir(parents=True, exist_ok=True)
 
-        rag_docs = self._merge_rules(self._retriever.retrieve(code_diff))
+        with operation_span("retrieve", {"prthinker.scope": "diff"}):
+            rag_docs = self._merge_rules(self._retriever.retrieve(code_diff))
+        if self._trajectory:
+            self._trajectory.record(
+                "retrieve",
+                content=code_diff,
+                status="ok",
+                metadata={
+                    "documents": len(rag_docs),
+                    "retrieved": [
+                        hashlib.sha256(doc.encode()).hexdigest()[:16]
+                        for doc in rag_docs
+                    ],
+                },
+            )
         ctx = ReviewContext(code_diff=code_diff, rag_docs=rag_docs)
         self._run_steps(ctx, self._step_classes, output_dir)
 
@@ -368,7 +394,10 @@ class CoTPipeline:
         agg = self._review_each_file(file_diffs, per_file_opts, opts.on_file_done)
 
         extras = self._run_aggregate_extras(
-            diff_text, file_diffs, opts, agg.step_outputs,
+            diff_text,
+            file_diffs,
+            opts,
+            agg.step_outputs,
         )
         return ReviewResult(
             code_diff=diff_text,
@@ -384,24 +413,32 @@ class CoTPipeline:
             persona_conflicts=extras.persona_conflicts,
             diff_entropy=(
                 self._compute_entropy_summary(file_diffs)
-                if opts.diff_entropy_check else None
+                if opts.diff_entropy_check
+                else None
             ),
         )
 
     # ---------- internals ---------------------------------------------------
 
     def _classify_outcome(
-        self, diff_text: str, opts: "PerFileReviewOptions",
+        self,
+        diff_text: str,
+        opts: "PerFileReviewOptions",
     ) -> _ClassifyOutcome:
         """Classify the PR (when enabled) or echo the caller's knobs back."""
         if opts.pr_classify:
             return self._classify_pr(
-                diff_text, opts.pr_title, opts.pr_body,
-                opts.inline_review, opts.max_findings_per_file,
+                diff_text,
+                opts.pr_title,
+                opts.pr_body,
+                opts.inline_review,
+                opts.max_findings_per_file,
                 opts.dialogue_block,
             )
         return _ClassifyOutcome(
-            None, opts.inline_review, opts.max_findings_per_file,
+            None,
+            opts.inline_review,
+            opts.max_findings_per_file,
             opts.dialogue_block,
         )
 
@@ -419,7 +456,9 @@ class CoTPipeline:
         )
         return _PerFileOptions(
             all_steps=self._build_step_sequence(
-                outcome.inline_review, opts.counterfactual, opts.judge,
+                outcome.inline_review,
+                opts.counterfactual,
+                opts.judge,
                 opts.walkthrough,
             ),
             max_findings_per_file=outcome.max_findings_per_file,
@@ -438,6 +477,7 @@ class CoTPipeline:
             verify_workdir=opts.verify_workdir,
             verify_cmd=opts.verify_cmd,
             verify_timeout=opts.verify_timeout,
+            parallelism=max(1, min(opts.parallelism, self._backend.max_concurrency())),
         )
 
     def _run_aggregate_extras(
@@ -450,20 +490,25 @@ class CoTPipeline:
         """Run the cross-file extra steps (dep / persona / api / review modes)."""
         dep_upgrades = (
             self._run_dep_upgrades(file_diffs, aggregated_steps)
-            if opts.dep_upgrade_check else []
+            if opts.dep_upgrade_check
+            else []
         )
         persona_reviews, persona_conflicts = (
             self._run_personas(opts.persona_set, diff_text, aggregated_steps)
-            if opts.persona_set else ([], [])
+            if opts.persona_set
+            else ([], [])
         )
         api_drift = (
             self._run_api_consistency(file_diffs, aggregated_steps)
-            if opts.api_consistency_check else []
+            if opts.api_consistency_check
+            else []
         )
         if opts.review_modes:
             aggregated_steps.update(
                 run_review_modes(
-                    self._backend, diff_text, opts.review_modes,
+                    self._backend,
+                    diff_text,
+                    opts.review_modes,
                     self._max_new_tokens,
                 )
             )
@@ -482,8 +527,14 @@ class CoTPipeline:
     ) -> _AggregatedFiles:
         """Review every file in the diff and accumulate the aggregated state."""
         agg = _AggregatedFiles()
-        for fd in file_diffs:
-            fr = self._review_single_file(fd, opts)
+        if opts.parallelism > 1:
+            with ThreadPoolExecutor(max_workers=opts.parallelism) as pool:
+                reviewed = list(
+                    pool.map(lambda fd: self._review_single_file(fd, opts), file_diffs)
+                )
+        else:
+            reviewed = [self._review_single_file(fd, opts) for fd in file_diffs]
+        for fd, fr in zip(file_diffs, reviewed):
             agg.per_file_results.append(fr)
             agg.inline_findings.extend(fr.inline_findings)
             agg.counterfactuals.extend(fr.counterfactuals)
@@ -505,16 +556,20 @@ class CoTPipeline:
         """Classify the PR type and fold the classifier's budget into the knobs."""
         log.info("Classifying PR type")
         classify_prompt = pr_classifier.build_prompt(
-            diff_text=diff_text, title=pr_title, body=pr_body,
+            diff_text=diff_text,
+            title=pr_title,
+            body=pr_body,
         )
         raw_classify = self._backend.generate(
-            classify_prompt, max_new_tokens=self._max_new_tokens,
+            classify_prompt,
+            max_new_tokens=self._max_new_tokens,
         )
         parsed = pr_classifier.parse_classification(raw_classify)
         budget = pr_classifier.budget_for(parsed.pr_type)
         log.info(
             "PR classified as %s -> inline=%s, max_findings=%d",
-            parsed.pr_type.value, budget.run_inline_findings,
+            parsed.pr_type.value,
+            budget.run_inline_findings,
             budget.max_findings_per_file,
         )
         # Override caller knobs with the classifier's budget; caller can
@@ -525,7 +580,8 @@ class CoTPipeline:
             dialogue_block = (dialogue_block + "\n\n" + budget.focus_hint).strip()
         return _ClassifyOutcome(
             classification=PRClassification(
-                pr_type=parsed.pr_type.value, reason=parsed.reason,
+                pr_type=parsed.pr_type.value,
+                reason=parsed.reason,
             ),
             inline_review=inline_review and budget.run_inline_findings,
             max_findings_per_file=max_findings_per_file,
@@ -533,7 +589,10 @@ class CoTPipeline:
         )
 
     def _build_step_sequence(
-        self, inline_review: bool, counterfactual: bool, judge: bool,
+        self,
+        inline_review: bool,
+        counterfactual: bool,
+        judge: bool,
         walkthrough: bool = False,
     ) -> tuple[type[ReviewStep], ...]:
         """Append the optional walkthrough / inline / counterfactual / judge steps."""
@@ -554,13 +613,18 @@ class CoTPipeline:
         return self._step_classes + extra
 
     def _compute_entropy_summary(
-        self, file_diffs: list[FileDiff],
+        self,
+        file_diffs: list[FileDiff],
     ) -> DiffEntropySummary:
         """Compute the diff-entropy ("diff bomb") summary for the PR."""
         e = diff_entropy.compute_entropy(file_diffs)
         log.info(
             "diff_entropy: %d file(s) +%d/-%d score=%.2f verdict=%s",
-            e.file_count, e.added_lines, e.removed_lines, e.score, e.verdict,
+            e.file_count,
+            e.added_lines,
+            e.removed_lines,
+            e.score,
+            e.verdict,
         )
         return DiffEntropySummary(
             file_count=e.file_count,
@@ -572,26 +636,34 @@ class CoTPipeline:
         )
 
     def _compute_risk_by_path(
-        self, file_diffs: list[FileDiff], risk_workdir: Path,
+        self,
+        file_diffs: list[FileDiff],
+        risk_workdir: Path,
     ) -> dict[str, risk_score.RiskScore]:
         """Score reviewable files by change risk, keyed by path."""
-        paths = [
-            fd.path for fd in file_diffs if not fd.is_binary and not fd.is_deleted
-        ]
+        paths = [fd.path for fd in file_diffs if not fd.is_binary and not fd.is_deleted]
         scores = risk_score.compute_risk_scores(paths, workdir=risk_workdir)
         log.info(
             "risk_score: computed for %d file(s); top: %s",
             len(scores),
-            [(s.path, round(s.score, 2))
-             for s in sorted(scores, key=lambda x: -x.score)[:3]],
+            [
+                (s.path, round(s.score, 2))
+                for s in sorted(scores, key=lambda x: -x.score)[:3]
+            ],
         )
         return {s.path: s for s in scores}
 
     def _cache_key_for(
-        self, fd: FileDiff, opts: _PerFileOptions,
+        self,
+        fd: FileDiff,
+        opts: _PerFileOptions,
     ) -> "CacheKey | None":
         """Differential-review cache key for a file, or None if not cacheable."""
-        if opts.review_cache is None or opts.cache_pr_number <= 0 or not opts.inline_review:
+        if (
+            opts.review_cache is None
+            or opts.cache_pr_number <= 0
+            or not opts.inline_review
+        ):
             return None
         return CacheKey(
             pr_number=opts.cache_pr_number,
@@ -610,7 +682,9 @@ class CoTPipeline:
         )
         log.debug(
             "risk_score: %s score=%.2f budget=%d",
-            fd.path, opts.risk_by_path[fd.path].score, budget,
+            fd.path,
+            opts.risk_by_path[fd.path].score,
+            budget,
         )
         return budget
 
@@ -619,12 +693,19 @@ class CoTPipeline:
         reason = "binary" if fd.is_binary else "deleted"
         log.info("Recording %s file %s as skipped", reason, fd.path)
         return FileReviewResult(
-            path=fd.path, rag_docs=[], step_outputs={}, inline_findings=[],
-            is_binary=fd.is_binary, is_deleted=fd.is_deleted,
+            path=fd.path,
+            rag_docs=[],
+            step_outputs={},
+            inline_findings=[],
+            is_binary=fd.is_binary,
+            is_deleted=fd.is_deleted,
         )
 
     def _cached_file_result(
-        self, fd: FileDiff, cache_key: "CacheKey", opts: _PerFileOptions,
+        self,
+        fd: FileDiff,
+        cache_key: "CacheKey",
+        opts: _PerFileOptions,
     ) -> "FileReviewResult | None":
         """Differential-review cache hit for a file, or None on a miss."""
         cached = opts.review_cache.get(cache_key)
@@ -632,16 +713,23 @@ class CoTPipeline:
             return None
         log.info(
             "Differential review: reusing %d cached finding(s) for %s",
-            len(cached), fd.path,
+            len(cached),
+            fd.path,
         )
         return FileReviewResult(
-            path=fd.path, rag_docs=[], step_outputs={},
+            path=fd.path,
+            rag_docs=[],
+            step_outputs={},
             inline_findings=cached,
-            is_binary=fd.is_binary, is_deleted=fd.is_deleted,
+            is_binary=fd.is_binary,
+            is_deleted=fd.is_deleted,
         )
 
     def _run_and_cache_file(
-        self, fd: FileDiff, cache_key: "CacheKey | None", opts: _PerFileOptions,
+        self,
+        fd: FileDiff,
+        cache_key: "CacheKey | None",
+        opts: _PerFileOptions,
     ) -> FileReviewResult:
         """Run the steps for a file, persist to cache, then verify suggestions."""
         file_out_dir = opts.output_dir / _sanitize(fd.path) if opts.output_dir else None
@@ -659,14 +747,17 @@ class CoTPipeline:
         )
         if cache_key is not None:
             opts.review_cache.put(
-                cache_key, file_result.inline_findings,
+                cache_key,
+                file_result.inline_findings,
                 backend=self._backend.backend_kind(),
                 model=self._backend.model_name(),
             )
         return self._maybe_verify(file_result, opts)
 
     def _maybe_verify(
-        self, file_result: FileReviewResult, opts: _PerFileOptions,
+        self,
+        file_result: FileReviewResult,
+        opts: _PerFileOptions,
     ) -> FileReviewResult:
         """Verify suggestions in a sandbox when verification is configured."""
         verify_enabled = (
@@ -684,7 +775,9 @@ class CoTPipeline:
         )
 
     def _review_single_file(
-        self, fd: FileDiff, opts: _PerFileOptions,
+        self,
+        fd: FileDiff,
+        opts: _PerFileOptions,
     ) -> FileReviewResult:
         """Review one file: skip binary/deleted, reuse cache, else run steps.
 
@@ -713,11 +806,15 @@ class CoTPipeline:
         for up in dep_upgrade.detect_upgrades(file_diffs):
             log.info(
                 "dep-upgrade: %s %s %s -> %s",
-                up.ecosystem, up.package, up.old_version, up.new_version,
+                up.ecosystem,
+                up.package,
+                up.old_version,
+                up.new_version,
             )
             prompt = dep_upgrade.build_prompt(up, file_diffs)
             raw = self._backend.generate(
-                prompt, max_new_tokens=self._max_new_tokens,
+                prompt,
+                max_new_tokens=self._max_new_tokens,
             )
             aggregated_steps[f"dep_upgrade::{up.package}::{up.new_version}"] = raw
             dep_upgrades.extend(dep_upgrade.parse_impact(raw, upgrade=up))
@@ -737,7 +834,8 @@ class CoTPipeline:
         for p in selected:
             parts = personas.build_persona_prompt(p, diff_text=diff_text)
             raw = self._backend.generate(
-                parts.prompt, max_new_tokens=self._max_new_tokens,
+                parts.prompt,
+                max_new_tokens=self._max_new_tokens,
             )
             persona_outputs[p] = raw
             aggregated_steps[f"persona::{p.value}"] = raw
@@ -746,11 +844,13 @@ class CoTPipeline:
         if len(selected) >= 2:
             conflict_prompt = personas.build_conflict_prompt(persona_outputs)
             conflict_raw = self._backend.generate(
-                conflict_prompt, max_new_tokens=self._max_new_tokens,
+                conflict_prompt,
+                max_new_tokens=self._max_new_tokens,
             )
             aggregated_steps["persona::conflicts"] = conflict_raw
             conflicts = personas.parse_conflicts(
-                conflict_raw, valid_personas=set(selected),
+                conflict_raw,
+                valid_personas=set(selected),
             )
         return reviews, conflicts
 
@@ -767,7 +867,8 @@ class CoTPipeline:
         raw = self._backend.generate(prompt, max_new_tokens=self._max_new_tokens)
         aggregated_steps["api_consistency"] = raw
         return api_consistency.parse_drift_findings(
-            raw, allowed_paths={fd.path for fd in file_diffs},
+            raw,
+            allowed_paths={fd.path for fd in file_diffs},
         )
 
     def _accepted_examples(self, fd: FileDiff) -> tuple[int, str]:
@@ -812,10 +913,15 @@ class CoTPipeline:
         # labelled "stable" — also the right answer.
         inline_prompt = InlineFindingsStep().build_prompt(ctx)
         second_raw = self._backend.generate(
-            inline_prompt, max_new_tokens=self._max_new_tokens,
+            inline_prompt,
+            max_new_tokens=self._max_new_tokens,
         )
         second = self._parse_findings(
-            second_raw, fd, rag_docs, n_accepted_examples, provenance,
+            second_raw,
+            fd,
+            rag_docs,
+            n_accepted_examples,
+            provenance,
         )
         return reproducibility.label_findings(findings, second)
 
@@ -834,15 +940,25 @@ class CoTPipeline:
         if "inline_findings" not in ctx.results:
             return []
         findings = self._parse_findings(
-            ctx.results["inline_findings"], fd, rag_docs,
-            n_accepted_examples, provenance,
+            ctx.results["inline_findings"],
+            fd,
+            rag_docs,
+            n_accepted_examples,
+            provenance,
         )
         findings = suppress_phantom_undefined(
-            findings, diff_text=fd.raw, path=fd.path,
+            findings,
+            diff_text=fd.raw,
+            path=fd.path,
         )
         if reproducibility_check:
             findings = self._reproducibility_label(
-                findings, ctx, fd, rag_docs, n_accepted_examples, provenance,
+                findings,
+                ctx,
+                fd,
+                rag_docs,
+                n_accepted_examples,
+                provenance,
             )
         if self._dismissed_filter is not None and findings:
             findings = self._dismissed_filter.filter(findings)
@@ -862,7 +978,14 @@ class CoTPipeline:
         flags: "_FileRunFlags | None" = None,
     ) -> FileReviewResult:
         flags = flags or _FileRunFlags()
-        rag_docs = self._merge_rules(self._retriever.retrieve(fd.raw))
+        with operation_span("retrieve", {"prthinker.file.path": fd.path}):
+            rag_docs = self._merge_rules(self._retriever.retrieve(fd.raw))
+        doc_ids = [hashlib.sha256(doc.encode()).hexdigest()[:16] for doc in rag_docs]
+        if self._trajectory:
+            self._trajectory.record(
+                "retrieve", content=fd.raw, path=fd.path, status="ok",
+                metadata={"retrieved": doc_ids},
+            )
         n_accepted_examples, positive_examples_block = self._accepted_examples(fd)
 
         provenance_block = ""
@@ -884,11 +1007,27 @@ class CoTPipeline:
         self._run_steps(ctx, step_classes, output_dir)
 
         findings = self._collect_findings(
-            fd, ctx, rag_docs, n_accepted_examples,
+            fd,
+            ctx,
+            rag_docs,
+            n_accepted_examples,
             provenance=flags.provenance,
             reproducibility_check=flags.reproducibility_check,
             self_correct=flags.self_correct,
         )
+        if self._trajectory:
+            cited = sorted({
+                citation.index
+                for finding in findings
+                if finding.provenance
+                for citation in finding.provenance.citations
+                if citation.kind == "rag_rule" and citation.index is not None
+            })
+            used = [doc_ids[index - 1] for index in cited if 1 <= index <= len(doc_ids)]
+            self._trajectory.record(
+                "retrieval_use", path=fd.path, status="ok",
+                metadata={"retrieved": doc_ids, "used": used, "cited_indices": cited},
+            )
 
         verdict, counterfactuals = self._parse_judge_and_counterfactuals(ctx, findings)
 
@@ -905,7 +1044,8 @@ class CoTPipeline:
 
     @staticmethod
     def _parse_judge_and_counterfactuals(
-        ctx: ReviewContext, findings: list,
+        ctx: ReviewContext,
+        findings: list,
     ) -> "tuple[JudgeVerdict | None, list[CounterfactualBlock]]":
         """Parse the judge verdict and counterfactual blocks from step results."""
         verdict: JudgeVerdict | None = None
@@ -915,12 +1055,14 @@ class CoTPipeline:
         counterfactuals: list[CounterfactualBlock] = []
         if "counterfactual" in ctx.results and findings:
             counterfactuals = parse_counterfactuals(
-                ctx.results["counterfactual"], total_findings=len(findings),
+                ctx.results["counterfactual"],
+                total_findings=len(findings),
             )
         return verdict, counterfactuals
 
     def _resolve_personas(
-        self, persona_set: tuple[str, ...],
+        self,
+        persona_set: tuple[str, ...],
     ) -> list["personas.Persona"]:
         """Translate user-supplied persona names into the enum.
 
@@ -936,10 +1078,7 @@ class CoTPipeline:
         for raw in persona_set:
             key = raw.strip().lower()
             if key not in by_value:
-                raise ValueError(
-                    f"Unknown persona {raw!r}. "
-                    f"Known: {sorted(by_value)}"
-                )
+                raise ValueError(f"Unknown persona {raw!r}. Known: {sorted(by_value)}")
             out.append(by_value[key])
         return out
 
@@ -981,7 +1120,10 @@ class CoTPipeline:
             new_findings.append(f.model_copy(update={"verification": verification}))
             log.info(
                 "verify_suggestions: %s:%d -> %s (%dms)",
-                f.path, f.line, outcome.status, outcome.duration_ms,
+                f.path,
+                f.line,
+                outcome.status,
+                outcome.duration_ms,
             )
         return FileReviewResult(
             path=file_result.path,
@@ -1027,7 +1169,9 @@ class CoTPipeline:
         kept = apply_self_review(findings, drop)
         log.info(
             "Self-review dropped %d/%d findings on %s",
-            len(drop), len(findings), fd.path,
+            len(drop),
+            len(findings),
+            fd.path,
         )
         return kept
 
@@ -1042,11 +1186,7 @@ class CoTPipeline:
         import sys
 
         sink = self._stream_sink or sys.stderr
-        header = (
-            f"\n[{step_name}"
-            + (f" :: {file_path}" if file_path else "")
-            + "]\n"
-        )
+        header = f"\n[{step_name}" + (f" :: {file_path}" if file_path else "") + "]\n"
         sink.write(header)
         chunks: list[str] = []
         for chunk in self._backend.stream_generate(
@@ -1068,24 +1208,132 @@ class CoTPipeline:
     ) -> None:
         if output_dir is not None:
             output_dir.mkdir(parents=True, exist_ok=True)
-        for step_cls in step_classes:
+        if self._step_dependencies:
+            self._run_steps_dag(ctx, step_classes, output_dir)
+            return
+        for step_cls in self._order_steps(step_classes):
             self._check_cancel()
             step: ReviewStep = step_cls()
             log.info("Running step: %s (file=%s)", step.name, ctx.file_path)
             prompt = step.build_prompt(ctx)
-            if self._stream:
-                output = self._generate_streaming(step.name, prompt, ctx.file_path)
-            else:
-                output = self._backend.generate(
-                    prompt,
-                    max_new_tokens=self._max_new_tokens,
-                    cancel_event=self._cancel_event,
-                )
+            started = __import__("time").perf_counter()
+            with operation_span("invoke_agent", {"prthinker.step.name": step.name, "prthinker.file.path": ctx.file_path or ""}):
+                if self._stream:
+                    output = self._generate_streaming(step.name, prompt, ctx.file_path)
+                else:
+                    output = self._backend.generate(
+                        prompt,
+                        max_new_tokens=self._max_new_tokens,
+                        cancel_event=self._cancel_event,
+                    )
             ctx.results[step.name] = self._cap_step_result(output)
+            if self._trajectory:
+                self._trajectory.record(
+                    "step",
+                    content=prompt,
+                    path=ctx.file_path,
+                    tool=step.name,
+                    status="ok",
+                    duration_ms=(__import__("time").perf_counter() - started) * 1000,
+                )
             if output_dir is not None:
                 (output_dir / f"{step.name}_result.md").write_text(
                     output, encoding="utf-8"
                 )
+
+    def _run_steps_dag(self, ctx, step_classes, output_dir) -> None:
+        """Execute explicitly configured independent steps through typed DAG."""
+        from prthinker.step_dag import DagNode, execute_detailed
+
+        nodes = []
+        names = {step.name for step in step_classes}
+        for step_cls in step_classes:
+            raw = self._step_dependencies.get(step_cls.name, ())
+            config = raw if isinstance(raw, dict) else {"depends_on": raw}
+            dependencies = tuple(config.get("depends_on", ()))
+            required_result = str(config.get("when_result", ""))
+
+            def run(snapshot, cls=step_cls):
+                local = replace(ctx, results=dict(snapshot))
+                step = cls()
+                prompt = step.build_prompt(local)
+                with operation_span(
+                    "invoke_agent",
+                    {"prthinker.step.name": step.name,
+                     "prthinker.file.path": ctx.file_path or ""},
+                ):
+                    output = self._backend.generate(
+                        prompt, max_new_tokens=self._max_new_tokens,
+                        cancel_event=self._cancel_event,
+                    )
+                if output_dir is not None:
+                    (output_dir / f"{step.name}_result.md").write_text(
+                        output, encoding="utf-8"
+                    )
+                return self._cap_step_result(output)
+
+            nodes.append(
+                DagNode(
+                    step_cls.name,
+                    run,
+                    dependencies,
+                    when=(lambda results, key=required_result: bool(results.get(key)))
+                    if required_result else None,
+                    retries=max(0, int(config.get("retries", 0))),
+                    timeout_seconds=float(config["timeout_seconds"])
+                    if config.get("timeout_seconds") is not None else None,
+                    cache_key=(
+                        lambda results, name=step_cls.name: hashlib.sha256(
+                            f"{name}:{ctx.code_diff}:{sorted(results)}".encode()
+                        ).hexdigest()
+                    ) if config.get("cache", False) else None,
+                )
+            )
+        execution = execute_detailed(
+            nodes,
+            initial=ctx.results,
+            cache=self._dag_cache,
+            max_workers=1 if self._stream else self._backend.max_concurrency(),
+        )
+        ctx.results.update(
+            {key: value for key, value in execution.results.items()
+             if key in names and value is not None}
+        )
+
+    def _order_steps(self, step_classes: tuple[type[ReviewStep], ...]):
+        """Topologically order configured steps while preserving stable order."""
+        if not self._step_dependencies:
+            return step_classes
+        by_name = {step.name: step for step in step_classes}
+        dependency_values = [
+            value.get("depends_on", ()) if isinstance(value, dict) else value
+            for value in self._step_dependencies.values()
+        ]
+        unknown = {dep for deps in dependency_values for dep in deps} - by_name.keys()
+        if unknown:
+            raise ValueError(f"unknown step dependencies: {sorted(unknown)}")
+        pending = list(step_classes)
+        ordered: list[type[ReviewStep]] = []
+        completed: set[str] = set()
+        while pending:
+            ready = [
+                step
+                for step in pending
+                if set(
+                    self._step_dependencies.get(step.name, {}).get(
+                        "depends_on", ()
+                    )
+                    if isinstance(self._step_dependencies.get(step.name, ()), dict)
+                    else self._step_dependencies.get(step.name, ())
+                ) <= completed
+            ]
+            if not ready:
+                raise ValueError("cyclic step DAG")
+            for step in ready:
+                pending.remove(step)
+                ordered.append(step)
+                completed.add(step.name)
+        return tuple(ordered)
 
 
 def _sanitize(path: str) -> str:

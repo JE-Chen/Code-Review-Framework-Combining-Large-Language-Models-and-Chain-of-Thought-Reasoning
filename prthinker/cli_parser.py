@@ -28,6 +28,10 @@ from prthinker.repo_config import (
     load_repo_config,
     to_argparse_defaults,
 )
+from prthinker.benchmark_cli import add_benchmark_parser
+from prthinker.verify_cli import add_verify_parser
+from prthinker.retrieval_eval_cli import add_parser as add_retrieval_eval_parser
+from prthinker.supply_chain_cli import add_parser as add_attest_parser
 
 log = logging.getLogger("prthinker")
 
@@ -43,7 +47,9 @@ _TELEMETRY_DEFAULT = ".prthinker/telemetry.sqlite"
 _CACHE_DEFAULT = ".prthinker/cache.sqlite"
 
 
-def _apply_repo_defaults(parser: argparse.ArgumentParser, config_path: Path | None) -> None:
+def _apply_repo_defaults(
+    parser: argparse.ArgumentParser, config_path: Path | None
+) -> None:
     """Layer ``.prthinker.yaml`` defaults under argparse's own defaults.
 
     Called before ``parse_args`` so user flags still override the YAML.
@@ -84,13 +90,20 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path(env_str("PRTHINKER_CONFIG") or "") if env_str("PRTHINKER_CONFIG") else None,
+        default=Path(env_str("PRTHINKER_CONFIG") or "")
+        if env_str("PRTHINKER_CONFIG")
+        else None,
         help="Path to a .prthinker.yaml (default: ./.prthinker.yaml if present)",
     )
     parser.add_argument(
         "--log-level",
         default=env_str("PRTHINKER_LOG_LEVEL", "INFO"),
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+    )
+    parser.add_argument(
+        "--otel-endpoint",
+        default="",
+        help="OTLP/HTTP traces endpoint (requires observability extra)",
     )
 
     sub = parser.add_subparsers(dest="command", required=True)
@@ -112,8 +125,8 @@ def _build_parser() -> argparse.ArgumentParser:
     sub.add_parser(
         "mcp",
         help="Run the Model Context Protocol stdio server (for Claude "
-             "Desktop / Cursor / Continue / Cline / Zed integration). "
-             "Reads PRTHINKER_* env vars for backend config.",
+        "Desktop / Cursor / Continue / Cline / Zed integration). "
+        "Reads PRTHINKER_* env vars for backend config.",
     )
     add_adversarial_parser(sub, common)
     add_kg_parsers(sub)
@@ -121,6 +134,10 @@ def _build_parser() -> argparse.ArgumentParser:
     add_derive_lessons_parser(sub, common)
     add_hook_parser(sub, common)
     add_triage_parser(sub)
+    add_benchmark_parser(sub, common)
+    add_verify_parser(sub)
+    add_retrieval_eval_parser(sub)
+    add_attest_parser(sub)
 
     return parser
 
@@ -130,8 +147,8 @@ def add_triage_parser(sub) -> None:
     p_triage = sub.add_parser(
         "triage",
         help="Run all no-model orientation signals over a diff (no backend, "
-             "no GPU). Reads stdin by default; or --diff-file / --staged / "
-             "--against REF.",
+        "no GPU). Reads stdin by default; or --diff-file / --staged / "
+        "--against REF.",
     )
     source = p_triage.add_argument_group("diff source")
     source.add_argument(
@@ -187,13 +204,13 @@ def _add_review_pr_platform_args(p_pr: argparse.ArgumentParser) -> None:
         choices=["github", "gitlab", "gitea"],
         default=env_str("PRTHINKER_PLATFORM", "github"),
         help="Which forge to talk to. GitHub uses /pulls + Check Runs; "
-             "GitLab uses /merge_requests + commit statuses.",
+        "GitLab uses /merge_requests + commit statuses.",
     )
     p_pr.add_argument(
         "--platform-base-url",
         default=env_str("PRTHINKER_PLATFORM_BASE_URL"),
         help="Override for self-hosted instances (e.g. GitHub Enterprise "
-             "or self-hosted GitLab). Default: each platform's public API.",
+        "or self-hosted GitLab). Default: each platform's public API.",
     )
     p_pr.add_argument(
         "--repo",
@@ -204,9 +221,7 @@ def _add_review_pr_platform_args(p_pr: argparse.ArgumentParser) -> None:
         "--pr-number",
         type=int,
         default=int(
-            env_str("PRTHINKER_PR_NUMBER")
-            or env_str("CI_MERGE_REQUEST_IID", "0")
-            or 0
+            env_str("PRTHINKER_PR_NUMBER") or env_str("CI_MERGE_REQUEST_IID", "0") or 0
         ),
         help="GitHub PR number or GitLab MR iid.",
     )
@@ -214,7 +229,7 @@ def _add_review_pr_platform_args(p_pr: argparse.ArgumentParser) -> None:
         "--github-token",
         default=env_str("GITHUB_TOKEN") or env_str("GITLAB_TOKEN"),
         help="Platform API token. Reads GITHUB_TOKEN for GitHub, "
-             "GITLAB_TOKEN for GitLab.",
+        "GITLAB_TOKEN for GitLab.",
     )
     p_pr.add_argument(
         "--marker",
@@ -233,14 +248,14 @@ def _add_review_pr_gate_args(p_pr: argparse.ArgumentParser) -> None:
         type=int,
         default=int(env_str("PRTHINKER_AUTO_FIX_THRESHOLD", "0") or 0),
         help="When ≥ N warning-severity findings carry a `suggestion` "
-             "block, auto-apply them on a fresh branch and open a draft "
-             "PR pointed at the original PR's base. Set to 0 to disable.",
+        "block, auto-apply them on a fresh branch and open a draft "
+        "PR pointed at the original PR's base. Set to 0 to disable.",
     )
     p_pr.add_argument(
         "--auto-fix-base-branch",
         default=env_str("PRTHINKER_AUTO_FIX_BASE_BRANCH"),
         help="Base branch for the auto-fix PR (defaults to the original "
-             "PR's base branch, fetched from the GitHub API).",
+        "PR's base branch, fetched from the GitHub API).",
     )
     p_pr.add_argument(
         "--gate-on",
@@ -324,9 +339,7 @@ def _add_aggregate_target_args(p_agg: argparse.ArgumentParser) -> None:
         "--pr-number",
         type=int,
         default=int(
-            env_str("PRTHINKER_PR_NUMBER")
-            or env_str("CI_MERGE_REQUEST_IID", "0")
-            or 0
+            env_str("PRTHINKER_PR_NUMBER") or env_str("CI_MERGE_REQUEST_IID", "0") or 0
         ),
     )
     p_agg.add_argument(
@@ -359,8 +372,10 @@ def add_harvest_parsers(sub) -> None:
     p_harvest.add_argument(
         "--out",
         type=Path,
-        default=Path(env_str("PRTHINKER_DISMISSED_PATH", _DISMISSED_DEFAULT) or
-                     _DISMISSED_DEFAULT),
+        default=Path(
+            env_str("PRTHINKER_DISMISSED_PATH", _DISMISSED_DEFAULT)
+            or _DISMISSED_DEFAULT
+        ),
     )
 
     p_acc = sub.add_parser(
@@ -371,8 +386,9 @@ def add_harvest_parsers(sub) -> None:
     p_acc.add_argument(
         "--out",
         type=Path,
-        default=Path(env_str("PRTHINKER_ACCEPTED_PATH", _ACCEPTED_DEFAULT) or
-                     _ACCEPTED_DEFAULT),
+        default=Path(
+            env_str("PRTHINKER_ACCEPTED_PATH", _ACCEPTED_DEFAULT) or _ACCEPTED_DEFAULT
+        ),
     )
 
 
@@ -383,14 +399,14 @@ def _add_harvest_common_args(p_harvest: argparse.ArgumentParser) -> None:
         choices=["github", "gitlab"],
         default=env_str("PRTHINKER_PLATFORM", "github"),
         help="Forge to harvest from. GitHub reads review-comment "
-             "reactions and replies; GitLab reads MR discussion notes "
-             "and award emoji.",
+        "reactions and replies; GitLab reads MR discussion notes "
+        "and award emoji.",
     )
     p_harvest.add_argument(
         "--platform-base-url",
         default=env_str("PRTHINKER_PLATFORM_BASE_URL"),
         help="Override for self-hosted instances. GitLab pipelines fall "
-             "back to $CI_API_V4_URL automatically.",
+        "back to $CI_API_V4_URL automatically.",
     )
     p_harvest.add_argument(
         "--repo",
@@ -410,6 +426,10 @@ def _add_harvest_common_args(p_harvest: argparse.ArgumentParser) -> None:
         "--max-prs",
         type=int,
         default=50,
+    )
+    p_harvest.add_argument(
+        "--calibration-store", default="",
+        help="Also append deduplicated aggregate feedback events to this SQLite store",
     )
 
 
@@ -441,7 +461,7 @@ def add_report_parser(sub) -> None:
     p_report = sub.add_parser(
         "report",
         help="Cross-store longitudinal report — telemetry + cache + "
-             "dismissed + accepted. Renders to markdown / HTML / JSON.",
+        "dismissed + accepted. Renders to markdown / HTML / JSON.",
     )
     p_report.add_argument(
         "--since-days",
@@ -463,26 +483,30 @@ def add_report_parser(sub) -> None:
     p_report.add_argument(
         "--telemetry-path",
         type=Path,
-        default=Path(env_str("PRTHINKER_TELEMETRY_PATH", _TELEMETRY_DEFAULT)
-                     or _TELEMETRY_DEFAULT),
+        default=Path(
+            env_str("PRTHINKER_TELEMETRY_PATH", _TELEMETRY_DEFAULT)
+            or _TELEMETRY_DEFAULT
+        ),
     )
     p_report.add_argument(
         "--cache-path",
         type=Path,
-        default=Path(env_str("PRTHINKER_CACHE_PATH", _CACHE_DEFAULT)
-                     or _CACHE_DEFAULT),
+        default=Path(env_str("PRTHINKER_CACHE_PATH", _CACHE_DEFAULT) or _CACHE_DEFAULT),
     )
     p_report.add_argument(
         "--dismissed-path",
         type=Path,
-        default=Path(env_str("PRTHINKER_DISMISSED_PATH", _DISMISSED_DEFAULT)
-                     or _DISMISSED_DEFAULT),
+        default=Path(
+            env_str("PRTHINKER_DISMISSED_PATH", _DISMISSED_DEFAULT)
+            or _DISMISSED_DEFAULT
+        ),
     )
     p_report.add_argument(
         "--accepted-path",
         type=Path,
-        default=Path(env_str("PRTHINKER_ACCEPTED_PATH", _ACCEPTED_DEFAULT)
-                     or _ACCEPTED_DEFAULT),
+        default=Path(
+            env_str("PRTHINKER_ACCEPTED_PATH", _ACCEPTED_DEFAULT) or _ACCEPTED_DEFAULT
+        ),
     )
 
 
@@ -492,9 +516,9 @@ def add_adversarial_parser(sub, common: argparse.ArgumentParser) -> None:
         "adversarial-eval",
         parents=[common],
         help="Run a corpus of attack diffs through the configured backend "
-             "and record per-case bypass outcomes into SQLite. Does NOT "
-             "emit aggregate detection-rate numbers — compute those from "
-             "the raw output table.",
+        "and record per-case bypass outcomes into SQLite. Does NOT "
+        "emit aggregate detection-rate numbers — compute those from "
+        "the raw output table.",
     )
     p_adv.add_argument(
         "--corpus",
@@ -505,9 +529,12 @@ def add_adversarial_parser(sub, common: argparse.ArgumentParser) -> None:
     p_adv.add_argument(
         "--outcomes-path",
         type=Path,
-        default=Path(env_str("PRTHINKER_ADV_OUTCOMES_PATH",
-                              ".prthinker/adversarial-outcomes.sqlite") or
-                     ".prthinker/adversarial-outcomes.sqlite"),
+        default=Path(
+            env_str(
+                "PRTHINKER_ADV_OUTCOMES_PATH", ".prthinker/adversarial-outcomes.sqlite"
+            )
+            or ".prthinker/adversarial-outcomes.sqlite"
+        ),
     )
 
 
@@ -522,8 +549,8 @@ def _add_build_kg_parser(sub) -> None:
     p_build_kg = sub.add_parser(
         "build-kg",
         help="Walk the repo and persist a {symbol: file:line} table to "
-             "SQLite. Run once per repo (or when symbol surface drifts) "
-             "before using --kg-ground on review-pr / review-file.",
+        "SQLite. Run once per repo (or when symbol surface drifts) "
+        "before using --kg-ground on review-pr / review-file.",
     )
     p_build_kg.add_argument(
         "--workdir",
@@ -533,9 +560,9 @@ def _add_build_kg_parser(sub) -> None:
     p_build_kg.add_argument(
         "--kg-store",
         type=Path,
-        default=Path(env_str("PRTHINKER_KG_STORE",
-                              _KG_STORE_DEFAULT) or
-                     _KG_STORE_DEFAULT),
+        default=Path(
+            env_str("PRTHINKER_KG_STORE", _KG_STORE_DEFAULT) or _KG_STORE_DEFAULT
+        ),
     )
 
 
@@ -544,8 +571,8 @@ def _add_visualize_kg_parser(sub) -> None:
     p_viz_kg = sub.add_parser(
         "visualize-kg",
         help="Render the per-repo knowledge graph as a self-contained "
-             "D3 force-directed HTML page. Opens in any browser; no "
-             "server. Run `build-kg` first if the store is empty.",
+        "D3 force-directed HTML page. Opens in any browser; no "
+        "server. Run `build-kg` first if the store is empty.",
     )
     p_viz_kg.add_argument(
         "--workdir",
@@ -555,30 +582,31 @@ def _add_visualize_kg_parser(sub) -> None:
     p_viz_kg.add_argument(
         "--kg-store",
         type=Path,
-        default=Path(env_str("PRTHINKER_KG_STORE",
-                              _KG_STORE_DEFAULT) or
-                     _KG_STORE_DEFAULT),
+        default=Path(
+            env_str("PRTHINKER_KG_STORE", _KG_STORE_DEFAULT) or _KG_STORE_DEFAULT
+        ),
     )
     p_viz_kg.add_argument(
         "--output",
         type=Path,
-        default=Path(env_str("PRTHINKER_KG_HTML",
-                              ".prthinker/repo-kg.html") or
-                     ".prthinker/repo-kg.html"),
+        default=Path(
+            env_str("PRTHINKER_KG_HTML", ".prthinker/repo-kg.html")
+            or ".prthinker/repo-kg.html"
+        ),
     )
     p_viz_kg.add_argument(
         "--name",
         default=env_str("PRTHINKER_KG_NAME", "") or "",
         help="Per-repo label. When set, the page is written to "
-             "repo-kg-<name>.html next to --output, so one server can host "
-             "many repos' graphs (nginx routes /kg/<name>/ to each).",
+        "repo-kg-<name>.html next to --output, so one server can host "
+        "many repos' graphs (nginx routes /kg/<name>/ to each).",
     )
     p_viz_kg.add_argument(
         "--auto-build",
         action="store_true",
         default=env_bool("PRTHINKER_KG_AUTO_BUILD", False),
         help="If the store is empty, run build-kg first instead of "
-             "exiting with an error.",
+        "exiting with an error.",
     )
 
 
@@ -588,15 +616,16 @@ def add_discover_rules_parser(sub, common: argparse.ArgumentParser) -> None:
         "discover-rules",
         parents=[common],
         help="Cluster persisted finding fingerprints across PRs and "
-             "print the families that recur ≥ N times. Use to identify "
-             "candidate rules for --rules-dir.",
+        "print the families that recur ≥ N times. Use to identify "
+        "candidate rules for --rules-dir.",
     )
     p_discover.add_argument(
         "--cluster-store",
         type=Path,
-        default=Path(env_str("PRTHINKER_CLUSTER_STORE",
-                              ".prthinker/findings-index.sqlite") or
-                     ".prthinker/findings-index.sqlite"),
+        default=Path(
+            env_str("PRTHINKER_CLUSTER_STORE", ".prthinker/findings-index.sqlite")
+            or ".prthinker/findings-index.sqlite"
+        ),
     )
     p_discover.add_argument(
         "--similarity-threshold",
@@ -621,29 +650,31 @@ def add_derive_lessons_parser(sub, common: argparse.ArgumentParser) -> None:
         "derive-lessons",
         parents=[common],
         help="Batch recent dismissed + accepted examples and ask the "
-             "model to distil general review rules; append to "
-             "lessons.jsonl. Run weekly via cron or GHA schedule.",
+        "model to distil general review rules; append to "
+        "lessons.jsonl. Run weekly via cron or GHA schedule.",
     )
     p_lessons.add_argument(
         "--dismissed-path",
         type=Path,
-        default=Path(env_str("PRTHINKER_DISMISSED_PATH",
-                              _DISMISSED_DEFAULT) or
-                     _DISMISSED_DEFAULT),
+        default=Path(
+            env_str("PRTHINKER_DISMISSED_PATH", _DISMISSED_DEFAULT)
+            or _DISMISSED_DEFAULT
+        ),
     )
     p_lessons.add_argument(
         "--accepted-path",
         type=Path,
-        default=Path(env_str("PRTHINKER_ACCEPTED_PATH",
-                              _ACCEPTED_DEFAULT) or
-                     _ACCEPTED_DEFAULT),
+        default=Path(
+            env_str("PRTHINKER_ACCEPTED_PATH", _ACCEPTED_DEFAULT) or _ACCEPTED_DEFAULT
+        ),
     )
     p_lessons.add_argument(
         "--lessons-path",
         type=Path,
-        default=Path(env_str("PRTHINKER_LESSONS_PATH",
-                              ".prthinker/lessons.jsonl") or
-                     ".prthinker/lessons.jsonl"),
+        default=Path(
+            env_str("PRTHINKER_LESSONS_PATH", ".prthinker/lessons.jsonl")
+            or ".prthinker/lessons.jsonl"
+        ),
     )
     p_lessons.add_argument(
         "--lookback-recent",
@@ -664,19 +695,18 @@ def add_hook_parser(sub, common: argparse.ArgumentParser) -> None:
         "hook",
         parents=[common],
         help="Read `git diff --cached`, run the pipeline, exit non-zero "
-             "on error-severity findings. Intended as a pre-commit hook.",
+        "on error-severity findings. Intended as a pre-commit hook.",
     )
     p_hook.add_argument(
         "--advisory",
         action="store_true",
         default=env_bool("PRTHINKER_HOOK_ADVISORY", False),
         help="Always exit 0; print findings to stderr but never block the "
-             "commit. Useful as a soft introduction.",
+        "commit. Useful as a soft introduction.",
     )
     p_hook.add_argument(
         "--block-on",
         choices=["none", "warning", "error"],
         default=env_str("PRTHINKER_HOOK_BLOCK_ON", "error"),
-        help="Severity floor that blocks the commit. Ignored when "
-             "--advisory is set.",
+        help="Severity floor that blocks the commit. Ignored when --advisory is set.",
     )

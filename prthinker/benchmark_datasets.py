@@ -40,23 +40,57 @@ def _rows(path: Path) -> Iterable[dict[str, Any]]:
     yield from payload
 
 
+def _context_ids(value: Any) -> list[str]:
+    """Normalize ContextBench's serialized context records to file/symbol IDs."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return [value] if value else []
+    if not isinstance(value, list):
+        return []
+    result: list[str] = []
+    for item in value:
+        identifier = item.get("file") or item.get("symbol") if isinstance(item, dict) else item
+        if identifier and str(identifier) not in result:
+            result.append(str(identifier))
+    return result
+
+
 def canonicalize(row: dict[str, Any], *, index: int, dataset: str) -> dict[str, Any]:
-    """Convert common CodeFuse-CR-Bench/SWE-PRBench exports to one schema."""
+    """Convert supported public code-review datasets to one schema."""
     case_id = str(_first(row, ("case_id", "instance_id", "id", "pr_id"), index))
     repository = str(_first(row, ("repository", "repo", "repo_name", "project")))
     issue = str(_first(row, ("issue.body", "issue", "issue_text", "description")))
     title = str(_first(row, ("title", "pr_title", "issue.title")))
     diff = str(_first(row, ("diff", "patch", "pr_diff", "code_change")))
-    if not diff:
-        raise ValueError(f"case {case_id!r} has no diff/patch field")
-    prompt = (
-        "Review the pull-request change below. Report only actionable findings "
-        "introduced by the change, with file and line evidence.\n\n"
-        f"Repository: {repository or 'unknown'}\n"
-        f"Title: {title or 'unknown'}\n"
-        f"Issue context:\n{issue or 'not provided'}\n\n"
-        f"Pull-request diff:\n{diff}"
+    task = str(
+        _first(
+            row,
+            ("task", "question", "query", "review_question", "problem_statement"),
+        )
     )
+    choices = _first(row, ("choices", "options", "answers"), [])
+    answer = _first(row, ("answer", "label", "correct_answer"), None)
+    gold_context = _first(
+        row, ("gold_context", "gold_contexts", "relevant_context", "gold_files"), []
+    )
+    retrieval_dataset = dataset in {"contextbench", "core-bench"}
+    if retrieval_dataset:
+        gold_context = _context_ids(gold_context)
+    if not diff and not (retrieval_dataset and task):
+        raise ValueError(f"case {case_id!r} has no diff/patch field")
+    if dataset == "codereviewqa":
+        prompt = f"Answer this code-review comprehension question with only the selected choice identifier.\n\n{task}\n\nChoices:\n{json.dumps(choices, ensure_ascii=False)}\n\nChange:\n{diff}"
+    elif retrieval_dataset:
+        prompt = f"Locate the minimal repository context needed to address this task. Return JSON with a retrieved array of file or symbol IDs.\n\nRepository: {repository}\nTask: {task}"
+    else:
+        prompt = (
+            "Review the pull-request change below. Report only actionable findings "
+            "introduced by the change, with file and line evidence.\n\n"
+            f"Repository: {repository or 'unknown'}\nTitle: {title or 'unknown'}\n"
+            f"Issue context:\n{issue or 'not provided'}\n\nPull-request diff:\n{diff}"
+        )
     ground_truth = _first(
         row,
         ("ground_truth", "review_comments", "human_comments", "comments", "labels"),
@@ -70,6 +104,9 @@ def canonicalize(row: dict[str, Any], *, index: int, dataset: str) -> dict[str, 
             "source_case_id": case_id,
             "repository": repository,
             "ground_truth": ground_truth,
+            "answer": answer,
+            "gold_context": gold_context,
+            "task": task,
         },
     }
 
@@ -94,7 +131,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--dataset",
         required=True,
-        choices=("codefuse-cr-bench", "swe-prbench"),
+        choices=(
+            "codefuse-cr-bench",
+            "swe-prbench",
+            "contextcrbench",
+            "swrbench",
+            "c-crab",
+            "codereviewqa",
+            "contextbench",
+            "core-bench",
+        ),
     )
     args = parser.parse_args(argv)
     count = convert_dataset(args.source, args.target, dataset=args.dataset)

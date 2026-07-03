@@ -12,8 +12,8 @@ def _imp(from_file: str, target: str) -> Import:
 
 def test_impacted_files_finds_downstream_importers():
     imports = [
-        _imp("app/main.py", "pkg.core"),       # imports changed module → impacted
-        _imp("app/util.py", "pkg.core"),       # impacted
+        _imp("app/main.py", "pkg.core"),  # imports changed module → impacted
+        _imp("app/util.py", "pkg.core"),  # impacted
         _imp("app/other.py", "pkg.unrelated"),  # unrelated
     ]
     out = impact_map.impacted_files(imports, ["pkg/core.py"])
@@ -36,6 +36,11 @@ def test_impacted_matches_bare_module_and_relative():
 
 def test_impacted_empty_when_no_match():
     assert impact_map.impacted_files([_imp("a.py", "z")], ["pkg/core.py"]) == []
+
+
+def test_generic_polyglot_import_target():
+    imports = [Import("src/Api.java", "pkg.Core", "generic")]
+    assert impact_map.impacted_files(imports, ["pkg/Core.java"]) == ["src/Api.java"]
 
 
 def test_format_impact_note_caps_and_counts():

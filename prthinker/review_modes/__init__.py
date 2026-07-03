@@ -28,9 +28,11 @@ from prthinker.review_modes._registry import (
 # Built-in mode modules imported for their @register_mode side-effects.
 from prthinker.review_modes import (  # noqa: F401  - registration side-effects
     accessibility,
+    ai_generated,
     db_migration,
     iac,
     performance,
+    refactoring,
     pii,
     secret_scan,
     security,

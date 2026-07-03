@@ -18,7 +18,7 @@ from typing import Iterator
 
 import httpx
 
-from prthinker.backends.base import InferenceBackend, Usage
+from prthinker.backends.base import InferenceBackend, Usage, ThreadLocalUsage
 
 DEFAULT_BASE_URL = "https://api.cohere.com"
 _CHAT_PATH = "/v2/chat"
@@ -28,6 +28,7 @@ _MAX_PROMPT_CHARS = 1_000_000
 
 
 class CohereBackend(InferenceBackend):
+    concurrency_limit = 4
     """Strategy backend for the Cohere Chat API v2."""
 
     def __init__(
@@ -45,7 +46,7 @@ class CohereBackend(InferenceBackend):
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
         self._model = model
-        self._last_usage: Usage | None = None
+        self._usage = ThreadLocalUsage()
         # ``_client`` is the injection seam: tests replace it with an
         # ``httpx.Client`` bound to a scripted ``MockTransport``.
         self._client = httpx.Client(
@@ -64,16 +65,12 @@ class CohereBackend(InferenceBackend):
         return self._model
 
     def last_usage(self) -> Usage | None:
-        return self._last_usage
+        return self._usage.get()
 
-    def _build_payload(
-        self, prompt: str, max_new_tokens: int, *, stream: bool
-    ) -> dict:
+    def _build_payload(self, prompt: str, max_new_tokens: int, *, stream: bool) -> dict:
         """Assemble a ``/v2/chat`` request body."""
         if len(prompt) > _MAX_PROMPT_CHARS:
-            raise ValueError(
-                f"prompt exceeds {_MAX_PROMPT_CHARS} chars: {len(prompt)}"
-            )
+            raise ValueError(f"prompt exceeds {_MAX_PROMPT_CHARS} chars: {len(prompt)}")
         if max_new_tokens <= 0:
             raise ValueError("max_new_tokens must be positive")
         return {
@@ -92,7 +89,7 @@ class CohereBackend(InferenceBackend):
     ) -> str:
         # Remote network call; mid-stream cancellation not implemented.
         del cancel_event
-        self._last_usage = None
+        self._usage.set(None)
         payload = self._build_payload(prompt, max_new_tokens, stream=False)
         response = self._client.post(_CHAT_PATH, json=payload)
         response.raise_for_status()
@@ -102,23 +99,19 @@ class CohereBackend(InferenceBackend):
             chunks = [b["text"] for b in blocks if b.get("type", "text") == "text"]
             text = "".join(chunks)
         except (KeyError, IndexError, TypeError) as exc:
-            raise RuntimeError(
-                f"Unexpected Cohere response shape: {body!r}"
-            ) from exc
+            raise RuntimeError(f"Unexpected Cohere response shape: {body!r}") from exc
 
         self._capture_usage(body.get("usage"))
         return text
 
-    def stream_generate(
-        self, prompt: str, max_new_tokens: int
-    ) -> Iterator[str]:
+    def stream_generate(self, prompt: str, max_new_tokens: int) -> Iterator[str]:
         """Native SSE streaming via ``stream: true``.
 
         Cohere emits ``content-delta`` events carrying
         ``delta.message.content.text`` deltas, terminated by ``message-end``
         which carries the final ``usage`` block for ``last_usage``.
         """
-        self._last_usage = None
+        self._usage.set(None)
         payload = self._build_payload(prompt, max_new_tokens, stream=True)
         with self._client.stream("POST", _CHAT_PATH, json=payload) as response:
             response.raise_for_status()
@@ -168,10 +161,10 @@ class CohereBackend(InferenceBackend):
         input_tokens = tokens.get("input_tokens")
         output_tokens = tokens.get("output_tokens")
         if input_tokens is not None and output_tokens is not None:
-            self._last_usage = Usage(
+            self._usage.set(Usage(
                 prompt_tokens=int(input_tokens),
                 completion_tokens=int(output_tokens),
-            )
+            ))
 
     def close(self) -> None:
         self._client.close()

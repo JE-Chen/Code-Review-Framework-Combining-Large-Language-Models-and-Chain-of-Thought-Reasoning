@@ -44,6 +44,9 @@ from prthinker.schemas import (
     JobStatus,
     RagRequest,
     RagResponse,
+    RetrievalEvalRequest,
+    RetrievalEvalResponse,
+    ReviewAttestationRequest,
     ReviewJobStatusResponse,
     ReviewJobSubmitResponse,
     ReviewRequest,
@@ -171,6 +174,30 @@ def rag(req: RagRequest) -> RagResponse:
     retriever = FaissRAGRetriever(threshold=req.threshold)
     docs = retriever.retrieve(req.query)
     return RagResponse(docs=docs)
+
+
+@app.post("/evaluation/retrieval", response_model=RetrievalEvalResponse)
+def evaluate_retrieval(req: RetrievalEvalRequest) -> RetrievalEvalResponse:
+    from dataclasses import asdict
+    from prthinker.retrieval_eval import evaluate
+
+    return RetrievalEvalResponse(**asdict(evaluate(
+        req.retrieved, req.expected, req.used, req.cited_correct
+    )))
+
+
+@app.post("/attestation/review")
+def make_review_attestation(req: ReviewAttestationRequest) -> dict:
+    from prthinker.supply_chain import review_attestation
+
+    return review_attestation(
+        repository=req.repository,
+        revision=req.revision,
+        base_revision=req.base_revision,
+        policy_digest=req.policy_digest,
+        review_digest=req.review_digest,
+        controls=("automated-review", "evidence-verification"),
+    )
 
 
 # Cap the diff sent to the pipeline so KV cache + activations stay

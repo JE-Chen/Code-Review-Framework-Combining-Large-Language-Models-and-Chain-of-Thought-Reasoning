@@ -304,6 +304,28 @@ def scan_workdir_full(
         file_syms, file_imps = scanner(file, rel)
         syms.extend(file_syms)
         imps.extend(file_imps)
+    # Optional Tree-sitter augmentation covers Java/Go/Rust/C/C++/C#/Kotlin
+    # and other language-pack grammars while preserving the lightweight base.
+    try:
+        from prthinker.context_graph import scan_import_edges, scan_workdir as scan_context
+
+        existing = {(s.file_path, s.kind, s.symbol, s.line) for s in syms}
+        for node in scan_context(workdir):
+            kind = "class" if "class" in node.kind else (
+                "method" if "method" in node.kind else "function"
+            )
+            key = (node.path, kind, node.name, node.start_line)
+            if node.name and key not in existing:
+                syms.append(Symbol(node.name, kind, node.path, node.start_line))
+                existing.add(key)
+        known_imports = {(i.from_file, i.target, i.kind) for i in imps}
+        for source, target in scan_import_edges(workdir):
+            key = (source, target, "generic")
+            if key not in known_imports:
+                imps.append(Import(source, target, "generic"))
+                known_imports.add(key)
+    except ImportError:
+        pass
     return syms, imps
 
 

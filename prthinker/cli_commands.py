@@ -157,9 +157,7 @@ def _maybe_write_report_dir(args: argparse.Namespace, result: ReviewResult) -> N
     log.info("Wrote %d reports to %s", len(written), out)
 
 
-def _maybe_emit_gha_annotations(
-    args: argparse.Namespace, result: ReviewResult
-) -> None:
+def _maybe_emit_gha_annotations(args: argparse.Namespace, result: ReviewResult) -> None:
     """Emit GitHub Actions inline annotations on stdout when requested."""
     if getattr(args, "gha_annotations", False):
         print_gha_annotations(result)
@@ -188,8 +186,7 @@ def _missing_review_files(
         return ([], 0)
     patterns = _exclude_glob_patterns(args)
     expected = {
-        p for p in paths
-        if not any(fnmatch.fnmatch(p, pat) for pat in patterns)
+        p for p in paths if not any(fnmatch.fnmatch(p, pat) for pat in patterns)
     }
     covered = {fr.path for fr in merged.per_file}
     return (sorted(expected - covered), len(expected))
@@ -210,7 +207,9 @@ def _withhold_partial_review(
     reviewed = expected - len(missing)
     log.info(
         "Partial review (%d/%d files); withholding full report (%d missing)",
-        reviewed, expected, len(missing),
+        reviewed,
+        expected,
+        len(missing),
     )
     if args.dry_run:
         return True
@@ -301,13 +300,15 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
 
     _agg_delta, _agg_resolved = _review_progress(args, adapter, merged)
     pages = format_pr_comment_pages(
-        merged, args.marker,
+        merged,
+        args.marker,
         CommentOptions(
             findings_only=getattr(args, "findings_only", False),
             hide_info=getattr(args, "hide_info", False),
             preliminary=_join_overview(
                 _build_preliminary_overview(args, adapter, merged),
-                _impact_note(args, merged), _agg_resolved,
+                _impact_note(args, merged),
+                _agg_resolved,
             ),
             files_url=_pr_files_url(args),
             delta=_agg_delta,
@@ -373,13 +374,9 @@ def _require_harvest_args(args: argparse.Namespace) -> None:
     if args.platform not in ("github", "gitlab"):
         raise SystemExit(f"harvesting is not supported on {args.platform!r}")
     if not args.repo:
-        raise SystemExit(
-            "--repo or $GITHUB_REPOSITORY / $CI_PROJECT_PATH is required"
-        )
+        raise SystemExit("--repo or $GITHUB_REPOSITORY / $CI_PROJECT_PATH is required")
     if not args.github_token:
-        raise SystemExit(
-            "--github-token or $GITHUB_TOKEN / $GITLAB_TOKEN is required"
-        )
+        raise SystemExit("--github-token or $GITHUB_TOKEN / $GITLAB_TOKEN is required")
 
 
 def _gitlab_harvest_base_url(args: argparse.Namespace) -> str:
@@ -412,6 +409,7 @@ def _cmd_harvest(args: argparse.Namespace) -> int:
             pr_number=args.pr_number,
             max_prs=args.max_prs,
         )
+    _record_harvest_calibration(args, stats.dismissed_found, accepted=False)
     sys.stdout.write(
         f"PRs scanned: {stats.prs_scanned}\n"
         f"Comments scanned: {stats.comments_scanned}\n"
@@ -419,6 +417,7 @@ def _cmd_harvest(args: argparse.Namespace) -> int:
         f"Store: {args.out}\n"
     )
     return 0
+
 
 def _cmd_harvest_accepted(args: argparse.Namespace) -> int:
     _require_harvest_args(args)
@@ -441,6 +440,7 @@ def _cmd_harvest_accepted(args: argparse.Namespace) -> int:
             pr_number=args.pr_number,
             max_prs=args.max_prs,
         )
+    _record_harvest_calibration(args, stats.accepted_found, accepted=True)
     sys.stdout.write(
         f"PRs scanned: {stats.prs_scanned}\n"
         f"Comments scanned: {stats.comments_scanned}\n"
@@ -448,6 +448,28 @@ def _cmd_harvest_accepted(args: argparse.Namespace) -> int:
         f"Store: {args.out}\n"
     )
     return 0
+
+
+def _record_harvest_calibration(
+    args: argparse.Namespace, count: int, *, accepted: bool
+) -> None:
+    path = (getattr(args, "calibration_store", "") or "").strip()
+    if not path or count <= 0:
+        return
+    from prthinker.calibration import CalibrationStore
+
+    store = CalibrationStore(path)
+    scope = str(getattr(args, "pr_number", None) or "recent")
+    outcome = "accepted" if accepted else "dismissed"
+    for index in range(count):
+        store.record(
+            args.repo,
+            "",
+            "",
+            accepted,
+            event_id=f"harvest:{args.repo}:{scope}:{outcome}:{index}",
+        )
+
 
 def _cmd_adversarial_eval(args: argparse.Namespace) -> int:
     from prthinker.adversarial_eval import run_eval
@@ -471,6 +493,7 @@ def _cmd_adversarial_eval(args: argparse.Namespace) -> int:
     )
     return 0
 
+
 def _cmd_build_kg(args: argparse.Namespace) -> int:
     """Scan workdir + persist symbols (with import edges) to SQLite."""
     workdir = args.workdir.resolve()
@@ -480,10 +503,10 @@ def _cmd_build_kg(args: argparse.Namespace) -> int:
     store = KnowledgeGraphStore(args.kg_store)
     n = store.rebuild(workdir, symbols, imports)
     sys.stdout.write(
-        f"build-kg: extracted {n} symbol(s) from {workdir} "
-        f"into {args.kg_store}.\n"
+        f"build-kg: extracted {n} symbol(s) from {workdir} into {args.kg_store}.\n"
     )
     return 0
+
 
 def _kg_html_path(output: Path, name: str) -> Path:
     """Resolve the KG page path. With a repo ``name`` the page is written
@@ -497,6 +520,7 @@ def _kg_html_path(output: Path, name: str) -> Path:
         return output
     slug = re.sub(r"[^A-Za-z0-9._-]", "-", name).strip("-.") or "repo"
     return output.parent / f"repo-kg-{slug}.html"
+
 
 def _cmd_visualize_kg(args: argparse.Namespace) -> int:
     """Render the KG SQLite as a self-contained D3 force-graph HTML page."""
@@ -530,10 +554,12 @@ def _cmd_visualize_kg(args: argparse.Namespace) -> int:
     )
     return 0
 
+
 def _cmd_discover_rules(args: argparse.Namespace) -> int:
     """List finding clusters above the configured size threshold."""
     from prthinker.finding_clusters import (
-        FindingClusterStore, greedy_cluster,
+        FindingClusterStore,
+        greedy_cluster,
     )
 
     store = FindingClusterStore(args.cluster_store)
@@ -563,6 +589,7 @@ def _cmd_discover_rules(args: argparse.Namespace) -> int:
         )
     return 0
 
+
 def _cmd_derive_lessons(args: argparse.Namespace) -> int:
     """Batch dismissed + accepted, call backend, append to lessons.jsonl."""
     from prthinker.lessons import LessonsStore, derive_lessons
@@ -577,12 +604,17 @@ def _cmd_derive_lessons(args: argparse.Namespace) -> int:
         )
         return 0
 
-    dismissed_recent = list(dismissed_store)[-args.lookback_recent:]
-    accepted_recent = list(accepted_store)[-args.lookback_recent:]
-    source_prs = tuple(sorted({
-        getattr(ex, "pr_number", 0) for ex in accepted_recent
-        if getattr(ex, "pr_number", 0)
-    }))
+    dismissed_recent = list(dismissed_store)[-args.lookback_recent :]
+    accepted_recent = list(accepted_store)[-args.lookback_recent :]
+    source_prs = tuple(
+        sorted(
+            {
+                getattr(ex, "pr_number", 0)
+                for ex in accepted_recent
+                if getattr(ex, "pr_number", 0)
+            }
+        )
+    )
 
     config = _build_config(args)
     backend = create_backend(config)
@@ -605,6 +637,7 @@ def _cmd_derive_lessons(args: argparse.Namespace) -> int:
     )
     return 0
 
+
 def _cmd_report(args: argparse.Namespace) -> int:
     from prthinker.report import (
         ReportInputs,
@@ -619,8 +652,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
         dismissed_path=args.dismissed_path,
         accepted_path=args.accepted_path,
         since_seconds=(
-            None if args.since_days is None
-            else float(args.since_days) * 86400.0
+            None if args.since_days is None else float(args.since_days) * 86400.0
         ),
     )
     renderer = {
@@ -638,6 +670,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
         sys.stdout.write(body)
     return 0
 
+
 def _read_staged_diff(advisory: bool) -> tuple[str | None, int]:
     """Return staged diff text, or ``(None, exit_code)`` when git fails."""
     import subprocess
@@ -645,7 +678,10 @@ def _read_staged_diff(advisory: bool) -> tuple[str | None, int]:
     try:
         proc = subprocess.run(
             ["git", "diff", "--cached"],
-            capture_output=True, text=True, check=True, encoding="utf-8",
+            capture_output=True,
+            text=True,
+            check=True,
+            encoding="utf-8",
         )
     except FileNotFoundError:
         sys.stderr.write("prthinker hook: `git` not found in PATH\n")
@@ -714,6 +750,7 @@ def _cmd_hook(args: argparse.Namespace) -> int:
     )
     return 1
 
+
 def _cmd_review_commits(args: argparse.Namespace) -> int:
     """Review commit-message quality for messages read from stdin (one per line)."""
     messages = [line.strip() for line in sys.stdin if line.strip()]
@@ -723,7 +760,8 @@ def _cmd_review_commits(args: argparse.Namespace) -> int:
     config = _build_config(args)
     backend = create_backend(config)
     raw = backend.generate(
-        build_prompt(messages), max_new_tokens=config.max_new_tokens,
+        build_prompt(messages),
+        max_new_tokens=config.max_new_tokens,
     )
     notes = parse_review(raw)
     if not notes:
@@ -754,8 +792,7 @@ def _cmd_stats(args: argparse.Namespace) -> int:
         return 0
 
     range_label = (
-        "all-time" if args.since_days is None
-        else f"last {args.since_days:g} day(s)"
+        "all-time" if args.since_days is None else f"last {args.since_days:g} day(s)"
     )
     sys.stdout.write(f"# prthinker stats — {range_label}\n\n")
 
@@ -766,11 +803,19 @@ def _cmd_stats(args: argparse.Namespace) -> int:
 
 def _write_stats_table(stats: list[BackendStats]) -> None:
     """Write the per-backend table plus the aggregate totals footer."""
-    sys.stdout.write(_STATS_ROW_FMT.format(
-        backend="backend", model="model", calls="calls", hits="hits",
-        ptok="in-tok", ctok="out-tok", cost="USD",
-        p50="p50 ms", p95="p95 ms",
-    ))
+    sys.stdout.write(
+        _STATS_ROW_FMT.format(
+            backend="backend",
+            model="model",
+            calls="calls",
+            hits="hits",
+            ptok="in-tok",
+            ctok="out-tok",
+            cost="USD",
+            p50="p50 ms",
+            p95="p95 ms",
+        )
+    )
     sys.stdout.write(_STATS_RULE)
     total_cost = 0.0
     total_calls = 0
@@ -791,17 +836,19 @@ def _write_stats_table(stats: list[BackendStats]) -> None:
 def _write_stats_row(s: BackendStats) -> None:
     """Write a single backend statistics row, truncating long model names."""
     model = (s.model[:33] + "..") if len(s.model) > _STATS_MODEL_CAP else s.model
-    sys.stdout.write(_STATS_ROW_FMT.format(
-        backend=s.backend,
-        model=model,
-        calls=s.calls,
-        hits=s.cache_hits,
-        ptok=s.prompt_tokens,
-        ctok=s.completion_tokens,
-        cost=f"${s.cost_usd:.4f}",
-        p50=f"{s.latency_p50_ms:.0f}",
-        p95=f"{s.latency_p95_ms:.0f}",
-    ))
+    sys.stdout.write(
+        _STATS_ROW_FMT.format(
+            backend=s.backend,
+            model=model,
+            calls=s.calls,
+            hits=s.cache_hits,
+            ptok=s.prompt_tokens,
+            ctok=s.completion_tokens,
+            cost=f"${s.cost_usd:.4f}",
+            p50=f"{s.latency_p50_ms:.0f}",
+            p95=f"{s.latency_p95_ms:.0f}",
+        )
+    )
 
 
 def _write_cache_summary(cache_path: Path) -> None:
@@ -817,8 +864,10 @@ def _write_cache_summary(cache_path: Path) -> None:
         f"{cstats.total_hits} lifetime hits at {cache_path}\n"
     )
 
+
 def _cmd_mcp(_args: argparse.Namespace) -> int:
     # Lazy import: the MCP server is an optional integration; keep it off the
     # import path of every other command.
     from prthinker.mcp_server import run as run_mcp  # noqa: PLC0415
+
     return run_mcp()

@@ -112,6 +112,20 @@ def _postprocess_findings(args: argparse.Namespace, result: ReviewResult) -> Non
     if getattr(args, "dedupe_findings", False):
         result.inline_findings = dedupe_findings(result.inline_findings)
     min_conf = float(getattr(args, "min_confidence", 0.0) or 0.0)
+    calibration_path = (getattr(args, "calibration_store", "") or "").strip()
+    if min_conf <= 0 and calibration_path:
+        from prthinker.calibration import CalibrationStore
+
+        calibration = CalibrationStore(calibration_path).hierarchical(
+            getattr(args, "repo", "") or "",
+            getattr(args, "calibration_author", "") or "",
+            getattr(args, "calibration_category", "") or "",
+            half_life_days=float(getattr(args, "calibration_half_life_days", 90)),
+        )
+        if calibration.accepted + calibration.dismissed + 1e-6 >= int(
+            getattr(args, "calibration_min_samples", 10)
+        ):
+            min_conf = calibration.threshold(0.5)
     if min_conf > 0:
         result.inline_findings = filter_by_confidence(result.inline_findings, min_conf)
 

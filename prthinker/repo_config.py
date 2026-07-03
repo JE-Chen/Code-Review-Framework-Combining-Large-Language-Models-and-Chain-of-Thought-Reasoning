@@ -71,6 +71,15 @@ class _TelemetrySection(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class _CalibrationSection(BaseModel):
+    path: str | None = None
+    author: str = ""
+    category: str = ""
+    minimum_samples: int = Field(default=10, ge=1)
+    half_life_days: float = Field(default=90, gt=0)
+    model_config = ConfigDict(extra="forbid")
+
+
 class _StoresSection(BaseModel):
     dismissed: str | None = None
     accepted: str | None = None
@@ -117,12 +126,14 @@ class RepoConfig(BaseModel):
     per_file: bool = False
     inline_review: bool = False
     max_findings_per_file: int = 10
+    parallelism: int = Field(default=1, ge=1, le=64)
 
     rag: _RagSection = Field(default_factory=_RagSection)
     gate: _GateSection = Field(default_factory=_GateSection)
     ci_signals: _CISignalsSection = Field(default_factory=_CISignalsSection)
     cache: _CacheSection = Field(default_factory=_CacheSection)
     telemetry: _TelemetrySection = Field(default_factory=_TelemetrySection)
+    calibration: _CalibrationSection = Field(default_factory=_CalibrationSection)
     stores: _StoresSection = Field(default_factory=_StoresSection)
 
     local: _LocalSection = Field(default_factory=_LocalSection)
@@ -174,6 +185,7 @@ def to_argparse_defaults(cfg: RepoConfig) -> dict[str, Any]:
         "per_file": cfg.per_file,
         "inline_review": cfg.inline_review,
         "max_findings_per_file": cfg.max_findings_per_file,
+        "parallelism": cfg.parallelism,
         "no_rag": not cfg.rag.enabled,
         "rag_threshold": cfg.rag.threshold,
         "remote_rag": cfg.rag.remote,
@@ -186,6 +198,11 @@ def to_argparse_defaults(cfg: RepoConfig) -> dict[str, Any]:
         "cache_ttl_days": cfg.cache.ttl_days,
         "telemetry_enabled": cfg.telemetry.enabled,
         "telemetry_path": cfg.telemetry.path,
+        "calibration_store": cfg.calibration.path,
+        "calibration_author": cfg.calibration.author,
+        "calibration_category": cfg.calibration.category,
+        "calibration_min_samples": cfg.calibration.minimum_samples,
+        "calibration_half_life_days": cfg.calibration.half_life_days,
         "model_name": cfg.local.model,
         "lora_path": cfg.local.lora_path,
         "openai_model": cfg.openai.model,

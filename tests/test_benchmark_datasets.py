@@ -44,3 +44,35 @@ def test_convert_jsonl(tmp_path: Path) -> None:
 def test_missing_diff_is_rejected() -> None:
     with pytest.raises(ValueError, match="no diff"):
         canonicalize({"id": "x"}, index=1, dataset="swe-prbench")
+
+
+def test_contextbench_accepts_query_without_diff() -> None:
+    row = canonicalize(
+        {"id": "r", "query": "find parser", "gold_context": ["src/parser.py"]},
+        index=1,
+        dataset="contextbench",
+    )
+    assert row["metadata"]["gold_context"] == ["src/parser.py"]
+    assert "retrieved" in row["prompt"]
+
+
+def test_contextbench_normalizes_official_serialized_context() -> None:
+    row = canonicalize(
+        {
+            "instance_id": "official",
+            "repo": "org/repo",
+            "problem_statement": "Locate the affected parser.",
+            "patch": "diff --git a/a.py b/a.py",
+            "gold_context": json.dumps(
+                [
+                    {"file": "src/parser.py", "start_line": 1, "end_line": 2},
+                    {"file": "src/parser.py", "start_line": 8, "end_line": 9},
+                    {"file": "src/tokens.py", "start_line": 3, "end_line": 4},
+                ]
+            ),
+        },
+        index=1,
+        dataset="contextbench",
+    )
+    assert "Locate the affected parser." in row["prompt"]
+    assert row["metadata"]["gold_context"] == ["src/parser.py", "src/tokens.py"]

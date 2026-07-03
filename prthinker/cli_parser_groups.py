@@ -71,7 +71,7 @@ def _add_claude_cli_args(common: argparse.ArgumentParser) -> None:
         "--claude-cli-path",
         default=env_str("PRTHINKER_CLAUDE_CLI_PATH", "claude"),
         help="Executable for --backend claude-cli (name on PATH or full "
-             "path). The CLI runs in non-interactive print mode (-p).",
+        "path). The CLI runs in non-interactive print mode (-p).",
     )
     common.add_argument(
         "--claude-cli-model",
@@ -87,9 +87,9 @@ def _add_claude_cli_args(common: argparse.ArgumentParser) -> None:
         "--claude-cli-allowed-tools",
         default=env_str("PRTHINKER_CLAUDE_CLI_ALLOWED_TOOLS", ""),
         help="Tool allowlist forwarded as --allowedTools (e.g. "
-             "'Read,Grep,Glob'), so the review can consult the working "
-             "tree with the full local toolchain. Empty (default) leaves "
-             "the CLI's own tool policy in place.",
+        "'Read,Grep,Glob'), so the review can consult the working "
+        "tree with the full local toolchain. Empty (default) leaves "
+        "the CLI's own tool policy in place.",
     )
     common.add_argument(
         "--claude-cli-timeout",
@@ -105,7 +105,7 @@ def _add_codex_cli_args(common: argparse.ArgumentParser) -> None:
         "--codex-cli-path",
         default=env_str("PRTHINKER_CODEX_CLI_PATH", "codex"),
         help="Executable for --backend codex-cli (name on PATH or full "
-             "path). The CLI runs headless via `codex exec --json`.",
+        "path). The CLI runs headless via `codex exec --json`.",
     )
     common.add_argument(
         "--codex-cli-model",
@@ -122,8 +122,8 @@ def _add_codex_cli_args(common: argparse.ArgumentParser) -> None:
         choices=["read-only", "workspace-write", "danger-full-access"],
         default=env_str("PRTHINKER_CODEX_CLI_SANDBOX", "read-only"),
         help="Sandbox mode forwarded as `-c sandbox_mode=...`. read-only "
-             "(default) lets the review consult the working tree without "
-             "mutating it.",
+        "(default) lets the review consult the working tree without "
+        "mutating it.",
     )
     common.add_argument(
         "--codex-cli-timeout",
@@ -140,7 +140,7 @@ def _add_openai_anthropic_args(common: argparse.ArgumentParser) -> None:
         "--openai-model",
         default=env_str("PRTHINKER_OPENAI_MODEL", "gpt-4o-mini"),
         help="Model id for --backend openai (e.g. gpt-4o-mini, "
-             "qwen-coder-30b on vLLM, llama3.1:8b on Ollama)",
+        "qwen-coder-30b on vLLM, llama3.1:8b on Ollama)",
     )
     common.add_argument(
         "--openai-api-key",
@@ -150,7 +150,7 @@ def _add_openai_anthropic_args(common: argparse.ArgumentParser) -> None:
         "--openai-base-url",
         default=env_str("PRTHINKER_OPENAI_BASE_URL", "https://api.openai.com/v1"),
         help="Override for OpenAI-compatible servers "
-             "(vLLM, Ollama /v1, LM Studio, Together, Groq, …)",
+        "(vLLM, Ollama /v1, LM Studio, Together, Groq, …)",
     )
     common.add_argument(
         "--openai-organization",
@@ -186,7 +186,8 @@ def _add_gemini_cohere_mistral_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--gemini-api-key",
         default=env_str("PRTHINKER_GEMINI_API_KEY")
-        or env_str("GEMINI_API_KEY") or env_str("GOOGLE_API_KEY"),
+        or env_str("GEMINI_API_KEY")
+        or env_str("GOOGLE_API_KEY"),
     )
     common.add_argument(
         "--gemini-base-url",
@@ -232,30 +233,28 @@ def add_arbitration_args(common: argparse.ArgumentParser) -> None:
         action="store_true",
         default=env_bool("PRTHINKER_ARBITRATION", False),
         help="After the review, have extra model backends vote "
-             "confirm/reject on each inline finding and drop the "
-             "off-voted ones. Fail-open: arbiter failures keep findings.",
+        "confirm/reject on each inline finding and drop the "
+        "off-voted ones. Fail-open: arbiter failures keep findings.",
     )
     common.add_argument(
         "--arbitration-backends",
         default=env_str("PRTHINKER_ARBITRATION_BACKENDS", ""),
         help="Comma-separated backend kinds acting as arbiters (e.g. "
-             "'openai,anthropic,claude-cli'). Each is configured by the "
-             "same flags / env vars as when used as the primary backend.",
+        "'openai,anthropic,claude-cli'). Each is configured by the "
+        "same flags / env vars as when used as the primary backend.",
     )
     common.add_argument(
         "--arbitration-strategy",
         choices=list(STRATEGY_NAMES),
         default=env_str("PRTHINKER_ARBITRATION_STRATEGY", "majority"),
         help="How votes combine: majority (rejects must outnumber "
-             "confirms to drop), unanimous (any reject drops), any "
-             "(one confirm keeps).",
+        "confirms to drop), unanimous (any reject drops), any "
+        "(one confirm keeps).",
     )
     common.add_argument(
         "--arbitration-max-new-tokens",
         type=int,
-        default=int(
-            env_str("PRTHINKER_ARBITRATION_MAX_NEW_TOKENS", "4096") or 4096
-        ),
+        default=int(env_str("PRTHINKER_ARBITRATION_MAX_NEW_TOKENS", "4096") or 4096),
         help="Generation budget for each arbiter's vote call.",
     )
 
@@ -298,6 +297,16 @@ def add_per_file_args(common: argparse.ArgumentParser) -> None:
     """Add per-file / inline-review / matrix-runner arguments to the shared parser."""
     _add_per_file_mode_args(common)
     _add_matrix_output_args(common)
+    common.add_argument(
+        "--step-dag",
+        default="",
+        help="JSON object mapping step names to dependency lists",
+    )
+    common.add_argument(
+        "--trajectory-out",
+        default="",
+        help="Append content-safe review trajectory JSONL",
+    )
 
 
 def _add_per_file_mode_args(common: argparse.ArgumentParser) -> None:
@@ -321,6 +330,12 @@ def _add_per_file_toggle_args(common: argparse.ArgumentParser) -> None:
         action="store_true",
         default=env_bool("PRTHINKER_INLINE_REVIEW", False),
         help="Collect JSON findings per file and submit a GitHub review",
+    )
+    common.add_argument(
+        "--parallelism",
+        type=int,
+        default=1,
+        help="Bounded per-file workers; capped by backend capability.",
     )
     common.add_argument(
         "--findings-only",
@@ -550,9 +565,9 @@ def _add_kg_grounding_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--kg-store",
         type=Path,
-        default=Path(env_str("PRTHINKER_KG_STORE",
-                              _KG_STORE_DEFAULT) or
-                     _KG_STORE_DEFAULT),
+        default=Path(
+            env_str("PRTHINKER_KG_STORE", _KG_STORE_DEFAULT) or _KG_STORE_DEFAULT
+        ),
     )
     common.add_argument(
         "--kg-workdir",
@@ -786,7 +801,9 @@ def _add_risk_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--rules-dir",
         type=Path,
-        default=Path(env_str("PRTHINKER_RULES_DIR") or "") if env_str("PRTHINKER_RULES_DIR") else None,
+        default=Path(env_str("PRTHINKER_RULES_DIR") or "")
+        if env_str("PRTHINKER_RULES_DIR")
+        else None,
         help="Directory of *.md files containing per-repo coding rules",
     )
 
@@ -837,33 +854,33 @@ def _add_generation_output_args(common: argparse.ArgumentParser) -> None:
         action="store_true",
         default=env_bool("PRTHINKER_STREAM", False),
         help="Stream generated tokens to stderr as they arrive. Native "
-             "for OpenAI and Anthropic; local + remote fall back to a "
-             "single chunk per step.",
+        "for OpenAI and Anthropic; local + remote fall back to a "
+        "single chunk per step.",
     )
     common.add_argument(
         "--judge",
         action="store_true",
         default=env_bool("PRTHINKER_JUDGE", False),
         help="Add a per-file judge step that emits a JSON verdict; "
-             "review-pr aggregates verdicts into one APPROVE / "
-             "REQUEST_CHANGES / COMMENT event on the GitHub review.",
+        "review-pr aggregates verdicts into one APPROVE / "
+        "REQUEST_CHANGES / COMMENT event on the GitHub review.",
     )
     common.add_argument(
         "--self-correct",
         action="store_true",
         default=env_bool("PRTHINKER_SELF_CORRECT", False),
         help="Add a second-pass noise filter — after inline findings are "
-             "parsed and dismissed-filtered, the model is asked to flag "
-             "noise / duplicate / over-picky entries which the runner "
-             "then drops.",
+        "parsed and dismissed-filtered, the model is asked to flag "
+        "noise / duplicate / over-picky entries which the runner "
+        "then drops.",
     )
     common.add_argument(
         "--redact-secrets",
         action="store_true",
         default=env_bool("PRTHINKER_REDACT_SECRETS", False),
         help="Scrub well-known secret patterns (AWS / GitHub / OpenAI / "
-             "Anthropic / Stripe / Slack / JWT / PEM keys) from the diff "
-             "before any backend call. Strongly recommended for paid backends.",
+        "Anthropic / Stripe / Slack / JWT / PEM keys) from the diff "
+        "before any backend call. Strongly recommended for paid backends.",
     )
 
 
@@ -880,7 +897,7 @@ def _add_report_format_args(common: argparse.ArgumentParser) -> None:
         "--sarif-out",
         default=env_str("PRTHINKER_SARIF_OUT"),
         help="Write findings as a SARIF 2.1.0 file to this path "
-             "(for GitHub code-scanning or any SARIF viewer).",
+        "(for GitHub code-scanning or any SARIF viewer).",
     )
     common.add_argument(
         "--html-report",
@@ -891,19 +908,19 @@ def _add_report_format_args(common: argparse.ArgumentParser) -> None:
         "--codequality-out",
         default=env_str("PRTHINKER_CODEQUALITY_OUT"),
         help="Write findings + signals as a GitLab Code Quality "
-             "(CodeClimate) JSON report to this path.",
+        "(CodeClimate) JSON report to this path.",
     )
     common.add_argument(
         "--junit-out",
         default=env_str("PRTHINKER_JUNIT_OUT"),
         help="Write findings + signals as a JUnit XML report to this path "
-             "(for CI test-report viewers).",
+        "(for CI test-report viewers).",
     )
     common.add_argument(
         "--csv-out",
         default=env_str("PRTHINKER_CSV_OUT"),
         help="Write findings + signals as a flat CSV to this path "
-             "(spreadsheet / awk triage).",
+        "(spreadsheet / awk triage).",
     )
 
 
@@ -913,7 +930,7 @@ def _add_report_extra_format_args(common: argparse.ArgumentParser) -> None:
         "--metrics-out",
         default=env_str("PRTHINKER_METRICS_OUT"),
         help="Write a machine-readable metrics-rollup JSON (counts by "
-             "severity / signal, diff totals) to this path.",
+        "severity / signal, diff totals) to this path.",
     )
     common.add_argument(
         "--markdown-out",
@@ -924,21 +941,21 @@ def _add_report_extra_format_args(common: argparse.ArgumentParser) -> None:
         "--sonar-out",
         default=env_str("PRTHINKER_SONAR_OUT"),
         help="Write findings + signals as SonarQube Generic Issue Data "
-             "JSON to this path.",
+        "JSON to this path.",
     )
     common.add_argument(
         "--report-dir",
         default=env_str("PRTHINKER_REPORT_DIR"),
         help="Write every file-based report format (SARIF / HTML / "
-             "Markdown / Code Quality / Sonar / JUnit / CSV / metrics) "
-             "into this directory with standard filenames.",
+        "Markdown / Code Quality / Sonar / JUnit / CSV / metrics) "
+        "into this directory with standard filenames.",
     )
     common.add_argument(
         "--gha-annotations",
         action="store_true",
         default=env_bool("PRTHINKER_GHA_ANNOTATIONS", False),
         help="Emit findings + signals as GitHub Actions workflow commands "
-             "on stdout (inline ::error / ::warning / ::notice annotations).",
+        "on stdout (inline ::error / ::warning / ::notice annotations).",
     )
 
 
@@ -948,34 +965,39 @@ def _add_report_filter_args(common: argparse.ArgumentParser) -> None:
         "--ignore-file",
         default=env_str("PRTHINKER_IGNORE_FILE", ".prthinkerignore"),
         help="Path to a .prthinkerignore file (glob / rule: / severity: "
-             "suppression rules). Missing file is a no-op.",
+        "suppression rules). Missing file is a no-op.",
     )
     common.add_argument(
         "--dedupe-findings",
         action="store_true",
         default=env_bool("PRTHINKER_DEDUPE_FINDINGS", False),
         help="Collapse near-duplicate findings (same path+line, "
-             "equivalent message) before submission.",
+        "equivalent message) before submission.",
     )
     common.add_argument(
         "--api-impact",
         action="store_true",
         default=env_bool("PRTHINKER_API_IMPACT", False),
         help="Append a public-API semver-impact line "
-             "(major/minor/patch) to the summary comment.",
+        "(major/minor/patch) to the summary comment.",
     )
     common.add_argument(
         "--min-confidence",
         type=float,
         default=float(env_str("PRTHINKER_MIN_CONFIDENCE", "0") or 0),
         help="Drop findings whose provenance confidence is below this "
-             "threshold (0 keeps all; findings without a confidence are "
-             "always kept). Use with --provenance.",
+        "threshold (0 keeps all; findings without a confidence are "
+        "always kept). Use with --provenance.",
     )
+    common.add_argument("--calibration-store", default="", help="SQLite feedback calibration store")
+    common.add_argument("--calibration-author", default="", help="Author key for confidence calibration")
+    common.add_argument("--calibration-category", default="", help="Finding category key for calibration")
+    common.add_argument("--calibration-min-samples", type=int, default=10)
+    common.add_argument("--calibration-half-life-days", type=float, default=90)
     common.add_argument(
         "--review-modes",
         default=env_str("PRTHINKER_REVIEW_MODES", ""),
         help="Comma-separated focused review passes to run over the whole "
-             "diff (e.g. security,performance,iac). Each appends its output "
-             "to the summary. Unknown names are skipped.",
+        "diff (e.g. security,performance,iac). Each appends its output "
+        "to the summary. Unknown names are skipped.",
     )

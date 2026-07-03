@@ -75,6 +75,8 @@ server = [
 mcp = [
     "mcp>=1.9",
 ]
+tree-sitter = ["tree-sitter-language-pack>=0.9"]
+observability = ["opentelemetry-api>=1.30", "opentelemetry-sdk>=1.30", "opentelemetry-exporter-otlp-proto-http>=1.30"]
 
 [project.scripts]
 prthinker = "prthinker.cli:main"
