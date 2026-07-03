@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use PRThinker in research, cite this software and the associated paper."
+title: "PRThinker"
+type: software
+authors:
+  - family-names: "Chen"
+    given-names: "Jeffrey"
+version: 0.1.0
+license: MIT
+repository-code: "https://github.com/JE-Chen/Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning"
