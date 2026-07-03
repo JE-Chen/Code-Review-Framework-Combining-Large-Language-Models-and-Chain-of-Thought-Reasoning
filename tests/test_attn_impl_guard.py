@@ -119,3 +119,26 @@ def test_pick_attn_implementation_falls_back_to_sdpa(_hf_model_util, monkeypatch
 
     monkeypatch.setattr("builtins.__import__", _no_flash_import)
     assert _hf_model_util._pick_attn_implementation() == "sdpa"
+
+
+def test_generation_budget_rejects_oversized_input(_hf_model_util, monkeypatch):
+    monkeypatch.setenv("PRTHINKER_MAX_INPUT_TOKENS", "100")
+    with pytest.raises(ValueError, match="Input has 101 tokens"):
+        _hf_model_util._validate_generation_budget(101, 8)
+
+
+def test_generation_budget_rejects_invalid_output_limit(
+    _hf_model_util, monkeypatch,
+):
+    monkeypatch.setenv("PRTHINKER_MAX_NEW_TOKENS", "16")
+    for requested in (0, 17):
+        with pytest.raises(ValueError, match="between 1 and 16"):
+            _hf_model_util._validate_generation_budget(10, requested)
+
+
+def test_generation_budget_rejects_bad_environment_value(
+    _hf_model_util, monkeypatch,
+):
+    monkeypatch.setenv("PRTHINKER_MAX_INPUT_TOKENS", "unlimited")
+    with pytest.raises(ValueError, match="positive integer"):
+        _hf_model_util._validate_generation_budget(10, 8)

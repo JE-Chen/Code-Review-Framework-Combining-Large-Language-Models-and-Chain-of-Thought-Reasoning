@@ -16,7 +16,7 @@ Severity = Literal["info", "warning", "error"]
 
 class AskRequest(BaseModel):
     prompt: str
-    max_new_tokens: int = 32768
+    max_new_tokens: int = Field(default=32768, ge=1, le=32768)
 
 
 class RagRequest(BaseModel):
@@ -143,7 +143,7 @@ class ReviewRequest(BaseModel):
     steps: list[str] | None = None
     rag_enabled: bool = True
     rag_threshold: float = 0.7
-    max_new_tokens: int = 32768
+    max_new_tokens: int = Field(default=32768, ge=1, le=32768)
     extra_rules: list[str] = Field(default_factory=list)
 
 
