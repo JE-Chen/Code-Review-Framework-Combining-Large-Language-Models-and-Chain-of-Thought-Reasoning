@@ -227,3 +227,6 @@ gen-paper/node_modules/
 
 # pytest basetemp (transient per-test tmp dirs)
 .pytest-tmp-*/
+
+# Regenerable manuscript text dumps (paper/_dump_docx.py output)
+paper/_dump_*.txt
