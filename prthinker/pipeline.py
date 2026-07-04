@@ -13,7 +13,6 @@ from __future__ import annotations
 import logging
 import hashlib
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from prthinker import (
@@ -33,7 +32,7 @@ from prthinker.dismissed import DismissedFilter
 from prthinker.findings import build_provenance_block, parse_inline_findings
 from prthinker.judge import parse_verdict
 from prthinker.rag import RAGRetriever
-from prthinker.review_cache import CacheKey, ReviewCache
+from prthinker.review_cache import CacheKey
 from prthinker.undefined_guard import suppress_phantom_undefined
 from prthinker.schemas import (
     ApiDriftFinding,
@@ -46,11 +45,6 @@ from prthinker.schemas import (
     PersonaReview,
     PRClassification,
 )
-from prthinker.self_review import (
-    apply_self_review,
-    parse_drop_indices,
-    render_findings_block,
-)
 from prthinker.steps import (
     CounterfactualStep,
     InlineFindingsStep,
@@ -62,53 +56,21 @@ from prthinker.steps import (
 )
 from prthinker.trajectory import TrajectorySink
 from prthinker.otel import operation_span
+from prthinker.repo_retrieval import RepoContextRetriever, build_import_adjacency
+from prthinker.pipeline_exec import PipelineExecutionMixin
+from prthinker.pipeline_types import (
+    FileReviewResult,
+    PerFileReviewOptions,
+    ReviewCancelledError,
+    ReviewResult,
+    _AggregateExtras,
+    _AggregatedFiles,
+    _ClassifyOutcome,
+    _FileRunFlags,
+    _PerFileOptions,
+)
 
 log = logging.getLogger(__name__)
-
-
-@dataclass
-class ReviewResult:
-    code_diff: str
-    rag_docs: list[str]
-    step_outputs: dict[str, str] = field(default_factory=dict)
-    inline_findings: list[InlineFinding] = field(default_factory=list)
-    per_file: list["FileReviewResult"] = field(default_factory=list)
-    counterfactuals: list[CounterfactualBlock] = field(default_factory=list)
-    api_drift: list[ApiDriftFinding] = field(default_factory=list)
-    pr_classification: PRClassification | None = None
-    dep_upgrades: list[DependencyUpgradeFinding] = field(default_factory=list)
-    persona_reviews: list[PersonaReview] = field(default_factory=list)
-    persona_conflicts: list[PersonaConflict] = field(default_factory=list)
-    diff_entropy: DiffEntropySummary | None = None
-
-    @property
-    def total_summary(self) -> str | None:
-        return self.step_outputs.get("total_summary")
-
-
-@dataclass
-class FileReviewResult:
-    path: str
-    rag_docs: list[str]
-    step_outputs: dict[str, str]
-    inline_findings: list[InlineFinding]
-    verdict: JudgeVerdict | None = None
-    is_binary: bool = False
-    is_deleted: bool = False
-    counterfactuals: list[CounterfactualBlock] = field(default_factory=list)
-
-    @property
-    def total_summary(self) -> str | None:
-        return self.step_outputs.get("total_summary")
-
-
-class ReviewCancelledError(Exception):
-    """Raised when a CoT review is interrupted via ``cancel_event``.
-
-    The pipeline checks the event between steps; once it is set, the
-    current step finishes (since ``model.generate`` is uninterruptible
-    in C) and the loop bails out before starting the next.
-    """
 
 
 def _invoke_on_file_done(
@@ -141,113 +103,7 @@ def _invoke_on_file_done(
 _DEFAULT_MAX_STEP_RESULT_CHARS = 6000
 
 
-@dataclass(frozen=True)
-class _ClassifyOutcome:
-    """Optional PR-type classification plus the budget-adjusted knobs."""
-
-    classification: "PRClassification | None"
-    inline_review: bool
-    max_findings_per_file: int
-    dialogue_block: str
-
-
-@dataclass(frozen=True)
-class _FileRunFlags:
-    """Optional per-file behaviour toggles passed to ``_run_one_file``."""
-
-    self_correct: bool = False
-    dialogue_block: str = ""
-    provenance: bool = False
-    reproducibility_check: bool = False
-
-
-@dataclass(frozen=True)
-class _PerFileOptions:
-    """Per-file review knobs threaded through the per-file loop."""
-
-    all_steps: tuple[type[ReviewStep], ...]
-    max_findings_per_file: int
-    output_dir: Path | None
-    self_correct: bool
-    dialogue_block: str
-    provenance: bool
-    reproducibility_check: bool
-    skip_binary: bool
-    inline_review: bool
-    review_cache: "ReviewCache | None"
-    cache_repo: str
-    cache_pr_number: int
-    risk_by_path: dict
-    verify_suggestions: bool
-    verify_workdir: Path | None
-    verify_cmd: str
-    verify_timeout: float
-    parallelism: int
-
-
-@dataclass
-class _AggregatedFiles:
-    """Per-file results accumulated across one run of the per-file loop."""
-
-    per_file_results: list["FileReviewResult"] = field(default_factory=list)
-    inline_findings: list[InlineFinding] = field(default_factory=list)
-    counterfactuals: list[CounterfactualBlock] = field(default_factory=list)
-    step_outputs: dict[str, str] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class _AggregateExtras:
-    """Cross-file extra-step outputs aggregated after the per-file loop."""
-
-    dep_upgrades: list[DependencyUpgradeFinding] = field(default_factory=list)
-    persona_reviews: list[PersonaReview] = field(default_factory=list)
-    persona_conflicts: list[PersonaConflict] = field(default_factory=list)
-    api_drift: list[ApiDriftFinding] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
-class PerFileReviewOptions:
-    """Cohesive optional knobs for :meth:`CoTPipeline.run_per_file`.
-
-    Groups every per-file toggle into one immutable value object so the
-    public entry point keeps a small, stable signature. Defaults mirror the
-    historical keyword defaults, so an empty ``PerFileReviewOptions()`` runs
-    the base step sweep with no extras enabled.
-    """
-
-    inline_review: bool = False
-    judge: bool = False
-    self_correct: bool = False
-    counterfactual: bool = False
-    walkthrough: bool = False
-    provenance: bool = False
-    api_consistency_check: bool = False
-    max_findings_per_file: int = 10
-    skip_binary: bool = True
-    output_dir: Path | None = None
-    dialogue_block: str = ""
-    review_cache: "ReviewCache | None" = None
-    cache_repo: str = ""
-    cache_pr_number: int = 0
-    verify_suggestions: bool = False
-    verify_workdir: Path | None = None
-    verify_cmd: str = ""
-    verify_timeout: float = 60.0
-    pr_classify: bool = False
-    pr_title: str = ""
-    pr_body: str = ""
-    reproducibility_check: bool = False
-    dep_upgrade_check: bool = False
-    persona_set: tuple[str, ...] = ()
-    risk_weighted: bool = False
-    risk_workdir: Path | None = None
-    diff_entropy_check: bool = False
-    review_modes: tuple[str, ...] = ()
-    on_file_done: "object | None" = None
-    parallelism: int = 1
-
-
-class CoTPipeline:
+class CoTPipeline(PipelineExecutionMixin):
     def __init__(
         self,
         backend: InferenceBackend,
@@ -263,6 +119,8 @@ class CoTPipeline:
         max_step_result_chars: int = _DEFAULT_MAX_STEP_RESULT_CHARS,
         step_dependencies: dict[str, object] | None = None,
         trajectory_sink: TrajectorySink | None = None,
+        repo_retriever: "RepoContextRetriever | None" = None,
+        repo_workdir: Path | None = None,
     ) -> None:
         self._backend = backend
         self._retriever = retriever
@@ -283,6 +141,12 @@ class CoTPipeline:
         self._step_dependencies = step_dependencies or {}
         self._dag_cache: dict[str, object] = {}
         self._trajectory = trajectory_sink
+        # Optional cross-file context retrieval (RAG-for-code). When both are
+        # set, each file review is given the repository files/symbols the
+        # retriever judges relevant; unset leaves review behaviour unchanged.
+        self._repo_retriever = repo_retriever
+        self._repo_workdir = repo_workdir
+        self._import_adjacency_cache: dict[str, dict[str, set[str]]] = {}
 
     def _check_cancel(self) -> None:
         if self._cancel_event is not None and self._cancel_event.is_set():
@@ -981,28 +845,12 @@ class CoTPipeline:
         with operation_span("retrieve", {"prthinker.file.path": fd.path}):
             rag_docs = self._merge_rules(self._retriever.retrieve(fd.raw))
         doc_ids = [hashlib.sha256(doc.encode()).hexdigest()[:16] for doc in rag_docs]
-        if self._trajectory:
-            self._trajectory.record(
-                "retrieve", content=fd.raw, path=fd.path, status="ok",
-                metadata={"retrieved": doc_ids},
-            )
+        self._record_retrieval(fd, doc_ids)
         n_accepted_examples, positive_examples_block = self._accepted_examples(fd)
 
-        provenance_block = ""
-        if flags.provenance:
-            provenance_block = build_provenance_block(
-                rag_docs=rag_docs,
-                n_accepted_examples=n_accepted_examples,
-            )
-
-        ctx = ReviewContext(
-            code_diff=fd.raw,
-            rag_docs=rag_docs,
-            file_path=fd.path,
-            max_findings=max_findings_per_file,
-            positive_examples_block=positive_examples_block,
-            dialogue_block=flags.dialogue_block,
-            provenance_block=provenance_block,
+        ctx = self._make_review_context(
+            fd, rag_docs, max_findings_per_file,
+            positive_examples_block, flags, n_accepted_examples,
         )
         self._run_steps(ctx, step_classes, output_dir)
 
@@ -1015,19 +863,7 @@ class CoTPipeline:
             reproducibility_check=flags.reproducibility_check,
             self_correct=flags.self_correct,
         )
-        if self._trajectory:
-            cited = sorted({
-                citation.index
-                for finding in findings
-                if finding.provenance
-                for citation in finding.provenance.citations
-                if citation.kind == "rag_rule" and citation.index is not None
-            })
-            used = [doc_ids[index - 1] for index in cited if 1 <= index <= len(doc_ids)]
-            self._trajectory.record(
-                "retrieval_use", path=fd.path, status="ok",
-                metadata={"retrieved": doc_ids, "used": used, "cited_indices": cited},
-            )
+        self._record_retrieval_use(fd, findings, doc_ids)
 
         verdict, counterfactuals = self._parse_judge_and_counterfactuals(ctx, findings)
 
@@ -1040,6 +876,103 @@ class CoTPipeline:
             is_binary=fd.is_binary,
             is_deleted=fd.is_deleted,
             counterfactuals=counterfactuals,
+        )
+
+    def _make_review_context(
+        self, fd, rag_docs, max_findings, positive_examples_block,
+        flags, n_accepted_examples,
+    ) -> ReviewContext:
+        """Assemble the per-file review context, including the provenance block."""
+        provenance_block = (
+            build_provenance_block(
+                rag_docs=rag_docs, n_accepted_examples=n_accepted_examples
+            )
+            if flags.provenance else ""
+        )
+        return ReviewContext(
+            code_diff=fd.raw,
+            rag_docs=rag_docs,
+            file_path=fd.path,
+            max_findings=max_findings,
+            positive_examples_block=positive_examples_block,
+            dialogue_block=flags.dialogue_block,
+            provenance_block=provenance_block,
+            repo_context_block=self._repo_context_block(fd),
+        )
+
+    def _repo_context_block(self, fd: FileDiff) -> str:
+        """Cross-file repository context prepended to this file's review prompt.
+
+        Empty (prompt unchanged) unless a work-tree was given. With an injected
+        retriever, the file's diff drives retrieval; with only a work-tree, the
+        import graph supplies the deterministic impact set (callers + deps) of
+        the changed file — a cheap, model-free review aid.
+        """
+        if self._repo_workdir is None:
+            return ""
+        if self._repo_retriever is not None:
+            return self._retriever_context(fd)
+        return self._graph_impact_context(fd)
+
+    def _retriever_context(self, fd: FileDiff) -> str:
+        """Injected-retriever cross-file context for the file under review."""
+        context = self._repo_retriever.retrieve(fd.raw, self._repo_workdir)
+        related = [rel for rel in context.files if rel != fd.path]
+        if not related:
+            return ""
+        lines = ["Related repository context (retrieved for cross-file review):"]
+        for rel in related:
+            symbols = context.symbols.get(rel, [])
+            suffix = f" — {', '.join(symbols)}" if symbols else ""
+            lines.append(f"- {rel}{suffix}")
+        return "\n".join(lines)
+
+    def _graph_impact_context(self, fd: FileDiff) -> str:
+        """Deterministic import-graph impact set of the changed file."""
+        neighbours = self._import_adjacency().get(fd.path, set())
+        if not neighbours:
+            return ""
+        lines = ["Cross-file impact (import graph — files related to this change):"]
+        lines += [f"- {rel}" for rel in sorted(neighbours)]
+        return "\n".join(lines)
+
+    def _import_adjacency(self) -> dict[str, set[str]]:
+        """Build (once per work-tree) the bidirectional import adjacency map."""
+        key = str(self._repo_workdir)
+        if key not in self._import_adjacency_cache:
+            self._import_adjacency_cache[key] = build_import_adjacency(self._repo_workdir)
+        return self._import_adjacency_cache[key]
+
+    def _record_retrieval(self, fd: FileDiff, doc_ids: list[str]) -> None:
+        """Record the retrieval trajectory event when a sink is attached."""
+        if self._trajectory:
+            self._trajectory.record(
+                "retrieve", content=fd.raw, path=fd.path, status="ok",
+                metadata={"retrieved": doc_ids},
+            )
+
+    @staticmethod
+    def _cited_rag_indices(findings: list) -> list[int]:
+        """Return the sorted RAG-rule citation indices referenced by findings."""
+        return sorted({
+            citation.index
+            for finding in findings
+            if finding.provenance
+            for citation in finding.provenance.citations
+            if citation.kind == "rag_rule" and citation.index is not None
+        })
+
+    def _record_retrieval_use(
+        self, fd: FileDiff, findings: list, doc_ids: list[str]
+    ) -> None:
+        """Record which retrieved rule docs the findings actually cited."""
+        if not self._trajectory:
+            return
+        cited = self._cited_rag_indices(findings)
+        used = [doc_ids[index - 1] for index in cited if 1 <= index <= len(doc_ids)]
+        self._trajectory.record(
+            "retrieval_use", path=fd.path, status="ok",
+            metadata={"retrieved": doc_ids, "used": used, "cited_indices": cited},
         )
 
     @staticmethod
@@ -1082,258 +1015,6 @@ class CoTPipeline:
             out.append(by_value[key])
         return out
 
-    def _verify_suggestions(
-        self,
-        file_result: "FileReviewResult",
-        *,
-        workdir: Path,
-        verify_cmd: str,
-        timeout_seconds: float,
-    ) -> "FileReviewResult":
-        """Run each finding's ``suggestion`` block in a sandbox and
-        attach the verification result to the finding.
-
-        Side-effect surface is fenced inside :mod:`reviewmind.sandbox`;
-        this method just walks the findings and merges the results back
-        into the per-file payload.
-        """
-        from reviewmind.sandbox import verify_suggestion
-        from reviewmind.schemas import SuggestionVerification
-
-        new_findings: list[InlineFinding] = []
-        for f in file_result.inline_findings:
-            if f.suggestion is None:
-                new_findings.append(f)
-                continue
-            outcome = verify_suggestion(
-                f,
-                workdir=workdir,
-                verify_cmd=verify_cmd,
-                timeout_seconds=timeout_seconds,
-            )
-            verification = SuggestionVerification(
-                status=outcome.status,
-                verify_cmd=outcome.verify_cmd,
-                duration_ms=outcome.duration_ms,
-                reason=outcome.reason,
-            )
-            new_findings.append(f.model_copy(update={"verification": verification}))
-            log.info(
-                "verify_suggestions: %s:%d -> %s (%dms)",
-                f.path,
-                f.line,
-                outcome.status,
-                outcome.duration_ms,
-            )
-        return FileReviewResult(
-            path=file_result.path,
-            rag_docs=file_result.rag_docs,
-            step_outputs=file_result.step_outputs,
-            inline_findings=new_findings,
-            verdict=file_result.verdict,
-            is_binary=file_result.is_binary,
-            is_deleted=file_result.is_deleted,
-            counterfactuals=file_result.counterfactuals,
-        )
-
-    def _self_correct(
-        self,
-        fd: FileDiff,
-        findings: list[InlineFinding],
-        ctx: ReviewContext,
-    ) -> list[InlineFinding]:
-        """Second-pass noise filter — drop findings the model flags itself.
-
-        One extra backend call per file. The model sees a numbered list of
-        the surviving findings (after dismissed filter) and returns the
-        indices it considers noise. We never drop everything: a malformed
-        response yields the original list unchanged, on the principle that
-        a wrongly-posted finding is recoverable but a silently-dropped one
-        is not.
-        """
-        from prthinker.prompts.finding_self_review import (
-            FINDING_SELF_REVIEW_TEMPLATE,
-        )
-
-        prompt = FINDING_SELF_REVIEW_TEMPLATE.format(
-            file_path=fd.path,
-            numbered_findings=render_findings_block(findings),
-            code_diff=fd.raw,
-        )
-        raw = self._backend.generate(prompt, max_new_tokens=self._max_new_tokens)
-        ctx.results["self_review"] = raw
-
-        drop = parse_drop_indices(raw, total=len(findings))
-        if not drop:
-            return findings
-        kept = apply_self_review(findings, drop)
-        log.info(
-            "Self-review dropped %d/%d findings on %s",
-            len(drop),
-            len(findings),
-            fd.path,
-        )
-        return kept
-
-    def _generate_streaming(
-        self, step_name: str, prompt: str, file_path: str | None
-    ) -> str:
-        """Drive ``backend.stream_generate`` and mirror chunks to the sink.
-
-        Falls back to ``stderr`` when no explicit sink was passed. Returns
-        the concatenated full text just like ``backend.generate``.
-        """
-        import sys
-
-        sink = self._stream_sink or sys.stderr
-        header = f"\n[{step_name}" + (f" :: {file_path}" if file_path else "") + "]\n"
-        sink.write(header)
-        chunks: list[str] = []
-        for chunk in self._backend.stream_generate(
-            prompt, max_new_tokens=self._max_new_tokens
-        ):
-            chunks.append(chunk)
-            sink.write(chunk)
-            flush = getattr(sink, "flush", None)
-            if callable(flush):
-                flush()
-        sink.write("\n")
-        return "".join(chunks)
-
-    def _run_steps(
-        self,
-        ctx: ReviewContext,
-        step_classes: tuple[type[ReviewStep], ...],
-        output_dir: Path | None,
-    ) -> None:
-        if output_dir is not None:
-            output_dir.mkdir(parents=True, exist_ok=True)
-        if self._step_dependencies:
-            self._run_steps_dag(ctx, step_classes, output_dir)
-            return
-        for step_cls in self._order_steps(step_classes):
-            self._check_cancel()
-            step: ReviewStep = step_cls()
-            log.info("Running step: %s (file=%s)", step.name, ctx.file_path)
-            prompt = step.build_prompt(ctx)
-            started = __import__("time").perf_counter()
-            with operation_span("invoke_agent", {"prthinker.step.name": step.name, "prthinker.file.path": ctx.file_path or ""}):
-                if self._stream:
-                    output = self._generate_streaming(step.name, prompt, ctx.file_path)
-                else:
-                    output = self._backend.generate(
-                        prompt,
-                        max_new_tokens=self._max_new_tokens,
-                        cancel_event=self._cancel_event,
-                    )
-            ctx.results[step.name] = self._cap_step_result(output)
-            if self._trajectory:
-                self._trajectory.record(
-                    "step",
-                    content=prompt,
-                    path=ctx.file_path,
-                    tool=step.name,
-                    status="ok",
-                    duration_ms=(__import__("time").perf_counter() - started) * 1000,
-                )
-            if output_dir is not None:
-                (output_dir / f"{step.name}_result.md").write_text(
-                    output, encoding="utf-8"
-                )
-
-    def _run_steps_dag(self, ctx, step_classes, output_dir) -> None:
-        """Execute explicitly configured independent steps through typed DAG."""
-        from prthinker.step_dag import DagNode, execute_detailed
-
-        nodes = []
-        names = {step.name for step in step_classes}
-        for step_cls in step_classes:
-            raw = self._step_dependencies.get(step_cls.name, ())
-            config = raw if isinstance(raw, dict) else {"depends_on": raw}
-            dependencies = tuple(config.get("depends_on", ()))
-            required_result = str(config.get("when_result", ""))
-
-            def run(snapshot, cls=step_cls):
-                local = replace(ctx, results=dict(snapshot))
-                step = cls()
-                prompt = step.build_prompt(local)
-                with operation_span(
-                    "invoke_agent",
-                    {"prthinker.step.name": step.name,
-                     "prthinker.file.path": ctx.file_path or ""},
-                ):
-                    output = self._backend.generate(
-                        prompt, max_new_tokens=self._max_new_tokens,
-                        cancel_event=self._cancel_event,
-                    )
-                if output_dir is not None:
-                    (output_dir / f"{step.name}_result.md").write_text(
-                        output, encoding="utf-8"
-                    )
-                return self._cap_step_result(output)
-
-            nodes.append(
-                DagNode(
-                    step_cls.name,
-                    run,
-                    dependencies,
-                    when=(lambda results, key=required_result: bool(results.get(key)))
-                    if required_result else None,
-                    retries=max(0, int(config.get("retries", 0))),
-                    timeout_seconds=float(config["timeout_seconds"])
-                    if config.get("timeout_seconds") is not None else None,
-                    cache_key=(
-                        lambda results, name=step_cls.name: hashlib.sha256(
-                            f"{name}:{ctx.code_diff}:{sorted(results)}".encode()
-                        ).hexdigest()
-                    ) if config.get("cache", False) else None,
-                )
-            )
-        execution = execute_detailed(
-            nodes,
-            initial=ctx.results,
-            cache=self._dag_cache,
-            max_workers=1 if self._stream else self._backend.max_concurrency(),
-        )
-        ctx.results.update(
-            {key: value for key, value in execution.results.items()
-             if key in names and value is not None}
-        )
-
-    def _order_steps(self, step_classes: tuple[type[ReviewStep], ...]):
-        """Topologically order configured steps while preserving stable order."""
-        if not self._step_dependencies:
-            return step_classes
-        by_name = {step.name: step for step in step_classes}
-        dependency_values = [
-            value.get("depends_on", ()) if isinstance(value, dict) else value
-            for value in self._step_dependencies.values()
-        ]
-        unknown = {dep for deps in dependency_values for dep in deps} - by_name.keys()
-        if unknown:
-            raise ValueError(f"unknown step dependencies: {sorted(unknown)}")
-        pending = list(step_classes)
-        ordered: list[type[ReviewStep]] = []
-        completed: set[str] = set()
-        while pending:
-            ready = [
-                step
-                for step in pending
-                if set(
-                    self._step_dependencies.get(step.name, {}).get(
-                        "depends_on", ()
-                    )
-                    if isinstance(self._step_dependencies.get(step.name, ()), dict)
-                    else self._step_dependencies.get(step.name, ())
-                ) <= completed
-            ]
-            if not ready:
-                raise ValueError("cyclic step DAG")
-            for step in ready:
-                pending.remove(step)
-                ordered.append(step)
-                completed.add(step.name)
-        return tuple(ordered)
 
 
 def _sanitize(path: str) -> str:

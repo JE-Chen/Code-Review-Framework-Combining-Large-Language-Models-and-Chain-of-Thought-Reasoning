@@ -56,6 +56,22 @@ def test_contextbench_accepts_query_without_diff() -> None:
     assert "retrieved" in row["prompt"]
 
 
+def test_contextbench_preserves_base_commit_and_repo_url() -> None:
+    row = canonicalize(
+        {
+            "id": "r",
+            "query": "find parser",
+            "gold_context": ["src/parser.py"],
+            "base_commit": "abc123",
+            "repo_url": "https://github.com/org/repo",
+        },
+        index=1,
+        dataset="contextbench",
+    )
+    assert row["metadata"]["base_commit"] == "abc123"
+    assert row["metadata"]["repo_url"] == "https://github.com/org/repo"
+
+
 def test_contextbench_normalizes_official_serialized_context() -> None:
     row = canonicalize(
         {

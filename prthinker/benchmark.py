@@ -22,9 +22,10 @@ import sys
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence
 
 from prthinker.backends.base import InferenceBackend
+from prthinker.repo_retrieval import RepoContextRetriever
 
 _CASE_ID_KEY = "case_id"
 _RAW_OUTPUT_KEY = "raw_output"
@@ -81,6 +82,29 @@ def run_cases(
         outcomes.append(
             BenchmarkOutcome(case_id=case.case_id, raw_output=raw_output)
         )
+    return outcomes
+
+
+def run_retrieval_cases(
+    retriever: RepoContextRetriever,
+    cases: Sequence[BenchmarkCase],
+    resolve_workdir: Callable[[BenchmarkCase], "Path | None"],
+) -> list[BenchmarkOutcome]:
+    """Answer repository-context cases by retrieving from each case's work-tree.
+
+    For retrieval datasets (ContextBench / CORE-Bench) this replaces the
+    "model guesses file paths from the issue text" prompt with a real
+    retrieval step: the injected ``retriever`` ranks the checked-out
+    repository and the retrieved file ids become the ``{"retrieved": [...]}``
+    payload the scorer already consumes. A case whose work-tree cannot be
+    resolved yields an empty retrieval instead of aborting the run.
+    """
+    outcomes: list[BenchmarkOutcome] = []
+    for case in cases:
+        workdir = resolve_workdir(case)
+        files = list(retriever.retrieve(case.prompt, workdir).files) if workdir else []
+        raw_output = json.dumps({"retrieved": files}, ensure_ascii=False)
+        outcomes.append(BenchmarkOutcome(case_id=case.case_id, raw_output=raw_output))
     return outcomes
 
 
