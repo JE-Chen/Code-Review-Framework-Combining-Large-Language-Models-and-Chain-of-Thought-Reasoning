@@ -387,19 +387,43 @@ def test_build_import_adjacency_from_worktree(tmp_path):
     assert adjacency["a.py"] == {"b.py"}
 
 
-def test_enrich_context_spans_fills_missing_spans(tmp_path):
+def test_enclosing_blocks_spans_whole_functions():
+    from prthinker.repo_retrieval import enclosing_blocks
+
+    lines = "class A:\n    def foo(self):\n        return 1\n\ndef top():\n    pass\n".split("\n")
+    blocks = enclosing_blocks(lines)
+    assert (1, 3, "A") in blocks  # class A spans its whole body (blank trimmed)
+    assert (2, 3, "foo") in blocks
+    assert any(name == "top" and start == 5 for start, _, name in blocks)
+
+
+def test_predict_blocks_ranks_and_returns_symbols():
+    from collections import Counter
+
+    from prthinker.repo_retrieval import predict_blocks
+
+    lines = (
+        "def relevant():\n    return widget\n\n"
+        "def other():\n    return 1\n"
+    ).split("\n")
+    spans, symbols = predict_blocks(Counter({"widget": 5}), {"widget": 2.0}, lines, 3)
+    assert (1, 2) in spans        # the whole relevant() block
+    assert symbols[0] == "relevant"  # its name is the predicted symbol
+
+
+def test_enrich_context_spans_predicts_block_and_symbol(tmp_path):
     from prthinker.repo_retrieval import enrich_context_spans
 
     repo = _make_repo(tmp_path, {
         "m.py": "import os\n\n\nclass Alpha:\n    def beta(self):\n        return widget\n",
     })
-    # A context with the file but no spans (as graph/rerank would produce).
     bare = RepoContext(files=("m.py",))
     enriched = enrich_context_spans(bare, "widget", repo)
-    assert enriched.files == ("m.py",)
-    assert enriched.spans["m.py"], "spans should be predicted for the file"
+    assert enriched.spans["m.py"], "a block span should be predicted"
     start, end = enriched.spans["m.py"][0]
-    assert start <= 6 <= end
+    assert start <= 6 <= end  # the block containing 'widget' covers line 6
+    # the enclosing def/class name is surfaced as a symbol
+    assert set(enriched.symbols["m.py"]) & {"Alpha", "beta"}
 
 
 def test_graph_multi_hop_reaches_further_neighbours(tmp_path):

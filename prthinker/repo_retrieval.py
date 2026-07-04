@@ -633,28 +633,90 @@ def build_import_adjacency(workdir: Path) -> dict[str, set[str]]:
     return bidirectional_neighbours(graph)
 
 
+_DEF_HEAD_RE = re.compile(r"^([ \t]*)(?:def|class)\s+([A-Za-z_]\w*)")
+_DEFAULT_MAX_BLOCKS = 3
+
+
+def enclosing_blocks(lines: list[str]) -> list[tuple[int, int, str]]:
+    """Return ``(start, end, name)`` for each def/class block, by indentation.
+
+    A block runs from its ``def``/``class`` header to the line before the next
+    non-blank line indented at or below the header — i.e. the whole function or
+    class body. 1-based, inclusive; this matches ContextBench gold spans, which
+    are whole blocks rather than isolated lines.
+    """
+    blocks = []
+    for index, line in enumerate(lines):
+        match = _DEF_HEAD_RE.match(line)
+        if not match:
+            continue
+        indent = len(match.group(1))
+        end = _block_end(lines, index, indent)
+        blocks.append((index + 1, end, match.group(2)))
+    return blocks
+
+
+def _block_end(lines: list[str], header_index: int, indent: int) -> int:
+    """1-based last non-blank line of the block opened at ``header_index``."""
+    end = len(lines)
+    for probe in range(header_index + 1, len(lines)):
+        stripped = lines[probe].strip()
+        if stripped and len(lines[probe]) - len(lines[probe].lstrip()) <= indent:
+            end = probe
+            break
+    while end > header_index + 1 and not lines[end - 1].strip():
+        end -= 1
+    return end
+
+
+def predict_blocks(
+    terms: Counter, idf: dict[str, float], lines: list[str], max_blocks: int
+) -> tuple[list[tuple[int, int]], list[str]]:
+    """Rank def/class blocks by query relevance; return top block spans + names.
+
+    Scores each block by the IDF-weighted query-term mass in its body, so the
+    prediction is function-granular (spans = whole blocks, symbols = their
+    names) instead of scattered line windows.
+    """
+    scored = []
+    for start, end, name in enclosing_blocks(lines):
+        body_tokens = set(prose_tokens(" ".join(lines[start - 1:end])))
+        weight = sum(terms[t] * idf.get(t, 0.0) for t in body_tokens if t in terms)
+        if weight:
+            scored.append((weight, start, end, name))
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    top = scored[:max_blocks]
+    spans = sorted((start, end) for _, start, end, _ in top)
+    symbols = [name for _, _, _, name in top]
+    return spans, symbols
+
+
 def enrich_context_spans(
-    context: RepoContext, query: str, workdir: Path
+    context: RepoContext, query: str, workdir: Path,
+    *, max_blocks: int = _DEFAULT_MAX_BLOCKS,
 ) -> RepoContext:
-    """Predict line spans + symbols for every file in a context, uniformly.
+    """Predict function-block spans + symbols for every file in a context.
 
     Retrieval strategies that add files without spans (graph neighbours, LLM
-    reranks) leave the line/symbol dimensions empty; this fills them by running
-    the lexical span/symbol predictor over each retrieved file against the
-    query, so line- and symbol-level scoring reflects real predictions.
+    reranks) leave the line/symbol dimensions empty; this fills them by ranking
+    each retrieved file's def/class blocks against the query and predicting the
+    top blocks' whole spans and names — matching the block granularity of the
+    gold context so line- and symbol-level scores reflect real predictions.
     """
     workdir = Path(workdir)
     wanted = set(context.files)
-    docs = {
-        rel: _index_document(rel, text)
-        for rel, text in _iter_code_files(workdir)
-        if rel in wanted
+    texts = {
+        rel: text for rel, text in _iter_code_files(workdir) if rel in wanted
     }
-    idf = _compute_idf(list(docs.values()))
+    idf = _compute_idf([_index_document(rel, text) for rel, text in texts.items()])
     terms = expand_query(query).terms
-    predictor = LexicalRepoRetriever()
-    spans = {rel: predictor._spans(doc, terms, idf) for rel, doc in docs.items()}
-    symbols = {rel: predictor._symbols(docs[rel], spans[rel]) for rel in docs}
+    spans, symbols = {}, {}
+    for rel, text in texts.items():
+        block_spans, block_symbols = predict_blocks(
+            terms, idf, text.splitlines(), max_blocks
+        )
+        spans[rel] = block_spans
+        symbols[rel] = block_symbols
     return RepoContext(context.files, spans, symbols)
 
 
