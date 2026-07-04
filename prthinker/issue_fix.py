@@ -24,7 +24,11 @@ from pathlib import Path
 from typing import Protocol
 
 from prthinker.execution_sandbox import Executor
-from prthinker.repo_retrieval import RepoContextRetriever
+from prthinker.repo_retrieval import (
+    RepoContext,
+    RepoContextRetriever,
+    enclosing_blocks,
+)
 
 _DEFAULT_MAX_NEW_TOKENS = 2048
 _DEFAULT_MAX_RETRIES = 1
@@ -147,6 +151,62 @@ def apply_to_workdir(proposal: "IssueFixProposal", workdir: Path) -> list[str]:
             path.write_text(updated, encoding="utf-8")
             changed.append(rel)
     return changed
+
+
+def _edit_line_range(text: str, edit: FixEdit) -> tuple[int, int] | None:
+    """1-based line range that ``edit.original`` occupies in ``text``."""
+    if not edit.original:
+        return None
+    index = text.find(edit.original)
+    if index < 0:
+        return None
+    start = text.count("\n", 0, index) + 1
+    return start, start + edit.original.count("\n")
+
+
+def _expand_to_blocks(
+    lines: list[str], edit_ranges: list[tuple[int, int]]
+) -> tuple[list[tuple[int, int]], list[str]]:
+    """Expand each edited line range to its enclosing def/class block.
+
+    A change inside a function contributes that whole function's span and the
+    names of every block enclosing it (method + class), matching the block
+    granularity of the gold context; a module-level change keeps its own range
+    and contributes no symbol.
+    """
+    blocks = enclosing_blocks(lines)
+    spans: list[tuple[int, int]] = []
+    symbols: list[str] = []
+    for start, end in edit_ranges:
+        covering = [b for b in blocks if b[0] <= start <= b[1]]
+        if not covering:
+            spans.append((start, end))
+            continue
+        innermost = min(covering, key=lambda b: b[1] - b[0])
+        spans.append((innermost[0], innermost[1]))
+        symbols.extend(name for _, _, name in covering)
+    return spans, symbols
+
+
+def patch_context(proposal: "IssueFixProposal", workdir: Path) -> RepoContext:
+    """Derive files / block spans / symbols from the edits (patch localisation).
+
+    The proposed fix pins exactly which lines change and which functions
+    enclose them. Each change is expanded to its enclosing function block so
+    line/symbol predictions match the gold context's block granularity while
+    staying grounded in the real edit — far more precise than keyword windows.
+    """
+    workdir = Path(workdir)
+    spans: dict[str, list[tuple[int, int]]] = {}
+    symbols: dict[str, list[str]] = {}
+    for rel, edits in _edits_by_file(proposal.edits).items():
+        try:
+            text = (workdir / rel).read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        ranges = [r for r in (_edit_line_range(text, e) for e in edits) if r]
+        spans[rel], symbols[rel] = _expand_to_blocks(text.splitlines(), ranges)
+    return RepoContext(tuple(spans), spans, symbols)
 
 
 @dataclass(frozen=True)

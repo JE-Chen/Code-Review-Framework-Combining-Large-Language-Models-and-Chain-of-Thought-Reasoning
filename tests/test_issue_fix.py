@@ -12,10 +12,12 @@ from prthinker.issue_fix import (
     IssueFixProposal,
     IssueFixProposer,
     _apply_edit,
+    _edit_line_range,
     _extract_edits,
     _syntax_ok,
     apply_to_workdir,
     build_patch,
+    patch_context,
     validate_fix,
 )
 from prthinker.repo_retrieval import RepoContext, RepoContextRetriever
@@ -138,6 +140,37 @@ def test_propose_no_files_localised(tmp_path):
     assert not proposal.valid
     assert proposal.edits == ()
     assert "no files" in proposal.reason
+
+
+def test_edit_line_range_locates_original():
+    text = "a\nb\nc\nd\n"
+    assert _edit_line_range(text, FixEdit("f", "c", "x")) == (3, 3)
+    assert _edit_line_range(text, FixEdit("f", "b\nc", "x")) == (2, 3)  # multi-line
+    assert _edit_line_range(text, FixEdit("f", "", "x")) is None        # append
+    assert _edit_line_range(text, FixEdit("f", "zzz", "x")) is None     # not found
+
+
+def test_patch_context_derives_lines_and_enclosing_symbols(tmp_path):
+    (tmp_path / "m.py").write_text(
+        "class A:\n    def foo(self):\n        return WRONG\n    def bar(self):\n        return 1\n",
+        encoding="utf-8",
+    )
+    proposal = IssueFixProposal(
+        ("m.py",), (FixEdit("m.py", "return WRONG", "return RIGHT"),), True
+    )
+    ctx = patch_context(proposal, tmp_path)
+    assert ctx.files == ("m.py",)
+    # the change at line 3 expands to its enclosing function block foo (2-3)
+    assert ctx.spans["m.py"] == [(2, 3)]
+    assert set(ctx.symbols["m.py"]) == {"A", "foo"}  # enclosing class + function
+
+
+def test_patch_context_skips_unreadable_file(tmp_path):
+    proposal = IssueFixProposal(
+        ("ghost.py",), (FixEdit("ghost.py", "x", "y"),), True
+    )
+    ctx = patch_context(proposal, tmp_path)
+    assert ctx.files == ()  # nothing derivable from a missing file
 
 
 def test_build_patch_produces_unified_diff(tmp_path):
