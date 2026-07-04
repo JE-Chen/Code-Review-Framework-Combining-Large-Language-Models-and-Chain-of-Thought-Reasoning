@@ -61,53 +61,57 @@ def _emit(payload, output: Path | None) -> None:
         print(text, end="")
 
 
-def command(args: argparse.Namespace) -> int:
-    if args.benchmark_action == "convert":
-        count = convert_dataset(args.source, args.target, dataset=args.dataset)
-        _emit(
-            {"dataset": args.dataset, "cases": count, "output": str(args.target)}, None
-        )
-        return 0
-    if args.benchmark_action == "run":
-        from prthinker.backends import create_backend
-        from prthinker.benchmark import load_cases, run_cases, write_run_bundle
-        from prthinker.cli_review import _build_config
+def _run_convert(args: argparse.Namespace) -> int:
+    """Handle ``benchmark convert``."""
+    count = convert_dataset(args.source, args.target, dataset=args.dataset)
+    _emit({"dataset": args.dataset, "cases": count, "output": str(args.target)}, None)
+    return 0
 
-        config = _build_config(args)
-        backend = create_backend(config)
-        try:
-            outcomes = run_cases(
-                backend, load_cases(args.cases), max_new_tokens=config.max_new_tokens
-            )
-            manifest = write_run_bundle(
-                args.cases,
-                outcomes,
-                args.output_dir,
-                backend=backend.backend_kind(),
-                model=args.benchmark_model or backend.model_name(),
-                seed=args.seed,
-                parameters={"max_new_tokens": config.max_new_tokens},
-            )
-        finally:
-            backend.close()
-        _emit({"manifest": str(manifest), "cases": len(outcomes)}, None)
-        return 0
-    baseline = score_files(
-        args.cases, args.outcomes if args.benchmark_action == "score" else args.baseline
-    )
-    if args.benchmark_action == "score":
-        _emit(
-            {
-                "aggregate": aggregate(baseline, args.bootstrap_samples, args.seed),
-                "cases": [
-                    asdict(x)
-                    | {"precision": x.precision, "recall": x.recall, "f1": x.f1}
-                    for x in baseline
-                ],
-            },
-            args.output,
+
+def _run_benchmark(args: argparse.Namespace) -> int:
+    """Handle ``benchmark run`` by executing cases against a backend."""
+    from prthinker.backends import create_backend
+    from prthinker.benchmark import load_cases, run_cases, write_run_bundle
+    from prthinker.cli_review import _build_config
+
+    config = _build_config(args)
+    backend = create_backend(config)
+    try:
+        outcomes = run_cases(
+            backend, load_cases(args.cases), max_new_tokens=config.max_new_tokens
         )
-        return 0
+        manifest = write_run_bundle(
+            args.cases,
+            outcomes,
+            args.output_dir,
+            backend=backend.backend_kind(),
+            model=args.benchmark_model or backend.model_name(),
+            seed=args.seed,
+            parameters={"max_new_tokens": config.max_new_tokens},
+        )
+    finally:
+        backend.close()
+    _emit({"manifest": str(manifest), "cases": len(outcomes)}, None)
+    return 0
+
+
+def _run_score(args: argparse.Namespace, baseline) -> int:
+    """Handle ``benchmark score`` for a single run."""
+    _emit(
+        {
+            "aggregate": aggregate(baseline, args.bootstrap_samples, args.seed),
+            "cases": [
+                asdict(x) | {"precision": x.precision, "recall": x.recall, "f1": x.f1}
+                for x in baseline
+            ],
+        },
+        args.output,
+    )
+    return 0
+
+
+def _run_compare(args: argparse.Namespace, baseline) -> int:
+    """Handle ``benchmark compare`` for a paired run."""
     treatment = score_files(args.cases, args.treatment)
     result = compare_runs(
         args.baseline_name,
@@ -119,3 +123,17 @@ def command(args: argparse.Namespace) -> int:
     )
     _emit(asdict(result), args.output)
     return 0
+
+
+def command(args: argparse.Namespace) -> int:
+    """Dispatch a ``benchmark`` sub-action to its handler."""
+    if args.benchmark_action == "convert":
+        return _run_convert(args)
+    if args.benchmark_action == "run":
+        return _run_benchmark(args)
+    baseline = score_files(
+        args.cases, args.outcomes if args.benchmark_action == "score" else args.baseline
+    )
+    if args.benchmark_action == "score":
+        return _run_score(args, baseline)
+    return _run_compare(args, baseline)

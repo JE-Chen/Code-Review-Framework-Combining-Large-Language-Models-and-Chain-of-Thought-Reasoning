@@ -21,15 +21,21 @@ class BetaCalibration:
         return min(0.95, max(0.05, base + (0.5 - self.mean) * 0.25))
 
 
+def _f1_at(threshold, scored_labels):
+    """F1 score treating scores >= threshold as positive predictions."""
+    tp = sum(s >= threshold and y for s, y in scored_labels)
+    fp = sum(s >= threshold and not y for s, y in scored_labels)
+    fn = sum(s < threshold and y for s, y in scored_labels)
+    denom = 2 * tp + fp + fn
+    return 2 * tp / denom if denom else 0
+
+
 def select_threshold(scored_labels):
     best = (0.0, -1.0)
-    for t in sorted({float(s) for s, _ in scored_labels}):
-        tp = sum(s >= t and y for s, y in scored_labels)
-        fp = sum(s >= t and not y for s, y in scored_labels)
-        fn = sum(s < t and y for s, y in scored_labels)
-        f = 2 * tp / (2 * tp + fp + fn) if 2 * tp + fp + fn else 0
+    for threshold in sorted({float(s) for s, _ in scored_labels}):
+        f = _f1_at(threshold, scored_labels)
         if f > best[1]:
-            best = (t, f)
+            best = (threshold, f)
     return best[0]
 
 

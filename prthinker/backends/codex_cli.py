@@ -96,19 +96,7 @@ class CodexCliBackend(InferenceBackend):
         events without an agent message mean the turn failed, which is
         an error rather than an empty review.
         """
-        answer: str | None = None
-        saw_event = False
-        for line in stdout.splitlines():
-            event = self._decode_event(line)
-            if event is None:
-                continue
-            saw_event = True
-            if event.get("type") == "item.completed":
-                item = event.get("item") or {}
-                if item.get("type") == _ANSWER_ITEM_TYPE:
-                    answer = str(item.get("text") or "")
-            elif event.get("type") == "turn.completed":
-                self._record_usage(event.get("usage") or {})
+        answer, saw_event = self._scan_events(stdout)
         if answer is not None:
             return answer
         if not saw_event:
@@ -116,6 +104,29 @@ class CodexCliBackend(InferenceBackend):
         raise RuntimeError(
             "codex CLI produced no agent_message event in its output"
         )
+
+    def _scan_events(self, stdout: str) -> tuple[str | None, bool]:
+        """Walk NDJSON events, returning (last agent answer, any parsed)."""
+        answer: str | None = None
+        saw_event = False
+        for line in stdout.splitlines():
+            event = self._decode_event(line)
+            if event is None:
+                continue
+            saw_event = True
+            answer = self._answer_from_event(event, answer)
+        return answer, saw_event
+
+    def _answer_from_event(self, event: dict, answer: str | None) -> str | None:
+        """Fold one event: update the pending answer or record usage."""
+        event_type = event.get("type")
+        if event_type == "item.completed":
+            item = event.get("item") or {}
+            if item.get("type") == _ANSWER_ITEM_TYPE:
+                return str(item.get("text") or "")
+        elif event_type == "turn.completed":
+            self._record_usage(event.get("usage") or {})
+        return answer
 
     @staticmethod
     def _decode_event(line: str) -> dict | None:

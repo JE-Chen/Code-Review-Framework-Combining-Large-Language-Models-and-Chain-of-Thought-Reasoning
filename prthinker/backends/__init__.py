@@ -11,6 +11,7 @@ the concrete backend whenever ``config.cache.enabled`` or
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from prthinker.backends.base import InferenceBackend
@@ -22,74 +23,113 @@ def create_backend(config: Config) -> InferenceBackend:
     return _wrap(inner, config)
 
 
+def _build_local(config: Config) -> InferenceBackend:
+    """Instantiate the local Hugging Face backend."""
+    from prthinker.backends.local import LocalHFBackend
+
+    assert config.local is not None
+    return LocalHFBackend(config.local)
+
+
+def _build_remote(config: Config) -> InferenceBackend:
+    """Instantiate the remote HTTP backend."""
+    from prthinker.backends.remote import RemoteHttpBackend
+
+    assert config.remote is not None
+    return RemoteHttpBackend(config.remote)
+
+
+def _build_openai(config: Config) -> InferenceBackend:
+    """Instantiate the OpenAI-compatible backend."""
+    from prthinker.backends.openai_compat import OpenAICompatBackend
+
+    assert config.openai is not None
+    return OpenAICompatBackend(config.openai)
+
+
+def _build_anthropic(config: Config) -> InferenceBackend:
+    """Instantiate the Anthropic backend."""
+    from prthinker.backends.anthropic import AnthropicBackend
+
+    assert config.anthropic is not None
+    return AnthropicBackend(config.anthropic)
+
+
+def _build_gemini(config: Config) -> InferenceBackend:
+    """Instantiate the Gemini backend."""
+    from prthinker.backends.gemini import GeminiBackend
+
+    assert config.gemini is not None
+    return GeminiBackend(
+        model=config.gemini.model, api_key=config.gemini.api_key,
+        base_url=config.gemini.base_url,
+        timeout_seconds=config.gemini.timeout_seconds,
+    )
+
+
+def _build_cohere(config: Config) -> InferenceBackend:
+    """Instantiate the Cohere backend."""
+    from prthinker.backends.cohere import CohereBackend
+
+    assert config.cohere is not None
+    return CohereBackend(
+        model=config.cohere.model, api_key=config.cohere.api_key,
+        base_url=config.cohere.base_url,
+        timeout_seconds=config.cohere.timeout_seconds,
+    )
+
+
+def _build_mistral(config: Config) -> InferenceBackend:
+    """Instantiate the Mistral backend."""
+    from prthinker.backends.mistral import MistralBackend
+
+    assert config.mistral is not None
+    return MistralBackend(
+        model=config.mistral.model, api_key=config.mistral.api_key,
+        base_url=config.mistral.base_url,
+        timeout_seconds=config.mistral.timeout_seconds,
+    )
+
+
+def _build_claude_cli(config: Config) -> InferenceBackend:
+    """Instantiate the Claude CLI backend."""
+    from prthinker.backends.claude_cli import ClaudeCliBackend
+
+    assert config.claude_cli is not None
+    return ClaudeCliBackend(config.claude_cli)
+
+
+def _build_codex_cli(config: Config) -> InferenceBackend:
+    """Instantiate the codex CLI backend."""
+    from prthinker.backends.codex_cli import CodexCliBackend
+
+    assert config.codex_cli is not None
+    return CodexCliBackend(config.codex_cli)
+
+
+# Factory dispatch: one builder per backend kind. Each builder lazy-imports
+# its concrete backend so the runner profile never pulls heavy deps for a
+# backend the user did not select.
+_BACKEND_BUILDERS: dict[BackendKind, Callable[[Config], InferenceBackend]] = {
+    BackendKind.LOCAL: _build_local,
+    BackendKind.REMOTE: _build_remote,
+    BackendKind.OPENAI: _build_openai,
+    BackendKind.ANTHROPIC: _build_anthropic,
+    BackendKind.GEMINI: _build_gemini,
+    BackendKind.COHERE: _build_cohere,
+    BackendKind.MISTRAL: _build_mistral,
+    BackendKind.CLAUDE_CLI: _build_claude_cli,
+    BackendKind.CODEX_CLI: _build_codex_cli,
+}
+
+
 def _create_inner_backend(config: Config) -> InferenceBackend:
-    if config.backend is BackendKind.LOCAL:
-        from prthinker.backends.local import LocalHFBackend
-
-        assert config.local is not None
-        return LocalHFBackend(config.local)
-
-    if config.backend is BackendKind.REMOTE:
-        from prthinker.backends.remote import RemoteHttpBackend
-
-        assert config.remote is not None
-        return RemoteHttpBackend(config.remote)
-
-    if config.backend is BackendKind.OPENAI:
-        from prthinker.backends.openai_compat import OpenAICompatBackend
-
-        assert config.openai is not None
-        return OpenAICompatBackend(config.openai)
-
-    if config.backend is BackendKind.ANTHROPIC:
-        from prthinker.backends.anthropic import AnthropicBackend
-
-        assert config.anthropic is not None
-        return AnthropicBackend(config.anthropic)
-
-    if config.backend is BackendKind.GEMINI:
-        from prthinker.backends.gemini import GeminiBackend
-
-        assert config.gemini is not None
-        return GeminiBackend(
-            model=config.gemini.model, api_key=config.gemini.api_key,
-            base_url=config.gemini.base_url,
-            timeout_seconds=config.gemini.timeout_seconds,
-        )
-
-    if config.backend is BackendKind.COHERE:
-        from prthinker.backends.cohere import CohereBackend
-
-        assert config.cohere is not None
-        return CohereBackend(
-            model=config.cohere.model, api_key=config.cohere.api_key,
-            base_url=config.cohere.base_url,
-            timeout_seconds=config.cohere.timeout_seconds,
-        )
-
-    if config.backend is BackendKind.MISTRAL:
-        from prthinker.backends.mistral import MistralBackend
-
-        assert config.mistral is not None
-        return MistralBackend(
-            model=config.mistral.model, api_key=config.mistral.api_key,
-            base_url=config.mistral.base_url,
-            timeout_seconds=config.mistral.timeout_seconds,
-        )
-
-    if config.backend is BackendKind.CLAUDE_CLI:
-        from prthinker.backends.claude_cli import ClaudeCliBackend
-
-        assert config.claude_cli is not None
-        return ClaudeCliBackend(config.claude_cli)
-
-    if config.backend is BackendKind.CODEX_CLI:
-        from prthinker.backends.codex_cli import CodexCliBackend
-
-        assert config.codex_cli is not None
-        return CodexCliBackend(config.codex_cli)
-
-    raise ValueError(f"Unsupported backend: {config.backend!r}")
+    """Dispatch to the builder registered for ``config.backend``."""
+    try:
+        builder = _BACKEND_BUILDERS[config.backend]
+    except KeyError:
+        raise ValueError(f"Unsupported backend: {config.backend!r}") from None
+    return builder(config)
 
 
 def _wrap(inner: InferenceBackend, config: Config) -> InferenceBackend:

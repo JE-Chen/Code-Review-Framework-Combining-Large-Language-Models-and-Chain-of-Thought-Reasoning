@@ -10,15 +10,11 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-import httpx
-
 from prthinker.backends import create_backend
 from prthinker.backends.remote import RemotePipelineClient
 from prthinker.config import (
     BackendKind,
     Config,
-    GitHubConfig,
-    env_str,
 )
 from prthinker.cli_review_helpers import (
     BACKEND_CONFIG_BUILDERS,
@@ -54,6 +50,33 @@ from prthinker.cli_review_emit import (
 # suppressions sit on the reported line) because the test-suite imports it
 # via ``prthinker.cli_review``.
 from prthinker.cli_review_emit import _report_links_footer  # noqa: F401  # pylint: disable=unused-import
+
+# ``_maybe_autofix`` is dispatched from ``_publish_review_result`` below;
+# importing it here also keeps it reachable as ``prthinker.cli_review.<name>``.
+from prthinker.cli_review_autofix import _maybe_autofix
+
+# Re-exported for the test-suite, which drives them via
+# ``prthinker.cli_review``; not called directly in this module.
+from prthinker.cli_review_autofix import (  # noqa: F401  # pylint: disable=unused-import
+    _collect_auto_fix_findings,
+    _maybe_open_auto_fix_mr,
+    _maybe_open_auto_fix_pr,
+    _open_auto_fix_pr_and_report,
+    _report_auto_fix_outcome,
+    _resolve_auto_fix_base_branch,
+    _resolve_mr_base_branch,
+)
+
+# ``_synthesize_overall_summary`` is imported by ``cli_commands`` (the
+# aggregate job) via ``prthinker.cli_review``; the helpers ride along so the
+# ``prthinker.cli_review.<name>`` path keeps resolving for every moved symbol.
+from prthinker.cli_review_overall_summary import (  # noqa: F401  # pylint: disable=unused-import
+    _best_effort_cancel_ask_job,
+    _build_overall_summary_prompt,
+    _collect_overall_summary_inputs,
+    _poll_overall_summary,
+    _synthesize_overall_summary,
+)
 from prthinker.ci_signals import format_signals_block
 from prthinker.diff import parse_unified_diff
 from prthinker.formatters import (
@@ -84,11 +107,6 @@ from prthinker.rules import load_rules_dir
 from prthinker.schemas import InlineFinding, ReviewRequest
 
 log = logging.getLogger("prthinker")
-
-_OVERALL_SUMMARY_PER_CALL_TIMEOUT = 30.0
-_OVERALL_SUMMARY_POLL_INTERVAL = 5.0
-_OVERALL_SUMMARY_DEADLINE_SECONDS = 1800.0
-_OVERALL_SUMMARY_MAX_NEW_TOKENS = 16784
 
 
 def _build_config(args: argparse.Namespace) -> Config:
@@ -231,104 +249,6 @@ def _deserialize_partial_review(data: dict) -> ReviewResult:
         inline_findings=inline_findings,
         per_file=per_file,
     )
-
-
-def _collect_overall_summary_inputs(per_file: list) -> list[str]:
-    """Return the non-empty per-file total summaries, ready for the prompt."""
-    summaries: list[str] = []
-    for fr in per_file:
-        text = (fr.total_summary or "").strip()
-        if text:
-            summaries.append(f"### {fr.path}\n{text}")
-    return summaries
-
-
-def _build_overall_summary_prompt(summaries: list[str]) -> str:
-    return (
-        "You are summarising a code-review run. Below are per-file "
-        "summaries from a single pull request. Write ONE concise PR-wide "
-        "summary in 3-5 sentences. Capture the common themes, the most "
-        "important findings, and the residual risk. Do not enumerate the "
-        "per-file blocks verbatim.\n\n" + "\n\n".join(summaries)
-    )
-
-
-def _best_effort_cancel_ask_job(client: httpx.Client, job_id: str) -> None:
-    """Tell the backend to release the GPU; ignore failures by design."""
-    try:
-        client.post(f"/ask/cancel/{job_id}")
-    except httpx.HTTPError as exc:
-        log.debug("Cancel for ask job %s failed (ignored): %s", job_id, exc)
-
-
-def _poll_overall_summary(client: httpx.Client, job_id: str, deadline: float) -> str:
-    while True:
-        if time.monotonic() >= deadline:
-            _best_effort_cancel_ask_job(client, job_id)
-            log.warning(
-                "Overall summary synthesis exceeded deadline; skipping",
-            )
-            return ""
-        time.sleep(_OVERALL_SUMMARY_POLL_INTERVAL)
-        poll = client.get(f"/ask/result/{job_id}")
-        poll.raise_for_status()
-        payload = poll.json()
-        status = payload.get("status")
-        if status == "done":
-            return (payload.get("result") or "").strip()
-        if status == "error":
-            log.warning(
-                "Overall summary synthesis failed server-side: %s",
-                payload.get("error"),
-            )
-            return ""
-        if status == "cancelled":
-            log.warning("Overall summary synthesis cancelled server-side")
-            return ""
-
-
-def _synthesize_overall_summary(per_file: list) -> str:
-    """Ask the remote backend for a single PR-wide summary.
-
-    Each matrix shard already produced its own per-file
-    ``total_summary``; the aggregate needs to roll them up into one
-    paragraph that captures the PR's overall shape — common themes,
-    the heaviest findings, residual risk — without restating every
-    file. Best-effort: a missing backend, a timeout, or any other
-    failure logs a warning and returns an empty string so the
-    formatter falls back to the per-file blocks alone.
-    """
-    summaries = _collect_overall_summary_inputs(per_file)
-    if len(summaries) < 2:
-        return ""
-
-    remote_url = (env_str("PRTHINKER_REMOTE_URL", "") or "").strip()
-    if not remote_url:
-        return ""
-
-    api_key = (env_str("PRTHINKER_REMOTE_API_KEY", "") or "").strip()
-    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-    deadline = time.monotonic() + _OVERALL_SUMMARY_DEADLINE_SECONDS
-    prompt = _build_overall_summary_prompt(summaries)
-    try:
-        with httpx.Client(
-            base_url=remote_url.rstrip("/"),
-            timeout=_OVERALL_SUMMARY_PER_CALL_TIMEOUT,
-            headers=headers,
-        ) as client:
-            submit = client.post(
-                "/ask/submit",
-                json={
-                    "prompt": prompt,
-                    "max_new_tokens": _OVERALL_SUMMARY_MAX_NEW_TOKENS,
-                },
-            )
-            submit.raise_for_status()
-            job_id = submit.json()["job_id"]
-            return _poll_overall_summary(client, job_id, deadline)
-    except (httpx.HTTPError, KeyError, ValueError) as exc:
-        log.warning("Overall summary synthesis failed (%s); skipping", exc)
-        return ""
 
 
 def _apply_target_file_filter(files: list, args: argparse.Namespace) -> list:
@@ -784,32 +704,6 @@ def _emit_partial_json(result: ReviewResult, output_json: str) -> int:
     return 0
 
 
-def _maybe_autofix(
-    args: argparse.Namespace,
-    result: ReviewResult,
-    platform_kind: object,
-    adapter: object,
-) -> None:
-    """Open a draft auto-fix PR / MR when the threshold is set."""
-    from prthinker.platforms import PlatformKind
-
-    if not (args.auto_fix_threshold and not args.dry_run):
-        return
-    if platform_kind is PlatformKind.GITHUB:
-        gh = GitHubConfig(
-            repo=args.repo,
-            pr_number=args.pr_number,
-            token=args.github_token,
-            comment_marker=args.marker,
-        )
-        _maybe_open_auto_fix_pr(gh, args, result)
-        return
-    if platform_kind is PlatformKind.GITLAB:
-        _maybe_open_auto_fix_mr(args, result, adapter)
-        return
-    log.info("Auto-fix not yet supported on %s — skipping", platform_kind.value)
-
-
 # The PR summary is best-effort, but the comment is worth a few quick
 # retries: a transient backend hiccup (a 5xx, a dropped connection, an
 # empty reply while the GPU was momentarily contended by an overlapping
@@ -1003,144 +897,3 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
         raise
 
     return _publish_review_result(args, adapter, result, gate_handle, platform_kind)
-
-
-def _resolve_auto_fix_base_branch(
-    gh: GitHubConfig, args: argparse.Namespace
-) -> str | None:
-    """Return the auto-fix base branch, fetching it from the PR if unset."""
-    base_branch = args.auto_fix_base_branch
-    if base_branch:
-        return base_branch
-
-    from prthinker.github_api import fetch_pr_base_branch
-
-    try:
-        return fetch_pr_base_branch(gh)
-    except Exception as exc:
-        log.warning("Auto-fix: could not fetch base branch: %s", exc)
-        return None
-
-
-def _report_auto_fix_outcome(auto_result: object | None, ref_prefix: str) -> None:
-    """Log the auto-fix outcome uniformly for the PR and MR paths."""
-    if auto_result is None:
-        log.info(
-            "Auto-fix: no edits applied (every suggestion conflicted or "
-            "the target files did not exist)"
-        )
-        return
-    log.info(
-        "Auto-fix %s%s opened: %s (applied=%d skipped=%d files=%d)",
-        ref_prefix,
-        auto_result.pr_number,
-        auto_result.pr_url,
-        auto_result.total_findings_applied,
-        auto_result.total_findings_skipped,
-        len(auto_result.files_changed),
-    )
-
-
-def _open_auto_fix_pr_and_report(
-    gh: GitHubConfig,
-    findings_by_file: dict[str, list[InlineFinding]],
-    base_branch: str,
-) -> None:
-    """Open the auto-fix PR for the collected findings and log the outcome."""
-    from prthinker.auto_fix import open_auto_fix_pr
-
-    try:
-        auto_result = open_auto_fix_pr(
-            config=gh,
-            findings_by_file=findings_by_file,
-            base_pr_number=gh.pr_number,
-            base_branch=base_branch,
-            repo_root=Path.cwd(),
-        )
-    except Exception as exc:
-        log.error("Auto-fix failed: %s", exc)
-        return
-
-    _report_auto_fix_outcome(auto_result, "PR #")
-
-
-def _collect_auto_fix_findings(
-    args: argparse.Namespace, result: ReviewResult
-) -> dict[str, list[InlineFinding]] | None:
-    """Group threshold-passing warning suggestions per file, or None to skip."""
-    eligible = [
-        f
-        for f in result.inline_findings
-        if f.severity == "warning" and f.suggestion is not None
-    ]
-    if len(eligible) < args.auto_fix_threshold:
-        log.info(
-            "Auto-fix: %d eligible suggestion(s) below threshold %d — skipped",
-            len(eligible),
-            args.auto_fix_threshold,
-        )
-        return None
-    findings_by_file: dict[str, list[InlineFinding]] = {}
-    for f in eligible:
-        findings_by_file.setdefault(f.path, []).append(f)
-    return findings_by_file
-
-
-def _maybe_open_auto_fix_pr(
-    gh: GitHubConfig,
-    args: argparse.Namespace,
-    result: ReviewResult,
-) -> None:
-    """Apply ``--auto-fix-threshold`` to surviving warning suggestions."""
-    findings_by_file = _collect_auto_fix_findings(args, result)
-    if findings_by_file is None:
-        return
-
-    base_branch = _resolve_auto_fix_base_branch(gh, args)
-    if base_branch is None:
-        return
-
-    _open_auto_fix_pr_and_report(gh, findings_by_file, base_branch)
-
-
-def _resolve_mr_base_branch(args: argparse.Namespace, adapter: object) -> str | None:
-    """Return the auto-fix target branch, asking the adapter when unset."""
-    if args.auto_fix_base_branch:
-        return args.auto_fix_base_branch
-    try:
-        return adapter.fetch_base_branch() or None
-    except Exception as exc:  # noqa: BLE001 — auto-fix is best-effort
-        log.warning("Auto-fix: could not fetch MR base branch: %s", exc)
-        return None
-
-
-def _maybe_open_auto_fix_mr(
-    args: argparse.Namespace,
-    result: ReviewResult,
-    adapter: object,
-) -> None:
-    """GitLab twin of ``_maybe_open_auto_fix_pr``: open a draft MR."""
-    findings_by_file = _collect_auto_fix_findings(args, result)
-    if findings_by_file is None:
-        return
-
-    base_branch = _resolve_mr_base_branch(args, adapter)
-    if base_branch is None:
-        return
-
-    from prthinker.auto_fix import GitLabMRTarget, open_auto_fix_mr
-
-    target = GitLabMRTarget(
-        project=args.repo,
-        token=args.github_token,
-        mr_iid=int(args.pr_number),
-        base_url=getattr(adapter, "base_url", "https://gitlab.com/api/v4"),
-    )
-    try:
-        auto_result = open_auto_fix_mr(
-            target, findings_by_file, base_branch, Path.cwd()
-        )
-    except Exception as exc:  # noqa: BLE001 — auto-fix must never fail the review
-        log.error("Auto-fix failed: %s", exc)
-        return
-    _report_auto_fix_outcome(auto_result, "MR !")

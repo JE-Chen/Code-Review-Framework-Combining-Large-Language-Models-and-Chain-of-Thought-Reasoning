@@ -26,7 +26,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+from prthinker.context_graph import scan_import_edges
+from prthinker.context_graph import scan_workdir as scan_context
+
 log = logging.getLogger(__name__)
+
+_GENERIC_KIND = "generic"
 
 
 _SCHEMA = """
@@ -280,16 +285,10 @@ def scan_workdir(workdir: Path) -> list[Symbol]:
     return syms
 
 
-def scan_workdir_full(
+def _scan_base_languages(
     workdir: Path,
 ) -> tuple[list[Symbol], list[Import]]:
-    """Walk ``workdir`` and extract every Symbol and Import edge.
-
-    Imports are how the visualization wires per-file stars into a
-    single connected graph. The resolver in :mod:`kg_visualize`
-    handles the module-string → file-path mapping; this scanner just
-    captures what the source actually wrote.
-    """
+    """Scan every supported file with the built-in Python/JS/TS scanners."""
     syms: list[Symbol] = []
     imps: list[Import] = []
     for file in workdir.rglob("*"):
@@ -304,28 +303,56 @@ def scan_workdir_full(
         file_syms, file_imps = scanner(file, rel)
         syms.extend(file_syms)
         imps.extend(file_imps)
-    # Optional Tree-sitter augmentation covers Java/Go/Rust/C/C++/C#/Kotlin
-    # and other language-pack grammars while preserving the lightweight base.
-    try:
-        from prthinker.context_graph import scan_import_edges, scan_workdir as scan_context
+    return syms, imps
 
-        existing = {(s.file_path, s.kind, s.symbol, s.line) for s in syms}
-        for node in scan_context(workdir):
-            kind = "class" if "class" in node.kind else (
-                "method" if "method" in node.kind else "function"
-            )
-            key = (node.path, kind, node.name, node.start_line)
-            if node.name and key not in existing:
-                syms.append(Symbol(node.name, kind, node.path, node.start_line))
-                existing.add(key)
-        known_imports = {(i.from_file, i.target, i.kind) for i in imps}
-        for source, target in scan_import_edges(workdir):
-            key = (source, target, "generic")
-            if key not in known_imports:
-                imps.append(Import(source, target, "generic"))
-                known_imports.add(key)
-    except ImportError:
-        pass
+
+def _coarse_symbol_kind(node_kind: str) -> str:
+    """Map a Tree-sitter node kind onto the KG's coarse symbol kind."""
+    if "class" in node_kind:
+        return "class"
+    if "method" in node_kind:
+        return "method"
+    return "function"
+
+
+def _augment_context_symbols(workdir: Path, syms: list[Symbol]) -> None:
+    """Append Tree-sitter symbols the base scanners missed, in place."""
+    existing = {(s.file_path, s.kind, s.symbol, s.line) for s in syms}
+    for node in scan_context(workdir):
+        kind = _coarse_symbol_kind(node.kind)
+        key = (node.path, kind, node.name, node.start_line)
+        if node.name and key not in existing:
+            syms.append(Symbol(node.name, kind, node.path, node.start_line))
+            existing.add(key)
+
+
+def _augment_context_imports(workdir: Path, imps: list[Import]) -> None:
+    """Append Tree-sitter import edges the base scanners missed, in place."""
+    known = {(i.from_file, i.target, i.kind) for i in imps}
+    for source, target in scan_import_edges(workdir):
+        key = (source, target, _GENERIC_KIND)
+        if key not in known:
+            imps.append(Import(source, target, _GENERIC_KIND))
+            known.add(key)
+
+
+def scan_workdir_full(
+    workdir: Path,
+) -> tuple[list[Symbol], list[Import]]:
+    """Walk ``workdir`` and extract every Symbol and Import edge.
+
+    Imports are how the visualization wires per-file stars into a
+    single connected graph. The resolver in :mod:`kg_visualize`
+    handles the module-string → file-path mapping; this scanner just
+    captures what the source actually wrote.
+
+    The optional Tree-sitter augmentation covers
+    Java/Go/Rust/C/C++/C#/Kotlin and other language-pack grammars while
+    preserving the lightweight base scan.
+    """
+    syms, imps = _scan_base_languages(workdir)
+    _augment_context_symbols(workdir, syms)
+    _augment_context_imports(workdir, imps)
     return syms, imps
 
 

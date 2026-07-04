@@ -202,21 +202,32 @@ def _add_method_links(
             })
 
 
+_GENERIC_SUFFIXES: tuple[str, ...] = (
+    ".java", ".go", ".rs", ".c", ".h", ".cpp", ".cs", ".kt",
+)
+
+
+def _resolve_generic_target(target: str, seen_files: set[str]) -> str | None:
+    """Resolve a polyglot (Tree-sitter) import target to a known file."""
+    stem = target.replace("::", "/").replace(".", "/").lstrip("/")
+    candidates = [stem, *(stem + suffix for suffix in _GENERIC_SUFFIXES)]
+    for candidate in candidates:
+        if candidate in seen_files:
+            return candidate
+    basename = stem.rsplit("/", 1)[-1]
+    matches = [
+        path for path in seen_files
+        if path.rsplit("/", 1)[-1].split(".")[0] == basename
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
 def _resolve_import_target(imp: Import, seen_files: set[str]) -> str | None:
     """Resolve an import to a known workdir file, or ``None`` if external."""
     if imp.kind == "tsjs":
         return _resolve_tsjs_target(imp.target, imp.from_file, seen_files)
     if imp.kind == "generic":
-        stem = imp.target.replace("::", "/").replace(".", "/").lstrip("/")
-        candidates = [stem, *(
-            stem + suffix for suffix in (".java", ".go", ".rs", ".c", ".h", ".cpp", ".cs", ".kt")
-        )]
-        for candidate in candidates:
-            if candidate in seen_files:
-                return candidate
-        basename = stem.rsplit("/", 1)[-1]
-        matches = [path for path in seen_files if path.rsplit("/", 1)[-1].split(".")[0] == basename]
-        return matches[0] if len(matches) == 1 else None
+        return _resolve_generic_target(imp.target, seen_files)
     return _resolve_python_target(
         imp.target, imp.kind, imp.from_file, seen_files,
     )

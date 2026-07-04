@@ -91,27 +91,48 @@ def impact_slice(changed: Iterable[str], edges: Iterable[tuple[str, str]]) -> se
     return impacted
 
 
+_IGNORED_DIRS = {".git", ".venv", "node_modules", "dist", "build", "vendor"}
+
+
+def _language_for_scan(path: Path, max_file_bytes: int) -> str | None:
+    """Return the Tree-sitter language for a scannable file, else None."""
+    if not path.is_file():
+        return None
+    if any(part in _IGNORED_DIRS for part in path.parts):
+        return None
+    language = LANGUAGE_BY_SUFFIX.get(path.suffix.lower())
+    if language is None:
+        return None
+    if path.stat().st_size > max_file_bytes:
+        return None
+    return language
+
+
+def _scan_one_file(
+    path: Path, workdir: Path, language: str
+) -> list[ContextNode]:
+    """Parse one file into workdir-relative context nodes, [] on failure."""
+    try:
+        parsed = parse_tree_sitter(path, language)
+    except (OSError, RuntimeError, ValueError):
+        return []
+    relative = path.relative_to(workdir).as_posix()
+    return [
+        ContextNode(relative, n.kind, n.name, n.start_line, n.end_line)
+        for n in parsed
+    ]
+
+
 def scan_workdir(
     workdir: Path, *, max_file_bytes: int = 1_000_000
 ) -> list[ContextNode]:
     """Scan supported source languages, skipping generated/private trees."""
     nodes: list[ContextNode] = []
-    ignored = {".git", ".venv", "node_modules", "dist", "build", "vendor"}
     for path in workdir.rglob("*"):
-        if not path.is_file() or any(part in ignored for part in path.parts):
+        language = _language_for_scan(path, max_file_bytes)
+        if language is None:
             continue
-        language = LANGUAGE_BY_SUFFIX.get(path.suffix.lower())
-        if language is None or path.stat().st_size > max_file_bytes:
-            continue
-        try:
-            parsed = parse_tree_sitter(path, language)
-        except (OSError, RuntimeError, ValueError):
-            continue
-        relative = path.relative_to(workdir).as_posix()
-        nodes.extend(
-            ContextNode(relative, n.kind, n.name, n.start_line, n.end_line)
-            for n in parsed
-        )
+        nodes.extend(_scan_one_file(path, workdir, language))
     return nodes
 
 

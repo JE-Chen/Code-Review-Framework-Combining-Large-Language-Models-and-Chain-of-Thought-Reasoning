@@ -43,6 +43,7 @@ log = logging.getLogger(__name__)
 
 _USER_AGENT = "prthinker/0.1"
 _NOTES_PER_PAGE = 100
+_DEV_NULL = "/dev/null"
 
 # Map our event vocabulary to GitLab's discussion semantics. GitLab has
 # no APPROVE / REQUEST_CHANGES verb on discussions themselves; the
@@ -621,6 +622,22 @@ class GitLabAdapter(PlatformAdapter):
             ).raise_for_status()
 
 
+def _diff_entry_paths(entry: dict[str, Any]) -> tuple[str, str]:
+    """Resolve ``(old_path, new_path)`` from a GitLab diffs entry."""
+    new_path = str(entry.get("new_path") or entry.get("old_path") or "")
+    old_path = str(entry.get("old_path") or new_path)
+    return old_path, new_path
+
+
+def _diff_entry_sides(
+    entry: dict[str, Any], old_path: str, new_path: str
+) -> tuple[str, str]:
+    """Resolve the ``---`` / ``+++`` side markers, honouring add/delete."""
+    a_side = _DEV_NULL if entry.get("new_file") else f"a/{old_path}"
+    b_side = _DEV_NULL if entry.get("deleted_file") else f"b/{new_path}"
+    return a_side, b_side
+
+
 def _diff_entry_to_text(entry: dict[str, Any]) -> str:
     """Reconstruct one file's unified-diff text from a ``diffs`` entry.
 
@@ -630,14 +647,12 @@ def _diff_entry_to_text(entry: dict[str, Any]) -> str:
     because the per-file diff itself is too large) are recorded as binary
     so the file is still listed rather than silently lost.
     """
-    new_path = str(entry.get("new_path") or entry.get("old_path") or "")
-    old_path = str(entry.get("old_path") or new_path)
+    old_path, new_path = _diff_entry_paths(entry)
     header = f"diff --git a/{old_path} b/{new_path}\n"
     hunks = entry.get("diff") or ""
     if not hunks:
         return f"{header}Binary files a/{old_path} and b/{new_path} differ\n"
-    a_side = "/dev/null" if entry.get("new_file") else f"a/{old_path}"
-    b_side = "/dev/null" if entry.get("deleted_file") else f"b/{new_path}"
+    a_side, b_side = _diff_entry_sides(entry, old_path, new_path)
     body = hunks if hunks.endswith("\n") else hunks + "\n"
     return f"{header}--- {a_side}\n+++ {b_side}\n{body}"
 

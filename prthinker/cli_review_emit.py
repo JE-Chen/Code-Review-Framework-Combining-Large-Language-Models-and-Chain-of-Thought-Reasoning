@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from prthinker.api_surface import compute_api_surface
+from prthinker.calibration import CalibrationStore
 from prthinker.change_map import change_map_edges, format_change_map_mermaid
 from prthinker.checks import evaluate_gate
 from prthinker.codequality import write_codequality
@@ -105,27 +106,46 @@ def _apply_ignore_spec(args: argparse.Namespace, result: ReviewResult) -> None:
         file_result.inline_findings = filter_findings(file_result.inline_findings, spec)
 
 
+_CALIBRATION_EPSILON = 1e-6
+_DEFAULT_HALF_LIFE_DAYS = 90
+_DEFAULT_MIN_SAMPLES = 10
+_DEFAULT_BASE_THRESHOLD = 0.5
+
+
+def _calibrated_min_confidence(args: argparse.Namespace) -> float:
+    """Confidence floor from the calibration store, or 0.0 when unavailable."""
+    calibration_path = (getattr(args, "calibration_store", "") or "").strip()
+    if not calibration_path:
+        return 0.0
+    calibration = CalibrationStore(calibration_path).hierarchical(
+        getattr(args, "repo", "") or "",
+        getattr(args, "calibration_author", "") or "",
+        getattr(args, "calibration_category", "") or "",
+        half_life_days=float(
+            getattr(args, "calibration_half_life_days", _DEFAULT_HALF_LIFE_DAYS)
+        ),
+    )
+    samples = calibration.accepted + calibration.dismissed + _CALIBRATION_EPSILON
+    if samples >= int(getattr(args, "calibration_min_samples", _DEFAULT_MIN_SAMPLES)):
+        return calibration.threshold(_DEFAULT_BASE_THRESHOLD)
+    return 0.0
+
+
+def _resolve_min_confidence(args: argparse.Namespace) -> float:
+    """Explicit ``--min-confidence``, else the calibrated confidence floor."""
+    min_conf = float(getattr(args, "min_confidence", 0.0) or 0.0)
+    if min_conf <= 0:
+        return _calibrated_min_confidence(args)
+    return min_conf
+
+
 def _postprocess_findings(args: argparse.Namespace, result: ReviewResult) -> None:
     """Apply inline / file ignore suppression and de-duplication in place."""
     _apply_inline_ignore(result)
     _apply_ignore_spec(args, result)
     if getattr(args, "dedupe_findings", False):
         result.inline_findings = dedupe_findings(result.inline_findings)
-    min_conf = float(getattr(args, "min_confidence", 0.0) or 0.0)
-    calibration_path = (getattr(args, "calibration_store", "") or "").strip()
-    if min_conf <= 0 and calibration_path:
-        from prthinker.calibration import CalibrationStore
-
-        calibration = CalibrationStore(calibration_path).hierarchical(
-            getattr(args, "repo", "") or "",
-            getattr(args, "calibration_author", "") or "",
-            getattr(args, "calibration_category", "") or "",
-            half_life_days=float(getattr(args, "calibration_half_life_days", 90)),
-        )
-        if calibration.accepted + calibration.dismissed + 1e-6 >= int(
-            getattr(args, "calibration_min_samples", 10)
-        ):
-            min_conf = calibration.threshold(0.5)
+    min_conf = _resolve_min_confidence(args)
     if min_conf > 0:
         result.inline_findings = filter_by_confidence(result.inline_findings, min_conf)
 
