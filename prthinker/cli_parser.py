@@ -32,6 +32,7 @@ from prthinker.benchmark_cli import add_benchmark_parser
 from prthinker.verify_cli import add_verify_parser
 from prthinker.retrieval_eval_cli import add_parser as add_retrieval_eval_parser
 from prthinker.supply_chain_cli import add_parser as add_attest_parser
+from prthinker.issue_fix_cli import add_parser as add_issue_fix_parser
 
 log = logging.getLogger("prthinker")
 
@@ -138,6 +139,7 @@ def _build_parser() -> argparse.ArgumentParser:
     add_verify_parser(sub)
     add_retrieval_eval_parser(sub)
     add_attest_parser(sub)
+    add_issue_fix_parser(sub, common)
 
     return parser
 
