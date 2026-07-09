@@ -23,7 +23,8 @@ from prthinker.issue_fix import (
     build_patch,
     validate_fix,
 )
-from prthinker.repo_retrieval import GraphExpandedRetriever, RerankingRepoRetriever
+from prthinker.repo_graph import GraphExpandedRetriever
+from prthinker.repo_retrieval import RerankingRepoRetriever
 from prthinker.repo_retrieval_factory import create_repo_retriever
 
 _DEFAULT_TOP_K = 10

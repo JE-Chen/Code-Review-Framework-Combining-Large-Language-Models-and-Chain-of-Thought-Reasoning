@@ -19,9 +19,9 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from prthinker.repo_graph import GraphExpandedRetriever
 from prthinker.repo_retrieval import (
     _DEFAULT_CANDIDATE_K,
-    GraphExpandedRetriever,
     LexicalRepoRetriever,
     QueryRewritingRetriever,
     RepoContext,

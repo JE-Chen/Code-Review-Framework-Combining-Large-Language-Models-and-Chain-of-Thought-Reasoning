@@ -56,7 +56,8 @@ from prthinker.steps import (
 )
 from prthinker.trajectory import TrajectorySink
 from prthinker.otel import operation_span
-from prthinker.repo_retrieval import RepoContextRetriever, build_import_adjacency
+from prthinker.repo_graph import build_import_adjacency
+from prthinker.repo_retrieval import RepoContextRetriever
 from prthinker.pipeline_exec import PipelineExecutionMixin
 from prthinker.pipeline_types import (
     FileReviewResult,
