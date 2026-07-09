@@ -72,7 +72,15 @@ v2.5 / v1.9 目前把這句當摘要與結論的 headline，本次要改。
 
 **凍結數字（repo-backed，可放心引用）**：
 
-- CRSCORE++ Ours vs 基準（`datas/Results/2026-02-15-qwen3-coder-30b/score.md`）：comprehensiveness **0.86 vs 0.67**、relevance **0.83 vs 0.63**、conciseness **0.64 vs 0.57**。（注意維度對應：0.86=完整性、0.83=相關性、0.64=簡潔性。）
+- **現行（v3.5 起之最終協定）CRSCORE++ 分數：同一 judge（Claude）＋標準 CRSCORE++ 評分提示詞。**
+  Ours (Gemma-4-31B-it) **1.00／0.79／0.86**（`datas/Results/2026-06-11-gemma4-31b/score.md`）、
+  Ours (Qwen3-Coder-30B) **1.00／0.78／0.86**（`2026-02-15-qwen3-coder-30b/score_claude.md`）、
+  Ours (Qwen2.5-Coder-7B) **0.97／0.69／0.79**（`2026-02-11-qwen2_5-coder-7b/score_claude.md`）。
+  維度順序均為 comprehensiveness／conciseness／relevance。
+  **CRSCORE++ 基準欄 0.67／0.57／0.63 沿用其原始評測之 GPT-4o-mini 分數**（無 Claude 重評檔），
+  行文引用時必須揭露跨 judge 比較僅屬指示性（v3.6 起已於摘要、§5.1 與表六說明段揭露）。
+- 舊協定（GPT-5 judge，僅供歷史對照，勿再寫入行文）：Ours (30B) 0.86／0.64／0.83
+  （`2026-02-15-qwen3-coder-30b/score.md`）。
 - 44 筆基準（檔案數實證）。
 
 **凍結數字（manuscript-only，已在現稿，視為凍結事實逐字沿用，但不得新增/外推）**：
