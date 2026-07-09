@@ -770,7 +770,7 @@ class CoTPipeline(PipelineExecutionMixin):
         provenance: bool,
     ) -> list[InlineFinding]:
         """Re-query the inline step once and label findings by agreement."""
-        from reviewmind import reproducibility
+        from prthinker import reproducibility
 
         # Rebuild the same prompt and re-query the model. With
         # non-deterministic backends we get a second sample; with

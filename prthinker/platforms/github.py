@@ -89,7 +89,7 @@ class GitHubAdapter(PlatformAdapter):
                 "Authorization": f"Bearer {self.token}",
                 "Accept": "application/vnd.github+json",
                 "X-GitHub-Api-Version": "2022-11-28",
-                "User-Agent": "reviewmind/0.1",
+                "User-Agent": "prthinker/0.1",
             },
         ) as client:
             response = client.get(
