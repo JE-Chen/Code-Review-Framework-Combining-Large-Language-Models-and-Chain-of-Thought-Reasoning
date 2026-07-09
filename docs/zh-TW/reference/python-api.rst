@@ -107,6 +107,10 @@ Harvester
    :no-index:
    :members:
 
+.. automodule:: prthinker.gitlab_harvest
+   :no-index:
+   :members:
+
 CI 訊號
 -------
 

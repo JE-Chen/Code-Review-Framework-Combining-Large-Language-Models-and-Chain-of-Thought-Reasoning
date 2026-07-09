@@ -14,12 +14,13 @@ A complete catalog of what prthinker does. For installation steps see
 
 - [Overview](#overview)
 - [The Chain-of-Thought pipeline](#the-chain-of-thought-pipeline)
-- [Four interchangeable backends](#four-interchangeable-backends)
+- [Nine interchangeable backends](#nine-interchangeable-backends)
 - [RAG with global + per-repo rules](#rag-with-global--per-repo-rules)
 - [Per-file inline review with suggestion blocks](#per-file-inline-review-with-suggestion-blocks)
 - [Two learned corpora](#two-learned-corpora)
 - [CI failure signals](#ci-failure-signals)
 - [Pre-merge Check Run gate](#pre-merge-check-run-gate)
+- [Issue automation (auto-file + issue-autofix)](#issue-automation-auto-file--issue-autofix)
 - [Judge step + verdict aggregation](#judge-step--verdict-aggregation)
 - [Streaming](#streaming)
 - [Cache, telemetry, and stats](#cache-telemetry-and-stats)
@@ -104,19 +105,26 @@ cache invalidates automatically.
 
 ---
 
-## Four interchangeable backends
+## Nine interchangeable backends
 
 Strategy pattern under `prthinker.backends.base.InferenceBackend`:
 
 | Backend kind | Class | What it talks to |
 |---|---|---|
-| `local` | `LocalHFBackend` | Any HF causal-LM in-process — Qwen, Llama-3, Mistral, CodeLlama — with optional LoRA + 4-bit/8-bit quantization. |
+| `local` | `LocalHFBackend` | Any HF causal-LM in-process — Qwen, Llama-3, Mistral, CodeLlama — with optional LoRA. The 30B/gemma family loads in bf16 (FP8 opt-in via `PRTHINKER_QUANT=fp8`); other models default to 8-bit quantization. |
 | `remote` | `RemoteHttpBackend` + `RemotePipelineClient` | The project's own FastAPI server (`/ask`, `/rag`, `/review`). |
 | `openai` | `OpenAICompatBackend` | Any OpenAI-Chat-Completions endpoint — OpenAI, Azure, vLLM, Ollama `/v1`, LM Studio, llama.cpp server, Together, Groq, DeepInfra, OpenRouter. |
 | `anthropic` | `AnthropicBackend` | Anthropic Messages API. |
+| `gemini` | `GeminiBackend` | Google Gemini `generateContent` API. |
+| `cohere` | `CohereBackend` | Cohere Chat API. |
+| `mistral` | `MistralBackend` | Mistral Chat Completions API. |
+| `claude-cli` | `ClaudeCliBackend` | The locally installed `claude` CLI in print mode — can be granted working-tree tools. |
+| `codex-cli` | `CodexCliBackend` | The locally installed `codex` CLI headless (read-only sandbox by default). |
 
-Adding a new backend means: subclass `InferenceBackend`, add a branch to
-`create_backend()`. The pipeline doesn't change.
+`RouterBackend` (failover across a backend list) and `EnsembleBackend`
+(N-way voting) wrap any of the above. Adding a new backend means:
+subclass `InferenceBackend`, add a branch to `create_backend()`. The
+pipeline doesn't change.
 
 ---
 
@@ -282,6 +290,45 @@ PRs cannot merge with surviving error-severity findings.
 The gate and the judge are **independent signals**: the gate is
 mechanical (count by severity), the judge is interpretive (LLM
 verdict). Both can fire on the same PR.
+
+---
+
+## Issue automation (auto-file + issue-autofix)
+
+Two features extend the review loop into the issue tracker, on GitHub
+and GitLab alike (platform specifics live behind the
+`prthinker.issue_tracker` Strategy layer — one class per platform, one
+factory entry point).
+
+**Auto-filed issues** (`review-pr --auto-file-issues {none,off-diff,all}`):
+findings that fall outside the diff hunks cannot be posted as inline
+comments — the platform rejects the whole review — so they used to
+survive only in the summary text. `off-diff` files each of them as a
+tracker issue; `all` files every finding. A fingerprint marker (SHA-256
+of path + category + normalised comment, deliberately excluding the
+line number) embedded in the issue body makes re-reviews idempotent:
+the same problem is never filed twice while its issue stays open. One
+run files at most 10 new issues, labels come from `--issue-labels`
+(default `prthinker`), and every API call is best-effort — a tracker
+outage never fails the review.
+
+**Issue auto-fix** (`prthinker issue-autofix`): drives the `issue-fix`
+proposal engine end-to-end. It fetches the issue (`--issue-number N` or
+every open issue with `--issue-label L`), localises the relevant files
+with the configured retriever, asks the backend for find/replace edits
+that must apply verbatim and leave valid Python syntax (invalid batches
+are re-queried once with the failure reason), then — with `--open-pr` —
+applies the edits, optionally gates on `--test-cmd`, commits to
+`issue-fix/<N>`, pushes, and opens a **draft** fix PR (GitHub) or MR
+(GitLab) whose `Fixes #N` closes the issue on merge, commenting the
+link back on the issue. Without `--open-pr` it is a dry run that prints
+proposals + patches as JSON and mutates nothing. Batch mode restores
+the starting git ref between issues; a failure on one issue records an
+error result and the batch continues.
+
+The two compose into a loop — a review files the issue,
+`issue-autofix --issue-label` proposes the fix — but every fix PR is a
+draft that a human still reviews and merges.
 
 ---
 
@@ -541,6 +588,8 @@ subprocess); use `PRTHINKER_BACKEND=remote` if RAG matters.
 | `prthinker harvest-accepted` | Scan past PRs for applied suggestions → JSONL |
 | `prthinker stats` | Aggregate telemetry into a per-(backend, model) table |
 | `prthinker triage` | Run the no-model orientation signals over a diff (stdin / `--diff-file` / `--staged` / `--against REF`); no backend |
+| `prthinker issue-fix` | Localise an issue, propose validated find/replace edits as JSON |
+| `prthinker issue-autofix` | Fetch tracker issues (GitHub / GitLab), propose fixes, open draft fix PRs / MRs |
 | `prthinker mcp` | Run the MCP stdio server |
 
 Every flag has a corresponding `PRTHINKER_*` env var; the
@@ -674,11 +723,19 @@ docs are explicitly forbidden.
 
 ## Research-grade extensions
 
-Four mechanisms most LLM-code-review systems do not ship. All are
-**opt-in** and require `--inline-review`. Per the project's
-no-fabrication rule (`paper_rule.md`), the framework + corpora are
-delivered but **no measured benchmark numbers** are bundled. Design
-write-up: [`docs/concepts/research-extensions.rst`](../docs/concepts/research-extensions.rst).
+Seventeen mechanisms most LLM-code-review systems do not ship — the
+thirteen most visible are detailed below; active-learning lessons
+(`derive-lessons`), cross-PR finding clustering (`discover-rules`), the
+repo knowledge graph (`build-kg`), and incremental per-file save are
+covered in the design write-up. Most are **opt-in** and require
+`--inline-review`. Per the project's no-fabrication rule
+(`paper_rule.md`), the framework + corpora are delivered but **no
+measured benchmark numbers** are bundled — the `benchmark` harness
+records raw outcomes plus a reproducibility manifest (dataset/output
+hashes, git commit, seed, parameters), and offline adapters convert
+pinned CodeFuse-CR-Bench / SWE-PRBench exports (see
+[`benchmarks/`](../benchmarks/README.md)). Design write-up:
+[`docs/en/concepts/research-extensions.rst`](../docs/en/concepts/research-extensions.rst).
 
 ### Adversarial robustness — `prthinker adversarial-eval`
 

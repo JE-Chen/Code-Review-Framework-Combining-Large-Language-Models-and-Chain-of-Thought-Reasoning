@@ -1,6 +1,14 @@
 HTTP API
 ========
 
+確定性擴充端點
+--------------
+
+``POST /evaluation/retrieval`` 接受 ``retrieved``\ 、\ ``expected``\ 、
+``used`` 與 ``cited_correct`` 陣列。\ ``POST /attestation/review`` 回傳
+一份未簽章的 in-toto review statement。兩個端點都不執行儲存庫程式碼，
+驗證仍是 runner 端 sandbox 的責任。
+
 ``codes/run/fastapi_server.py`` 的 FastAPI server 提供一組同步端點
 （\ ``/healthz``\ 、\ ``/ask``\ 、\ ``/rag``\ 、\ ``/review``\ ）以及一組
 與之對應的 job-pattern 端點（\ ``/review/{submit,result,cancel}`` 和
@@ -17,6 +25,14 @@ Server 端有一個常駐 sweeper thread 每 30 秒巡所有 job 表，任何
 running job 若 result endpoint 超過 180 秒沒被 poll 就自動 set
 ``cancel_event``──避免 GHA runner 被取消後 backend 仍在白燒 GPU
 跑沒人讀的 review（見下方 cancel endpoint）。
+
+兩個 job 表都有上限（\ ``PRTHINKER_MAX_JOBS``\ ，每種預設 32）：
+已終止的 job 先被淘汰；當所有 slot 都是進行中的 job 時，submit
+endpoint 回 ``503``\ ──隔一個 poll 間隔再重試即可。請求在碰到 GPU
+之前也會先過預算檢查：prompt 超過 ``PRTHINKER_MAX_INPUT_TOKENS``
+（預設 16384）、或 ``max_new_tokens`` 超過 ``PRTHINKER_MAX_NEW_TOKENS``
+（預設 32768），都會在邊界快速失敗，而不是在生成途中冒出一個難以
+解讀的 CUDA OOM。
 
 所有請求都支援可選的 ``Authorization: Bearer <token>`` header。Server 本身
 不驗 token──如果需要實際的身分驗證，請套在 reverse proxy（nginx、

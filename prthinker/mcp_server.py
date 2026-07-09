@@ -19,6 +19,7 @@ The ``mcp`` SDK is an optional dependency; install with
 from __future__ import annotations
 
 import logging
+import json
 import sys
 from pathlib import Path
 
@@ -248,6 +249,39 @@ def run() -> int:
             if report:
                 log.warning("MCP redaction: %s", report.summary())
         return triage_markdown(diff)
+
+    @mcp.tool()
+    def evaluate_retrieval(
+        retrieved: list[str], expected: list[str], used: list[str],
+        cited_correct: list[bool],
+    ) -> str:
+        """Return deterministic retrieval recall/precision/utilization metrics."""
+        from dataclasses import asdict
+        from prthinker.retrieval_eval import evaluate
+
+        return json.dumps(
+            asdict(evaluate(retrieved, expected, used, cited_correct)), indent=2
+        )
+
+    @mcp.tool()
+    def make_review_attestation(
+        repository: str, revision: str, base_revision: str,
+        policy_digest: str, review_digest: str,
+    ) -> str:
+        """Create an unsigned in-toto review attestation without filesystem access."""
+        from prthinker.supply_chain import review_attestation
+
+        return json.dumps(
+            review_attestation(
+                repository=repository,
+                revision=revision,
+                base_revision=base_revision,
+                policy_digest=policy_digest,
+                review_digest=review_digest,
+                controls=("automated-review", "evidence-verification"),
+            ),
+            indent=2,
+        )
 
     @mcp.tool()
     def stats(since_days: float | None = 7.0) -> str:

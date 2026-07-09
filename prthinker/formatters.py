@@ -33,7 +33,6 @@ from prthinker.formatters_blocks import (
     _format_dep_upgrade_block,
     _format_diff_entropy_block,
     _format_file_block,
-    _format_legend,
     _format_persona_conflicts_block,
     _format_step_detail,
     _loc_ref,
@@ -46,6 +45,24 @@ from prthinker.formatters_blocks import (
 from prthinker.formatters_blocks import _format_provenance_block  # noqa: F401  # pylint: disable=unused-import
 from prthinker.pipeline import FileReviewResult, ReviewResult
 from prthinker.schemas import InlineFinding
+
+# Re-export the summary / digest / footer / checklist renderers extracted to
+# prthinker.formatters_summary so existing call sites and tests keep reaching
+# them through ``prthinker.formatters``. The public names (format_digest,
+# format_review_footer, format_reviewer_checklist) are re-exported via __all__
+# below; the private helpers are called by the orchestration code here.
+from prthinker.formatters_summary import (
+    _format_clean_comment,
+    _format_overview_block,
+    _total_inline_findings,
+    format_digest,
+    format_review_footer,
+    format_reviewer_checklist,
+)
+# Reached by the test-suite via ``prthinker.formatters._effort_estimate_minutes``
+# but not called in this module — re-exported on its own statement so the
+# suppression sits on the reported line.
+from prthinker.formatters_summary import _effort_estimate_minutes  # noqa: F401  # pylint: disable=unused-import
 
 # Re-export the public-facing private block helpers so existing call sites
 # and tests keep reaching them through ``prthinker.formatters``.
@@ -127,74 +144,6 @@ class _RenderOpts:
     filtered: str | None = None
 
 
-def _total_inline_findings(result: ReviewResult) -> int:
-    """Total inline findings, counted from per_file when present."""
-    if result.per_file:
-        return sum(len(fr.inline_findings) for fr in result.per_file)
-    return len(result.inline_findings)
-
-
-def _reviewed_file_count(result: ReviewResult) -> int:
-    """Number of non-binary, non-deleted files actually reviewed."""
-    return sum(
-        1 for fr in result.per_file if not (fr.is_binary or fr.is_deleted)
-    )
-
-
-def _skipped_file_count(result: ReviewResult) -> int:
-    """Number of binary / deleted files that were skipped, not reviewed."""
-    return sum(1 for fr in result.per_file if fr.is_binary or fr.is_deleted)
-
-
-def _format_clean_comment(
-    result: ReviewResult, marker: str, preliminary: str | None = None
-) -> str:
-    """One-line confirmation for a PR that produced zero findings."""
-    reviewed = _reviewed_file_count(result)
-    scope = f" across {reviewed} reviewed file(s)" if reviewed else ""
-    head = f"{marker}\n## CoT Code Review\n\n"
-    overview = f"{preliminary}\n\n" if preliminary else ""
-    return f"{head}{overview}✅ No findings{scope}.\n"
-
-
-_STATUS_BY_SEVERITY: tuple[tuple[str, str], ...] = (
-    ("error", "🔴 Changes requested"),
-    ("warning", "🟡 Review suggested"),
-    ("info", "🔵 Minor notes"),
-)
-_OVERVIEW_HOTSPOT_LIMIT = 5
-
-
-def _severity_counts(result: ReviewResult) -> dict[str, int]:
-    """Tally inline findings by severity across every reviewed file."""
-    counts = {"error": 0, "warning": 0, "info": 0}
-    for fr in result.per_file:
-        for finding in fr.inline_findings:
-            key = finding.severity if finding.severity in counts else "info"
-            counts[key] += 1
-    return counts
-
-
-def _overall_status(counts: dict[str, int]) -> str:
-    """Plain-language verdict derived from the worst severity present."""
-    for severity, label in _STATUS_BY_SEVERITY:
-        if counts.get(severity):
-            return label
-    return "✅ Looks good — no findings"
-
-
-def _hotspots_line(result: ReviewResult, files_url: str | None = None) -> str:
-    """Top files by severity then finding count — look here first."""
-    ranked = _sort_files_by_severity(
-        [fr for fr in result.per_file if fr.inline_findings]
-    )[:_OVERVIEW_HOTSPOT_LIMIT]
-    return " · ".join(
-        f"{_file_ref(fr.path, files_url, _first_finding_line(fr))} "
-        f"({len(fr.inline_findings)})"
-        for fr in ranked
-    )
-
-
 _MUST_FIX_LIMIT = 5
 _SNIPPET_CAP = 100
 
@@ -242,93 +191,6 @@ def _format_must_fix_block(
     extra = len(errors) - _MUST_FIX_LIMIT
     if extra > 0:
         lines.append(f"- … and {extra} more error(s)")
-    lines += ["", "---", ""]
-    return lines
-
-
-# Review-effort heuristic: a flat base, a minute per reviewed file, and a
-# severity-weighted minute budget per finding. Deliberately rough — the "~"
-# in the rendered line signals it is an estimate, not a measurement.
-_EFFORT_BASE_MIN = 2
-_EFFORT_PER_FILE_MIN = 1
-_EFFORT_SEVERITY_MIN: dict[str, int] = {"error": 5, "warning": 3, "info": 1}
-
-
-def _suggestion_counts(result: ReviewResult) -> tuple[int, int]:
-    """(one-click suggestions, sandbox-verified) across every finding."""
-    suggestions = 0
-    verified = 0
-    for fr in result.per_file:
-        for finding in fr.inline_findings:
-            if finding.suggestion:
-                suggestions += 1
-            verification = finding.verification
-            if verification is not None and verification.status == "pass":
-                verified += 1
-    return suggestions, verified
-
-
-def _effort_estimate_minutes(result: ReviewResult) -> int:
-    """Rough review-time estimate from file count and finding severity."""
-    minutes = _EFFORT_BASE_MIN + _reviewed_file_count(result) * _EFFORT_PER_FILE_MIN
-    for fr in result.per_file:
-        for finding in fr.inline_findings:
-            minutes += _EFFORT_SEVERITY_MIN.get(finding.severity, 1)
-    return minutes
-
-
-def _overview_extra_lines(result: ReviewResult, with_findings: int) -> list[str]:
-    """Suggestion-aggregate and review-effort digest lines."""
-    lines: list[str] = []
-    suggestions, verified = _suggestion_counts(result)
-    if suggestions:
-        extra = f" · {verified} sandbox-verified" if verified else ""
-        lines.append(f"- **Suggestions:** {suggestions} one-click fix(es){extra}")
-    attention = f" · {with_findings} file(s) need attention" if with_findings else ""
-    lines.append(
-        f"- **Review effort:** ~{_effort_estimate_minutes(result)} min{attention}"
-    )
-    return lines
-
-
-def _format_overview_block(
-    result: ReviewResult,
-    files_url: str | None = None,
-    delta: str | None = None,
-    gate: str | None = None,
-    filtered: str | None = None,
-) -> list[str]:
-    """A compact, scannable digest pinned to the top of the summary.
-
-    Lives in the upserted part-1 comment, so it is rewritten in place on
-    every re-review and always reflects the latest run.
-    """
-    counts = _severity_counts(result)
-    total = sum(counts.values())
-    reviewed = _reviewed_file_count(result)
-    with_findings = sum(1 for fr in result.per_file if fr.inline_findings)
-    lines = [
-        "### 🔎 Review at a glance",
-        "",
-        f"- **Status:** {_overall_status(counts)}",
-    ]
-    if gate:
-        lines.append(f"- **Gate:** {gate}")
-    lines += [
-        f"- **Findings:** 🔴 {counts['error']} error · "
-        f"🟡 {counts['warning']} warning · 🔵 {counts['info']} info "
-        f"({total} total)",
-        f"- **Files:** {reviewed} reviewed · {with_findings} with findings · "
-        f"{reviewed - with_findings} clean",
-    ]
-    if filtered:
-        lines.append(f"- **Filtered from view:** {filtered}")
-    lines += _overview_extra_lines(result, with_findings)
-    if delta:
-        lines.append(f"- **Since last review:** {delta}")
-    hotspots = _hotspots_line(result, files_url)
-    if hotspots:
-        lines.append(f"- **Hotspots:** {hotspots}")
     lines += ["", "---", ""]
     return lines
 
@@ -998,103 +860,3 @@ def format_pr_comment_pages(
     ]
     pages = _paginate_blocks(head, blocks, marker, max_chars)
     return _label_pages(pages, marker)
-
-
-def format_review_footer(
-    result: ReviewResult,
-    *,
-    head_sha: str = "",
-    backend: str = "",
-    model: str = "",
-    version: str = "",
-    generated_at: str = "",
-) -> str:
-    """Render the metadata footer + legend appended to the last page.
-
-    Surfaces the review's context — commit, backend/model, time, file
-    coverage, tool version — so a reader knows exactly what produced it.
-    """
-    skipped = _skipped_file_count(result)
-    reviewed = _reviewed_file_count(result)
-    bits: list[str] = []
-    if head_sha:
-        bits.append(f"commit `{head_sha[:8]}`")
-    if backend or model:
-        bits.append(f"via {backend or 'backend'} `{model}`".rstrip(" `"))
-    bits.append(f"{reviewed} reviewed / {skipped} skipped")
-    if version:
-        bits.append(f"prthinker {version}")
-    if generated_at:
-        bits.append(generated_at)
-    meta = "_Review metadata: " + " · ".join(bits) + "._"
-    return "\n".join(["---", "", meta, "", *_format_legend()]).rstrip() + "\n"
-
-
-def format_digest(result: ReviewResult, files_url: str | None = None) -> str:
-    """The standalone at-a-glance digest (status / counts / hotspots).
-
-    Reused for the compact PR-description section so the verdict shows at
-    the top of the PR, not only in the comments.
-    """
-    return "\n".join(_format_overview_block(result, files_url)).strip()
-
-
-_CHECKLIST_LIMIT = 12
-_CHECKLIST_COMMENT_CAP = 80
-
-
-def _checklist_item_for_finding(
-    finding: InlineFinding, files_url: str | None
-) -> str | None:
-    """A manual-verification item for a finding that needs human follow-up.
-
-    An error whose suggestion is not sandbox-verified still needs a human
-    to confirm the fix; a low-reproducibility finding needs a second look.
-    Everything else is left off the checklist to keep it short.
-    """
-    loc = _loc_ref(finding.path, finding.line, files_url)
-    head = _first_line(finding.comment, _CHECKLIST_COMMENT_CAP)
-    verified = (
-        finding.verification is not None
-        and finding.verification.status == "pass"
-    )
-    if finding.severity == "error" and not verified:
-        return f"Verify the fix for {loc} — {head}"
-    if finding.reproducibility == "low":
-        return f"Re-confirm (low reproducibility) {loc} — {head}"
-    return None
-
-
-def format_reviewer_checklist(
-    result: ReviewResult, files_url: str | None = None
-) -> str:
-    """A collapsible 'things to verify by hand' checklist, or ``""``.
-
-    Built from the findings that a one-click suggestion cannot close on
-    its own — unverified error fixes, low-reproducibility findings, and
-    cross-language API drift — so the reviewer has an explicit gate list
-    instead of re-deriving it from the full report.
-    """
-    items: list[str] = []
-    for fr in result.per_file:
-        for finding in fr.inline_findings:
-            item = _checklist_item_for_finding(finding, files_url)
-            if item:
-                items.append(item)
-    for drift in result.api_drift:
-        items.append(
-            f"Confirm cross-language contract `{drift.backend_path}` ↔ "
-            f"`{drift.frontend_path}`"
-        )
-    if not items:
-        return ""
-    shown = items[:_CHECKLIST_LIMIT]
-    rows = [f"- [ ] {item}" for item in shown]
-    extra = len(items) - len(shown)
-    if extra > 0:
-        rows.append(f"- [ ] … and {extra} more item(s)")
-    return "\n".join([
-        f"<details><summary>✅ Reviewer checklist ({len(items)} item(s))"
-        "</summary>",
-        "", *rows, "", "</details>",
-    ])

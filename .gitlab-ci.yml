@@ -58,6 +58,10 @@ prthinker-review:
     PRTHINKER_HIDE_INFO: "true"
     # Fail the gate (commit status) on an error-severity finding.
     PRTHINKER_GATE_ON: "error"
+    # Code Quality report — GitLab's counterpart of the SARIF upload the
+    # GitHub workflow performs. The artifact feeds the MR's Code Quality
+    # widget with a per-line list of findings.
+    PRTHINKER_CODEQUALITY_OUT: "gl-code-quality-report.json"
   script:
     - python -m pip install --upgrade pip
     - pip install -e ".[runner]"
@@ -67,3 +71,8 @@ prthinker-review:
         exit 1
       fi
     - python -m prthinker review-pr
+  artifacts:
+    when: always
+    reports:
+      codequality: gl-code-quality-report.json
+    expire_in: 30 days

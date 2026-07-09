@@ -14,7 +14,9 @@ from prthinker.review_modes import (
 )
 from tests.conftest import FakeBackend
 
-_ONE_FILE_DIFF = "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1 +1,2 @@\n x\n+y\n"
+_ONE_FILE_DIFF = (
+    "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1 +1,2 @@\n x\n+y\n"
+)
 
 
 class _RecordingBackend:
@@ -28,10 +30,19 @@ class _RecordingBackend:
 
 # ---------- registry --------------------------------------------------------
 
-def test_eight_builtin_modes_registered():
+
+def test_builtin_modes_registered():
     assert set(available_modes()) == {
-        "security", "performance", "test-coverage", "iac",
-        "db-migration", "accessibility", "secret-scan", "pii",
+        "security",
+        "performance",
+        "test-coverage",
+        "iac",
+        "db-migration",
+        "accessibility",
+        "secret-scan",
+        "pii",
+        "refactoring",
+        "ai-generated",
     }
 
 
@@ -50,7 +61,10 @@ def test_register_duplicate_name_raises():
 def test_run_review_modes_keys_outputs_and_skips_unknown():
     backend = _RecordingBackend()
     out = run_review_modes(
-        backend, _ONE_FILE_DIFF, ["security", "iac", "does-not-exist"], 128,
+        backend,
+        _ONE_FILE_DIFF,
+        ["security", "iac", "does-not-exist"],
+        128,
     )
     assert set(out) == {"review_mode::security", "review_mode::iac"}
     assert len(backend.prompts) == 2
@@ -63,6 +77,7 @@ def test_run_review_modes_empty_enabled_is_noop():
 
 
 # ---------- pipeline integration --------------------------------------------
+
 
 def test_run_per_file_runs_enabled_review_modes():
     # 5 CoT steps for the single file + 1 review-mode call.

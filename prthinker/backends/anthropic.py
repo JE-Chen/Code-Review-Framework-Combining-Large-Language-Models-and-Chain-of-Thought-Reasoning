@@ -20,14 +20,16 @@ from typing import Iterator
 
 import httpx
 
-from prthinker.backends.base import InferenceBackend, Usage
+from prthinker.backends.base import InferenceBackend, Usage, ThreadLocalUsage
 from prthinker.config import AnthropicConfig
 
 
 class AnthropicBackend(InferenceBackend):
+    concurrency_limit = 4
+
     def __init__(self, config: AnthropicConfig) -> None:
         self._config = config
-        self._last_usage: Usage | None = None
+        self._usage = ThreadLocalUsage()
         self._client = httpx.Client(
             base_url=config.base_url.rstrip("/"),
             timeout=config.timeout_seconds,
@@ -45,7 +47,7 @@ class AnthropicBackend(InferenceBackend):
         return self._config.model
 
     def last_usage(self) -> Usage | None:
-        return self._last_usage
+        return self._usage.get()
 
     def generate(
         self,
@@ -56,7 +58,7 @@ class AnthropicBackend(InferenceBackend):
     ) -> str:
         # Remote network call; mid-stream cancellation not implemented.
         del cancel_event
-        self._last_usage = None
+        self._usage.set(None)
         payload = {
             "model": self._config.model,
             "max_tokens": max_new_tokens,
@@ -79,23 +81,21 @@ class AnthropicBackend(InferenceBackend):
         input_tokens = usage.get("input_tokens")
         output_tokens = usage.get("output_tokens")
         if input_tokens is not None and output_tokens is not None:
-            self._last_usage = Usage(
+            self._usage.set(Usage(
                 prompt_tokens=int(input_tokens),
                 completion_tokens=int(output_tokens),
-            )
+            ))
 
         return text
 
-    def stream_generate(
-        self, prompt: str, max_new_tokens: int
-    ) -> Iterator[str]:
+    def stream_generate(self, prompt: str, max_new_tokens: int) -> Iterator[str]:
         """Native SSE streaming via ``stream: true``.
 
         Anthropic emits ``content_block_delta`` events with ``delta.text``
         deltas. The terminating ``message_delta`` event carries the final
         ``usage`` block; we capture it for ``last_usage``.
         """
-        self._last_usage = None
+        self._usage.set(None)
         prompt_tokens: int | None = None
         payload = self._build_stream_payload(prompt, max_new_tokens)
         with self._client.stream("POST", "/v1/messages", json=payload) as response:
@@ -117,9 +117,7 @@ class AnthropicBackend(InferenceBackend):
                 elif event_type == "message_stop":
                     break
 
-    def _build_stream_payload(
-        self, prompt: str, max_new_tokens: int
-    ) -> dict:
+    def _build_stream_payload(self, prompt: str, max_new_tokens: int) -> dict:
         """Assemble the streaming ``/v1/messages`` request body."""
         return {
             "model": self._config.model,
@@ -155,13 +153,11 @@ class AnthropicBackend(InferenceBackend):
         text = delta.get("text")
         return str(text) if text else None
 
-    def _capture_stream_usage(
-        self, event: dict, prompt_tokens: int | None
-    ) -> None:
+    def _capture_stream_usage(self, event: dict, prompt_tokens: int | None) -> None:
         """Record ``last_usage`` from a ``message_delta`` usage block."""
         output = (event.get("usage") or {}).get("output_tokens")
         if output is not None and prompt_tokens is not None:
-            self._last_usage = Usage(prompt_tokens, int(output))
+            self._usage.set(Usage(prompt_tokens, int(output)))
 
     def close(self) -> None:
         self._client.close()

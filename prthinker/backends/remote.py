@@ -85,17 +85,13 @@ class _AsyncJobClient:
     a terminal ``done`` payload to the result type it wants back.
     """
 
-    def __init__(
-        self, client: httpx.Client, kind: str, timeout_seconds: float
-    ) -> None:
+    def __init__(self, client: httpx.Client, kind: str, timeout_seconds: float) -> None:
         self._client = client
         self._kind = kind
         self._timeout_seconds = timeout_seconds
 
     def run(self, submit_body: dict, parse_done: Callable[[dict], T]) -> T:
-        submit_resp = self._client.post(
-            f"/{self._kind}/submit", json=submit_body
-        )
+        submit_resp = self._client.post(f"/{self._kind}/submit", json=submit_body)
         submit_resp.raise_for_status()
         job_id = submit_resp.json()["job_id"]
         completed_cleanly = False
@@ -139,9 +135,7 @@ class _AsyncJobClient:
             )
         return None
 
-    def _poll_until_done(
-        self, job_id: str, parse_done: Callable[[dict], T]
-    ) -> T:
+    def _poll_until_done(self, job_id: str, parse_done: Callable[[dict], T]) -> T:
         deadline = time.monotonic() + self._timeout_seconds
         consecutive_failures = 0
         while True:
@@ -159,9 +153,7 @@ class _AsyncJobClient:
                 self._note_poll_failure(job_id, consecutive_failures, exc)
                 continue
             consecutive_failures = 0
-            result = self._terminal_result_or_none(
-                job_id, poll_resp.json(), parse_done
-            )
+            result = self._terminal_result_or_none(job_id, poll_resp.json(), parse_done)
             if result is not None:
                 return result
 
@@ -206,6 +198,7 @@ def _parse_review_done(payload: dict) -> ReviewResponse:
 
 
 class RemoteHttpBackend(InferenceBackend):
+    concurrency_limit = 4
     """Runs prompts through the async /ask job (submit + poll)."""
 
     def __init__(self, config: RemoteBackendConfig) -> None:

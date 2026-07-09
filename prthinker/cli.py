@@ -52,6 +52,13 @@ from prthinker.cli_review import (
     _cmd_review_pr,
 )
 from prthinker.cli_triage import _cmd_triage
+from prthinker.benchmark_cli import command as _cmd_benchmark
+from prthinker.verify_cli import command as _cmd_verify
+from prthinker.otel import configure as configure_otel
+from prthinker.retrieval_eval_cli import command as _cmd_retrieval_eval
+from prthinker.supply_chain_cli import command as _cmd_attest
+from prthinker.issue_autofix_cli import command as _cmd_issue_autofix
+from prthinker.issue_fix_cli import command as _cmd_issue_fix
 
 log = logging.getLogger("prthinker")
 
@@ -75,6 +82,12 @@ _COMMAND_HANDLERS: dict[str, Callable[[argparse.Namespace], int]] = {
     "harvest-dismissed": _cmd_harvest,
     "harvest-accepted": _cmd_harvest_accepted,
     "triage": _cmd_triage,
+    "benchmark": _cmd_benchmark,
+    "verify": _cmd_verify,
+    "retrieval-eval": _cmd_retrieval_eval,
+    "attest": _cmd_attest,
+    "issue-fix": _cmd_issue_fix,
+    "issue-autofix": _cmd_issue_autofix,
 }
 
 
@@ -92,6 +105,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     args = parser.parse_args(argv)
+    if args.otel_endpoint and not configure_otel(args.otel_endpoint):
+        parser.error("--otel-endpoint requires prthinker[observability]")
     logging.basicConfig(
         level=getattr(logging, args.log_level),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",

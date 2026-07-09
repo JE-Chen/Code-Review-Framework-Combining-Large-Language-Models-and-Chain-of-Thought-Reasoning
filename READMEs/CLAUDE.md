@@ -14,10 +14,12 @@ required Check Run before merges.
 
 - `prthinker/` — the standalone Python package (Strategy / Factory /
   Registry / Repository / DI patterns).
-- `prthinker/backends/` — four interchangeable backends
+- `prthinker/backends/` — nine interchangeable backend kinds
   (LocalHFBackend / RemoteHttpBackend / OpenAICompatBackend /
-  AnthropicBackend) behind a single `InferenceBackend` ABC.
-- `prthinker/platforms/` — GitHub + GitLab adapters behind
+  AnthropicBackend / GeminiBackend / CohereBackend / MistralBackend /
+  ClaudeCliBackend / CodexCliBackend) plus RouterBackend failover and
+  EnsembleBackend voting, behind a single `InferenceBackend` ABC.
+- `prthinker/platforms/` — GitHub + GitLab + Gitea adapters behind
   `PlatformAdapter` (diff / comments / inline review / gate / dialogue).
 - `prthinker/{adversarial,counterfactual,dialogue,findings,sandbox,
   review_cache,reproducibility,personas,risk_score,diff_entropy,
@@ -27,7 +29,7 @@ required Check Run before merges.
   `docs/en/concepts/research-extensions.rst`).
 - `prthinker/adversarial_corpus/` — hand-authored seed corpus for the
   prompt-injection robustness suite (`seed.jsonl` — labelled "seed,
-  NOT a benchmark" per `paper_rule.md`).
+  NOT a benchmark" per `paper/paper_inserts.md`'s no-fabrication rule).
 - `codes/run/` — original entry points (`cot.py`, `skills.py`,
   `fastapi_server.py`). `cot.py` is now a thin wrapper over the package;
   `fastapi_server.py` is the inference server.
@@ -38,11 +40,24 @@ required Check Run before merges.
 - `codes/util/` — `hf_model_util.py` (model loading), `faiss_util.py`
   (FAISS-backed RAG).
 - `datas/` — test data, RAG rule documents, prompt copies.
+- `benchmarks/` — the reproducible-run protocol and the longitudinal
+  team-study design; dataset files are intentionally not committed and
+  no scores are bundled.
+- `requirements/` — hash-locked runner/CI environments
+  (`pip-compile --generate-hashes`); `*.in` are the human-edited inputs.
 - `docs/` — Sphinx documentation, single tree containing all three
   languages under `docs/{en,zh-TW,zh-CN}/`.
-- `paper/` — manuscript and slide build (pptxgenjs Node project).
+- `paper/` — manuscripts (`論文_v*.docx` thesis, `TCSE_v*.docx` conference
+  short paper), the python-docx tooling that produces them
+  (`_rewrite_*.py`, `_check_rules.py`, `_fix_fonts/_fix_semicolon/
+  _fix_dash.py`, `_dump_*.py`), the authoritative rewrite brief
+  (`REWRITE_BRIEF.md`), and the slide build (pptxgenjs Node project).
+  Manuscript edits go through the `paper-author` subagent.
 - `.github/workflows/` — `prthinker.yml` GHA integration with a
-  preflight ping + graceful skip when the backend is unreachable.
+  preflight ping + graceful skip when the backend is unreachable;
+  `ci.yml` (hash-locked test/quality/dependency-review matrix on
+  3.12/3.13) and `release.yml` (build + provenance attestation +
+  PyPI Trusted Publishing on ``v*`` tags).
 
 ### Tech Stack
 
@@ -52,8 +67,8 @@ Pydantic v2, httpx, Sphinx + Read the Docs.
 ### Research-grade extensions (opt-in, framework only)
 
 Seventeen mechanisms most LLM-code-review systems do not ship. Per
-`paper_rule.md`'s no-fabrication rule, code + corpora + unit tests
-are delivered; **no benchmark numbers are bundled**.
+`paper/paper_inserts.md`'s no-fabrication rule, code + corpora + unit
+tests are delivered; **no benchmark numbers are bundled**.
 
 - Adversarial robustness (`prthinker adversarial-eval`).
 - Closed-loop multi-turn dialogue (`--reply-to-author`).
@@ -131,7 +146,7 @@ gap compounds.
   - `feat: Add step-by-step analysis to CoT pipeline`
   - `fix: Correct threshold filtering in RAG retrieval`
   - `refactor: Extract model loading into shared factory`
-  - `perf: Enable 4-bit quantization for 30B model`
+  - `perf: Stage the LoRA adapter on CPU during dual-card load`
   - `security: Validate uploaded code paths against traversal`
 
 ### PR Rules
@@ -160,12 +175,15 @@ package. New code that violates these is rejected at review.
 1. **Strategy Pattern** — Pipeline switching (CoT / Skills / Single
    Prompt) and backend selection must be expressed as interchangeable
    strategies. No hardcoded `match/case` branches in execution code.
-   Concrete: `prthinker.backends.base.InferenceBackend` with four
-   implementations — `LocalHFBackend` (any HF causal-LM in-process, with
-   LoRA + quantization), `RemoteHttpBackend` (the project's own FastAPI
-   `/ask` server), `OpenAICompatBackend` (any OpenAI-Chat-Completions
+   Concrete: `prthinker.backends.base.InferenceBackend` with nine
+   backend kinds — `LocalHFBackend` (any HF causal-LM in-process, with
+   LoRA), `RemoteHttpBackend` (the project's own FastAPI `/ask`
+   server), `OpenAICompatBackend` (any OpenAI-Chat-Completions
    endpoint: OpenAI, Azure, vLLM, Ollama /v1, LM Studio, Together, Groq,
-   …), and `AnthropicBackend` (Claude Messages API). Adding a new
+   …), `AnthropicBackend` (Claude Messages API), `GeminiBackend`,
+   `CohereBackend`, `MistralBackend`, and the local agent CLIs
+   (`ClaudeCliBackend` / `CodexCliBackend`) — plus `RouterBackend`
+   failover and `EnsembleBackend` voting wrappers. Adding a new
    provider means adding one class + one factory branch.
 2. **Factory Pattern** — All model instantiation (tokenizer + base model
    + LoRA adapter + quantization) must go through a single factory entry
@@ -211,8 +229,12 @@ package. New code that violates these is rejected at review.
 
 - **Models load once** at module level. Never reload per request or per
   file.
-- **Quantization mandatory** for large models: 4-bit (NF4 + double quant
-  + bf16 compute) for ≥30B; 8-bit acceptable for smaller models.
+- **Serving precision is model-aware**: the bf16 family
+  (Qwen3-30B-A3B pair, gemma-4-31B) loads in plain bf16 with a balanced
+  dual-card split — never bitsandbytes (4-bit + transformers ≥ 5
+  densifies the MoE forward); `PRTHINKER_QUANT=fp8` is the opt-in for
+  bandwidth-bound single-card deploys. Other models default to 8-bit.
+  Training still uses QLoRA 4-bit (NF4 + bf16 compute).
 - Wrap all gradient-free inference and embedding paths with
   `@torch.no_grad()`.
 - Call `model.eval()` immediately after load.
@@ -604,8 +626,9 @@ the reason in the comment next to it.
 
 The same package targets two install profiles:
 
-- **Runner** (`pip install -e ".[runner]"`) — `httpx`, `pydantic` only.
-  Used by the GHA workflow on a default ubuntu-latest runner. **MUST
+- **Runner** (`pip install -e ".[runner]"`) — `httpx`, `pydantic`,
+  `PyYAML` only. Used by the GHA workflow on a default ubuntu-latest
+  runner. **MUST
   NOT** import torch / transformers / faiss at module load. Lazy-import
   inside backend / retriever constructors.
 - **Local** (`pip install -e ".[local]"`) — adds the full ML stack
@@ -672,7 +695,7 @@ Impress — do not replace this with a print-to-PDF or image-export path.
 
 ### Source of truth
 
-- `paper/論文_v1.5.docx` (and successors) — the manuscript. Re-extract
+- The highest-versioned `paper/論文_v*.docx` — the manuscript. Re-extract
   numbers from here when rebuilding slides; do not copy from older
   `slides.md` snapshots.
 - `output/*.png` — system / training / CoT flow diagrams referenced by

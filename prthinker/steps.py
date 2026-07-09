@@ -39,6 +39,9 @@ class ReviewContext:
     positive_examples_block: str = ""
     dialogue_block: str = ""
     provenance_block: str = ""
+    # Cross-file context retrieved from the repository (empty unless the
+    # pipeline was given a repo retriever); prepended to step prompts.
+    repo_context_block: str = ""
 
 
 class ReviewStep(ABC):
@@ -88,8 +91,16 @@ def resolve_steps(names: tuple[str, ...]) -> tuple[type[ReviewStep], ...]:
 # ---------------------------------------------------------------------------
 
 
-def _wrap(prompt: str, rag_docs: list[str]) -> str:
-    return build_global_rule_template(prompt=prompt, rag_rules=rag_docs)
+def _prepend_repo_context(ctx: ReviewContext, prompt: str) -> str:
+    """Prefix a step prompt with retrieved cross-file context, if any."""
+    if ctx.repo_context_block:
+        return f"{ctx.repo_context_block}\n\n{prompt}"
+    return prompt
+
+
+def _wrap(ctx: ReviewContext, prompt: str) -> str:
+    body = build_global_rule_template(prompt=prompt, rag_rules=ctx.rag_docs)
+    return _prepend_repo_context(ctx, body)
 
 
 @register_step
@@ -98,8 +109,8 @@ class FirstSummaryStep(ReviewStep):
 
     def build_prompt(self, ctx: ReviewContext) -> str:
         return _wrap(
+            ctx,
             FIRST_SUMMARY_TEMPLATE.format(code_diff=ctx.code_diff),
-            ctx.rag_docs,
         )
 
 
@@ -109,8 +120,8 @@ class FirstCodeReviewStep(ReviewStep):
 
     def build_prompt(self, ctx: ReviewContext) -> str:
         return _wrap(
+            ctx,
             FIRST_CODE_REVIEW_TEMPLATE.format(code_diff=ctx.code_diff),
-            ctx.rag_docs,
         )
 
 
@@ -120,8 +131,8 @@ class LinterStep(ReviewStep):
 
     def build_prompt(self, ctx: ReviewContext) -> str:
         return _wrap(
+            ctx,
             LINTER_TEMPLATE.format(code_diff=ctx.code_diff),
-            ctx.rag_docs,
         )
 
 
@@ -131,8 +142,8 @@ class CodeSmellStep(ReviewStep):
 
     def build_prompt(self, ctx: ReviewContext) -> str:
         return _wrap(
+            ctx,
             CODE_SMELL_DETECTOR_TEMPLATE.format(code_diff=ctx.code_diff),
-            ctx.rag_docs,
         )
 
 
@@ -156,6 +167,7 @@ class TotalSummaryStep(ReviewStep):
                 f"total_summary requires prior steps {missing} but they were not run"
             )
         return _wrap(
+            ctx,
             TOTAL_SUMMARY_TEMPLATE.format(
                 first_code_review=ctx.results["first_code_review"],
                 first_summary=ctx.results["first_summary"],
@@ -163,7 +175,6 @@ class TotalSummaryStep(ReviewStep):
                 code_smell_result=ctx.results["code_smell"],
                 code_diff=ctx.code_diff,
             ),
-            ctx.rag_docs,
         )
 
 
@@ -180,7 +191,7 @@ class InlineFindingsStep(ReviewStep):
         if not ctx.file_path:
             raise ValueError("InlineFindingsStep requires ctx.file_path")
         # Skip the global-rule wrap so the output is more likely to be raw JSON.
-        return INLINE_FINDINGS_TEMPLATE.format(
+        prompt = INLINE_FINDINGS_TEMPLATE.format(
             file_path=ctx.file_path,
             code_diff=ctx.code_diff,
             max_findings=ctx.max_findings,
@@ -188,6 +199,7 @@ class InlineFindingsStep(ReviewStep):
             dialogue_block=ctx.dialogue_block,
             provenance_block=ctx.provenance_block,
         )
+        return _prepend_repo_context(ctx, prompt)
 
 
 class WalkthroughStep(ReviewStep):

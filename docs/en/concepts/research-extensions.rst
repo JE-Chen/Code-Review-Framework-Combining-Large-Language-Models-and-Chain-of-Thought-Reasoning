@@ -672,9 +672,17 @@ no inference — so they run on the runner profile.
   translate finding comments into a target language.
 * **Golden-set snapshots** (library: ``golden``) — write/diff a stable
   snapshot of findings to catch prompt/behaviour drift (no scores).
-* **Evaluation harness skeleton** (library: ``benchmark``) — run a case
-  corpus through a backend and record raw outputs only; per
-  ``paper_rule.md`` it emits no scores or aggregate numbers.
+* **Evaluation harness** (library: ``benchmark``) — run a case corpus
+  through a backend and record raw outputs only; per ``paper_rule.md``
+  it emits no scores or aggregate numbers. ``load_cases`` reads the
+  canonical ``case_id``/``prompt`` JSONL and ``write_run_bundle`` writes
+  each run as ``outcomes.jsonl`` plus a ``manifest.json`` capturing
+  dataset and output SHA-256, git commit, runtime, backend, model, seed,
+  and generation parameters — so every run is reproducible and auditable
+  after the fact. The offline ``benchmark_datasets`` adapter converts
+  pinned CodeFuse-CR-Bench / SWE-PRBench exports into that canonical
+  JSONL while keeping ground-truth comments out of the prompt; the run
+  protocol and a longitudinal team-study design live in ``benchmarks/``.
 * **Cost estimation + budget** (library: ``cost``) — per-call USD
   estimate from ``pricing`` and a ``CostBudget`` to cap a PR.
 * **Focused review modes** (``--review-modes security,performance,…``) —
@@ -772,9 +780,11 @@ and ship no code:
   **embedding-drift monitor** — these need accumulated accept/dismiss
   history and an online feedback loop; the corpora stores exist, but the
   learning loop is design-only. Future work.
-* **Server queue + rate-limiting** and **per-model metric labels** —
-  server-side concurrency control and finer telemetry labels; design-only
-  to keep the boot path and the metrics cardinality stable. Future work.
+* **Per-model metric labels** — finer telemetry labels; design-only to
+  keep the metrics cardinality stable. Future work. (Server-side
+  admission control is no longer design-only: the inference server
+  bounds both async job tables via ``PRTHINKER_MAX_JOBS`` and enforces
+  per-request token budgets — see :doc:`../reference/http-api`.)
 
 Status
 ------

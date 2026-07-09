@@ -34,6 +34,7 @@ from prthinker.accepted import (
 from prthinker.backends.local import LocalHFBackend
 from prthinker.config import LocalBackendConfig
 from prthinker.dismissed import DismissedExamplesStore, DismissedFilter
+from prthinker.gpu_lock import gpu_serialized
 from prthinker.pipeline import CoTPipeline, ReviewCancelledError
 from prthinker.rag import FaissRAGRetriever
 from prthinker.schemas import (
@@ -43,6 +44,9 @@ from prthinker.schemas import (
     JobStatus,
     RagRequest,
     RagResponse,
+    RetrievalEvalRequest,
+    RetrievalEvalResponse,
+    ReviewAttestationRequest,
     ReviewJobStatusResponse,
     ReviewJobSubmitResponse,
     ReviewRequest,
@@ -172,6 +176,30 @@ def rag(req: RagRequest) -> RagResponse:
     return RagResponse(docs=docs)
 
 
+@app.post("/evaluation/retrieval", response_model=RetrievalEvalResponse)
+def evaluate_retrieval(req: RetrievalEvalRequest) -> RetrievalEvalResponse:
+    from dataclasses import asdict
+    from prthinker.retrieval_eval import evaluate
+
+    return RetrievalEvalResponse(**asdict(evaluate(
+        req.retrieved, req.expected, req.used, req.cited_correct
+    )))
+
+
+@app.post("/attestation/review")
+def make_review_attestation(req: ReviewAttestationRequest) -> dict:
+    from prthinker.supply_chain import review_attestation
+
+    return review_attestation(
+        repository=req.repository,
+        revision=req.revision,
+        base_revision=req.base_revision,
+        policy_digest=req.policy_digest,
+        review_digest=req.review_digest,
+        controls=("automated-review", "evidence-verification"),
+    )
+
+
 # Cap the diff sent to the pipeline so KV cache + activations stay
 # within ~3-4 GiB headroom on a single L40S. CoT prompts wrap the diff
 # with system instructions + RAG docs + extra rules; total context is
@@ -267,6 +295,14 @@ def review(req: ReviewRequest) -> ReviewResponse:
 # ---------------------------------------------------------------------------
 
 _JOB_TTL_SECONDS = 3600
+# Bound queued requests and retained responses.  Each worker owns the full
+# Pydantic request (often a multi-megabyte diff) and each completed job keeps
+# its full model output, so an unbounded table also means unbounded threads and
+# host RAM.  The GPU lock serializes inference; creating more workers cannot
+# increase throughput.
+_MAX_JOBS_PER_KIND = int(os.environ.get("PRTHINKER_MAX_JOBS", "32") or "32")
+if _MAX_JOBS_PER_KIND < 1:
+    raise ValueError("PRTHINKER_MAX_JOBS must be at least 1")
 # A running job whose result endpoint has not been polled for this long
 # is presumed abandoned (matrix runner was cancelled, lost network, etc.).
 # The sweeper sets its cancel_event so the worker bails out at the next
@@ -289,15 +325,31 @@ _JOBS: dict[str, _Job] = {}
 _JOBS_LOCK = threading.Lock()
 
 
-def _evict_stale_jobs_locked() -> None:
-    """Drop jobs older than the TTL. Caller must hold _JOBS_LOCK."""
-    now = time.time()
+def _make_job_slot_locked(jobs: dict, now: float) -> bool:
+    """Evict expired/old terminal jobs and report whether one slot is free.
+
+    Caller holds the matching table lock.  Expired active workers are also
+    cancelled before their bookkeeping entry is removed; deleting the entry
+    alone used to orphan a live thread that could keep consuming GPU and RAM.
+    """
     stale = [
-        jid for jid, j in _JOBS.items()
-        if now - j.created_at > _JOB_TTL_SECONDS
+        jid for jid, job in jobs.items()
+        if now - job.created_at > _JOB_TTL_SECONDS
     ]
     for jid in stale:
-        del _JOBS[jid]
+        jobs[jid].cancel_event.set()
+        del jobs[jid]
+
+    terminal = {"done", "error", "cancelled"}
+    while len(jobs) >= _MAX_JOBS_PER_KIND:
+        oldest = next(
+            (jid for jid, job in jobs.items() if job.status in terminal),
+            None,
+        )
+        if oldest is None:
+            return False
+        del jobs[oldest]
+    return True
 
 
 def _cancel_if_idle(jid: str, job: "_Job | _AskJob", now: float, label: str) -> None:
@@ -325,6 +377,7 @@ def _sweep_table_once(
 ) -> None:
     """Cancel every idle running job in one job table under its lock."""
     with lock:
+        _make_job_slot_locked(jobs, now)
         for jid, job in jobs.items():
             _cancel_if_idle(jid, job, now, label)
 
@@ -357,7 +410,27 @@ def _release_gpu_memory() -> None:
     """
     gc.collect()
     if torch.cuda.is_available():
-        torch.cuda.empty_cache()
+        # A different request may start generation immediately after this
+        # request's LocalHFBackend.generate() releases the process-wide lock.
+        # empty_cache() mutates the same CUDA allocator, so serialize it with
+        # forward passes instead of racing an active model.generate().
+        with gpu_serialized():
+            torch.cuda.empty_cache()
+
+
+def _start_job_worker(
+    worker: threading.Thread,
+    lock: threading.Lock,
+    jobs: dict,
+    job_id: str,
+) -> None:
+    """Start a worker, rolling back its table entry if thread startup fails."""
+    try:
+        worker.start()
+    except Exception:
+        with lock:
+            jobs.pop(job_id, None)
+        raise
 
 
 def _run_review_job(job_id: str, req: ReviewRequest) -> None:
@@ -397,13 +470,18 @@ def review_submit(req: ReviewRequest) -> ReviewJobSubmitResponse:
         raise HTTPException(status_code=400, detail="code_diff is empty")
     job_id = uuid.uuid4().hex
     with _JOBS_LOCK:
-        _evict_stale_jobs_locked()
+        if not _make_job_slot_locked(_JOBS, time.time()):
+            raise HTTPException(
+                status_code=503,
+                detail="review queue is full; retry after an active job finishes",
+            )
         _JOBS[job_id] = _Job()
-    threading.Thread(
+    worker = threading.Thread(
         target=_run_review_job,
         args=(job_id, req),
         daemon=True,
-    ).start()
+    )
+    _start_job_worker(worker, _JOBS_LOCK, _JOBS, job_id)
     return ReviewJobSubmitResponse(job_id=job_id)
 
 
@@ -469,16 +547,6 @@ _ASK_JOBS: dict[str, _AskJob] = {}
 _ASK_JOBS_LOCK = threading.Lock()
 
 
-def _evict_stale_ask_jobs_locked() -> None:
-    now = time.time()
-    stale = [
-        jid for jid, j in _ASK_JOBS.items()
-        if now - j.created_at > _JOB_TTL_SECONDS
-    ]
-    for jid in stale:
-        del _ASK_JOBS[jid]
-
-
 def _run_ask_job(job_id: str, req: AskRequest) -> None:
     with _ASK_JOBS_LOCK:
         job = _ASK_JOBS.get(job_id)
@@ -520,13 +588,18 @@ def ask_submit(req: AskRequest) -> AskJobSubmitResponse:
         raise HTTPException(status_code=400, detail="prompt is empty")
     job_id = uuid.uuid4().hex
     with _ASK_JOBS_LOCK:
-        _evict_stale_ask_jobs_locked()
+        if not _make_job_slot_locked(_ASK_JOBS, time.time()):
+            raise HTTPException(
+                status_code=503,
+                detail="ask queue is full; retry after an active job finishes",
+            )
         _ASK_JOBS[job_id] = _AskJob()
-    threading.Thread(
+    worker = threading.Thread(
         target=_run_ask_job,
         args=(job_id, req),
         daemon=True,
-    ).start()
+    )
+    _start_job_worker(worker, _ASK_JOBS_LOCK, _ASK_JOBS, job_id)
     return AskJobSubmitResponse(job_id=job_id)
 
 

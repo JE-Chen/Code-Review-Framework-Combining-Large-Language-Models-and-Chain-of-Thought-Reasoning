@@ -43,6 +43,7 @@ log = logging.getLogger(__name__)
 
 _USER_AGENT = "prthinker/0.1"
 _NOTES_PER_PAGE = 100
+_DEV_NULL = "/dev/null"
 
 # Map our event vocabulary to GitLab's discussion semantics. GitLab has
 # no APPROVE / REQUEST_CHANGES verb on discussions themselves; the
@@ -60,6 +61,13 @@ _SEVERITY_BADGE: dict[str, str] = {
     "warning": "🟡 **warning**",
     "info":    "🔵 _info_",
 }
+
+# Hidden marker embedded in every inline discussion and its companion
+# summary note so the NEXT run can identify and delete its own
+# predecessors — same value and purpose as the GitHub adapter's
+# ``_INLINE_REVIEW_MARKER``. Distinct from the summary-comment marker so
+# the two never collide.
+_INLINE_REVIEW_MARKER = "<!-- prthinker:inline -->"
 
 
 @dataclass
@@ -100,14 +108,31 @@ class GitLabAdapter(PlatformAdapter):
     # ----- metadata ------------------------------------------------------
 
     def fetch_diff(self) -> str:
-        """Pull the MR diff via the ``raw_diffs`` endpoint."""
+        """Pull the MR diff via ``raw_diffs``, rebuilding from ``diffs`` on failure.
+
+        Mirrors the GitHub adapter's 406 fallback: when the whole-MR diff
+        endpoint rejects an oversized MR, the paginated per-file ``diffs``
+        endpoint still serves each file's hunks, so the diff is
+        reconstructed instead of failing the review.
+        """
         with self._client() as client:
             response = client.get(
                 f"/projects/{self._project_quoted}"
                 f"/merge_requests/{self.mr_iid}/raw_diffs",
             )
-            response.raise_for_status()
-            return response.text
+            if response.status_code < 400:
+                return response.text
+            log.warning(
+                "GitLab: raw_diffs returned %d for MR %d; reconstructing "
+                "the diff from the paginated diffs endpoint",
+                response.status_code, self.mr_iid,
+            )
+            entries = self._paginate(
+                client,
+                f"/projects/{self._project_quoted}"
+                f"/merge_requests/{self.mr_iid}/diffs",
+            )
+        return "".join(_diff_entry_to_text(entry) for entry in entries)
 
     def fetch_head_sha(self) -> str:
         with self._client() as client:
@@ -330,6 +355,7 @@ class GitLabAdapter(PlatformAdapter):
         with self._client() as client:
             mr = self._mr(client)
             position_base = self._build_position_base(mr.get("diff_refs") or {})
+            stale_note_ids = self._collect_stale_inline_notes(client)
             event_prefix = _EVENT_BODY_PREFIX.get(event, "")
             first_id: int | None = None
             for finding in self._prefilter_findings(client, findings):
@@ -341,14 +367,47 @@ class GitLabAdapter(PlatformAdapter):
 
             if summary_body:
                 # Drop a top-level note tying the discussions together.
-                client.post(
-                    f"/projects/{self._project_quoted}"
-                    f"/merge_requests/{self.mr_iid}/notes",
-                    json={"body": summary_body},
+                self._post_note(
+                    client, f"{summary_body}\n\n{_INLINE_REVIEW_MARKER}",
                 )
 
             self._apply_event_verdict(client, event)
+            self._cleanup_stale_inline_notes(client, stale_note_ids)
             return first_id
+
+    def _collect_stale_inline_notes(self, client: httpx.Client) -> list[int]:
+        """Ids of the previous runs' marked inline notes (best-effort).
+
+        Collected BEFORE the new discussions are posted so the fresh notes
+        can never be swept up. A listing failure degrades to "clean up
+        nothing" — stale threads linger but the review still posts.
+        """
+        try:
+            return self._find_marker_notes(client, _INLINE_REVIEW_MARKER)
+        except httpx.HTTPError as exc:
+            log.warning(
+                "GitLab: could not list prior inline notes (%s); "
+                "skipping cleanup", exc,
+            )
+            return []
+
+    def _cleanup_stale_inline_notes(
+        self, client: httpx.Client, note_ids: list[int]
+    ) -> None:
+        """Delete the inline notes left by previous prthinker reviews.
+
+        Runs AFTER the new discussions landed (mirroring the GitHub
+        adapter) so a failed re-post leaves the prior run's findings
+        intact instead of wiping them first.
+        """
+        if not note_ids:
+            log.info("GitLab: no prior inline notes to clean up")
+            return
+        for note_id in note_ids:
+            self._delete_note(client, note_id)
+        log.info(
+            "GitLab: cleaned up %d stale inline note(s)", len(note_ids),
+        )
 
     def _prefilter_findings(
         self, client: httpx.Client, findings: list[InlineFinding]
@@ -430,7 +489,10 @@ class GitLabAdapter(PlatformAdapter):
     ) -> int | None:
         """POST one finding as a discussion; return its id or None on failure."""
         payload = {
-            "body": event_prefix + _format_body(finding),
+            "body": (
+                f"{event_prefix}{_format_body(finding)}"
+                f"\n\n{_INLINE_REVIEW_MARKER}"
+            ),
             "position": {
                 **position_base,
                 "new_path": finding.path,
@@ -539,6 +601,16 @@ class GitLabAdapter(PlatformAdapter):
         # GitLab states: pending / running / success / failed / canceled.
         gitlab_state = "success" if result.conclusion == "success" else "failed"
         description = result.title[:255]
+        if result.annotations:
+            # Commit statuses have no per-line annotation channel (that is
+            # a Check Run feature); the findings still reach the MR via
+            # inline discussions, and `--codequality-out` feeds the MR's
+            # Code Quality widget for a per-line list.
+            log.info(
+                "GitLab: commit statuses cannot carry per-line "
+                "annotations; %d annotation(s) not attached to the gate",
+                len(result.annotations),
+            )
         with self._client() as client:
             client.post(
                 f"/projects/{self._project_quoted}/statuses/{handle['sha']}",
@@ -548,6 +620,41 @@ class GitLabAdapter(PlatformAdapter):
                     "description": description,
                 },
             ).raise_for_status()
+
+
+def _diff_entry_paths(entry: dict[str, Any]) -> tuple[str, str]:
+    """Resolve ``(old_path, new_path)`` from a GitLab diffs entry."""
+    new_path = str(entry.get("new_path") or entry.get("old_path") or "")
+    old_path = str(entry.get("old_path") or new_path)
+    return old_path, new_path
+
+
+def _diff_entry_sides(
+    entry: dict[str, Any], old_path: str, new_path: str
+) -> tuple[str, str]:
+    """Resolve the ``---`` / ``+++`` side markers, honouring add/delete."""
+    a_side = _DEV_NULL if entry.get("new_file") else f"a/{old_path}"
+    b_side = _DEV_NULL if entry.get("deleted_file") else f"b/{new_path}"
+    return a_side, b_side
+
+
+def _diff_entry_to_text(entry: dict[str, Any]) -> str:
+    """Reconstruct one file's unified-diff text from a ``diffs`` entry.
+
+    Emits the ``diff --git`` + ``---`` / ``+++`` headers the pipeline's
+    parser and the inline diff-hunk filter need, followed by GitLab's
+    per-file hunks. Entries without textual hunks (binary, or collapsed
+    because the per-file diff itself is too large) are recorded as binary
+    so the file is still listed rather than silently lost.
+    """
+    old_path, new_path = _diff_entry_paths(entry)
+    header = f"diff --git a/{old_path} b/{new_path}\n"
+    hunks = entry.get("diff") or ""
+    if not hunks:
+        return f"{header}Binary files a/{old_path} and b/{new_path} differ\n"
+    a_side, b_side = _diff_entry_sides(entry, old_path, new_path)
+    body = hunks if hunks.endswith("\n") else hunks + "\n"
+    return f"{header}--- {a_side}\n+++ {b_side}\n{body}"
 
 
 def _format_body(finding: InlineFinding) -> str:

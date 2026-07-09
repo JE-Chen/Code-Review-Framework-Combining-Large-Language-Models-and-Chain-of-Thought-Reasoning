@@ -130,6 +130,67 @@ def _advance_new_side(line: str, new_line_no: int, collected: set[int]) -> int:
     return new_line_no
 
 
+def _hunk_start_line(line: str, current: int) -> int:
+    """New-side line number just before a hunk, or `current` if unparsable."""
+    match = _HUNK_RE.match(line)
+    if match:
+        return int(match.group("new_start")) - 1
+    return current
+
+
+@dataclass
+class _ParseState:
+    """Mutable accumulator threaded through the per-file diff scan."""
+
+    files: list[FileDiff] = field(default_factory=list)
+    current_buf: list[str] = field(default_factory=list)
+    header_buf: list[str] = field(default_factory=list)
+    in_hunks: bool = False
+    new_line_no: int = 0
+    collected_new_lines: set[int] = field(default_factory=set)
+
+    def start_file(self, line: str) -> None:
+        """Flush the pending file and begin a new one at a `diff --git` line."""
+        self.flush()
+        self.current_buf = [line]
+        self.header_buf = [line]
+        self.in_hunks = False
+        self.new_line_no = 0
+        self.collected_new_lines = set()
+
+    def flush(self) -> None:
+        """Append the buffered file to `files` when it has a resolvable path."""
+        if not self.current_buf:
+            return
+        new_path, is_binary, is_deleted = _extract_paths(self.header_buf)
+        if new_path is None:
+            return
+        self.files.append(
+            FileDiff(
+                path=new_path,
+                raw="".join(self.current_buf),
+                new_lines=set(self.collected_new_lines),
+                is_binary=is_binary,
+                is_deleted=is_deleted,
+            )
+        )
+
+    def consume(self, line: str) -> None:
+        """Fold one non-header diff line into the state machine."""
+        self.current_buf.append(line)
+        if line.startswith("@@"):
+            self.in_hunks = True
+            self.header_buf.append(line)
+            self.new_line_no = _hunk_start_line(line, self.new_line_no)
+        elif not self.in_hunks:
+            self.header_buf.append(line)
+        else:
+            # '-' lines and metadata don't advance the new-side counter.
+            self.new_line_no = _advance_new_side(
+                line, self.new_line_no, self.collected_new_lines
+            )
+
+
 def parse_unified_diff(diff_text: str) -> list[FileDiff]:
     """Split `diff_text` into one `FileDiff` per file.
 
@@ -138,66 +199,15 @@ def parse_unified_diff(diff_text: str) -> list[FileDiff]:
     """
     if not diff_text.strip():
         return []
-
-    lines = diff_text.splitlines(keepends=True)
-    files: list[FileDiff] = []
-
-    current_buf: list[str] = []
-    header_buf: list[str] = []
-    in_hunks = False
-    new_line_no = 0
-    collected_new_lines: set[int] = set()
-
-    def flush() -> None:
-        if not current_buf:
-            return
-        new_path, is_binary, is_deleted = _extract_paths(header_buf)
-        if new_path is None:
-            return
-        files.append(
-            FileDiff(
-                path=new_path,
-                raw="".join(current_buf),
-                new_lines=set(collected_new_lines),
-                is_binary=is_binary,
-                is_deleted=is_deleted,
-            )
-        )
-
-    for line in lines:
+    state = _ParseState()
+    for line in diff_text.splitlines(keepends=True):
         if _starts_file(line):
-            flush()
-            current_buf = [line]
-            header_buf = [line]
-            in_hunks = False
-            new_line_no = 0
-            collected_new_lines = set()
-            continue
-
-        if not current_buf:
-            # Skip preamble before the first `diff --git`
-            continue
-
-        current_buf.append(line)
-
-        if line.startswith("@@"):
-            in_hunks = True
-            header_buf.append(line)
-            m = _HUNK_RE.match(line)
-            if m:
-                new_line_no = int(m.group("new_start")) - 1
-            continue
-
-        if not in_hunks:
-            header_buf.append(line)
-            continue
-
-        # Track new-side line numbers for inline-comment validation.
-        # '-' lines and metadata don't advance the new-side counter.
-        new_line_no = _advance_new_side(line, new_line_no, collected_new_lines)
-
-    flush()
-    return files
+            state.start_file(line)
+        elif state.current_buf:
+            # Anything before the first `diff --git` is preamble; skip it.
+            state.consume(line)
+    state.flush()
+    return state.files
 
 
 def _content_from_raw(raw: str) -> dict[int, str]:

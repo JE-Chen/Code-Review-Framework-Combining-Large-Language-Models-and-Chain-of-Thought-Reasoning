@@ -26,7 +26,7 @@ from typing import Iterator
 
 import httpx
 
-from prthinker.backends.base import InferenceBackend, Usage
+from prthinker.backends.base import InferenceBackend, Usage, ThreadLocalUsage
 
 _DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 _GENERATE_METHOD = "generateContent"
@@ -35,6 +35,7 @@ _API_KEY_PARAM = "key"
 
 
 class GeminiBackend(InferenceBackend):
+    concurrency_limit = 4
     """Generative Language REST backend (prompt-in / text-out)."""
 
     def __init__(
@@ -55,7 +56,7 @@ class GeminiBackend(InferenceBackend):
             raise ValueError("GeminiBackend.timeout_seconds must be positive")
         self._model = model
         self._api_key = api_key
-        self._last_usage: Usage | None = None
+        self._usage = ThreadLocalUsage()
         self._client = httpx.Client(
             base_url=base_url.rstrip("/"),
             timeout=timeout_seconds,
@@ -69,7 +70,7 @@ class GeminiBackend(InferenceBackend):
         return self._model
 
     def last_usage(self) -> Usage | None:
-        return self._last_usage
+        return self._usage.get()
 
     def _endpoint(self, method: str) -> str:
         """Build the ``/models/{model}:{method}`` request path."""
@@ -90,9 +91,7 @@ class GeminiBackend(InferenceBackend):
             chunks = [p["text"] for p in parts if "text" in p]
             return "".join(str(c) for c in chunks)
         except (KeyError, IndexError, TypeError) as exc:
-            raise RuntimeError(
-                f"Unexpected Gemini response shape: {body!r}"
-            ) from exc
+            raise RuntimeError(f"Unexpected Gemini response shape: {body!r}") from exc
 
     @staticmethod
     def _stream_chunk_text(chunk: dict) -> str:
@@ -111,10 +110,10 @@ class GeminiBackend(InferenceBackend):
         prompt_tokens = usage.get("promptTokenCount")
         completion_tokens = usage.get("candidatesTokenCount")
         if prompt_tokens is not None and completion_tokens is not None:
-            self._last_usage = Usage(
+            self._usage.set(Usage(
                 prompt_tokens=int(prompt_tokens),
                 completion_tokens=int(completion_tokens),
-            )
+            ))
 
     def generate(
         self,
@@ -126,7 +125,7 @@ class GeminiBackend(InferenceBackend):
         """Generate text for ``prompt`` via a single REST call."""
         # Remote network call; mid-stream cancellation not implemented.
         del cancel_event
-        self._last_usage = None
+        self._usage.set(None)
         response = self._client.post(
             self._endpoint(_GENERATE_METHOD),
             params={_API_KEY_PARAM: self._api_key},
@@ -138,16 +137,14 @@ class GeminiBackend(InferenceBackend):
         self._capture_usage(body)
         return text
 
-    def stream_generate(
-        self, prompt: str, max_new_tokens: int
-    ) -> Iterator[str]:
+    def stream_generate(self, prompt: str, max_new_tokens: int) -> Iterator[str]:
         """Yield per-chunk text from the ``streamGenerateContent`` endpoint.
 
         The endpoint returns a JSON array of ``generateContent``-shaped
         chunks. We decode the whole array, capture usage from the final
         chunk that carries it, and yield each chunk's non-empty text.
         """
-        self._last_usage = None
+        self._usage.set(None)
         response = self._client.post(
             self._endpoint(_STREAM_METHOD),
             params={_API_KEY_PARAM: self._api_key},

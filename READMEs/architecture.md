@@ -20,7 +20,7 @@ graph TB
         COT["CoT Pipeline"]
         SKILLS["Skills Pipeline"]
         SINGLE["Single Prompt"]
-        QWEN["Qwen3-Coder-30B-A3B<br/>+ LoRA · 4-bit Quantization"]
+        QWEN["Qwen3-Coder-30B-A3B<br/>+ LoRA · bf16 dual-GPU"]
         COT --> QWEN
         SKILLS --> QWEN
         SINGLE --> QWEN
@@ -173,11 +173,11 @@ graph TB
 
     subgraph PIPE["② CoTPipeline (orchestrator)"]
         STEPS["5 CoT steps<br/>+ optional<br/>InlineFindings · Judge"]
-        EXT["Research-grade extensions (opt-in)<br/>13 mechanisms"]
+        EXT["Research-grade extensions (opt-in)<br/>17 mechanisms"]
     end
 
     subgraph BACKENDS["③ Pluggable backends (Strategy)"]
-        BLOCAL["LocalHFBackend<br/>Qwen3-Coder-30B + LoRA<br/>(NF4 4-bit)"]
+        BLOCAL["LocalHFBackend<br/>Qwen3-Coder-30B + LoRA<br/>(bf16 · dual-GPU)"]
         BREMOTE["RemoteHttpBackend<br/>FastAPI /ask · /review"]
         BOAI["OpenAICompatBackend<br/>OpenAI · Azure · vLLM · Ollama"]
         BANT["AnthropicBackend<br/>Claude Messages API"]

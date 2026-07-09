@@ -81,9 +81,9 @@ any font change, re-export every affected diagram and confirm no overflow
   decisions, ellipse start) — that is fine; keep it.
 - Layer bands are translucent rounded rectangles (`fillOpacity≈20`) with a
   bold text label above them.
-- Version bump per new folder: set every `<diagram ... id="v36-…">` and the
-  title cell `value="… (v3.6)"`. Grep for the old `v3.5` / `v35-` and confirm
-  none remain.
+- Version bump per new folder: set every `<diagram ... id="v<NN>-…">` and the
+  title cell `value="… (v<MAJOR>.<MINOR>)"`. Grep for the previous version's
+  tokens (e.g. `v3.5` / `v35-` when producing v3.6) and confirm none remain.
 
 ## The cardinal routing rule
 
@@ -169,6 +169,21 @@ higher `-s` PNG is the correct, reliable answer.
 1. Copy the previous version's four `.drawio` into the new folder.
 2. Bump ids + titles to the new version.
 3. Fold in the actual merged changes since the last version (read the code /
-   CLAUDE.md; never invent components — per `paper_rule.md` no fabrication).
+   CLAUDE.md; never invent components — per `paper/paper_inserts.md`'s
+   no-fabrication rule).
 4. Re-layout for clean routing per the rules above.
 5. Export all four to PNG and visually verify every one.
+
+## Definition of done (verify every item before finishing)
+
+- [ ] XML parses (`[xml](Get-Content file -Raw)`), no stray tags in `<Array>`.
+- [ ] Every component drawn exists in the code — nothing invented.
+- [ ] `系統架構` uses AWS resource icons; flow diagrams stay plain flowcharts.
+- [ ] `fontSize=20` on every element, **including every labelled edge's
+      `style`** (grep for `value="…"` edges lacking `fontSize`).
+- [ ] No text overflows its box; boxes grown after any font/label change.
+- [ ] No edge crosses a box or label — confirmed by looking at the exported
+      PNG of each diagram, not the XML.
+- [ ] New version: ids + title cells bumped, zero previous-version tokens.
+- [ ] All four PNGs exported and `Read`; on `系統架構 -s 3`, the LAST band is
+      present (no silent truncation).

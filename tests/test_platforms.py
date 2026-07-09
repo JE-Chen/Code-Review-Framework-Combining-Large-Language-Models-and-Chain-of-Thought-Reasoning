@@ -146,9 +146,29 @@ def test_gitlab_numeric_project_id_round_trips() -> None:
     assert adapter._project_quoted == "12345"  # noqa: SLF001
 
 
-def test_gitlab_uses_gitlab_dot_com_default_base() -> None:
+def test_gitlab_uses_gitlab_dot_com_default_base(monkeypatch) -> None:
+    monkeypatch.delenv("CI_API_V4_URL", raising=False)
     adapter = create_platform_adapter(
         PlatformKind.GITLAB, repo="g/p", token=_TOK, pr_number=1,
     )
     assert isinstance(adapter, GitLabAdapter)
     assert adapter.base_url.endswith("/api/v4")
+
+
+def test_gitlab_autodetects_self_hosted_api_url(monkeypatch) -> None:
+    # GitLab CI exposes the instance's API root; self-hosted pipelines
+    # must not need an explicit --platform-base-url.
+    monkeypatch.setenv("CI_API_V4_URL", "https://gitlab.example.com/api/v4")
+    adapter = create_platform_adapter(
+        PlatformKind.GITLAB, repo="g/p", token=_TOK, pr_number=1,
+    )
+    assert adapter.base_url == "https://gitlab.example.com/api/v4"
+
+
+def test_gitlab_explicit_base_url_beats_ci_autodetect(monkeypatch) -> None:
+    monkeypatch.setenv("CI_API_V4_URL", "https://gitlab.example.com/api/v4")
+    adapter = create_platform_adapter(
+        PlatformKind.GITLAB, repo="g/p", token=_TOK, pr_number=1,
+        base_url="https://explicit.example.com/api/v4",
+    )
+    assert adapter.base_url == "https://explicit.example.com/api/v4"

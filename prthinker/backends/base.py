@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+import threading
 from typing import Iterator
 
 
@@ -18,6 +19,27 @@ class Usage:
 
     prompt_tokens: int
     completion_tokens: int
+
+
+@dataclass(frozen=True)
+class GenerationResult:
+    text: str
+    usage: Usage | None = None
+    finish_reason: str = ""
+    request_id: str = ""
+
+
+class ThreadLocalUsage:
+    """Request-thread scoped compatibility storage for legacy last_usage()."""
+
+    def __init__(self):
+        self._local = threading.local()
+
+    def get(self):
+        return getattr(self._local, "value", None)
+
+    def set(self, value):
+        self._local.value = value
 
 
 class InferenceBackend(ABC):
@@ -47,9 +69,7 @@ class InferenceBackend(ABC):
         the argument — the network call itself is uninterruptible.
         """
 
-    def stream_generate(
-        self, prompt: str, max_new_tokens: int
-    ) -> Iterator[str]:
+    def stream_generate(self, prompt: str, max_new_tokens: int) -> Iterator[str]:
         """Yield incremental text chunks as they arrive.
 
         Default implementation falls back to a single full-response chunk
@@ -61,6 +81,10 @@ class InferenceBackend(ABC):
 
     def last_usage(self) -> Usage | None:
         return None
+
+    def generate_result(self, prompt: str, max_new_tokens: int, *, cancel_event: "object | None" = None) -> GenerationResult:
+        text = self.generate(prompt, max_new_tokens, cancel_event=cancel_event)
+        return GenerationResult(text=text, usage=self.last_usage())
 
     def backend_kind(self) -> str:
         """Short identifier used for telemetry + cache keys."""
@@ -78,3 +102,7 @@ class InferenceBackend(ABC):
 
     def __exit__(self, exc_type, exc, tb) -> None:
         self.close()
+
+    def max_concurrency(self) -> int:
+        """Safe concurrent generation count; local backends default to one."""
+        return max(1, int(getattr(self, "concurrency_limit", 1)))

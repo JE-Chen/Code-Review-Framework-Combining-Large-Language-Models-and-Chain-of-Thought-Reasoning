@@ -24,7 +24,7 @@ from typing import Iterator
 
 import httpx
 
-from prthinker.backends.base import InferenceBackend, Usage
+from prthinker.backends.base import InferenceBackend, Usage, ThreadLocalUsage
 from prthinker.config import OpenAICompatConfig
 
 SSE_DATA_PREFIX = "data:"
@@ -32,9 +32,11 @@ SSE_DONE_SENTINEL = "[DONE]"
 
 
 class OpenAICompatBackend(InferenceBackend):
+    concurrency_limit = 4
+
     def __init__(self, config: OpenAICompatConfig) -> None:
         self._config = config
-        self._last_usage: Usage | None = None
+        self._usage = ThreadLocalUsage()
         headers: dict[str, str] = {
             "Authorization": f"Bearer {config.api_key}",
             "Content-Type": "application/json",
@@ -54,7 +56,7 @@ class OpenAICompatBackend(InferenceBackend):
         return self._config.model
 
     def last_usage(self) -> Usage | None:
-        return self._last_usage
+        return self._usage.get()
 
     def generate(
         self,
@@ -65,7 +67,7 @@ class OpenAICompatBackend(InferenceBackend):
     ) -> str:
         # Remote network call; mid-stream cancellation not implemented.
         del cancel_event
-        self._last_usage = None
+        self._usage.set(None)
         payload = {
             "model": self._config.model,
             "messages": [{"role": "user", "content": prompt}],
@@ -87,10 +89,10 @@ class OpenAICompatBackend(InferenceBackend):
         prompt_tokens = usage.get("prompt_tokens")
         completion_tokens = usage.get("completion_tokens")
         if prompt_tokens is not None and completion_tokens is not None:
-            self._last_usage = Usage(
+            self._usage.set(Usage(
                 prompt_tokens=int(prompt_tokens),
                 completion_tokens=int(completion_tokens),
-            )
+            ))
 
         return text
 
@@ -115,9 +117,7 @@ class OpenAICompatBackend(InferenceBackend):
         prompt_tokens = usage.get("prompt_tokens")
         completion_tokens = usage.get("completion_tokens")
         if prompt_tokens is not None and completion_tokens is not None:
-            self._last_usage = Usage(
-                int(prompt_tokens), int(completion_tokens)
-            )
+            self._usage.set(Usage(int(prompt_tokens), int(completion_tokens)))
 
     @staticmethod
     def _extract_delta_content(event: dict) -> str | None:
@@ -129,16 +129,14 @@ class OpenAICompatBackend(InferenceBackend):
         chunk = delta.get("content")
         return str(chunk) if chunk else None
 
-    def stream_generate(
-        self, prompt: str, max_new_tokens: int
-    ) -> Iterator[str]:
+    def stream_generate(self, prompt: str, max_new_tokens: int) -> Iterator[str]:
         """Native SSE streaming via ``stream: true``.
 
         The server's ``usage`` block typically only arrives in the final
         chunk (with ``stream_options: {include_usage: true}``); request
         it so ``last_usage`` is populated like the non-streaming path.
         """
-        self._last_usage = None
+        self._usage.set(None)
         payload = {
             "model": self._config.model,
             "messages": [{"role": "user", "content": prompt}],
@@ -147,9 +145,7 @@ class OpenAICompatBackend(InferenceBackend):
             "stream": True,
             "stream_options": {"include_usage": True},
         }
-        with self._client.stream(
-            "POST", "/chat/completions", json=payload
-        ) as response:
+        with self._client.stream("POST", "/chat/completions", json=payload) as response:
             response.raise_for_status()
             for line in response.iter_lines():
                 data = self._sse_payload(line)

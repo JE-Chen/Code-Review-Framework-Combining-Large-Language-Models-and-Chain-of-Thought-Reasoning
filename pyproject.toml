@@ -8,8 +8,16 @@ version = "0.1.0"
 description = "Chain-of-Thought code review pipeline with pluggable inference backends (local HF / OpenAI-compat / Anthropic / project FastAPI server) and GitHub PR integration"
 requires-python = ">=3.12"
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "JeffreyChen" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+keywords = ["code-review", "llm", "pull-request"]
+urls = { Repository = "https://github.com/JE-Chen/Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning", Documentation = "https://code-review-framework.readthedocs.io/" }
 dependencies = [
     "httpx>=0.28",
     "pydantic>=2.11",
@@ -19,7 +27,12 @@ dependencies = [
 [project.optional-dependencies]
 runner = []
 dev = [
+    "bandit>=1.8",
+    "build>=1.2",
     "pytest>=8.4",
+    "pytest-cov>=6.2",
+    "ruff>=0.12",
+    "twine>=6.1",
 ]
 # transformers is pinned <5 on purpose. transformers>=5 densifies the
 # Qwen3-A3B MoE forward to a [seq, hidden, intermediate] tensor (~48 MiB
@@ -62,6 +75,8 @@ server = [
 mcp = [
     "mcp>=1.9",
 ]
+tree-sitter = ["tree-sitter-language-pack>=0.9"]
+observability = ["opentelemetry-api>=1.30", "opentelemetry-sdk>=1.30", "opentelemetry-exporter-otlp-proto-http>=1.30"]
 
 [project.scripts]
 prthinker = "prthinker.cli:main"
@@ -70,6 +85,31 @@ prthinker = "prthinker.cli:main"
 where = ["."]
 include = ["prthinker*"]
 exclude = ["codes*", "datas*", "paper*", "gen-paper*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--strict-markers"]
+markers = [
+    "integration: requires an external service or repository",
+    "gpu: requires CUDA and local model weights",
+    "network: requires internet access",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["prthinker"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[tool.ruff]
+# `datas/code_to_detect/` is the evaluation corpus of intentionally flawed
+# generated code the reviewer is asked to critique — linting it defeats its
+# purpose. `paper/` and `gen-paper/` hold one-off manuscript tooling, not
+# shipped code. `.pytest-tmp-run/` is pytest's basetemp (generated test
+# fixtures).
+extend-exclude = ["datas", "paper", "gen-paper", ".pytest-tmp-run"]
 
 [tool.bandit]
 # Project-wide skips for systemic false positives. Each entry below MUST

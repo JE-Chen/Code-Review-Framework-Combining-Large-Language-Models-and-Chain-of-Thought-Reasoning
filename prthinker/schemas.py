@@ -9,14 +9,14 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 Severity = Literal["info", "warning", "error"]
 
 
 class AskRequest(BaseModel):
     prompt: str
-    max_new_tokens: int = 32768
+    max_new_tokens: int = Field(default=32768, ge=1, le=32768)
 
 
 class RagRequest(BaseModel):
@@ -27,6 +27,28 @@ class RagRequest(BaseModel):
 
 class RagResponse(BaseModel):
     docs: list[str]
+
+
+class RetrievalEvalRequest(BaseModel):
+    retrieved: list[str] = Field(default_factory=list)
+    expected: list[str] = Field(default_factory=list)
+    used: list[str] = Field(default_factory=list)
+    cited_correct: list[bool] = Field(default_factory=list)
+
+
+class RetrievalEvalResponse(BaseModel):
+    recall: float
+    precision: float
+    utilization: float
+    citation_correctness: float
+
+
+class ReviewAttestationRequest(BaseModel):
+    repository: str
+    revision: str
+    base_revision: str = ""
+    policy_digest: str = ""
+    review_digest: str
 
 
 class StepOutput(BaseModel):
@@ -90,6 +112,25 @@ FindingCategory = Literal[
 
 VerificationStatus = Literal["pass", "fail", "skip", "error"]
 
+EvidenceStatus = Literal[
+    "confirmed", "rejected", "inconclusive", "unsupported", "error"
+]
+
+
+class Evidence(BaseModel):
+    """Reproducible evidence supporting or rejecting a finding."""
+
+    kind: Literal["test", "static", "dynamic", "bounded", "repository", "retrieval"]
+    status: EvidenceStatus
+    tool: str
+    tool_version: str = ""
+    rule: str = ""
+    command: list[str] = Field(default_factory=list)
+    exit_code: int | None = None
+    artifact_sha256: str = ""
+    summary: str = ""
+    finding_id: str = ""
+
 
 class SuggestionVerification(BaseModel):
     """Outcome of running ``suggestion`` in a sandbox.
@@ -131,6 +172,18 @@ class InlineFinding(BaseModel):
     # never emits it leaves the field None and the By-category index is
     # simply omitted.
     category: FindingCategory | None = None
+    evidence: list[Evidence] = Field(default_factory=list)
+    finding_id: str = ""
+
+    @model_validator(mode="after")
+    def ensure_finding_id(self):
+        if not self.finding_id:
+            import hashlib
+            normalized_path = self.path.replace("\\", "/")
+            normalized_comment = " ".join(self.comment.lower().split())
+            identity = f"{normalized_path}:{self.start_line or self.line}:{self.line}:{self.category or ''}:{normalized_comment}"
+            self.finding_id = hashlib.sha256(identity.encode()).hexdigest()[:20]
+        return self
 
     @property
     def is_multiline(self) -> bool:
@@ -143,7 +196,7 @@ class ReviewRequest(BaseModel):
     steps: list[str] | None = None
     rag_enabled: bool = True
     rag_threshold: float = 0.7
-    max_new_tokens: int = 32768
+    max_new_tokens: int = Field(default=32768, ge=1, le=32768)
     extra_rules: list[str] = Field(default_factory=list)
 
 
@@ -274,7 +327,12 @@ class CounterfactualOption(BaseModel):
 
 
 PRTypeLiteral = Literal[
-    "bugfix", "feature", "refactor", "docs", "chore", "unknown",
+    "bugfix",
+    "feature",
+    "refactor",
+    "docs",
+    "chore",
+    "unknown",
 ]
 
 

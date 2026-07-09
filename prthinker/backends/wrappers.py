@@ -19,9 +19,10 @@ import logging
 import time
 from typing import Iterator
 
-from prthinker.backends.base import InferenceBackend, Usage
+from prthinker.backends.base import GenerationResult, InferenceBackend, Usage
 from prthinker.cache import PromptCache
 from prthinker.telemetry import CallRecord, TelemetrySink, estimate_tokens
+from prthinker.otel import inference_span
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +48,9 @@ class CachingBackend(InferenceBackend):
     def last_usage(self) -> Usage | None:
         return self._inner.last_usage()
 
+    def max_concurrency(self) -> int:
+        return self._inner.max_concurrency()
+
     def generate(
         self,
         prompt: str,
@@ -62,15 +66,11 @@ class CachingBackend(InferenceBackend):
             return cached
 
         self._last_cache_hit = False
-        text = self._inner.generate(
-            prompt, max_new_tokens, cancel_event=cancel_event
-        )
+        text = self._inner.generate(prompt, max_new_tokens, cancel_event=cancel_event)
         self._cache.put(kind, model, prompt, max_new_tokens, text)
         return text
 
-    def stream_generate(
-        self, prompt: str, max_new_tokens: int
-    ) -> Iterator[str]:
+    def stream_generate(self, prompt: str, max_new_tokens: int) -> Iterator[str]:
         """Stream from the inner backend, then write the full text to cache.
 
         Cache hits short-circuit to a single chunk so the caller does not
@@ -90,6 +90,19 @@ class CachingBackend(InferenceBackend):
             chunks.append(chunk)
             yield chunk
         self._cache.put(kind, model, prompt, max_new_tokens, "".join(chunks))
+
+    def generate_result(self, prompt, max_new_tokens, *, cancel_event=None):
+        kind, model = self._inner.backend_kind(), self._inner.model_name()
+        cached = self._cache.get(kind, model, prompt, max_new_tokens)
+        if cached is not None:
+            self._last_cache_hit = True
+            return GenerationResult(cached)
+        self._last_cache_hit = False
+        result = self._inner.generate_result(
+            prompt, max_new_tokens, cancel_event=cancel_event
+        )
+        self._cache.put(kind, model, prompt, max_new_tokens, result.text)
+        return result
 
     def close(self) -> None:
         self._inner.close()
@@ -115,6 +128,9 @@ class InstrumentedBackend(InferenceBackend):
     def last_usage(self) -> Usage | None:
         return self._inner.last_usage()
 
+    def max_concurrency(self) -> int:
+        return self._inner.max_concurrency()
+
     def generate(
         self,
         prompt: str,
@@ -125,20 +141,26 @@ class InstrumentedBackend(InferenceBackend):
         start = time.perf_counter()
         error: str | None = None
         text = ""
+        usage: Usage | None = None
         try:
-            text = self._inner.generate(
-                prompt, max_new_tokens, cancel_event=cancel_event
-            )
-            return text
+            with inference_span(self.backend_kind(), self.model_name(), max_new_tokens) as span:
+                result = self._inner.generate_result(
+                    prompt, max_new_tokens, cancel_event=cancel_event
+                )
+                text, usage = result.text, result.usage
+                if span is not None and usage is not None:
+                    span.set_attribute("gen_ai.usage.input_tokens", usage.prompt_tokens)
+                    span.set_attribute("gen_ai.usage.output_tokens", usage.completion_tokens)
+                if span is not None and result.finish_reason:
+                    span.set_attribute("gen_ai.response.finish_reasons", [result.finish_reason])
+                return text
         except Exception as exc:
             error = repr(exc)
             raise
         finally:
-            self._record(prompt, text, start, error)
+            self._record(prompt, text, start, error, usage)
 
-    def stream_generate(
-        self, prompt: str, max_new_tokens: int
-    ) -> Iterator[str]:
+    def stream_generate(self, prompt: str, max_new_tokens: int) -> Iterator[str]:
         start = time.perf_counter()
         error: str | None = None
         chunks: list[str] = []
@@ -153,14 +175,14 @@ class InstrumentedBackend(InferenceBackend):
             self._record(prompt, "".join(chunks), start, error)
 
     def _record(
-        self, prompt: str, text: str, start: float, error: str | None
+        self, prompt: str, text: str, start: float, error: str | None,
+        usage_override: Usage | None = None,
     ) -> None:
         latency_ms = (time.perf_counter() - start) * 1000.0
         cache_hit = bool(
-            isinstance(self._inner, CachingBackend)
-            and self._inner.last_cache_hit
+            isinstance(self._inner, CachingBackend) and self._inner.last_cache_hit
         )
-        usage = self._inner.last_usage()
+        usage = usage_override or self._inner.last_usage()
         if usage is not None:
             prompt_tokens: int | None = usage.prompt_tokens
             completion_tokens: int | None = usage.completion_tokens
@@ -170,16 +192,18 @@ class InstrumentedBackend(InferenceBackend):
             completion_tokens = estimate_tokens(text)
             estimated = True
         try:
-            self._telemetry.record(CallRecord(
-                backend=self._inner.backend_kind(),
-                model=self._inner.model_name(),
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-                tokens_estimated=estimated,
-                latency_ms=latency_ms,
-                cache_hit=cache_hit,
-                error=error,
-            ))
+            self._telemetry.record(
+                CallRecord(
+                    backend=self._inner.backend_kind(),
+                    model=self._inner.model_name(),
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    tokens_estimated=estimated,
+                    latency_ms=latency_ms,
+                    cache_hit=cache_hit,
+                    error=error,
+                )
+            )
         except Exception as telemetry_exc:  # never let telemetry break a review
             log.warning("Telemetry write failed: %s", telemetry_exc)
 

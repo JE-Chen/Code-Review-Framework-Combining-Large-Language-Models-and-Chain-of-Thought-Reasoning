@@ -40,9 +40,11 @@ code that violates them is rejected at review.
 
 1. **Strategy Pattern** — Pipeline switching (CoT / Skills / Single Prompt) and backend selection
    must be expressed as interchangeable strategies. No hardcoded `match/case` branches in
-   execution code. Concrete: `prthinker.backends.base.InferenceBackend` with four implementations
-   (`LocalHFBackend` / `RemoteHttpBackend` / `OpenAICompatBackend` / `AnthropicBackend`). Adding a
-   new provider means adding one class + one factory branch.
+   execution code. Concrete: `prthinker.backends.base.InferenceBackend` with nine backend kinds
+   (`LocalHFBackend` / `RemoteHttpBackend` / `OpenAICompatBackend` / `AnthropicBackend` /
+   `GeminiBackend` / `CohereBackend` / `MistralBackend` / `ClaudeCliBackend` / `CodexCliBackend`)
+   plus the `RouterBackend` / `EnsembleBackend` wrappers. Adding a new provider means adding one
+   class + one factory branch.
 2. **Factory Pattern** — All model and backend instantiation goes through a single factory entry
    point (`load_hf_model()` for models, `create_backend()` for backends). Do not construct
    models ad-hoc.
@@ -471,13 +473,22 @@ CJK punctuation adjacent to RST inline markup needs a backslash-space (`\` follo
 space) zero-width separator — for example, write `（前文）\ ``code`` 之 ...` rather than
 `（前文）``code`` 之 ...`. The latter parses as inline-markup-without-end-string.
 
-### Paper Inserts Follow `paper_rule.md`
+### Paper Work Follows `paper/paper_inserts.md` + `paper/REWRITE_BRIEF.md`
 
 `paper/paper_inserts.md` carries hard rules: **no fabrication, no hallucination**. Never
 invent benchmark numbers, RQs, comparison targets, or references. The framework-side ships
 **code + corpora + unit tests** only — empirical claims belong in a separate evaluation
 paper that has actually run the experiments. New mechanisms get a §3.7.x design subsection
 and a matching §6.4.5 future-work skeleton; both must carry a "本論文未予評估" disclaimer.
+
+For manuscript edits (`paper/論文_v*.docx`, `paper/TCSE_v*.docx`), **use the
+`paper-author` subagent** (`.claude/agents/paper-author.md`). It encodes the authoritative
+brief (`paper/REWRITE_BRIEF.md`) and the hard writing rules verified by
+`paper/_check_rules.py`: full-width punctuation, full-width semicolons and prose dashes
+recast as 「，」/「：」, first-occurrence-only glosses, 標楷體 + Times New Roman fonts,
+Chinese-numeral figure/table numbering, every number traceable to `datas/Results/`, no
+AI-tool authorship. Originals are never edited in place — new versions come out of the
+python-docx scripts, and dumps are regenerated after every change.
 
 ### Architecture Diagrams
 
@@ -499,8 +510,8 @@ When adding a version, restyling, or fixing diagram layout, **use the
   `draw.io.exe -x -f png -s 2 --no-sandbox`); iterate edit → export → view
   until no edge crosses a box. `choco`/`winget` need admin; the portable zip
   does not.
-- Per `paper_rule.md`, never invent components; mirror only what the code
-  actually has.
+- Per `paper/paper_inserts.md`'s no-fabrication rule, never invent components;
+  mirror only what the code actually has.
 
 ### GitHub Actions / CI Resilience Patterns
 

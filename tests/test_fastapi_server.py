@@ -11,6 +11,7 @@ importing the module under test.
 from __future__ import annotations
 
 import importlib
+from contextlib import contextmanager
 import sys
 import threading
 import time
@@ -27,6 +28,7 @@ class _FakeJob:
     """Minimal stand-in matching the job protocol the sweeper relies on."""
 
     status: str = "running"
+    created_at: float = field(default_factory=time.time)
     last_polled_at: float = field(default_factory=time.time)
     cancel_event: threading.Event = field(default_factory=threading.Event)
 
@@ -175,3 +177,80 @@ def test_sweep_table_once_logs_label(server_module, caplog):
     with caplog.at_level(logging.WARNING, logger="prthinker.server"):
         server_module._sweep_table_once(threading.Lock(), {"x": idle}, "Review", now)
     assert any("Review job x idle" in r.getMessage() for r in caplog.records)
+
+
+def test_make_job_slot_cancels_and_evicts_expired_active_job(
+    server_module,
+):
+    now = time.time()
+    expired = _FakeJob(created_at=now - server_module._JOB_TTL_SECONDS - 1)
+    table = {"expired": expired}
+
+    assert server_module._make_job_slot_locked(table, now)
+    assert expired.cancel_event.is_set()
+    assert table == {}
+
+
+def test_make_job_slot_evicts_terminal_before_rejecting(
+    server_module, monkeypatch,
+):
+    monkeypatch.setattr(server_module, "_MAX_JOBS_PER_KIND", 2)
+    table = {
+        "done": _FakeJob(status="done"),
+        "active": _FakeJob(status="running"),
+    }
+
+    assert server_module._make_job_slot_locked(table, time.time())
+    assert set(table) == {"active"}
+
+
+def test_make_job_slot_rejects_when_all_slots_are_active(
+    server_module, monkeypatch,
+):
+    monkeypatch.setattr(server_module, "_MAX_JOBS_PER_KIND", 2)
+    table = {
+        "a": _FakeJob(status="running"),
+        "b": _FakeJob(status="pending"),
+    }
+
+    assert not server_module._make_job_slot_locked(table, time.time())
+    assert set(table) == {"a", "b"}
+
+
+def test_start_job_worker_rolls_back_failed_start(server_module):
+    table = {"job": _FakeJob(status="pending")}
+
+    class _BrokenThread:
+        def start(self):
+            raise RuntimeError("cannot start")
+
+    with pytest.raises(RuntimeError, match="cannot start"):
+        server_module._start_job_worker(
+            _BrokenThread(), threading.Lock(), table, "job",
+        )
+    assert table == {}
+
+
+def test_release_gpu_memory_serializes_cuda_empty_cache(
+    server_module, monkeypatch,
+):
+    events: list[str] = []
+
+    @contextmanager
+    def _lock():
+        events.append("lock-enter")
+        yield
+        events.append("lock-exit")
+
+    monkeypatch.setattr(server_module, "gpu_serialized", _lock)
+    monkeypatch.setattr(server_module.gc, "collect", lambda: events.append("gc"))
+    monkeypatch.setattr(server_module.torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(
+        server_module.torch.cuda,
+        "empty_cache",
+        lambda: events.append("empty-cache"),
+    )
+
+    server_module._release_gpu_memory()
+
+    assert events == ["gc", "lock-enter", "empty-cache", "lock-exit"]

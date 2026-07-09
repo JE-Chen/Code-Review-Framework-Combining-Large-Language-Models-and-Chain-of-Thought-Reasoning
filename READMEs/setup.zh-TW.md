@@ -47,7 +47,7 @@ git clone <repo-url>
 cd Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning
 
 # 挑一個（或疊著用）：
-pip install -e ".[runner]"   # 薄客戶端 — 只裝 httpx + pydantic（~5 MB）
+pip install -e ".[runner]"   # 薄客戶端 — 只裝 httpx + pydantic + PyYAML（~5 MB）
 pip install -e ".[local]"    # 多加 torch、transformers、faiss、peft、bitsandbytes
 pip install -e ".[server]"   # 在 `local` 之上多加 fastapi + uvicorn
 pip install -e ".[mcp]"      # 多加 `mcp` SDK 給 IDE 整合用
@@ -58,6 +58,15 @@ CLI 入口是 `prthinker`。裝完驗證：
 
 ```bash
 prthinker --help
+```
+
+若要 bit-for-bit 可重現的環境（CI 在每個 PR 上安裝的就是這套），請改用
+[`requirements/`](../requirements/) 下以 hash 鎖定的檔案，不要讓 pip
+重新解析相依：
+
+```bash
+pip install --require-hashes -r requirements/runner.lock   # 或 ci.lock
+pip install -e . --no-deps
 ```
 
 ---
@@ -846,8 +855,10 @@ bitsandbytes 官方只出 Linux wheel；Windows 請用上游
 
 ### 載 Qwen3-Coder-30B 時 GPU OOM
 
-30B 模型在 4-bit NF4 量化下大約要 18 GB VRAM。較小的 LoRA 目標可在 12 GB
-卡上：
+30B MoE 模型以純 bf16 服務，平衡切分到兩張卡──2 × 46 GB 上每卡約
+28 GB，掛上未合併的 LoRA 後每卡約 36–38 GB（刻意不用 4-bit 量化；
+transformers ≥ 5 會把 MoE forward 稠密化而 OOM）。較小的 LoRA 目標可在
+單張 12 GB 卡上：
 
 ```yaml
 local:

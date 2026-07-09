@@ -1,0 +1,4 @@
+# Keep in sync with project.dependencies in pyproject.toml.
+httpx>=0.28
+pydantic>=2.11
+PyYAML>=6.0.2

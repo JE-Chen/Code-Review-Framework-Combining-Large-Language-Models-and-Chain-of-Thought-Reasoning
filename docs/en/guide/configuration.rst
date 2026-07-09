@@ -387,6 +387,18 @@ the runner CLI.
      - Cosine floor for inclusion in top-K. Default ``0.6``.
    * - ``PRTHINKER_ACCEPTED_TOP_K``
      - Number of exemplars to inject. Default ``3``.
+   * - ``PRTHINKER_MAX_JOBS``
+     - Cap on each async job table (review and ask). Terminal jobs are
+       evicted first; when every slot holds an active job the submit
+       endpoints return ``503``. Default ``32``.
+   * - ``PRTHINKER_MAX_INPUT_TOKENS``
+     - Reject a request whose prompt exceeds this token budget at the
+       boundary instead of hitting a CUDA OOM mid-review. Default
+       ``16384``.
+   * - ``PRTHINKER_MAX_NEW_TOKENS``
+     - Server-side ceiling on requested generation length; the wire
+       schemas clamp ``max_new_tokens`` to the same range. Default
+       ``32768``.
 
 Output and logging
 ------------------

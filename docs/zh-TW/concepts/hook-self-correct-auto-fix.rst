@@ -125,6 +125,30 @@ artifact。作者檢查 diff 後決定要不要合回原 branch 或 close。
 * 若團隊要求 signed commits，auto-fix 之預設 commit 不會被簽。請在
   CI 端配置簽署，或於要求簽署之 branch 關閉此功能。
 
+Issue 自動化（``--auto-file-issues``\ 、\ ``issue-autofix``）
+-------------------------------------------------------------
+
+兩項功能補上審查迴圈外圍的缺口\ ，GitHub 與 GitLab 皆支援
+（平台差異全部收在 ``prthinker.issue_tracker`` 的 Strategy 層）：
+
+**自動開 issue。** 落在 diff hunks 之外的 findings 無法以 inline
+comment 張貼 —— 平台會拒絕 —— 過去只能留在 summary 文字裡\ 。
+``review-pr --auto-file-issues off-diff`` 把它們一一開成 tracker 上的
+issue（``all`` 則每個 finding 都開）\ 。issue 內文嵌有指紋 marker
+（path + category + 正規化 comment 的雜湊\ ，刻意不含行號）\ ，讓重跑
+審查具冪等性：同一個問題在其 issue 尚未關閉時絕不重複開單\ 。單次最多
+開 10 張新 issue\ ，且每次 API 呼叫皆為 best-effort —— tracker 掛掉
+絕不弄壞審查本體\ 。
+
+**Issue 自動修復。** ``issue-autofix`` 把 ``issue-fix`` 引擎跑完整條
+迴路：抓 issue\ 、定位相關檔案\ 、提出必須逐字套用且語法有效的
+find/replace 編輯\ ，可選擇以測試指令把關\ ，然後開分支 / commit /
+push\ ，開一個 draft fix PR（GitHub）或 MR（GitLab）\ ，其
+``Fixes #N`` 於合併時自動關閉 issue\ ，並把連結留言回 issue\ 。
+不加 ``--open-pr`` 則是純 dry run\ 。兩項功能可組成一個迴圈 ——
+審查開 issue\ ，\ ``issue-autofix --issue-label`` 提出修復 ——
+但每個 PR 都是 draft\ ，仍由人類決定是否合併\ 。
+
 與其他功能之組合
 ----------------
 

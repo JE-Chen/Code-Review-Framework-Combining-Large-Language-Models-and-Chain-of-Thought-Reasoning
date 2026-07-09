@@ -5,7 +5,6 @@ from __future__ import annotations
 import sys
 from types import SimpleNamespace
 
-import numpy as np
 import pytest
 
 from prthinker.dismissed import (
@@ -14,6 +13,8 @@ from prthinker.dismissed import (
     DismissedFilter,
 )
 from prthinker.schemas import InlineFinding
+
+np = pytest.importorskip("numpy")
 
 
 @pytest.fixture

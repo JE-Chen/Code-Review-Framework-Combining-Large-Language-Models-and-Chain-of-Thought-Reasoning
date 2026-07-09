@@ -13,10 +13,9 @@
 场景设定
 --------
 
-Solo developer 拥有一台 GPU 机器（≥ 18 GB VRAM）\ 。在 GPU host 跑
-4-bit NF4 量化的 ``Qwen3-Coder-30B-A3B-Instruct``\ ；GitHub Actions
-在每个 PR 打开时自动审查\ ；偶尔从本地 Python 脚本对某份 diff 跑一次性
-审查\ 。
+Solo developer 拥有一台双 GPU 机器（2 × 46 GB）\ 。在 GPU host 以
+bf16 跑 ``Qwen3-Coder-30B-A3B-Instruct``\ ；GitHub Actions 在每个 PR
+打开时自动审查\ ；偶尔从本地 Python 脚本对某份 diff 跑一次性审查\ 。
 
 
 Step 1 — 推理服务器（GPU host）
@@ -53,9 +52,10 @@ overlay\ ）\ 。
 
 ``--workers 1`` 必要 —— 模型只该载入一份\ 。
 
-默认模型为 ``Qwen/Qwen3-Coder-30B-A3B-Instruct``\ ，自动套用 4-bit NF4
-+ double-quant + bf16 compute\ 。若 ``codes/train/outputs-lora-qwen3-coder-30b``
-存在则会以 QLoRA 路径挂上 adapter\ ；否则只跑量化后之 base model\ 。
+默认模型为 ``Qwen/Qwen3-Coder-30B-A3B-Instruct``\ ，以纯 bf16 加载并做
+均衡的双卡切分（每卡约 28 GB\ ；挂上 adapter 后约每卡 36–38 GB）\ 。
+若 ``codes/train/outputs-lora-qwen3-coder-30b`` 存在 LoRA adapter\ ，
+则以 CPU 暂存方式挂上且不合并\ ；否则只跑纯 bf16 base\ 。
 
 健康检查：
 
@@ -309,7 +309,7 @@ Step 3 — Python API
    ┌────────────────────────────────────────────────────────────────────┐
    │ Step 1: GPU host                                                   │
    │   uvicorn   ◄──  /healthz  /ask  /rag  /review                     │
-   │   ├ Qwen3-Coder-30B-A3B-Instruct (4-bit NF4 + double-quant)        │
+   │   ├ Qwen3-Coder-30B-A3B-Instruct (bf16, dual-card auto split)      │
    │   ├ 可选 LoRA adapter (codes/train/outputs-lora-…)                 │
    │   └ 全局规则 FAISS index                                           │
    └─────────────────────────────▲──────────────────────────────────────┘

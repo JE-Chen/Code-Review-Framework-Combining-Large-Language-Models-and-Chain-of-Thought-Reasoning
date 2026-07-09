@@ -206,6 +206,23 @@ Research-grade flags (opt-in, ``--inline-review`` required):
    natively. Omitted when the change has no internal import edges.
    Env: ``PRTHINKER_CHANGE_MAP``.
 
+.. option:: --auto-file-issues {none,off-diff,all}
+
+   File review findings as tracker issues. ``off-diff`` files only the
+   findings that fall *outside* the diff hunks — the ones the platform
+   would reject as inline comments, which otherwise survive only in the
+   summary text. ``all`` files every finding. Each issue body carries a
+   fingerprint marker (hash of path + category + normalised comment) so
+   re-reviews do not re-file the same problem; one run files at most 10
+   new issues. Works on GitHub and GitLab; best-effort — an API failure
+   never fails the review. Default ``none``.
+   Env: ``PRTHINKER_AUTO_FILE_ISSUES``.
+
+.. option:: --issue-labels <labels>
+
+   Comma-separated labels applied to auto-filed issues (default
+   ``prthinker``). Env: ``PRTHINKER_ISSUE_LABELS``.
+
 review-file
 -----------
 
@@ -349,36 +366,48 @@ Env equivalents: ``PRTHINKER_BACKEND`` / ``PRTHINKER_REMOTE_URL`` /
 harvest-dismissed
 -----------------
 
-Scan PR review comments and append dismissed findings to a JSONL store.
+Scan PR / MR review comments and append dismissed findings to a JSONL
+store.
 
 .. code-block:: text
 
    prthinker harvest-dismissed
+       [--platform github|gitlab]
+       [--platform-base-url URL]
        --repo OWNER/NAME
        --github-token TOKEN
        [--pr-number N | --max-prs 50]
        [--out .prthinker/dismissed.jsonl]
 
-When ``--pr-number`` is set, harvests only that PR. Otherwise iterates
-the ``--max-prs`` most-recently-updated closed PRs.
+When ``--pr-number`` is set, harvests only that PR / MR. Otherwise
+iterates the ``--max-prs`` most-recently-updated closed ones. On GitHub
+a finding is dismissed when its review comment carries a 👎 reaction or
+a dismissal-keyword reply; on GitLab the same signals are read from MR
+diff discussions and award emoji. ``--repo`` / ``--github-token``
+default to ``GITHUB_REPOSITORY`` / ``GITHUB_TOKEN`` and fall back to
+``CI_PROJECT_PATH`` / ``GITLAB_TOKEN``.
 
 harvest-accepted
 ----------------
 
-Scan PRs for applied suggestion blocks and append to a JSONL store.
+Scan PRs / MRs for applied suggestion blocks and append to a JSONL
+store.
 
 .. code-block:: text
 
    prthinker harvest-accepted
+       [--platform github|gitlab]
+       [--platform-base-url URL]
        --repo OWNER/NAME
        --github-token TOKEN
        [--pr-number N | --max-prs 50]
        [--out .prthinker/accepted.jsonl]
 
 A PR is considered to have accepted suggestions when any of its commits
-has a message starting with ``Apply suggestion(s) from code review``.
-Every review comment on that PR that contains a ```suggestion``` block
-is kept.
+has a message starting with ``Apply suggestion(s) from code review``
+(GitLab additionally matches its native
+``Apply N suggestion(s) to M file(s)`` message). Every review comment /
+diff note that contains a ```suggestion``` block is kept.
 
 adversarial-eval
 ----------------
@@ -423,6 +452,71 @@ The outcomes table schema:
      output      TEXT    NOT NULL,
      error       TEXT
    );
+
+issue-fix
+---------
+
+Localise the files relevant to an issue, propose validated find/replace
+edits, and print them as JSON. Read-only by default: the work-tree is
+never written unless ``--apply`` or ``--test-cmd`` is given.
+
+.. code-block:: text
+
+   prthinker issue-fix "issue text"        # or '-' for stdin
+       --workdir PATH                       # repository work-tree
+       [--issue-file PATH]
+       [--retriever {graph-rerank,graph,rerank,lexical}]
+       [--top-k 10] [--max-retries 1]
+       [--backend {local,remote,openai,anthropic,gemini,cohere,mistral,claude-cli,codex-cli}]
+       [--output PATH] [--patch PATH]
+       [--apply] [--test-cmd CMD] [--test-timeout 600]
+
+Every proposed edit must apply verbatim and leave the file syntactically
+valid (Python); an invalid batch is re-queried once with the failure
+reason appended. ``--patch`` writes a unified diff; ``--apply`` writes
+the edits to the work-tree; ``--test-cmd`` applies the fix and runs the
+command as a Pass@1 check (exit 1 when it fails).
+
+issue-autofix
+-------------
+
+Fetch tracker issues (GitHub or GitLab), propose validated fixes with
+the same engine as ``issue-fix``, and — with ``--open-pr`` — apply,
+commit, push, and open a fix pull / merge request whose body says
+``Fixes #N`` and comment the link back on the issue. Without
+``--open-pr`` it is a dry run that prints the proposals and patches as
+JSON and mutates nothing.
+
+.. code-block:: text
+
+   prthinker issue-autofix
+       --repo OWNER/NAME                    # GitLab: project path or id
+       --workdir PATH                       # scratch clone (mutated on --open-pr)
+       (--issue-number N | --issue-label LABEL [--limit 3])
+       [--platform {github,gitlab}] [--gitlab-url URL]
+       [--github-token TOKEN]               # or $GITHUB_TOKEN / $GITLAB_TOKEN
+       [--retriever {graph-rerank,graph,rerank,lexical}]
+       [--top-k 10] [--max-retries 1]
+       [--open-pr] [--no-draft]
+       [--base-branch NAME] [--branch-prefix issue-fix]
+       [--test-cmd CMD] [--test-timeout 600]
+       [--output PATH]
+
+Notable behaviour:
+
+* ``--test-cmd`` is a gate: when the command fails against the applied
+  fix, no branch is pushed and no PR is opened — the result records
+  ``test command failed``.
+* The fix PR / MR is a **draft** by default (``--no-draft`` opens it
+  ready-for-review); merging it closes the issue via ``Fixes #N``.
+* ``--issue-label`` batch mode restores the starting git ref between
+  issues so one fix never leaks into the next; a failure on one issue
+  records an error result and the batch continues.
+* Point ``--workdir`` at a dedicated scratch clone with an ``origin``
+  remote the token can push to — the loop runs ``git checkout -B``,
+  ``commit``, and ``push --force-with-lease`` in it.
+* Exit code is ``0`` only when every attempted issue produced a valid
+  fix.
 
 Exit codes
 ----------

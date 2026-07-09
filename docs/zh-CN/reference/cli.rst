@@ -187,6 +187,22 @@ review-pr
    渲染 ```mermaid`` 区块\ 。变更文件之间没有 import 边时略过\ 。
    环境变量：``PRTHINKER_CHANGE_MAP``\ 。
 
+.. option:: --auto-file-issues {none,off-diff,all}
+
+   把审查 findings 自动开成 issue tracker 上的 issue\ 。\ ``off-diff``
+   只开落在 diff hunks *之外*\ 的 findings —— 这些是平台会拒绝以
+   inline comment 张贴\ 、原本只能留在 summary 文字里的发现\ 。
+   ``all`` 则每个 finding 都开\ 。每张 issue 正文带指纹 marker
+   （path + category + 规范化 comment 的哈希）\ ，重跑审查不会把同一个
+   问题重复开单\ ；单次最多开 10 张新 issue\ 。支持 GitHub 与 GitLab\ ；
+   best-effort —— API 失败绝不弄坏审查本体\ 。默认 ``none``\ 。
+   环境变量：``PRTHINKER_AUTO_FILE_ISSUES``\ 。
+
+.. option:: --issue-labels <labels>
+
+   自动开的 issue 要套的标签\ ，逗号分隔（默认 ``prthinker``）\ 。
+   环境变量：``PRTHINKER_ISSUE_LABELS``\ 。
+
 review-file
 -----------
 
@@ -323,35 +339,44 @@ Env equivalents：``PRTHINKER_BACKEND``\ / ``PRTHINKER_REMOTE_URL``\ /
 harvest-dismissed
 -----------------
 
-扫 PR review comment，把 dismissed finding 追加到 JSONL store。
+扫 PR／MR review comment，把 dismissed finding 追加到 JSONL store。
 
 .. code-block:: text
 
    prthinker harvest-dismissed
+       [--platform github|gitlab]
+       [--platform-base-url URL]
        --repo OWNER/NAME
        --github-token TOKEN
        [--pr-number N | --max-prs 50]
        [--out .prthinker/dismissed.jsonl]
 
-设 ``--pr-number`` 时只扫那一个 PR；否则迭代最近 ``--max-prs`` 个依更新时间
-排序的 closed PR。
+设 ``--pr-number`` 时只扫那一个 PR／MR；否则迭代最近 ``--max-prs`` 个依
+更新时间排序的 closed PR／MR。GitHub 上，review comment 带 👎 reaction
+或带驳回关键字的回复即视为 dismissed；GitLab 上则从 MR 的 diff
+discussion 与 award emoji 读取同样的信号。``--repo``\ ／
+``--github-token`` 默认读 ``GITHUB_REPOSITORY``\ ／``GITHUB_TOKEN``\ ，
+并回退到 ``CI_PROJECT_PATH``\ ／``GITLAB_TOKEN``\ 。
 
 harvest-accepted
 ----------------
 
-扫 PR 看是否有应用过的 suggestion 区块，追加到 JSONL store。
+扫 PR／MR 看是否有应用过的 suggestion 区块，追加到 JSONL store。
 
 .. code-block:: text
 
    prthinker harvest-accepted
+       [--platform github|gitlab]
+       [--platform-base-url URL]
        --repo OWNER/NAME
        --github-token TOKEN
        [--pr-number N | --max-prs 50]
        [--out .prthinker/accepted.jsonl]
 
-当 PR 的任一 commit message 以 ``Apply suggestion(s) from code review`` 开头
-时即视为「有采纳过建议」。该 PR 上每个带 ```suggestion``` 区块的评论都会
-保留。
+当 PR 的任一 commit message 以 ``Apply suggestion(s) from code review``
+开头时即视为「有采纳过建议」（GitLab 另外比对其原生的
+``Apply N suggestion(s) to M file(s)`` 消息）。每个带 ```suggestion```
+区块的评论／diff note 都会保留。
 
 adversarial-eval
 ----------------
@@ -395,6 +420,66 @@ outcomes 表 schema：
      output      TEXT    NOT NULL,
      error       TEXT
    );
+
+issue-fix
+---------
+
+针对一个 issue 定位相关文件\ 、提出经验证的 find/replace 编辑\ ，
+并以 JSON 打印\ 。默认只读：除非给 ``--apply`` 或 ``--test-cmd``\ ，
+否则绝不写入 work-tree\ 。
+
+.. code-block:: text
+
+   prthinker issue-fix "issue 文字"        # 或 '-' 读 stdin
+       --workdir PATH                       # repository work-tree
+       [--issue-file PATH]
+       [--retriever {graph-rerank,graph,rerank,lexical}]
+       [--top-k 10] [--max-retries 1]
+       [--backend {local,remote,openai,anthropic,gemini,cohere,mistral,claude-cli,codex-cli}]
+       [--output PATH] [--patch PATH]
+       [--apply] [--test-cmd CMD] [--test-timeout 600]
+
+每个提出的编辑都必须能逐字应用\ ，且应用后文件语法有效（Python）\ ；
+无效的批次会附上失败原因重问一次\ 。\ ``--patch`` 写出 unified diff\ ，
+``--apply`` 把编辑写入 work-tree\ ，\ ``--test-cmd`` 应用修复后执行该
+命令作为 Pass@1 检查（失败时 exit 1）\ 。
+
+issue-autofix
+-------------
+
+从 issue tracker（GitHub 或 GitLab）抓 issue\ ，用与 ``issue-fix``
+相同的引擎提出经验证的修复\ ；加上 ``--open-pr`` 时会应用\ 、commit\ 、
+push\ ，开一个正文带 ``Fixes #N`` 的 fix pull / merge request\ ，并把
+链接评论回 issue\ 。不加 ``--open-pr`` 则是 dry run：只以 JSON 打印
+提案与 patch\ ，不改动任何东西\ 。
+
+.. code-block:: text
+
+   prthinker issue-autofix
+       --repo OWNER/NAME                    # GitLab：project 路径或 id
+       --workdir PATH                       # scratch clone（--open-pr 时会被改动）
+       (--issue-number N | --issue-label LABEL [--limit 3])
+       [--platform {github,gitlab}] [--gitlab-url URL]
+       [--github-token TOKEN]               # 或 $GITHUB_TOKEN / $GITLAB_TOKEN
+       [--retriever {graph-rerank,graph,rerank,lexical}]
+       [--top-k 10] [--max-retries 1]
+       [--open-pr] [--no-draft]
+       [--base-branch NAME] [--branch-prefix issue-fix]
+       [--test-cmd CMD] [--test-timeout 600]
+       [--output PATH]
+
+重点行为：
+
+* ``--test-cmd`` 是一道闸门：命令对应用后的修复执行失败时\ ，不会
+  push 分支\ 、不会开 PR —— 结果记录 ``test command failed``\ 。
+* fix PR / MR 默认是 **draft**\ （``--no-draft`` 直接开成待审）\ ；
+  合并后 ``Fixes #N`` 自动关闭 issue\ 。
+* ``--issue-label`` 批次模式在 issue 之间还原起始 git ref\ ，一个修复
+  不会渗入下一个\ ；单个 issue 失败会记录错误结果\ ，批次继续\ 。
+* ``--workdir`` 请指向一个专用的 scratch clone\ ，其 ``origin``
+  remote 必须是 token 能 push 的 —— 循环会在里面执行
+  ``git checkout -B``\ 、\ ``commit``\ 、\ ``push --force-with-lease``\ 。
+* 只有所有尝试的 issue 都产出有效修复时\ ，exit code 才是 ``0``\ 。
 
 Exit code
 ---------

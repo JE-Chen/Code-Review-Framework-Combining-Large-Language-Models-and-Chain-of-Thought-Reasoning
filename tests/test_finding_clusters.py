@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import numpy as np
+import pytest
 
 from prthinker.finding_clusters import (
     FindingClusterStore,
@@ -16,6 +16,8 @@ from prthinker.finding_clusters import (
     format_clusters_block,
     greedy_cluster,
 )
+
+np = pytest.importorskip("numpy")
 
 
 def _emb(*v: float) -> np.ndarray:

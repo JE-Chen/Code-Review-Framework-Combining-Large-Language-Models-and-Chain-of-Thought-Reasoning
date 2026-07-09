@@ -20,7 +20,7 @@ from typing import Iterator
 
 import httpx
 
-from prthinker.backends.base import InferenceBackend, Usage
+from prthinker.backends.base import InferenceBackend, Usage, ThreadLocalUsage
 
 DEFAULT_BASE_URL = "https://api.mistral.ai/v1"
 CHAT_COMPLETIONS_PATH = "/chat/completions"
@@ -30,6 +30,7 @@ _BACKEND_KIND = "mistral"
 
 
 class MistralBackend(InferenceBackend):
+    concurrency_limit = 4
     """OpenAI-shaped Mistral Chat Completions inference backend."""
 
     def __init__(
@@ -50,7 +51,7 @@ class MistralBackend(InferenceBackend):
             raise ValueError("MistralBackend.timeout_seconds must be positive")
         self._model = model
         self._base_url = base_url.rstrip("/")
-        self._last_usage: Usage | None = None
+        self._usage = ThreadLocalUsage()
         self._client = httpx.Client(
             base_url=self._base_url,
             timeout=timeout_seconds,
@@ -67,7 +68,7 @@ class MistralBackend(InferenceBackend):
         return self._model
 
     def last_usage(self) -> Usage | None:
-        return self._last_usage
+        return self._usage.get()
 
     def generate(
         self,
@@ -78,7 +79,7 @@ class MistralBackend(InferenceBackend):
     ) -> str:
         # Remote network call; mid-stream cancellation not implemented.
         del cancel_event
-        self._last_usage = None
+        self._usage.set(None)
         payload = {
             "model": self._model,
             "messages": [{"role": "user", "content": prompt}],
@@ -90,9 +91,7 @@ class MistralBackend(InferenceBackend):
         try:
             text = str(body["choices"][0]["message"]["content"])
         except (KeyError, IndexError, TypeError) as exc:
-            raise RuntimeError(
-                f"Unexpected Mistral response shape: {body!r}"
-            ) from exc
+            raise RuntimeError(f"Unexpected Mistral response shape: {body!r}") from exc
 
         self._capture_usage(body.get("usage") or {})
         return text
@@ -102,10 +101,10 @@ class MistralBackend(InferenceBackend):
         prompt_tokens = usage.get("prompt_tokens")
         completion_tokens = usage.get("completion_tokens")
         if prompt_tokens is not None and completion_tokens is not None:
-            self._last_usage = Usage(
+            self._usage.set(Usage(
                 prompt_tokens=int(prompt_tokens),
                 completion_tokens=int(completion_tokens),
-            )
+            ))
 
     @staticmethod
     def _sse_payload(line: str) -> str | None:
@@ -132,16 +131,14 @@ class MistralBackend(InferenceBackend):
         chunk = delta.get("content")
         return str(chunk) if chunk else None
 
-    def stream_generate(
-        self, prompt: str, max_new_tokens: int
-    ) -> Iterator[str]:
+    def stream_generate(self, prompt: str, max_new_tokens: int) -> Iterator[str]:
         """Native SSE streaming via ``stream: true``.
 
         Yields ``choices[0].delta.content`` deltas until the ``[DONE]``
         sentinel arrives. A final chunk may carry a ``usage`` block, which
         is captured for ``last_usage`` like the non-streaming path.
         """
-        self._last_usage = None
+        self._usage.set(None)
         payload = {
             "model": self._model,
             "messages": [{"role": "user", "content": prompt}],

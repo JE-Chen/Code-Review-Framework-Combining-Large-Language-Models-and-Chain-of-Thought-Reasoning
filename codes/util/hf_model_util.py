@@ -33,6 +33,9 @@ from prthinker.pipeline import ReviewCancelledError
 
 log = logging.getLogger(__name__)
 
+_DEFAULT_MAX_INPUT_TOKENS = 16384
+_DEFAULT_MAX_NEW_TOKENS = 32768
+
 # Models served in plain bf16 with a balanced dual-card split — never
 # bitsandbytes. The Qwen3-A3B pair because 4-bit + transformers>=5
 # densifies their MoE forward; Gemma 4 31B (dense, ~61 GiB bf16) because
@@ -122,7 +125,7 @@ def _probe_generation(model, tokenizer) -> None:
     inputs = tokenizer([text], return_tensors="pt").to(model.device)
     actual = inputs["input_ids"].shape[-1]
     try:
-        with torch.no_grad():
+        with torch.inference_mode():
             model.generate(**inputs, max_new_tokens=8, do_sample=False)
     except torch.cuda.OutOfMemoryError as exc:
         raise RuntimeError(
@@ -402,7 +405,42 @@ def _force_efficient_sdpa():
     yield
 
 
+def _generation_limit(env_name: str, default: int) -> int:
+    """Read a positive generation limit, failing at the request boundary."""
+    raw = os.environ.get(env_name, str(default)) or str(default)
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{env_name} must be a positive integer, got {raw!r}") from exc
+    if value < 1:
+        raise ValueError(f"{env_name} must be a positive integer, got {value}")
+    return value
+
+
+def _validate_generation_budget(input_tokens: int, max_new_tokens: int) -> None:
+    """Reject requests whose context/output budget can exhaust GPU memory."""
+    max_input = _generation_limit(
+        "PRTHINKER_MAX_INPUT_TOKENS", _DEFAULT_MAX_INPUT_TOKENS,
+    )
+    max_output = _generation_limit(
+        "PRTHINKER_MAX_NEW_TOKENS", _DEFAULT_MAX_NEW_TOKENS,
+    )
+    if input_tokens > max_input:
+        raise ValueError(
+            f"Input has {input_tokens} tokens, exceeding the server limit "
+            f"of {max_input}; split or truncate the request"
+        )
+    if not 1 <= max_new_tokens <= max_output:
+        raise ValueError(
+            f"max_new_tokens must be between 1 and {max_output}, "
+            f"got {max_new_tokens}"
+        )
+
+
 def hf_generate(prompt: str, model, tokenizer, max_new_tokens: int = 16784, cancel_event=None):
+    if cancel_event is not None and cancel_event.is_set():
+        raise ReviewCancelledError("Generation cancelled before tokenization")
+
     messages = [
         {"role": "user", "content": prompt}
     ]
@@ -411,7 +449,11 @@ def hf_generate(prompt: str, model, tokenizer, max_new_tokens: int = 16784, canc
         tokenize=False,
         add_generation_prompt=True,
     )
-    model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
+    model_inputs = tokenizer([text], return_tensors="pt")
+    _validate_generation_budget(
+        model_inputs["input_ids"].shape[-1], max_new_tokens,
+    )
+    model_inputs = model_inputs.to(model.device)
 
     stopping_criteria = None
     if cancel_event is not None:
@@ -420,12 +462,13 @@ def hf_generate(prompt: str, model, tokenizer, max_new_tokens: int = 16784, canc
         )
 
     try:
-        with _force_efficient_sdpa():
-            generated_ids = model.generate(
-                **model_inputs,
-                max_new_tokens=max_new_tokens,
-                stopping_criteria=stopping_criteria,
-            )
+        with torch.inference_mode():
+            with _force_efficient_sdpa():
+                generated_ids = model.generate(
+                    **model_inputs,
+                    max_new_tokens=max_new_tokens,
+                    stopping_criteria=stopping_criteria,
+                )
     except torch.cuda.OutOfMemoryError as exc:
         impl = getattr(model.config, "_attn_implementation", "unknown")
         input_len = model_inputs["input_ids"].shape[-1]
