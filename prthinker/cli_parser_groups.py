@@ -217,6 +217,18 @@ def _add_per_file_toggle_args(common: argparse.ArgumentParser) -> None:
         help="Bounded per-file workers; capped by backend capability.",
     )
     common.add_argument(
+        "--step-plan",
+        choices=["full", "adaptive"],
+        default=env_str("PRTHINKER_STEP_PLAN", "full"),
+        help=(
+            "Per-file review depth. 'full' runs every configured step on "
+            "every file; 'adaptive' scales the CoT chain to each file — "
+            "docs/config/tiny diffs skip the analysis chain, mid-size "
+            "changes drop the per-file PR summary, large or high-risk "
+            "files keep the full sweep."
+        ),
+    )
+    common.add_argument(
         "--findings-only",
         action="store_true",
         default=env_bool("PRTHINKER_FINDINGS_ONLY", False),

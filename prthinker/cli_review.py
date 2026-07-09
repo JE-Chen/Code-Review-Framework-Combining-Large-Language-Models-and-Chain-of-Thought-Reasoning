@@ -515,6 +515,7 @@ def _collect_core_kwargs(args: argparse.Namespace) -> dict:
         "walkthrough": bool(getattr(args, "walkthrough", False)),
         "provenance": bool(getattr(args, "provenance", False)),
         "max_findings_per_file": args.max_findings_per_file,
+        "step_plan": getattr(args, "step_plan", "full") or "full",
     }
 
 

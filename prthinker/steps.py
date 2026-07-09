@@ -147,9 +147,21 @@ class CodeSmellStep(ReviewStep):
         )
 
 
+# Substituted for pruned analysis steps so the total-summary prompt can
+# tell "intentionally skipped" apart from "empty output". The wording is
+# referenced verbatim in TOTAL_SUMMARY_TEMPLATE — keep the two in sync.
+SKIPPED_STEP_NOTE = "(step skipped at this review depth)"
+
+
 @register_step
 class TotalSummaryStep(ReviewStep):
-    """Aggregates all prior step outputs. Must run last."""
+    """Aggregates all prior step outputs. Must run last.
+
+    Tolerates a partially-pruned chain (adaptive step planning): absent
+    inputs are marked with :data:`SKIPPED_STEP_NOTE` so the model bases
+    its conclusion on the evidence that exists. At least one input must
+    be present — with nothing to aggregate the step is meaningless.
+    """
 
     name = "total_summary"
 
@@ -161,18 +173,20 @@ class TotalSummaryStep(ReviewStep):
     )
 
     def build_prompt(self, ctx: ReviewContext) -> str:
-        missing = [k for k in self._REQUIRES if k not in ctx.results]
-        if missing:
+        if not any(k in ctx.results for k in self._REQUIRES):
             raise ValueError(
-                f"total_summary requires prior steps {missing} but they were not run"
+                "total_summary requires at least one prior step result out of "
+                f"{list(self._REQUIRES)} but none were run"
             )
         return _wrap(
             ctx,
             TOTAL_SUMMARY_TEMPLATE.format(
-                first_code_review=ctx.results["first_code_review"],
-                first_summary=ctx.results["first_summary"],
-                linter_result=ctx.results["linter"],
-                code_smell_result=ctx.results["code_smell"],
+                first_code_review=ctx.results.get(
+                    "first_code_review", SKIPPED_STEP_NOTE
+                ),
+                first_summary=ctx.results.get("first_summary", SKIPPED_STEP_NOTE),
+                linter_result=ctx.results.get("linter", SKIPPED_STEP_NOTE),
+                code_smell_result=ctx.results.get("code_smell", SKIPPED_STEP_NOTE),
                 code_diff=ctx.code_diff,
             ),
         )

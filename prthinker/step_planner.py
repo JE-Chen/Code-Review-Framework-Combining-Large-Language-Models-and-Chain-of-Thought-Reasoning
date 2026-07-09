@@ -1,0 +1,170 @@
+"""Adaptive per-file step planning — scale review depth to each change.
+
+Every file in a PR historically ran the full CoT chain (summary, first
+review, linter, code smell, total summary) regardless of what changed.
+For a one-line docs fix that is five model calls spent re-stating the
+obvious; for a large or high-risk change the full sweep is exactly what
+is wanted. This module decides, per :class:`~prthinker.diff.FileDiff`,
+which of the configured steps are actually worth running.
+
+The planner is pure and deterministic: it looks only at the diff (size,
+file kind) and the optional risk score the pipeline already computes.
+``--step-plan full`` (the default) bypasses it entirely, preserving the
+historical behaviour.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import PurePosixPath
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from prthinker.diff import FileDiff
+    from prthinker.steps import ReviewStep
+
+STEP_PLAN_FULL = "full"
+STEP_PLAN_ADAPTIVE = "adaptive"
+STEP_PLAN_CHOICES = (STEP_PLAN_FULL, STEP_PLAN_ADAPTIVE)
+
+TIER_TRIVIAL = "trivial"
+TIER_STANDARD = "standard"
+TIER_DEEP = "deep"
+
+# Documentation / declarative-config files: prose or data, not logic.
+# The inline-findings pass still sees them; the CoT analysis chain
+# (naming, code smells, lint) has nothing to say about them.
+_LOW_RISK_SUFFIXES = frozenset(
+    {
+        ".md",
+        ".rst",
+        ".txt",
+        ".json",
+        ".yml",
+        ".yaml",
+        ".toml",
+        ".ini",
+        ".cfg",
+        ".lock",
+        ".svg",
+    }
+)
+
+_TRIVIAL_MAX_CHANGED_LINES = 5
+_DEEP_MIN_CHANGED_LINES = 200
+_DEEP_MIN_RISK_SCORE = 0.7
+
+# Output-producing per-file steps that stay at every depth: they are what
+# the reviewer actually consumes (findings, orientation), not analysis
+# scaffolding feeding a later synthesis.
+_ALWAYS_KEEP = frozenset({"inline_findings", "walkthrough"})
+# A chain-only run (no inline findings configured) still gets one review
+# pass on a trivial file so the file is looked at, just not five times.
+_TRIVIAL_FALLBACK = frozenset({"first_code_review"})
+# Per-file PR summaries add little on mid-size changes: the total summary
+# already synthesises the first review / linter / smell outputs, and the
+# PR-level overview covers orientation.
+_STANDARD_DROP = frozenset({"first_summary"})
+
+
+@dataclass(frozen=True)
+class StepPlan:
+    """The steps chosen for one file, plus what was pruned and why."""
+
+    tier: str
+    steps: tuple[type["ReviewStep"], ...]
+    skipped: tuple[str, ...]
+
+
+def changed_line_count(fd: "FileDiff") -> int:
+    """Count added plus removed lines in a file diff (headers excluded)."""
+    count = 0
+    for line in fd.raw.splitlines():
+        if line.startswith(("+++", "---")):
+            continue
+        if line.startswith(("+", "-")):
+            count += 1
+    return count
+
+
+def classify_depth(fd: "FileDiff", *, risk: float | None = None) -> str:
+    """Assign a review-depth tier to one file diff.
+
+    Risk wins over size: a three-line change to a historically risky file
+    is not trivial. Documentation / config files are trivial regardless of
+    size — a large prose rewrite does not need a code-smell pass.
+    """
+    if risk is not None and risk >= _DEEP_MIN_RISK_SCORE:
+        return TIER_DEEP
+    suffix = PurePosixPath(fd.path).suffix.lower()
+    if suffix in _LOW_RISK_SUFFIXES:
+        return TIER_TRIVIAL
+    lines = changed_line_count(fd)
+    if lines <= _TRIVIAL_MAX_CHANGED_LINES:
+        return TIER_TRIVIAL
+    if lines >= _DEEP_MIN_CHANGED_LINES:
+        return TIER_DEEP
+    return TIER_STANDARD
+
+
+def plan_steps(
+    fd: "FileDiff",
+    all_steps: tuple[type["ReviewStep"], ...],
+    *,
+    risk: float | None = None,
+) -> StepPlan:
+    """Prune the configured step chain to what this file actually needs."""
+    tier = classify_depth(fd, risk=risk)
+    if tier == TIER_DEEP:
+        return StepPlan(tier=tier, steps=tuple(all_steps), skipped=())
+    if tier == TIER_TRIVIAL:
+        candidates = [cls for cls in all_steps if cls.name in _ALWAYS_KEEP]
+        if not candidates:
+            candidates = [cls for cls in all_steps if cls.name in _TRIVIAL_FALLBACK]
+    else:
+        candidates = [cls for cls in all_steps if cls.name not in _STANDARD_DROP]
+    kept = _enforce_dependencies(candidates)
+    kept_names = {cls.name for cls in kept}
+    skipped = tuple(cls.name for cls in all_steps if cls.name not in kept_names)
+    return StepPlan(tier=tier, steps=tuple(kept), skipped=skipped)
+
+
+def _enforce_dependencies(
+    candidates: list[type["ReviewStep"]],
+) -> list[type["ReviewStep"]]:
+    """Drop steps whose declared prerequisites were pruned.
+
+    Steps run in order, so a prerequisite always precedes its dependent;
+    a single forward pass with the running kept-set is sufficient.
+    ``total_summary`` synthesises whatever analysis ran, so it survives
+    with *any* of its inputs present (the prompt marks the rest skipped);
+    every other dependent step needs *all* of its prerequisites.
+    """
+    kept: list[type["ReviewStep"]] = []
+    names: set[str] = set()
+    for cls in candidates:
+        requires = tuple(getattr(cls, "_REQUIRES", ()))
+        if requires:
+            if cls.name == "total_summary":
+                satisfied = any(req in names for req in requires)
+            else:
+                satisfied = all(req in names for req in requires)
+            if not satisfied:
+                continue
+        kept.append(cls)
+        names.add(cls.name)
+    return kept
+
+
+__all__ = [
+    "STEP_PLAN_ADAPTIVE",
+    "STEP_PLAN_CHOICES",
+    "STEP_PLAN_FULL",
+    "StepPlan",
+    "TIER_DEEP",
+    "TIER_STANDARD",
+    "TIER_TRIVIAL",
+    "changed_line_count",
+    "classify_depth",
+    "plan_steps",
+]

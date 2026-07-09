@@ -46,6 +46,7 @@ Constraints:
 - Do NOT add new issues not present in the provided inputs.
 - Do NOT speculate about runtime behavior or architecture beyond what the diff shows.
 - Focus solely on final judgment, not detailed line-by-line critique.
+- An input reading "(step skipped at this review depth)" was intentionally not run for this change: base your conclusion on the remaining inputs and do NOT treat the skip itself as a finding or a risk.
 
 ---
 

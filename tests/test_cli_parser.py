@@ -120,3 +120,26 @@ def test_repo_context_and_preset_flags_parse() -> None:
     assert args.repo_context_top_k == 3
     assert args.review_preset == "security"
     assert args.calibration_gate is True
+
+
+def test_step_plan_defaults_to_full(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear(monkeypatch)
+    monkeypatch.delenv("PRTHINKER_STEP_PLAN", raising=False)
+
+    args = _build_parser().parse_args(["review-file", "-"])
+
+    assert args.step_plan == "full"
+
+
+def test_step_plan_env_and_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear(monkeypatch)
+    monkeypatch.setenv("PRTHINKER_STEP_PLAN", "adaptive")
+    assert _build_parser().parse_args(["review-file", "-"]).step_plan == "adaptive"
+
+    args = _build_parser().parse_args(["review-file", "-", "--step-plan", "full"])
+    assert args.step_plan == "full"
+
+
+def test_step_plan_rejects_unknown_value() -> None:
+    with pytest.raises(SystemExit):
+        _build_parser().parse_args(["review-file", "-", "--step-plan", "bogus"])

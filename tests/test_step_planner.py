@@ -1,0 +1,228 @@
+"""Adaptive step planning: tier classification, pruning, and pipeline wiring."""
+
+from __future__ import annotations
+
+import pytest
+
+from prthinker.diff import FileDiff
+from prthinker.pipeline import CoTPipeline, PerFileReviewOptions
+from prthinker.step_planner import (
+    TIER_DEEP,
+    TIER_STANDARD,
+    TIER_TRIVIAL,
+    changed_line_count,
+    classify_depth,
+    plan_steps,
+)
+from prthinker.steps import (
+    CounterfactualStep,
+    InlineFindingsStep,
+    JudgeStep,
+    ReviewContext,
+    TotalSummaryStep,
+    WalkthroughStep,
+    registered_steps,
+)
+
+
+class NoOpRetriever:
+    def retrieve(self, query: str) -> list[str]:
+        del query
+        return []
+
+
+def _diff(path: str, added: int = 1, removed: int = 0) -> FileDiff:
+    lines = [f"--- a/{path}", f"+++ b/{path}", "@@ -1,9 +1,9 @@"]
+    lines += [f"+line {i}" for i in range(added)]
+    lines += [f"-old {i}" for i in range(removed)]
+    return FileDiff(path=path, raw="\n".join(lines))
+
+
+def _full_chain() -> tuple:
+    return registered_steps() + (InlineFindingsStep,)
+
+
+# ---------------------------------------------------------------------------
+# changed_line_count
+# ---------------------------------------------------------------------------
+
+
+def test_changed_line_count_counts_both_sides_and_skips_headers():
+    fd = _diff("a.py", added=3, removed=2)
+    assert changed_line_count(fd) == 5
+
+
+def test_changed_line_count_empty_diff():
+    assert changed_line_count(FileDiff(path="a.py", raw="")) == 0
+
+
+# ---------------------------------------------------------------------------
+# classify_depth
+# ---------------------------------------------------------------------------
+
+
+def test_trivial_at_five_changed_lines_standard_at_six():
+    assert classify_depth(_diff("a.py", added=5)) == TIER_TRIVIAL
+    assert classify_depth(_diff("a.py", added=6)) == TIER_STANDARD
+
+
+def test_deep_boundary_at_two_hundred_changed_lines():
+    assert classify_depth(_diff("a.py", added=199)) == TIER_STANDARD
+    assert classify_depth(_diff("a.py", added=200)) == TIER_DEEP
+
+
+def test_docs_and_config_files_are_trivial_regardless_of_size():
+    assert classify_depth(_diff("README.md", added=500)) == TIER_TRIVIAL
+    assert classify_depth(_diff("ci/config.YAML", added=300)) == TIER_TRIVIAL
+
+
+def test_high_risk_overrides_tiny_diff():
+    assert classify_depth(_diff("auth.py", added=3), risk=0.7) == TIER_DEEP
+
+
+def test_risk_below_threshold_does_not_escalate():
+    assert classify_depth(_diff("a.py", added=50), risk=0.69) == TIER_STANDARD
+
+
+def test_high_risk_overrides_docs_suffix():
+    assert classify_depth(_diff("README.md", added=2), risk=0.9) == TIER_DEEP
+
+
+# ---------------------------------------------------------------------------
+# plan_steps
+# ---------------------------------------------------------------------------
+
+
+def test_deep_keeps_every_configured_step():
+    steps = _full_chain()
+    plan = plan_steps(_diff("a.py", added=200), steps)
+    assert plan.tier == TIER_DEEP
+    assert plan.steps == steps
+    assert plan.skipped == ()
+
+
+def test_trivial_keeps_only_output_steps():
+    plan = plan_steps(_diff("a.py", added=1), _full_chain())
+    assert plan.tier == TIER_TRIVIAL
+    assert [cls.name for cls in plan.steps] == ["inline_findings"]
+    assert "first_summary" in plan.skipped
+    assert "total_summary" in plan.skipped
+
+
+def test_trivial_keeps_walkthrough_when_configured():
+    steps = registered_steps() + (WalkthroughStep, InlineFindingsStep)
+    plan = plan_steps(_diff("a.py", added=1), steps)
+    assert [cls.name for cls in plan.steps] == ["walkthrough", "inline_findings"]
+
+
+def test_trivial_chain_only_falls_back_to_first_code_review():
+    plan = plan_steps(_diff("a.py", added=1), registered_steps())
+    assert [cls.name for cls in plan.steps] == ["first_code_review"]
+
+
+def test_trivial_drops_judge_and_counterfactual():
+    steps = registered_steps() + (InlineFindingsStep, CounterfactualStep, JudgeStep)
+    plan = plan_steps(_diff("a.py", added=1), steps)
+    names = [cls.name for cls in plan.steps]
+    assert names == ["inline_findings"]
+    assert "judge" in plan.skipped  # requires total_summary, which was pruned
+    assert "counterfactual" in plan.skipped  # design exploration is deep-tier work
+
+
+def test_standard_keeps_counterfactual_with_inline_present():
+    steps = registered_steps() + (InlineFindingsStep, CounterfactualStep)
+    plan = plan_steps(_diff("a.py", added=50), steps)
+    assert "counterfactual" in [cls.name for cls in plan.steps]
+
+
+def test_standard_drops_first_summary_keeps_total_summary():
+    plan = plan_steps(_diff("a.py", added=50), _full_chain())
+    assert plan.tier == TIER_STANDARD
+    names = [cls.name for cls in plan.steps]
+    assert "first_summary" not in names
+    assert "total_summary" in names
+    assert plan.skipped == ("first_summary",)
+
+
+def test_standard_keeps_judge_because_total_summary_survives():
+    steps = registered_steps() + (InlineFindingsStep, JudgeStep)
+    plan = plan_steps(_diff("a.py", added=50), steps)
+    assert "judge" in [cls.name for cls in plan.steps]
+
+
+# ---------------------------------------------------------------------------
+# TotalSummaryStep tolerance of pruned inputs
+# ---------------------------------------------------------------------------
+
+
+def test_total_summary_fills_skipped_inputs_with_placeholder():
+    ctx = ReviewContext(
+        code_diff="+x",
+        rag_docs=[],
+        results={
+            "first_code_review": "review out",
+            "linter": "lint out",
+            "code_smell": "smell out",
+        },
+    )
+    prompt = TotalSummaryStep().build_prompt(ctx)
+    assert "(step skipped at this review depth)" in prompt
+    assert "review out" in prompt
+
+
+def test_total_summary_raises_when_no_prior_step_ran():
+    ctx = ReviewContext(code_diff="+x", rag_docs=[], results={})
+    with pytest.raises(ValueError, match="at least one prior step"):
+        TotalSummaryStep().build_prompt(ctx)
+
+
+# ---------------------------------------------------------------------------
+# Pipeline integration (FakeBackend)
+# ---------------------------------------------------------------------------
+
+_TWO_FILE_DIFF = "\n".join(
+    [
+        "diff --git a/README.md b/README.md",
+        "--- a/README.md",
+        "+++ b/README.md",
+        "@@ -1,2 +1,2 @@",
+        "+docs tweak",
+        "diff --git a/mod.py b/mod.py",
+        "--- a/mod.py",
+        "+++ b/mod.py",
+        "@@ -1,60 +1,60 @@",
+    ]
+    + [f"+line {i}" for i in range(50)]
+)
+
+
+def _result_for(result, path):
+    return next(fr for fr in result.per_file if fr.path == path)
+
+
+def test_run_per_file_adaptive_scales_steps_per_file(fake_backend):
+    pipeline = CoTPipeline(backend=fake_backend, retriever=NoOpRetriever())
+    result = pipeline.run_per_file(
+        _TWO_FILE_DIFF,
+        PerFileReviewOptions(inline_review=True, step_plan="adaptive"),
+    )
+    docs = _result_for(result, "README.md")
+    code = _result_for(result, "mod.py")
+    assert docs.step_outputs["step_plan"] == TIER_TRIVIAL
+    assert "first_summary" not in docs.step_outputs
+    assert "inline_findings" in docs.step_outputs
+    assert code.step_outputs["step_plan"] == TIER_STANDARD
+    assert "first_summary" not in code.step_outputs
+    assert "total_summary" in code.step_outputs
+
+
+def test_run_per_file_default_full_plan_is_unchanged(fake_backend):
+    pipeline = CoTPipeline(backend=fake_backend, retriever=NoOpRetriever())
+    result = pipeline.run_per_file(
+        _TWO_FILE_DIFF,
+        PerFileReviewOptions(inline_review=True),
+    )
+    docs = _result_for(result, "README.md")
+    assert "step_plan" not in docs.step_outputs
+    assert "first_summary" in docs.step_outputs
+    assert "total_summary" in docs.step_outputs

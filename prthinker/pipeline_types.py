@@ -119,6 +119,7 @@ class _PerFileOptions:
     verify_cmd: str
     verify_timeout: float
     parallelism: int
+    step_plan: str = "full"
 
 
 @dataclass
@@ -181,3 +182,6 @@ class PerFileReviewOptions:
     review_modes: tuple[str, ...] = ()
     on_file_done: "object | None" = None
     parallelism: int = 1
+    # "full" runs every configured step on every file; "adaptive" scales
+    # the chain per file via prthinker.step_planner.plan_steps.
+    step_plan: str = "full"

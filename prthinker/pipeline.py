@@ -45,6 +45,7 @@ from prthinker.schemas import (
     PersonaReview,
     PRClassification,
 )
+from prthinker.step_planner import STEP_PLAN_ADAPTIVE, plan_steps
 from prthinker.steps import (
     CounterfactualStep,
     InlineFindingsStep,
@@ -343,6 +344,7 @@ class CoTPipeline(PipelineExecutionMixin):
             verify_cmd=opts.verify_cmd,
             verify_timeout=opts.verify_timeout,
             parallelism=max(1, min(opts.parallelism, self._backend.max_concurrency())),
+            step_plan=opts.step_plan,
         )
 
     def _run_aggregate_extras(
@@ -598,9 +600,10 @@ class CoTPipeline(PipelineExecutionMixin):
     ) -> FileReviewResult:
         """Run the steps for a file, persist to cache, then verify suggestions."""
         file_out_dir = opts.output_dir / _sanitize(fd.path) if opts.output_dir else None
+        steps, plan_tier = self._planned_steps(fd, opts)
         file_result = self._run_one_file(
             fd,
-            opts.all_steps,
+            steps,
             max_findings_per_file=self._effective_max(fd, opts),
             output_dir=file_out_dir,
             flags=_FileRunFlags(
@@ -610,6 +613,8 @@ class CoTPipeline(PipelineExecutionMixin):
                 reproducibility_check=opts.reproducibility_check,
             ),
         )
+        if plan_tier:
+            file_result.step_outputs["step_plan"] = plan_tier
         if cache_key is not None:
             opts.review_cache.put(
                 cache_key,
@@ -618,6 +623,29 @@ class CoTPipeline(PipelineExecutionMixin):
                 model=self._backend.model_name(),
             )
         return self._maybe_verify(file_result, opts)
+
+    def _planned_steps(
+        self,
+        fd: FileDiff,
+        opts: _PerFileOptions,
+    ) -> tuple[tuple[type[ReviewStep], ...], str]:
+        """The step chain for one file, pruned per plan; tier '' when full."""
+        if opts.step_plan != STEP_PLAN_ADAPTIVE:
+            return opts.all_steps, ""
+        risk_entry = opts.risk_by_path.get(fd.path)
+        plan = plan_steps(
+            fd,
+            opts.all_steps,
+            risk=risk_entry.score if risk_entry is not None else None,
+        )
+        log.info(
+            "step_plan: %s tier=%s steps=%s skipped=%s",
+            fd.path,
+            plan.tier,
+            [cls.name for cls in plan.steps],
+            list(plan.skipped),
+        )
+        return plan.steps, plan.tier
 
     def _maybe_verify(
         self,
