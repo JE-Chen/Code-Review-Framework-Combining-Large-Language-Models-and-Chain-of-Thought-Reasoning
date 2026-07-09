@@ -31,6 +31,7 @@ from prthinker.repo_config import (
 from prthinker.benchmark_cli import add_benchmark_parser
 from prthinker.verify_cli import add_verify_parser
 from prthinker.retrieval_eval_cli import add_parser as add_retrieval_eval_parser
+from prthinker.retrieval_report_cli import add_parser as add_retrieval_report_parser
 from prthinker.supply_chain_cli import add_parser as add_attest_parser
 from prthinker.issue_autofix_cli import add_parser as add_issue_autofix_parser
 from prthinker.issue_fix_cli import add_parser as add_issue_fix_parser
@@ -142,6 +143,7 @@ def _register_subcommands(sub, common: argparse.ArgumentParser) -> None:
     add_benchmark_parser(sub, common)
     add_verify_parser(sub)
     add_retrieval_eval_parser(sub)
+    add_retrieval_report_parser(sub)
     add_attest_parser(sub)
     add_issue_fix_parser(sub, common)
     add_issue_autofix_parser(sub, common)

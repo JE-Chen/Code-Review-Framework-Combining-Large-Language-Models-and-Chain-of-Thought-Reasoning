@@ -40,6 +40,19 @@ class _RagSection(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class _RepoContextSection(BaseModel):
+    strategy: str = "none"
+    workdir: str = "."
+    top_k: int = Field(default=10, ge=1)
+    keep_ratio: float = Field(default=0, ge=0)
+    block_candidates: int = Field(default=6, ge=1)
+    votes: int = Field(default=1, ge=1)
+    rounds: int = Field(default=3, ge=1)
+    focus_lines: int = Field(default=0, ge=0)
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class _GateSection(BaseModel):
     # ``severity`` not ``on`` to avoid YAML 1.1's implicit booleans
     # (``on: error`` is parsed as ``True: error``).
@@ -77,6 +90,7 @@ class _CalibrationSection(BaseModel):
     category: str = ""
     minimum_samples: int = Field(default=10, ge=1)
     half_life_days: float = Field(default=90, gt=0)
+    gate: bool = False
     model_config = ConfigDict(extra="forbid")
 
 
@@ -127,8 +141,10 @@ class RepoConfig(BaseModel):
     inline_review: bool = False
     max_findings_per_file: int = 10
     parallelism: int = Field(default=1, ge=1, le=64)
+    review_preset: str = "none"
 
     rag: _RagSection = Field(default_factory=_RagSection)
+    repo_context: _RepoContextSection = Field(default_factory=_RepoContextSection)
     gate: _GateSection = Field(default_factory=_GateSection)
     ci_signals: _CISignalsSection = Field(default_factory=_CISignalsSection)
     cache: _CacheSection = Field(default_factory=_CacheSection)
@@ -189,6 +205,14 @@ def to_argparse_defaults(cfg: RepoConfig) -> dict[str, Any]:
         "no_rag": not cfg.rag.enabled,
         "rag_threshold": cfg.rag.threshold,
         "remote_rag": cfg.rag.remote,
+        "repo_context_strategy": cfg.repo_context.strategy,
+        "repo_context_workdir": Path(cfg.repo_context.workdir),
+        "repo_context_top_k": cfg.repo_context.top_k,
+        "repo_context_keep_ratio": cfg.repo_context.keep_ratio,
+        "repo_context_block_candidates": cfg.repo_context.block_candidates,
+        "repo_context_votes": cfg.repo_context.votes,
+        "repo_context_rounds": cfg.repo_context.rounds,
+        "repo_context_focus_lines": cfg.repo_context.focus_lines,
         "gate_on": cfg.gate.severity,
         "include_ci_signals": cfg.ci_signals.enabled,
         "ci_signal_max_jobs": cfg.ci_signals.max_jobs,
@@ -203,6 +227,8 @@ def to_argparse_defaults(cfg: RepoConfig) -> dict[str, Any]:
         "calibration_category": cfg.calibration.category,
         "calibration_min_samples": cfg.calibration.minimum_samples,
         "calibration_half_life_days": cfg.calibration.half_life_days,
+        "calibration_gate": cfg.calibration.gate,
+        "review_preset": cfg.review_preset,
         "model_name": cfg.local.model,
         "lora_path": cfg.local.lora_path,
         "openai_model": cfg.openai.model,

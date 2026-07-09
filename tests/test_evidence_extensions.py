@@ -4,7 +4,7 @@ from prthinker.retrieval_eval import evaluate
 from prthinker.trajectory import TrajectorySink
 from prthinker.verification_tiers import ToolSpec, run_tier
 from argparse import Namespace
-from prthinker.cli_review_emit import _postprocess_findings
+from prthinker.cli_review_emit import _gate_line, _postprocess_findings
 from prthinker.pipeline import ReviewResult
 from prthinker.schemas import InlineFinding, Provenance
 from prthinker.cli import main
@@ -92,6 +92,37 @@ def test_calibration_store_drives_confidence_filter(tmp_path: Path):
     )
     _postprocess_findings(args, result)
     assert result.inline_findings == []
+
+
+def test_calibration_gate_abstains_without_hiding_finding(tmp_path: Path):
+    store = CalibrationStore(tmp_path / "cal.sqlite")
+    for index in range(10):
+        store.record("repo", "author", "security", False, event_id=str(index))
+    finding = InlineFinding(
+        path="a.py",
+        line=1,
+        severity="warning",
+        comment="x",
+        category="security",
+        provenance=Provenance(confidence=0.4),
+    )
+    result = ReviewResult(code_diff="", rag_docs=[], inline_findings=[finding])
+    args = Namespace(
+        gate_on="warning",
+        calibration_gate=True,
+        calibration_store=str(tmp_path / "cal.sqlite"),
+        calibration_author="author",
+        calibration_category="security",
+        calibration_min_samples=10,
+        calibration_half_life_days=90,
+        repo="repo",
+    )
+
+    line = _gate_line(args, result)
+
+    assert "success" in line
+    assert "calibration abstained 1" in line
+    assert result.inline_findings == [finding]
 
 
 def test_verify_refuses_unsandboxed_by_default(tmp_path: Path, capsys):

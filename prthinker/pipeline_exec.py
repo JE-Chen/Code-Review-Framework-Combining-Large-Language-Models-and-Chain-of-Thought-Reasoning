@@ -48,12 +48,12 @@ class PipelineExecutionMixin:
         """Run each finding's ``suggestion`` block in a sandbox and
         attach the verification result to the finding.
 
-        Side-effect surface is fenced inside :mod:`reviewmind.sandbox`;
+        Side-effect surface is fenced inside :mod:`prthinker.sandbox`;
         this method just walks the findings and merges the results back
         into the per-file payload.
         """
-        from reviewmind.sandbox import verify_suggestion
-        from reviewmind.schemas import SuggestionVerification
+        from prthinker.sandbox import verify_suggestion
+        from prthinker.schemas import SuggestionVerification
 
         new_findings: list[InlineFinding] = []
         for f in file_result.inline_findings:

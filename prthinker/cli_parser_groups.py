@@ -22,6 +22,31 @@ __all__ = ["add_backend_args", "add_provider_args"]
 _KG_STORE_DEFAULT = ".prthinker/repo-kg.sqlite"
 _TELEMETRY_DEFAULT = ".prthinker/telemetry.sqlite"
 _CACHE_DEFAULT = ".prthinker/cache.sqlite"
+_REPO_CONTEXT_STRATEGIES = (
+    "none",
+    "lexical",
+    "semantic",
+    "structural",
+    "graph",
+    "rerank",
+    "block_rerank",
+    "iterative",
+    "query_rewrite",
+)
+
+
+def _env_str_compat(
+    primary: str, legacy: str, default: str | None = None
+) -> str | None:
+    """Read a PRTHINKER_* env var, falling back to the legacy REVIEWMIND_*."""
+    return env_str(primary, env_str(legacy, default))
+
+
+def _env_bool_compat(primary: str, legacy: str, default: bool) -> bool:
+    """Boolean env reader with PRTHINKER_* precedence and REVIEWMIND_* fallback."""
+    if env_str(primary) is not None:
+        return env_bool(primary, default)
+    return env_bool(legacy, default)
 
 
 def add_arbitration_args(common: argparse.ArgumentParser) -> None:
@@ -88,6 +113,62 @@ def add_rag_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--steps",
         default="",
+    )
+    common.add_argument(
+        "--repo-context-strategy",
+        choices=_REPO_CONTEXT_STRATEGIES,
+        default=env_str("PRTHINKER_REPO_CONTEXT_STRATEGY", "none"),
+        help=(
+            "Cross-file repository context strategy for local per-file review. "
+            "'none' preserves the existing prompt; lexical/semantic/structural/"
+            "graph/rerank/block_rerank/iterative/query_rewrite inject related "
+            "files into each file prompt."
+        ),
+    )
+    common.add_argument(
+        "--repo-context-workdir",
+        type=Path,
+        default=Path(env_str("PRTHINKER_REPO_CONTEXT_WORKDIR") or "."),
+        help="Work tree used by --repo-context-strategy and import-graph context.",
+    )
+    common.add_argument(
+        "--repo-context-top-k",
+        type=int,
+        default=int(env_str("PRTHINKER_REPO_CONTEXT_TOP_K", "10") or 10),
+        help="Maximum files considered by file-level repository context retrieval.",
+    )
+    common.add_argument(
+        "--repo-context-keep-ratio",
+        type=float,
+        default=float(env_str("PRTHINKER_REPO_CONTEXT_KEEP_RATIO", "0") or 0),
+        help=(
+            "Lexical keep-ratio cutoff for repo-context retrieval; 0 keeps the "
+            "fixed top-k tail."
+        ),
+    )
+    common.add_argument(
+        "--repo-context-block-candidates",
+        type=int,
+        default=int(env_str("PRTHINKER_REPO_CONTEXT_BLOCK_CANDIDATES", "6") or 6),
+        help="Candidate blocks per file for block_rerank/iterative strategies.",
+    )
+    common.add_argument(
+        "--repo-context-votes",
+        type=int,
+        default=int(env_str("PRTHINKER_REPO_CONTEXT_VOTES", "1") or 1),
+        help="Self-consistency votes for model-in-the-loop repo retrieval.",
+    )
+    common.add_argument(
+        "--repo-context-rounds",
+        type=int,
+        default=int(env_str("PRTHINKER_REPO_CONTEXT_ROUNDS", "3") or 3),
+        help="Maximum rounds for the iterative repo-context strategy.",
+    )
+    common.add_argument(
+        "--repo-context-focus-lines",
+        type=int,
+        default=int(env_str("PRTHINKER_REPO_CONTEXT_FOCUS_LINES", "0") or 0),
+        help="Optional line-window focus for block context; 0 disables.",
     )
 
 
@@ -475,7 +556,11 @@ def add_diff_cache_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--verify-suggestions",
         action="store_true",
-        default=env_bool("REVIEWMIND_VERIFY_SUGGESTIONS", False),
+        default=_env_bool_compat(
+            "PRTHINKER_VERIFY_SUGGESTIONS",
+            "REVIEWMIND_VERIFY_SUGGESTIONS",
+            False,
+        ),
         help=(
             "Apply each finding's ``suggestion`` block in a sandboxed copy "
             "of the working tree, run --verify-cmd, and badge the result "
@@ -485,19 +570,29 @@ def add_diff_cache_args(common: argparse.ArgumentParser) -> None:
     )
     common.add_argument(
         "--verify-cmd",
-        default=env_str("REVIEWMIND_VERIFY_CMD", "pytest -x"),
+        default=_env_str_compat(
+            "PRTHINKER_VERIFY_CMD", "REVIEWMIND_VERIFY_CMD", "pytest -x"
+        ),
         help="Command run inside the sandbox to verify each suggestion.",
     )
     common.add_argument(
         "--verify-timeout",
         type=float,
-        default=float(env_str("REVIEWMIND_VERIFY_TIMEOUT", "60") or 60),
+        default=float(
+            _env_str_compat(
+                "PRTHINKER_VERIFY_TIMEOUT", "REVIEWMIND_VERIFY_TIMEOUT", "60"
+            )
+            or 60
+        ),
         help="Seconds before the verify command is killed.",
     )
     common.add_argument(
         "--verify-workdir",
         type=Path,
-        default=Path(env_str("REVIEWMIND_VERIFY_WORKDIR") or "."),
+        default=Path(
+            _env_str_compat("PRTHINKER_VERIFY_WORKDIR", "REVIEWMIND_VERIFY_WORKDIR")
+            or "."
+        ),
         help="Source tree the sandbox is cloned from (default: cwd).",
     )
 
@@ -513,7 +608,9 @@ def _add_classification_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--api-consistency",
         action="store_true",
-        default=env_bool("REVIEWMIND_API_CONSISTENCY", False),
+        default=_env_bool_compat(
+            "PRTHINKER_API_CONSISTENCY", "REVIEWMIND_API_CONSISTENCY", False
+        ),
         help=(
             "When the PR touches both backend (.py) and frontend "
             "(.ts/.tsx/.js/.jsx) files, run an extra cross-language step "
@@ -524,7 +621,9 @@ def _add_classification_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--pr-classify",
         action="store_true",
-        default=env_bool("REVIEWMIND_PR_CLASSIFY", False),
+        default=_env_bool_compat(
+            "PRTHINKER_PR_CLASSIFY", "REVIEWMIND_PR_CLASSIFY", False
+        ),
         help=(
             "Classify the PR (bugfix / feature / refactor / docs / chore "
             "/ unknown) before reviewing, then adapt review depth + "
@@ -535,7 +634,11 @@ def _add_classification_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--reproducibility-check",
         action="store_true",
-        default=env_bool("REVIEWMIND_REPRODUCIBILITY_CHECK", False),
+        default=_env_bool_compat(
+            "PRTHINKER_REPRODUCIBILITY_CHECK",
+            "REVIEWMIND_REPRODUCIBILITY_CHECK",
+            False,
+        ),
         help=(
             "Run the inline-findings step twice per file and label each "
             "finding stable / low-reproducibility based on whether it "
@@ -546,7 +649,9 @@ def _add_classification_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--dep-upgrade-check",
         action="store_true",
-        default=env_bool("REVIEWMIND_DEP_UPGRADE_CHECK", False),
+        default=_env_bool_compat(
+            "PRTHINKER_DEP_UPGRADE_CHECK", "REVIEWMIND_DEP_UPGRADE_CHECK", False
+        ),
         help=(
             "Detect dependency version bumps in lock files "
             "(requirements / pyproject / package.json / etc.) and "
@@ -560,7 +665,7 @@ def _add_risk_args(common: argparse.ArgumentParser) -> None:
     """Add persona / risk-weighting / diff-entropy / rules-dir flags."""
     common.add_argument(
         "--personas",
-        default=env_str("REVIEWMIND_PERSONAS", ""),
+        default=_env_str_compat("PRTHINKER_PERSONAS", "REVIEWMIND_PERSONAS", ""),
         help=(
             "Comma-separated list of review personas to run against "
             "the diff (security, performance, readability, api_stability, "
@@ -572,7 +677,9 @@ def _add_risk_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--risk-weighted",
         action="store_true",
-        default=env_bool("REVIEWMIND_RISK_WEIGHTED", False),
+        default=_env_bool_compat(
+            "PRTHINKER_RISK_WEIGHTED", "REVIEWMIND_RISK_WEIGHTED", False
+        ),
         help=(
             "Compute a per-file risk score (churn + complexity + bug "
             "history over the last 90 days) and scale the inline "
@@ -583,13 +690,18 @@ def _add_risk_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--risk-workdir",
         type=Path,
-        default=Path(env_str("REVIEWMIND_RISK_WORKDIR") or "."),
+        default=Path(
+            _env_str_compat("PRTHINKER_RISK_WORKDIR", "REVIEWMIND_RISK_WORKDIR")
+            or "."
+        ),
         help="Git working directory used to compute risk scores (default: cwd).",
     )
     common.add_argument(
         "--diff-entropy",
         action="store_true",
-        default=env_bool("REVIEWMIND_DIFF_ENTROPY", False),
+        default=_env_bool_compat(
+            "PRTHINKER_DIFF_ENTROPY", "REVIEWMIND_DIFF_ENTROPY", False
+        ),
         help=(
             "Compute the diff's size + dispersion entropy and surface a "
             "'split this PR' warning at the top of the comment when the "
@@ -792,6 +904,22 @@ def _add_report_filter_args(common: argparse.ArgumentParser) -> None:
     common.add_argument("--calibration-category", default="", help="Finding category key for calibration")
     common.add_argument("--calibration-min-samples", type=int, default=10)
     common.add_argument("--calibration-half-life-days", type=float, default=90)
+    common.add_argument(
+        "--calibration-gate",
+        action="store_true",
+        default=env_bool("PRTHINKER_CALIBRATION_GATE", False),
+        help=(
+            "Apply the calibration store to merge-gate scoring. Low-confidence "
+            "findings may still appear in reports, but calibrated abstentions "
+            "do not block the gate."
+        ),
+    )
+    common.add_argument(
+        "--review-preset",
+        choices=["none", "backend", "frontend", "security", "release"],
+        default=env_str("PRTHINKER_REVIEW_PRESET", "none"),
+        help="Enable a focused bundle of review modes and safety checks.",
+    )
     common.add_argument(
         "--review-modes",
         default=env_str("PRTHINKER_REVIEW_MODES", ""),

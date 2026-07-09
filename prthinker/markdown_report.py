@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from prthinker.change_stats import compute_change_stats
+from prthinker.review_rollups import format_markdown_rollup
 from prthinker.signals import collect_signal_findings
 
 if TYPE_CHECKING:
@@ -113,6 +114,7 @@ def render_markdown(result: "ReviewResult", *, title: str = "prthinker review") 
         findings.extend(file_result.inline_findings)
     parts = [f"# {title}", ""]
     parts += _summary_lines(result, findings)
+    parts += [""] + format_markdown_rollup(result)
     parts += _signal_lines(result)
     parts += _file_lines(result)
     return "\n".join(parts).rstrip() + "\n"

@@ -56,6 +56,7 @@ from prthinker.benchmark_cli import command as _cmd_benchmark
 from prthinker.verify_cli import command as _cmd_verify
 from prthinker.otel import configure as configure_otel
 from prthinker.retrieval_eval_cli import command as _cmd_retrieval_eval
+from prthinker.retrieval_report_cli import command as _cmd_retrieval_report
 from prthinker.supply_chain_cli import command as _cmd_attest
 from prthinker.issue_autofix_cli import command as _cmd_issue_autofix
 from prthinker.issue_fix_cli import command as _cmd_issue_fix
@@ -85,6 +86,7 @@ _COMMAND_HANDLERS: dict[str, Callable[[argparse.Namespace], int]] = {
     "benchmark": _cmd_benchmark,
     "verify": _cmd_verify,
     "retrieval-eval": _cmd_retrieval_eval,
+    "retrieval-report": _cmd_retrieval_report,
     "attest": _cmd_attest,
     "issue-fix": _cmd_issue_fix,
     "issue-autofix": _cmd_issue_autofix,

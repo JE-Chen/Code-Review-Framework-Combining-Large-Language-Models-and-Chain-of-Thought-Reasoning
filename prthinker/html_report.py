@@ -14,6 +14,7 @@ from pathlib import Path
 
 from prthinker.change_stats import compute_change_stats
 from prthinker.pipeline import FileReviewResult, ReviewResult
+from prthinker.review_rollups import rollup_review
 from prthinker.schemas import InlineFinding
 from prthinker.signals import SignalFinding, collect_signal_findings
 
@@ -123,6 +124,43 @@ def _render_summary(
         f'<ul>{"".join(items)}</ul>'
         "</section>"
     )
+
+
+def _render_rollups(result: ReviewResult) -> str:
+    """Render verification/evidence/retrieval audit totals."""
+    rollup = rollup_review(result)
+    rows = [
+        (
+            "Verification",
+            f"{rollup.verification.get('pass', 0)} pass · "
+            f"{rollup.verification.get('fail', 0)} fail · "
+            f"{rollup.verification.get('skip', 0)} skip · "
+            f"{rollup.verification.get('error', 0)} error",
+        ),
+        (
+            "Auto-fix safety",
+            f"{rollup.suggestions} suggestion(s) · "
+            f"{rollup.verified_pass} sandbox-verified · "
+            f"{rollup.verified_problem} failed/error",
+        ),
+        (
+            "Evidence",
+            f"{rollup.evidence_backed} confirmed · "
+            f"{rollup.evidence.get('rejected', 0)} rejected · "
+            f"{rollup.evidence.get('inconclusive', 0)} inconclusive",
+        ),
+        (
+            "Retrieval/provenance",
+            f"{rollup.retrieved_docs} retrieved doc(s) · "
+            f"{rollup.provenance_backed} provenance-backed finding(s) · "
+            f"{rollup.rag_cited} RAG-cited",
+        ),
+    ]
+    items = "".join(
+        f"<li><strong>{_esc(label)}:</strong> {_esc(value)}</li>"
+        for label, value in rows
+    )
+    return f'<section class="rollups"><h2>Audit rollups</h2><ul>{items}</ul></section>'
 
 
 def _render_finding(finding: InlineFinding) -> str:
@@ -258,6 +296,7 @@ def render_report(result: ReviewResult, *, title: str = "prthinker review") -> s
         "</head><body>"
         f"<h1>{safe_title}</h1>"
         f"{_render_summary(counts, len(findings), result)}"
+        f"{_render_rollups(result)}"
         f"{_render_signals(result)}"
         f"{_render_toc(result)}"
         f"{_render_files(result)}"

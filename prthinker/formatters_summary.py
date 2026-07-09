@@ -24,6 +24,7 @@ from prthinker.formatters_blocks import (
     _sort_files_by_severity,
 )
 from prthinker.pipeline import ReviewResult
+from prthinker.review_rollups import rollup_review
 from prthinker.schemas import InlineFinding
 
 
@@ -103,20 +104,6 @@ _EFFORT_PER_FILE_MIN = 1
 _EFFORT_SEVERITY_MIN: dict[str, int] = {"error": 5, "warning": 3, "info": 1}
 
 
-def _suggestion_counts(result: ReviewResult) -> tuple[int, int]:
-    """(one-click suggestions, sandbox-verified) across every finding."""
-    suggestions = 0
-    verified = 0
-    for fr in result.per_file:
-        for finding in fr.inline_findings:
-            if finding.suggestion:
-                suggestions += 1
-            verification = finding.verification
-            if verification is not None and verification.status == "pass":
-                verified += 1
-    return suggestions, verified
-
-
 def _effort_estimate_minutes(result: ReviewResult) -> int:
     """Rough review-time estimate from file count and finding severity."""
     minutes = _EFFORT_BASE_MIN + _reviewed_file_count(result) * _EFFORT_PER_FILE_MIN
@@ -129,10 +116,25 @@ def _effort_estimate_minutes(result: ReviewResult) -> int:
 def _overview_extra_lines(result: ReviewResult, with_findings: int) -> list[str]:
     """Suggestion-aggregate and review-effort digest lines."""
     lines: list[str] = []
-    suggestions, verified = _suggestion_counts(result)
-    if suggestions:
-        extra = f" · {verified} sandbox-verified" if verified else ""
-        lines.append(f"- **Suggestions:** {suggestions} one-click fix(es){extra}")
+    rollup = rollup_review(result)
+    if rollup.suggestions:
+        extra = f" · {rollup.verified_pass} sandbox-verified" if rollup.verified_pass else ""
+        lines.append(f"- **Suggestions:** {rollup.suggestions} one-click fix(es){extra}")
+    if rollup.evidence_backed or rollup.provenance_backed or rollup.rag_cited:
+        lines.append(
+            "- **Audit signals:** "
+            f"{rollup.evidence_backed} evidence-confirmed · "
+            f"{rollup.provenance_backed} provenance-backed · "
+            f"{rollup.rag_cited} RAG-cited"
+        )
+    if rollup.verification and any(rollup.verification.values()):
+        lines.append(
+            "- **Verification:** "
+            f"{rollup.verification.get('pass', 0)} pass · "
+            f"{rollup.verification.get('fail', 0)} fail · "
+            f"{rollup.verification.get('skip', 0)} skip · "
+            f"{rollup.verification.get('error', 0)} error"
+        )
     attention = f" · {with_findings} file(s) need attention" if with_findings else ""
     lines.append(
         f"- **Review effort:** ~{_effort_estimate_minutes(result)} min{attention}"

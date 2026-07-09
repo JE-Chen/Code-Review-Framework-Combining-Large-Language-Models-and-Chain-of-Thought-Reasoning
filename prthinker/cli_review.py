@@ -97,6 +97,9 @@ from prthinker.pipeline import (
     PerFileReviewOptions,
     ReviewResult,
 )
+from prthinker.repo_retrieval import RepoContextRetriever
+from prthinker.repo_retrieval_factory import create_repo_retriever
+from prthinker.review_presets import apply_review_preset
 from prthinker.trajectory import TrajectorySink
 from prthinker.rag import (
     FaissRAGRetriever,
@@ -181,6 +184,67 @@ def _build_retriever(args: argparse.Namespace, config: Config) -> RAGRetriever:
             api_key=args.remote_api_key,
         )
     return FaissRAGRetriever(threshold=config.rag_threshold)
+
+
+def _repo_context_options(args: argparse.Namespace, backend: object) -> dict:
+    """Translate repo-context CLI flags into factory kwargs for one strategy."""
+    strategy = getattr(args, "repo_context_strategy", "none") or "none"
+    top_k = max(1, int(getattr(args, "repo_context_top_k", 10) or 10))
+    keep_ratio = float(getattr(args, "repo_context_keep_ratio", 0) or 0)
+    common = {"top_k": top_k}
+    if strategy in {"lexical", "structural", "graph", "query_rewrite"}:
+        if keep_ratio > 0:
+            common["keep_ratio"] = keep_ratio
+    if strategy in {"semantic"}:
+        return {"top_k": top_k}
+    if strategy in {"rerank"}:
+        return {
+            "backend": backend,
+            "votes": max(1, int(getattr(args, "repo_context_votes", 1) or 1)),
+        }
+    if strategy in {"block_rerank"}:
+        return {
+            "backend": backend,
+            "block_candidates": max(
+                1, int(getattr(args, "repo_context_block_candidates", 6) or 6)
+            ),
+            "focus_lines": _positive_or_none(
+                getattr(args, "repo_context_focus_lines", 0)
+            ),
+            "votes": max(1, int(getattr(args, "repo_context_votes", 1) or 1)),
+        }
+    if strategy in {"iterative"}:
+        return {
+            "backend": backend,
+            "rounds": max(1, int(getattr(args, "repo_context_rounds", 3) or 3)),
+            "block_candidates": max(
+                1, int(getattr(args, "repo_context_block_candidates", 6) or 6)
+            ),
+            "focus_lines": _positive_or_none(
+                getattr(args, "repo_context_focus_lines", 0)
+            ),
+        }
+    return common
+
+
+def _positive_or_none(value: object) -> int | None:
+    """Return a positive int or None for optional line-window settings."""
+    number = int(value or 0)
+    return number if number > 0 else None
+
+
+def _build_repo_context(
+    args: argparse.Namespace, backend: object
+) -> tuple[RepoContextRetriever | None, Path | None]:
+    """Build optional cross-file repository context retrieval for local reviews."""
+    strategy = getattr(args, "repo_context_strategy", "none") or "none"
+    workdir = Path(getattr(args, "repo_context_workdir", ".") or ".")
+    if strategy == "none":
+        return None, None
+    retriever = create_repo_retriever(
+        strategy, **_repo_context_options(args, backend)
+    )
+    return retriever, workdir
 
 
 def _read_stdin_or_file(path: str) -> str:
@@ -390,6 +454,7 @@ def _review_via_pipeline(
 ) -> ReviewResult:
     backend = create_backend(config)
     retriever = _build_retriever(args, config)
+    repo_retriever, repo_workdir = _build_repo_context(args, backend)
     extra_rules = load_rules_dir(args.rules_dir)
     pipeline = CoTPipeline(
         backend=backend,
@@ -406,6 +471,8 @@ def _review_via_pipeline(
         )
         if getattr(args, "trajectory_out", "")
         else None,
+        repo_retriever=repo_retriever,
+        repo_workdir=repo_workdir,
     )
     try:
         if args.per_file:
@@ -578,6 +645,7 @@ def _run_review(
 
 
 def _cmd_review_file(args: argparse.Namespace) -> int:
+    apply_review_preset(args)
     config = _build_config(args)
     code = _read_stdin_or_file(args.path)
     result = _run_review(args, config, code, output_dir=args.output_dir)
@@ -872,6 +940,7 @@ def _publish_review_result(
 
 
 def _cmd_review_pr(args: argparse.Namespace) -> int:
+    apply_review_preset(args)
     config = _build_config(args)
     _validate_pr_args(args)
 

@@ -1,0 +1,106 @@
+"""Render retrieval trajectory JSONL into an audit report."""
+
+from __future__ import annotations
+
+import argparse
+import json
+from collections import Counter, defaultdict
+from pathlib import Path
+from typing import Any
+
+
+def add_parser(sub) -> None:
+    """Register the ``retrieval-report`` subcommand."""
+    parser = sub.add_parser(
+        "retrieval-report",
+        help="Summarize content-safe retrieval trajectory JSONL",
+    )
+    parser.add_argument("input", type=Path)
+    parser.add_argument("--format", choices=["markdown", "json"], default="markdown")
+    parser.add_argument("--out", type=Path)
+
+
+def _read_events(path: Path) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            if line.strip():
+                events.append(json.loads(line))
+    return events
+
+
+def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
+    """Aggregate trajectory events without exposing prompt/code content."""
+    by_event = Counter(str(event.get("event", "")) for event in events)
+    retrievals = [event for event in events if event.get("event") == "retrieve"]
+    uses = [event for event in events if event.get("event") == "retrieval_use"]
+    by_path: dict[str, dict[str, int]] = defaultdict(
+        lambda: {"retrieved": 0, "used": 0, "citations": 0}
+    )
+    for event in retrievals:
+        path = str(event.get("path", "") or "<diff>")
+        metadata = event.get("metadata") or {}
+        by_path[path]["retrieved"] += len(metadata.get("retrieved", []))
+    for event in uses:
+        path = str(event.get("path", "") or "<diff>")
+        metadata = event.get("metadata") or {}
+        by_path[path]["used"] += len(metadata.get("used", []))
+        by_path[path]["citations"] += len(metadata.get("cited_indices", []))
+    retrieved_total = sum(row["retrieved"] for row in by_path.values())
+    used_total = sum(row["used"] for row in by_path.values())
+    utilization = used_total / retrieved_total if retrieved_total else 0.0
+    return {
+        "events": len(events),
+        "by_event": dict(by_event),
+        "retrievals": len(retrievals),
+        "retrieval_use_events": len(uses),
+        "retrieved_total": retrieved_total,
+        "used_total": used_total,
+        "utilization": utilization,
+        "by_path": dict(sorted(by_path.items())),
+    }
+
+
+def render_markdown(summary: dict[str, Any]) -> str:
+    """Render the retrieval audit summary as Markdown."""
+    lines = [
+        "# Retrieval report",
+        "",
+        f"- Events: {summary['events']}",
+        f"- Retrieval events: {summary['retrievals']}",
+        f"- Retrieval-use events: {summary['retrieval_use_events']}",
+        f"- Retrieved docs: {summary['retrieved_total']}",
+        f"- Used/cited docs: {summary['used_total']}",
+        f"- Utilization: {summary['utilization']:.2f}",
+        "",
+        "## By path",
+        "",
+    ]
+    by_path = summary.get("by_path", {})
+    if not by_path:
+        lines.append("_No retrieval events._")
+    else:
+        for path, row in by_path.items():
+            lines.append(
+                f"- `{path}`: {row['retrieved']} retrieved · "
+                f"{row['used']} used · {row['citations']} citation(s)"
+            )
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def command(args: argparse.Namespace) -> int:
+    """CLI entry point for ``retrieval-report``."""
+    summary = summarize(_read_events(args.input))
+    if args.format == "json":
+        text = json.dumps(summary, indent=2) + "\n"
+    else:
+        text = render_markdown(summary)
+    if args.out:
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(text, encoding="utf-8")
+    else:
+        print(text, end="")
+    return 0
+
+
+__all__ = ["add_parser", "command", "render_markdown", "summarize"]
