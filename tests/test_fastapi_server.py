@@ -254,3 +254,167 @@ def test_release_gpu_memory_serializes_cuda_empty_cache(
     server_module._release_gpu_memory()
 
     assert events == ["gc", "lock-enter", "empty-cache", "lock-exit"]
+
+
+# ---------------------------------------------------------------------------
+# CUDA fail-fast + healthz GPU probe
+# ---------------------------------------------------------------------------
+
+
+class _ExitCalled(Exception):
+    """Sentinel raised by the patched os._exit so tests can observe it."""
+
+
+def _patch_exit(monkeypatch, module) -> list[int]:
+    codes: list[int] = []
+
+    def fake_exit(code: int) -> None:
+        codes.append(code)
+        raise _ExitCalled
+
+    monkeypatch.setattr(module.os, "_exit", fake_exit)
+    return codes
+
+
+class TestIsFatalCudaError:
+    def test_cublas_internal_error_is_fatal(self, server_module):
+        exc = RuntimeError(
+            "CUDA error: CUBLAS_STATUS_INTERNAL_ERROR when calling cublasSgemm")
+        assert server_module._is_fatal_cuda_error(exc) is True
+
+    def test_device_side_assert_is_fatal(self, server_module):
+        assert server_module._is_fatal_cuda_error(
+            RuntimeError("device-side assert triggered")) is True
+
+    def test_plain_oom_is_recoverable(self, server_module):
+        exc = torch.cuda.OutOfMemoryError("CUDA error: out of memory")
+        assert server_module._is_fatal_cuda_error(exc) is False
+
+    def test_ordinary_exception_is_not_fatal(self, server_module):
+        assert server_module._is_fatal_cuda_error(ValueError("bad diff")) is False
+
+
+class TestExitIfCudaPoisoned:
+    def test_fatal_error_exits_1(self, server_module, monkeypatch):
+        codes = _patch_exit(monkeypatch, server_module)
+        with pytest.raises(_ExitCalled):
+            server_module._exit_if_cuda_poisoned(
+                RuntimeError("CUDA error: CUBLAS_STATUS_EXECUTION_FAILED"))
+        assert codes == [1]
+
+    def test_non_fatal_error_keeps_serving(self, server_module, monkeypatch):
+        codes = _patch_exit(monkeypatch, server_module)
+        server_module._exit_if_cuda_poisoned(ValueError("bad request"))
+        server_module._exit_if_cuda_poisoned(
+            torch.cuda.OutOfMemoryError("CUDA error: out of memory"))
+        assert codes == []
+
+    def test_env_override_disables_failfast(self, server_module, monkeypatch):
+        codes = _patch_exit(monkeypatch, server_module)
+        monkeypatch.setenv("PRTHINKER_NO_CUDA_FAILFAST", "1")
+        server_module._exit_if_cuda_poisoned(
+            RuntimeError("CUDA error: CUBLAS_STATUS_INTERNAL_ERROR"))
+        assert codes == []
+
+
+class TestHealthzGpuProbe:
+    # The endpoint function is called directly: the server_module fixture
+    # neuters Thread.start for the whole module, which would deadlock
+    # TestClient's portal thread; the probe logic is identical either way.
+
+    def test_no_cuda_reports_ok(self, server_module, monkeypatch):
+        monkeypatch.setattr(server_module.torch.cuda, "is_available", lambda: False)
+        assert server_module.healthz()["gpu"] == "no-cuda"
+
+    def test_healthy_probe_reports_ok(self, server_module, monkeypatch):
+        monkeypatch.setattr(server_module.torch.cuda, "is_available", lambda: True)
+        monkeypatch.setattr(server_module, "_touch_cuda_devices", lambda: None)
+        assert server_module.healthz()["gpu"] == "ok"
+
+    def test_busy_lock_short_circuits_to_ok(self, server_module, monkeypatch):
+        from prthinker import gpu_lock
+
+        monkeypatch.setattr(server_module.torch.cuda, "is_available", lambda: True)
+
+        def must_not_run() -> None:
+            pytest.fail("probe must not touch the GPU while a generation runs")
+
+        monkeypatch.setattr(server_module, "_touch_cuda_devices", must_not_run)
+        with gpu_lock.gpu_serialized():  # simulate an in-flight generation
+            assert server_module.healthz()["gpu"] == "busy"
+
+    def test_non_fatal_probe_failure_returns_503(self, server_module, monkeypatch):
+        from fastapi import HTTPException
+
+        monkeypatch.setattr(server_module.torch.cuda, "is_available", lambda: True)
+
+        def broken() -> None:
+            raise RuntimeError("probe allocation failed")
+
+        monkeypatch.setattr(server_module, "_touch_cuda_devices", broken)
+        with pytest.raises(HTTPException) as excinfo:
+            server_module.healthz()
+        assert excinfo.value.status_code == 503
+        assert "probe allocation failed" in excinfo.value.detail
+
+    def test_poisoned_context_exits_for_restart(self, server_module, monkeypatch):
+        codes = _patch_exit(monkeypatch, server_module)
+        monkeypatch.setattr(server_module.torch.cuda, "is_available", lambda: True)
+
+        def poisoned() -> None:
+            raise RuntimeError("CUDA error: CUBLAS_STATUS_INTERNAL_ERROR")
+
+        monkeypatch.setattr(server_module, "_touch_cuda_devices", poisoned)
+        with pytest.raises(_ExitCalled):
+            server_module.healthz()
+        assert codes == [1]
+
+
+class TestWorkersFailFast:
+    def test_review_worker_records_error_then_classifies(
+            self, server_module, monkeypatch):
+        calls: list[BaseException] = []
+        monkeypatch.setattr(
+            server_module, "_exit_if_cuda_poisoned", calls.append)
+        monkeypatch.setattr(server_module, "_release_gpu_memory", lambda: None)
+        boom = RuntimeError("CUDA error: CUBLAS_STATUS_INTERNAL_ERROR")
+
+        def exploding_review(req, cancel_event=None):
+            raise boom
+
+        monkeypatch.setattr(server_module, "_execute_review", exploding_review)
+        job = server_module._Job()
+        with server_module._JOBS_LOCK:
+            server_module._JOBS["jid"] = job
+        try:
+            server_module._run_review_job("jid", object())
+        finally:
+            with server_module._JOBS_LOCK:
+                server_module._JOBS.pop("jid", None)
+        assert job.status == "error"  # the job error is recorded first
+        assert calls == [boom]  # then the CUDA classification runs
+
+    def test_ask_worker_records_error_then_classifies(
+            self, server_module, monkeypatch):
+        calls: list[BaseException] = []
+        monkeypatch.setattr(
+            server_module, "_exit_if_cuda_poisoned", calls.append)
+        monkeypatch.setattr(server_module, "_release_gpu_memory", lambda: None)
+        boom = RuntimeError("CUDA error: misaligned address")
+
+        class _ExplodingBackend:
+            def generate(self, prompt, max_new_tokens=0, cancel_event=None):
+                raise boom
+
+        monkeypatch.setattr(server_module, "_backend", _ExplodingBackend())
+        job = server_module._AskJob()
+        with server_module._ASK_JOBS_LOCK:
+            server_module._ASK_JOBS["jid"] = job
+        try:
+            server_module._run_ask_job(
+                "jid", server_module.AskRequest(prompt="p", max_new_tokens=8))
+        finally:
+            with server_module._ASK_JOBS_LOCK:
+                server_module._ASK_JOBS.pop("jid", None)
+        assert job.status == "error"
+        assert calls == [boom]

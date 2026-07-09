@@ -34,7 +34,7 @@ from prthinker.accepted import (
 from prthinker.backends.local import LocalHFBackend
 from prthinker.config import LocalBackendConfig
 from prthinker.dismissed import DismissedExamplesStore, DismissedFilter
-from prthinker.gpu_lock import gpu_serialized
+from prthinker.gpu_lock import gpu_serialized, gpu_serialized_nowait
 from prthinker.pipeline import CoTPipeline, ReviewCancelledError
 from prthinker.rag import FaissRAGRetriever
 from prthinker.schemas import (
@@ -161,12 +161,26 @@ _accepted_retriever = _build_accepted_retriever()
 
 @app.get("/healthz")
 def healthz() -> dict[str, str]:
-    return {"status": "ok", "model": RUN_ON}
+    """Liveness probe that actually exercises the CUDA context.
+
+    A poisoned context keeps answering HTTP while every generation
+    fails; probing the GPU here lets the CI preflight ping detect that
+    state and skip the review matrix gracefully instead of scheduling
+    dozens of jobs that all die on the same dead context.
+    """
+    healthy, gpu_state = _probe_gpu_context()
+    if not healthy:
+        raise HTTPException(status_code=503, detail=f"GPU probe failed: {gpu_state}")
+    return {"status": "ok", "model": RUN_ON, "gpu": gpu_state}
 
 
 @app.post("/ask", response_class=PlainTextResponse)
 def ask(req: AskRequest) -> str:
-    return _backend.generate(req.prompt, max_new_tokens=req.max_new_tokens)
+    try:
+        return _backend.generate(req.prompt, max_new_tokens=req.max_new_tokens)
+    except Exception as exc:
+        _exit_if_cuda_poisoned(exc)
+        raise
 
 
 @app.post("/rag", response_model=RagResponse)
@@ -280,6 +294,9 @@ def review(req: ReviewRequest) -> ReviewResponse:
         raise HTTPException(status_code=400, detail="code_diff is empty")
     try:
         return _execute_review(req)
+    except Exception as exc:
+        _exit_if_cuda_poisoned(exc)
+        raise
     finally:
         _release_gpu_memory()
 
@@ -418,6 +435,84 @@ def _release_gpu_memory() -> None:
             torch.cuda.empty_cache()
 
 
+_CUDA_FATAL_MARKERS = (
+    "CUDA error",
+    "CUBLAS_STATUS",
+    "CUDNN_STATUS",
+    "device-side assert",
+)
+_HEALTH_PROBE_DIM = 8
+
+
+def _is_fatal_cuda_error(exc: BaseException) -> bool:
+    """True when ``exc`` signals a poisoned CUDA context, not a plain OOM.
+
+    A CUDA out-of-memory is recoverable — dropping the batch and emptying
+    the cache restores service — but an asynchronous CUDA / cuBLAS / cuDNN
+    failure poisons the process's CUDA context: every later kernel launch
+    fails with the same error until the process restarts.
+    """
+    if isinstance(exc, torch.cuda.OutOfMemoryError):
+        return False
+    message = str(exc)
+    return any(marker in message for marker in _CUDA_FATAL_MARKERS)
+
+
+def _exit_if_cuda_poisoned(exc: BaseException) -> None:
+    """Fail fast on a poisoned CUDA context so the supervisor restarts us.
+
+    Serving on after a fatal CUDA error turns one GPU fault into an
+    outage: the process keeps accepting jobs while every generation dies
+    on the same dead context. Exiting lets the container's
+    ``restart: unless-stopped`` policy bring up a fresh process, and the
+    boot-time generation probe re-validates the GPU before any job is
+    accepted again. ``PRTHINKER_NO_CUDA_FAILFAST=1`` keeps the old
+    keep-serving behaviour (e.g. debugging without a supervisor).
+    """
+    if not _is_fatal_cuda_error(exc):
+        return
+    if os.environ.get("PRTHINKER_NO_CUDA_FAILFAST", "").lower() in ("1", "true", "yes"):
+        log.critical("Fatal CUDA error (fail-fast disabled): %s", exc)
+        return
+    log.critical(
+        "Fatal CUDA error — exiting so the supervisor restarts a clean "
+        "process: %s", exc,
+    )
+    logging.shutdown()
+    os._exit(1)
+
+
+def _touch_cuda_devices() -> None:
+    """One tiny allocation + matmul + sync per CUDA device."""
+    for index in range(torch.cuda.device_count()):
+        ones = torch.ones(
+            (_HEALTH_PROBE_DIM, _HEALTH_PROBE_DIM), device=f"cuda:{index}")
+        (ones @ ones).sum().item()
+
+
+def _probe_gpu_context() -> tuple[bool, str]:
+    """Return ``(healthy, state)`` after touching every CUDA device.
+
+    Non-blocking on the GPU lock: an in-flight generation holds it, and a
+    generating GPU is de facto alive — blocking would stall the liveness
+    probe behind a minutes-long review. A probe failure that matches the
+    fatal markers exits immediately (self-heal via the supervisor); any
+    other failure is reported so ``/healthz`` can answer 503.
+    """
+    if not torch.cuda.is_available():
+        return True, "no-cuda"
+    with gpu_serialized_nowait() as acquired:
+        if not acquired:
+            return True, "busy"
+        try:
+            _touch_cuda_devices()
+        except RuntimeError as exc:
+            log.critical("healthz GPU probe failed: %s", exc)
+            _exit_if_cuda_poisoned(exc)
+            return False, str(exc)[:200]
+    return True, "ok"
+
+
 def _start_job_worker(
     worker: threading.Thread,
     lock: threading.Lock,
@@ -460,6 +555,7 @@ def _run_review_job(job_id: str, req: ReviewRequest) -> None:
             if job is not None:
                 job.status = "error"
                 job.error = f"{type(exc).__name__}: {exc}"
+        _exit_if_cuda_poisoned(exc)
     finally:
         _release_gpu_memory()
 
@@ -578,6 +674,7 @@ def _run_ask_job(job_id: str, req: AskRequest) -> None:
             if job is not None:
                 job.status = "error"
                 job.error = f"{type(exc).__name__}: {exc}"
+        _exit_if_cuda_poisoned(exc)
     finally:
         _release_gpu_memory()
 
