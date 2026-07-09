@@ -3,7 +3,6 @@ from pathlib import Path
 from docx import Document
 from docx.oxml.ns import qn
 from docx.table import Table
-from docx.text.paragraph import Paragraph
 
 sys.stdout.reconfigure(encoding="utf-8")
 src = Path(sys.argv[1])

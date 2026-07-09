@@ -15,10 +15,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from prthinker.review_cache import ReviewCache
-    from prthinker.steps import ReviewStep
-
 from prthinker.schemas import (
     ApiDriftFinding,
     CounterfactualBlock,
@@ -30,6 +26,10 @@ from prthinker.schemas import (
     PersonaReview,
     PRClassification,
 )
+
+if TYPE_CHECKING:
+    from prthinker.review_cache import ReviewCache
+    from prthinker.steps import ReviewStep
 
 
 @dataclass

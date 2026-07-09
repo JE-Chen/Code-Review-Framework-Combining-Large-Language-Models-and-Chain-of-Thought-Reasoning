@@ -5,8 +5,10 @@
 Treat every pull request, generated test, build script, and dependency hook as
 untrusted code. ``prthinker verify`` defaults to Docker and requires an
 explicit image. For fork PRs, pin the image by digest, keep networking
-disabled, mount no credentials, and use an ephemeral worker. Never use
-``--sandbox none --allow-unsandboxed`` for untrusted changes.
+disabled, mount no credentials, and use an ephemeral worker. Do not use
+``--sandbox none --allow-unsandboxed`` for untrusted changes unless you
+have reviewed every line of the change and explicitly accept that it
+executes with your own privileges.
 
 The sandbox is defense in depth, not a proof of isolation. Operators remain
 responsible for runtime patching, host-kernel hardening, image contents, and

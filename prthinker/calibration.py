@@ -55,10 +55,16 @@ class CalibrationStore:
         self.path = str(target)
         with sqlite3.connect(self.path) as conn:
             conn.execute(
-                "CREATE TABLE IF NOT EXISTS feedback (repo TEXT, author TEXT, category TEXT, accepted INTEGER NOT NULL DEFAULT 0, dismissed INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(repo,author,category))"
+                "CREATE TABLE IF NOT EXISTS feedback (repo TEXT, author TEXT, "
+                "category TEXT, accepted INTEGER NOT NULL DEFAULT 0, "
+                "dismissed INTEGER NOT NULL DEFAULT 0, "
+                "PRIMARY KEY(repo,author,category))"
             )
             conn.execute(
-                "CREATE TABLE IF NOT EXISTS feedback_events (event_id TEXT PRIMARY KEY, repo TEXT NOT NULL, author TEXT NOT NULL, category TEXT NOT NULL, accepted INTEGER NOT NULL, ts REAL NOT NULL)"
+                "CREATE TABLE IF NOT EXISTS feedback_events (event_id TEXT "
+                "PRIMARY KEY, repo TEXT NOT NULL, author TEXT NOT NULL, "
+                "category TEXT NOT NULL, accepted INTEGER NOT NULL, "
+                "ts REAL NOT NULL)"
             )
 
     def record(
@@ -86,7 +92,10 @@ class CalibrationStore:
             if not inserted:
                 return
             conn.execute(
-                "INSERT INTO feedback VALUES(?,?,?,?,?) ON CONFLICT(repo,author,category) DO UPDATE SET accepted=accepted+excluded.accepted,dismissed=dismissed+excluded.dismissed",
+                "INSERT INTO feedback VALUES(?,?,?,?,?) "
+                "ON CONFLICT(repo,author,category) DO UPDATE SET "
+                "accepted=accepted+excluded.accepted,"
+                "dismissed=dismissed+excluded.dismissed",
                 (repo, author, category, 1 if accepted else 0, 0 if accepted else 1),
             )
 

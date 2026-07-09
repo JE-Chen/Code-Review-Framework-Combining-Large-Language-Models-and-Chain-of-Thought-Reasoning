@@ -600,7 +600,7 @@ def test_cmd_harvest_requires_repo_and_token() -> None:
     with pytest.raises(SystemExit, match="CI_PROJECT_PATH"):
         cli_commands._cmd_harvest(_harvest_args(repo=""))
     with pytest.raises(SystemExit, match="GITLAB_TOKEN"):
-        cli_commands._cmd_harvest(_harvest_args(github_token=""))
+        cli_commands._cmd_harvest(_harvest_args(github_token=""))  # nosec B106 - test fixture token, not a credential
 
 
 def test_cmd_harvest_accepted_dispatches_to_gitlab(monkeypatch) -> None:

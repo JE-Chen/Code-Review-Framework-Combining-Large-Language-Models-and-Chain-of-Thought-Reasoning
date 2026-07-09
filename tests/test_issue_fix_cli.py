@@ -91,7 +91,7 @@ def test_command_test_cmd_runs_pass_at_1_check(tmp_path, monkeypatch, capsys):
         def run(self, command, workdir, timeout):
             return ExecutionResult(0, "ok", "")
 
-    monkeypatch.setattr(cli, "LocalExecutor", lambda: _FakeExec())
+    monkeypatch.setattr(cli, "LocalExecutor", _FakeExec)
     args = argparse.Namespace(
         issue="fix x", issue_file=None, workdir=tmp_path,
         retriever="lexical", top_k=5, max_retries=0, output=None,

@@ -31,9 +31,15 @@ class GenerationResult:
 
 class ThreadLocalUsage:
     """Request-thread scoped compatibility storage for legacy last_usage()."""
-    def __init__(self): self._local = threading.local()
-    def get(self): return getattr(self._local, "value", None)
-    def set(self, value): self._local.value = value
+
+    def __init__(self):
+        self._local = threading.local()
+
+    def get(self):
+        return getattr(self._local, "value", None)
+
+    def set(self, value):
+        self._local.value = value
 
 
 class InferenceBackend(ABC):

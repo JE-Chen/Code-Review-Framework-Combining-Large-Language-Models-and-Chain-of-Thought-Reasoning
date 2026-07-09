@@ -171,7 +171,7 @@ def verify_base_head(
                 return [_evidence_test(command, "error", error, tool=command[0])]
             spec = ToolSpec("test", f"{command[0]}:{label}", command, timeout)
             results.append(run_tier(spec, target, executor))
-    base, head = results
+    base, head = results[0], results[1]
     verdict, summary = _regression_verdict(base.status, head.status)
     results.append(_evidence_test(command, verdict, summary))
     return results

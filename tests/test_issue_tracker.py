@@ -12,8 +12,8 @@ from prthinker.issue_tracker import (
     create_issue_tracker,
 )
 
-_GH = GitHubIssueTracker(repo="octo/demo", token="tok")
-_GL = GitLabIssueTracker(repo="group/demo", token="tok")
+_GH = GitHubIssueTracker(repo="octo/demo", token="tok")  # nosec B106 - test fixture token, not a credential
+_GL = GitLabIssueTracker(repo="group/demo", token="tok")  # nosec B106 - test fixture token, not a credential
 
 
 class _Resp:
@@ -93,36 +93,36 @@ def _gl_row(iid: int = 7, **extra) -> dict:
 class TestConstruction:
     def test_rejects_repo_without_owner(self):
         with pytest.raises(ValueError, match="owner/name"):
-            GitHubIssueTracker(repo="demo", token="tok")
+            GitHubIssueTracker(repo="demo", token="tok")  # nosec B106 - test fixture token, not a credential
 
     def test_rejects_empty_token(self):
         with pytest.raises(ValueError, match="token"):
-            GitLabIssueTracker(repo="group/demo", token="")
+            GitLabIssueTracker(repo="group/demo", token="")  # nosec B106 - test fixture token, not a credential
 
 
 class TestFactory:
     def test_github_kind(self):
-        tracker = create_issue_tracker("github", repo="o/r", token="t")
+        tracker = create_issue_tracker("github", repo="o/r", token="t")  # nosec B106 - test fixture token, not a credential
         assert isinstance(tracker, GitHubIssueTracker)
 
     def test_gitlab_kind_with_default_and_custom_url(self):
-        tracker = create_issue_tracker("gitlab", repo="g/p", token="t")
+        tracker = create_issue_tracker("gitlab", repo="g/p", token="t")  # nosec B106 - test fixture token, not a credential
         assert isinstance(tracker, GitLabIssueTracker)
         assert tracker.base_url == "https://gitlab.com/api/v4"
         hosted = create_issue_tracker(
-            "gitlab", repo="g/p", token="t", base_url="https://git.corp/api/v4")
+            "gitlab", repo="g/p", token="t", base_url="https://git.corp/api/v4")  # nosec B106 - test fixture token, not a credential
         assert hosted.base_url == "https://git.corp/api/v4"
 
     def test_platform_kind_enum_values_work(self):
         from prthinker.platforms import PlatformKind
 
         tracker = create_issue_tracker(
-            PlatformKind.GITLAB, repo="g/p", token="t")
+            PlatformKind.GITLAB, repo="g/p", token="t")  # nosec B106 - test fixture token, not a credential
         assert isinstance(tracker, GitLabIssueTracker)
 
     def test_unknown_kind_raises(self):
         with pytest.raises(ValueError, match="gitea"):
-            create_issue_tracker("gitea", repo="o/r", token="t")
+            create_issue_tracker("gitea", repo="o/r", token="t")  # nosec B106 - test fixture token, not a credential
 
 
 class TestGitHubFetchIssue:

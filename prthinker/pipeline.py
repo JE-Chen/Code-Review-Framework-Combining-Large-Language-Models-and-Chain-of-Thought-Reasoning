@@ -119,7 +119,7 @@ class CoTPipeline(PipelineExecutionMixin):
         max_step_result_chars: int = _DEFAULT_MAX_STEP_RESULT_CHARS,
         step_dependencies: dict[str, object] | None = None,
         trajectory_sink: TrajectorySink | None = None,
-        repo_retriever: "RepoContextRetriever | None" = None,
+        repo_retriever: RepoContextRetriever | None = None,
         repo_workdir: Path | None = None,
     ) -> None:
         self._backend = backend

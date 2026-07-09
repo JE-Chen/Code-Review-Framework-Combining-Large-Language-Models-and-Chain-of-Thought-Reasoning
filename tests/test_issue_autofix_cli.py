@@ -103,14 +103,14 @@ def test_gitlab_platform_builds_gitlab_tracker(monkeypatch, tmp_path):
 def test_real_factory_wires_gitlab_tracker():
     # The CLI passes --gitlab-url through to the strategy unchanged.
     tracker = cli.create_issue_tracker(
-        "gitlab", repo="g/p", token="t", base_url="https://git.corp/api/v4")
+        "gitlab", repo="g/p", token="t", base_url="https://git.corp/api/v4")  # nosec B106 - test fixture token, not a credential
     assert isinstance(tracker, GitLabIssueTracker)
     assert tracker.base_url == "https://git.corp/api/v4"
 
 
 class TestArgValidation:
     def test_missing_token_exits_2(self, capsys):
-        assert cli.command(_args(github_token="")) == 2
+        assert cli.command(_args(github_token="")) == 2  # nosec B106 - test fixture token, not a credential
         assert "github-token" in capsys.readouterr().err
 
     def test_needs_exactly_one_selector(self, capsys):

@@ -4,7 +4,8 @@ from prthinker.cli import main
 from tests.conftest import FakeBackend
 
 
-def test_benchmark_score_and_compare(tmp_path: Path, capsys):
+def _write_score_fixtures(tmp_path: Path) -> tuple[Path, Path, Path]:
+    """Materialise a one-case ground truth plus a miss and a hit run."""
     cases = tmp_path / "cases.jsonl"
     base = tmp_path / "base.jsonl"
     better = tmp_path / "better.jsonl"
@@ -38,27 +39,22 @@ def test_benchmark_score_and_compare(tmp_path: Path, capsys):
         + "\n",
         encoding="utf-8",
     )
-    assert (
-        main(
-            ["benchmark", "score", str(cases), str(better), "--bootstrap-samples", "10"]
-        )
-        == 0
-    )
+    return cases, base, better
+
+
+def test_benchmark_score_reports_perfect_f1(tmp_path: Path, capsys):
+    cases, _base, better = _write_score_fixtures(tmp_path)
+    args = ["benchmark", "score", str(cases), str(better),
+            "--bootstrap-samples", "10"]
+    assert main(args) == 0
     assert json.loads(capsys.readouterr().out)["aggregate"]["f1"] == 1
-    assert (
-        main(
-            [
-                "benchmark",
-                "compare",
-                str(cases),
-                str(base),
-                str(better),
-                "--bootstrap-samples",
-                "10",
-            ]
-        )
-        == 0
-    )
+
+
+def test_benchmark_compare_counts_wins(tmp_path: Path, capsys):
+    cases, base, better = _write_score_fixtures(tmp_path)
+    args = ["benchmark", "compare", str(cases), str(base), str(better),
+            "--bootstrap-samples", "10"]
+    assert main(args) == 0
     assert json.loads(capsys.readouterr().out)["wins"] == 1
 
 

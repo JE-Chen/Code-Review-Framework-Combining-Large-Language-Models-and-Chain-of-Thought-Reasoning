@@ -1,7 +1,8 @@
 """Typed DAG scheduler with fan-out, retry, timeout, cache and resume."""
 
 from __future__ import annotations
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from dataclasses import dataclass, field
 from typing import Any, Callable, MutableMapping
 
@@ -39,8 +40,8 @@ def _attempt(node: DagNode, snapshot: dict[str, Any]):
     """Run one attempt, returning ``(value, None)`` or ``(None, exception)``."""
     try:
         return _run_once(node, snapshot), None
-    except TimeoutError:
-        return None, TimeoutError(f"node {node.name} timed out")
+    except FutureTimeoutError:
+        return None, FutureTimeoutError(f"node {node.name} timed out")
     except Exception as exc:
         return None, exc
 

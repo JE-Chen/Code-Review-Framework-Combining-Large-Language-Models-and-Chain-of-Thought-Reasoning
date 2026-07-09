@@ -26,11 +26,13 @@ class ExecutionResult:
 class Executor(Protocol):
     def run(
         self, command: tuple[str, ...], workdir: Path, timeout: float
-    ) -> ExecutionResult: ...
+    ) -> ExecutionResult:
+        ...
 
 
 class RefuseExecutor:
     def run(self, command, workdir, timeout):
+        del command, workdir, timeout  # refusal ignores the request
         return ExecutionResult(
             None,
             stderr="sandbox is required; pass --sandbox docker or explicitly --allow-unsandboxed",
