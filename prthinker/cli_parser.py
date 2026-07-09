@@ -32,6 +32,7 @@ from prthinker.benchmark_cli import add_benchmark_parser
 from prthinker.verify_cli import add_verify_parser
 from prthinker.retrieval_eval_cli import add_parser as add_retrieval_eval_parser
 from prthinker.supply_chain_cli import add_parser as add_attest_parser
+from prthinker.issue_autofix_cli import add_parser as add_issue_autofix_parser
 from prthinker.issue_fix_cli import add_parser as add_issue_fix_parser
 
 log = logging.getLogger("prthinker")
@@ -140,6 +141,7 @@ def _build_parser() -> argparse.ArgumentParser:
     add_retrieval_eval_parser(sub)
     add_attest_parser(sub)
     add_issue_fix_parser(sub, common)
+    add_issue_autofix_parser(sub, common)
 
     return parser
 
@@ -258,6 +260,20 @@ def _add_review_pr_gate_args(p_pr: argparse.ArgumentParser) -> None:
         default=env_str("PRTHINKER_AUTO_FIX_BASE_BRANCH"),
         help="Base branch for the auto-fix PR (defaults to the original "
         "PR's base branch, fetched from the GitHub API).",
+    )
+    p_pr.add_argument(
+        "--auto-file-issues",
+        choices=["none", "off-diff", "all"],
+        default=env_str("PRTHINKER_AUTO_FILE_ISSUES", "none"),
+        help="File findings as tracker issues: 'off-diff' files only the "
+        "findings outside the diff hunks (which cannot be posted inline), "
+        "'all' files every finding. Deduplicated by a fingerprint marker "
+        "in the issue body. GitHub and GitLab; 'none' disables.",
+    )
+    p_pr.add_argument(
+        "--issue-labels",
+        default=env_str("PRTHINKER_ISSUE_LABELS", "prthinker"),
+        help="Comma-separated labels for auto-filed issues.",
     )
     p_pr.add_argument(
         "--gate-on",

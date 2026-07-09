@@ -20,6 +20,7 @@ A complete catalog of what prthinker does. For installation steps see
 - [Two learned corpora](#two-learned-corpora)
 - [CI failure signals](#ci-failure-signals)
 - [Pre-merge Check Run gate](#pre-merge-check-run-gate)
+- [Issue automation (auto-file + issue-autofix)](#issue-automation-auto-file--issue-autofix)
 - [Judge step + verdict aggregation](#judge-step--verdict-aggregation)
 - [Streaming](#streaming)
 - [Cache, telemetry, and stats](#cache-telemetry-and-stats)
@@ -292,6 +293,45 @@ verdict). Both can fire on the same PR.
 
 ---
 
+## Issue automation (auto-file + issue-autofix)
+
+Two features extend the review loop into the issue tracker, on GitHub
+and GitLab alike (platform specifics live behind the
+`prthinker.issue_tracker` Strategy layer — one class per platform, one
+factory entry point).
+
+**Auto-filed issues** (`review-pr --auto-file-issues {none,off-diff,all}`):
+findings that fall outside the diff hunks cannot be posted as inline
+comments — the platform rejects the whole review — so they used to
+survive only in the summary text. `off-diff` files each of them as a
+tracker issue; `all` files every finding. A fingerprint marker (SHA-256
+of path + category + normalised comment, deliberately excluding the
+line number) embedded in the issue body makes re-reviews idempotent:
+the same problem is never filed twice while its issue stays open. One
+run files at most 10 new issues, labels come from `--issue-labels`
+(default `prthinker`), and every API call is best-effort — a tracker
+outage never fails the review.
+
+**Issue auto-fix** (`prthinker issue-autofix`): drives the `issue-fix`
+proposal engine end-to-end. It fetches the issue (`--issue-number N` or
+every open issue with `--issue-label L`), localises the relevant files
+with the configured retriever, asks the backend for find/replace edits
+that must apply verbatim and leave valid Python syntax (invalid batches
+are re-queried once with the failure reason), then — with `--open-pr` —
+applies the edits, optionally gates on `--test-cmd`, commits to
+`issue-fix/<N>`, pushes, and opens a **draft** fix PR (GitHub) or MR
+(GitLab) whose `Fixes #N` closes the issue on merge, commenting the
+link back on the issue. Without `--open-pr` it is a dry run that prints
+proposals + patches as JSON and mutates nothing. Batch mode restores
+the starting git ref between issues; a failure on one issue records an
+error result and the batch continues.
+
+The two compose into a loop — a review files the issue,
+`issue-autofix --issue-label` proposes the fix — but every fix PR is a
+draft that a human still reviews and merges.
+
+---
+
 ## Judge step + verdict aggregation
 
 `--judge` appends a `JudgeStep` per file. It reads the `total_summary`
@@ -548,6 +588,8 @@ subprocess); use `PRTHINKER_BACKEND=remote` if RAG matters.
 | `prthinker harvest-accepted` | Scan past PRs for applied suggestions → JSONL |
 | `prthinker stats` | Aggregate telemetry into a per-(backend, model) table |
 | `prthinker triage` | Run the no-model orientation signals over a diff (stdin / `--diff-file` / `--staged` / `--against REF`); no backend |
+| `prthinker issue-fix` | Localise an issue, propose validated find/replace edits as JSON |
+| `prthinker issue-autofix` | Fetch tracker issues (GitHub / GitLab), propose fixes, open draft fix PRs / MRs |
 | `prthinker mcp` | Run the MCP stdio server |
 
 Every flag has a corresponding `PRTHINKER_*` env var; the

@@ -51,9 +51,11 @@ from prthinker.cli_review_emit import (
 # via ``prthinker.cli_review``.
 from prthinker.cli_review_emit import _report_links_footer  # noqa: F401  # pylint: disable=unused-import
 
-# ``_maybe_autofix`` is dispatched from ``_publish_review_result`` below;
-# importing it here also keeps it reachable as ``prthinker.cli_review.<name>``.
+# ``_maybe_autofix`` / ``_maybe_file_issues`` are dispatched from
+# ``_publish_review_result`` below; importing them here also keeps them
+# reachable as ``prthinker.cli_review.<name>``.
 from prthinker.cli_review_autofix import _maybe_autofix
+from prthinker.cli_review_issues import _maybe_file_issues
 
 # Re-exported for the test-suite, which drives them via
 # ``prthinker.cli_review``; not called directly in this module.
@@ -857,6 +859,7 @@ def _publish_review_result(
     _maybe_set_labels(args, adapter, result)
     _maybe_update_pr_body(args, adapter, result)
     _maybe_autofix(args, result, platform_kind, adapter)
+    _maybe_file_issues(args, result, platform_kind, adapter)
     return 0
 
 

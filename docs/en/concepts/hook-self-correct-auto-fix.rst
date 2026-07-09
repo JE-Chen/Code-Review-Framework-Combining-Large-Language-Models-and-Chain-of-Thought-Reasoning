@@ -141,6 +141,33 @@ When NOT to use
   will not be signed by default. Either sign in CI, or disable for
   branches that require signed commits.
 
+Issue automation (``--auto-file-issues``, ``issue-autofix``)
+------------------------------------------------------------
+
+Two features close the remaining gaps around the review loop, on GitHub
+and GitLab alike (platform specifics live in the
+``prthinker.issue_tracker`` Strategy layer):
+
+**Auto-filed issues.** Findings that fall outside the diff hunks cannot
+be posted inline — the platform rejects them — so they used to survive
+only as summary text. ``review-pr --auto-file-issues off-diff`` files
+each of them as a tracker issue instead (``all`` files every finding).
+A fingerprint marker (hash of path + category + normalised comment,
+deliberately excluding the line number) embedded in the issue body makes
+re-reviews idempotent: the same problem is never filed twice while its
+issue stays open. One run files at most 10 new issues, and every API
+call is best-effort — a tracker outage never fails the review.
+
+**Issue auto-fix.** ``issue-autofix`` drives the ``issue-fix`` engine
+end-to-end: fetch the issue, localise the relevant files, propose
+find/replace edits that must apply verbatim and leave valid syntax,
+optionally gate on a test command, then branch / commit / push and open
+a draft fix PR (GitHub) or MR (GitLab) whose ``Fixes #N`` closes the
+issue on merge, with a link commented back on the issue. Without
+``--open-pr`` it is a pure dry run. The two features compose into a
+loop — a review files the issue, ``issue-autofix --issue-label``
+proposes the fix — but each PR is a draft a human still merges.
+
 Composition with the other features
 -----------------------------------
 

@@ -59,6 +59,13 @@ remembers past feedback, and explains its reasoning step by step.
   the reviewer can correlate findings with observed test failures.
 - **Pre-merge Check Run gate** — block merges when error-severity findings
   exist, wire into branch protection.
+- **Issue automation (GitHub & GitLab)** — `review-pr --auto-file-issues`
+  files the findings that fall outside the diff hunks (unpostable inline)
+  as fingerprint-deduplicated tracker issues, and `prthinker issue-autofix`
+  closes the loop: fetch an issue, localise the relevant files, propose
+  syntax-validated find/replace edits, optionally gate on a test command,
+  then branch, push, and open a draft fix PR / MR whose `Fixes #N` closes
+  the issue on merge.
 - **Pluggable backends**: in-process local Hugging Face causal-LM
   (Qwen / Llama / Mistral / CodeLlama, …) with optional LoRA +
   quantization; the project's own FastAPI inference server; any

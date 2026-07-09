@@ -52,6 +52,12 @@
   flagged 行与实际的测试失败。
 - **合并前 Check Run gate**：当出现 error 严重度的 finding 时让 Check Run
   变成 failure，可在 branch protection 设为必需检查。
+- **Issue 自动化（GitHub 与 GitLab）**：`review-pr --auto-file-issues`
+  把落在 diff hunks 之外（无法 inline 张贴）的 findings 自动开成
+  指纹去重的 tracker issue；`prthinker issue-autofix` 则把回路闭合──
+  抓 issue、定位相关文件、提出语法验证过的 find/replace 编辑、可选
+  测试命令把关，然后开分支、push、开 draft fix PR / MR，其 `Fixes #N`
+  于合并时自动关闭 issue。
 - **可替换的 backend**：四种任你挑──本地 in-process Hugging Face
   causal-LM（Qwen、Llama、Mistral、CodeLlama …，支持 LoRA + 量化）、
   自部署 FastAPI 推理服务器、任何 OpenAI-Chat-Completions 兼容端点
