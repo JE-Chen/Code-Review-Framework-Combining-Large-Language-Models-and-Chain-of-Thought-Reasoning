@@ -38,4 +38,22 @@ def gpu_serialized() -> Iterator[None]:
         yield
 
 
-__all__ = ["gpu_serialized"]
+@contextmanager
+def gpu_serialized_nowait() -> Iterator[bool]:
+    """Try to hold the GPU lock without blocking; yield whether it was taken.
+
+    For callers that must never queue behind a running generation — the
+    health probe's tiny CUDA touch would otherwise stall a liveness check
+    for the minutes a long review holds the lock. The body runs either
+    way; it must check the yielded flag before touching the GPU. Released
+    on exit (including on raise) only when it was actually acquired.
+    """
+    acquired = _GPU_LOCK.acquire(blocking=False)
+    try:
+        yield acquired
+    finally:
+        if acquired:
+            _GPU_LOCK.release()
+
+
+__all__ = ["gpu_serialized", "gpu_serialized_nowait"]

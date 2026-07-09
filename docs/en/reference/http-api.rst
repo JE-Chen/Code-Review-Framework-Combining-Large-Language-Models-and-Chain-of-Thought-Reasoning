@@ -46,13 +46,24 @@ reverse proxy (nginx, Cloudflare Access, etc.) if you need real auth.
 GET /healthz
 ------------
 
-Liveness probe.
+Liveness probe that also exercises the CUDA context: a tiny matmul runs
+on every GPU (skipped without blocking when a generation currently holds
+the GPU lock — a generating GPU is de facto alive). ``gpu`` reports
+``ok`` / ``busy`` / ``no-cuda``.
 
 **Response 200**
 
 .. code-block:: json
 
-   {"status": "ok", "model": "Qwen/Qwen3-Coder-30B-A3B-Instruct"}
+   {"status": "ok", "model": "Qwen/Qwen3-Coder-30B-A3B-Instruct", "gpu": "ok"}
+
+**Response 503** — the probe failed: the CUDA context is unhealthy (the
+CI preflight ping treats this as unreachable and skips the review matrix
+gracefully). A probe failure that signals a *poisoned* context (fatal
+CUDA / cuBLAS / cuDNN error) instead exits the process so the container
+supervisor restarts a clean one; the same fail-fast applies when any
+generation job dies on such an error. Set
+``PRTHINKER_NO_CUDA_FAILFAST=1`` to keep the old keep-serving behaviour.
 
 GET /metrics
 ------------

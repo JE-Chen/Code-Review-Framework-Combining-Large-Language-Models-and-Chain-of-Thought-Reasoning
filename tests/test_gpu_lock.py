@@ -13,7 +13,7 @@ import threading
 import time
 import types
 
-from prthinker.gpu_lock import gpu_serialized
+from prthinker.gpu_lock import gpu_serialized, gpu_serialized_nowait
 
 
 def test_gpu_serialized_is_mutually_exclusive() -> None:
@@ -85,3 +85,42 @@ def test_local_backend_generate_runs_under_the_lock(monkeypatch) -> None:
     backend._tokenizer = object()
     assert backend.generate("prompt", 8) == "hello"
     assert entered == [True]  # the forward pass ran inside the lock
+
+
+def test_nowait_acquires_when_free() -> None:
+    with gpu_serialized_nowait() as acquired:
+        assert acquired is True
+    # released on exit — a second entry must succeed too
+    with gpu_serialized_nowait() as acquired:
+        assert acquired is True
+
+
+def test_nowait_yields_false_when_lock_is_held() -> None:
+    holding = threading.Event()
+    release = threading.Event()
+
+    def holder() -> None:
+        with gpu_serialized():
+            holding.set()
+            release.wait(timeout=5)
+
+    thread = threading.Thread(target=holder)
+    thread.start()
+    try:
+        assert holding.wait(timeout=5)
+        with gpu_serialized_nowait() as acquired:
+            assert acquired is False  # never blocks behind the generation
+    finally:
+        release.set()
+        thread.join(timeout=5)
+
+
+def test_nowait_releases_even_when_body_raises() -> None:
+    try:
+        with gpu_serialized_nowait() as acquired:
+            assert acquired is True
+            raise RuntimeError("boom")
+    except RuntimeError:
+        pass
+    with gpu_serialized_nowait() as acquired:
+        assert acquired is True  # lock was not wedged by the raise

@@ -41,13 +41,23 @@ Cloudflare Access 之类）后面。
 GET /healthz
 ------------
 
-存活探针。
+存活探针\ ，且会实际触碰 CUDA context：在每张 GPU 上跑一次微小的
+matmul（若当下有 generation 持有 GPU lock 则不阻塞\ 、直接跳过 ——
+正在生成的 GPU 本身就证明是活的）\ 。\ ``gpu`` 上报
+``ok`` / ``busy`` / ``no-cuda``\ 。
 
 **Response 200**
 
 .. code-block:: json
 
-   {"status": "ok", "model": "Qwen/Qwen3-Coder-30B-A3B-Instruct"}
+   {"status": "ok", "model": "Qwen/Qwen3-Coder-30B-A3B-Instruct", "gpu": "ok"}
+
+**Response 503** —— 探测失败：CUDA context 不健康（CI 的 preflight
+ping 会视为不可达\ ，优雅跳过整个 review matrix）\ 。若探测失败属于
+*中毒* context（致命 CUDA / cuBLAS / cuDNN 错误）\ ，进程会直接退出\ ，
+让容器的 supervisor 重启一个干净的进程\ ；任何 generation job 死于
+此类错误时同样 fail-fast\ 。设 ``PRTHINKER_NO_CUDA_FAILFAST=1``
+可保留旧的继续服务行为\ 。
 
 GET /metrics
 ------------
