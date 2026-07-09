@@ -15,6 +15,7 @@ runs anywhere the work-tree is checked out.
 
 from __future__ import annotations
 
+import json
 import math
 import re
 from abc import ABC, abstractmethod
@@ -669,31 +670,74 @@ def _block_end(lines: list[str], header_index: int, indent: int) -> int:
     return end
 
 
+def focus_window(
+    lines: list[str], span: tuple[int, int],
+    terms: Counter, idf: dict[str, float], window_lines: int,
+) -> tuple[int, int]:
+    """Narrow a block span to its densest ``window_lines``-line query window.
+
+    Whole-block spans over-predict lines (high recall, low precision); the
+    ContextBench finding is that the balance point is a granularity of a few
+    dozen lines, so this slides a fixed window over the block and keeps the one
+    carrying the most IDF-weighted query-term mass. Blocks already within the
+    window are returned unchanged.
+    """
+    start, end = span
+    if end - start + 1 <= window_lines:
+        return span
+    weights = [
+        sum(terms[t] * idf.get(t, 0.0)
+            for t in set(prose_tokens(lines[i])) if t in terms)
+        for i in range(start - 1, end)
+    ]
+    running = sum(weights[:window_lines])
+    best_sum, best_offset = running, 0
+    for offset in range(1, len(weights) - window_lines + 1):
+        running += weights[offset + window_lines - 1] - weights[offset - 1]
+        if running > best_sum:
+            best_sum, best_offset = running, offset
+    win_start = start + best_offset
+    return win_start, win_start + window_lines - 1
+
+
 def predict_blocks(
-    terms: Counter, idf: dict[str, float], lines: list[str], max_blocks: int
+    terms: Counter, idf: dict[str, float], lines: list[str], max_blocks: int,
+    *, max_block_lines: int | None = None, focus_lines: int | None = None,
 ) -> tuple[list[tuple[int, int]], list[str]]:
     """Rank def/class blocks by query relevance; return top block spans + names.
 
     Scores each block by the IDF-weighted query-term mass in its body, so the
     prediction is function-granular (spans = whole blocks, symbols = their
-    names) instead of scattered line windows.
+    names) instead of scattered line windows. ``max_block_lines`` drops blocks
+    longer than the cap — a whole-class block spanning hundreds of lines is too
+    coarse to be precise context, so excluding it lets the enclosed method
+    blocks (also enumerated here) stand in at function granularity.
+    ``focus_lines`` narrows each kept block to its densest query window, trading
+    a little recall for precision at the ContextBench balance-point granularity.
     """
     scored = []
     for start, end, name in enclosing_blocks(lines):
+        if max_block_lines is not None and end - start + 1 > max_block_lines:
+            continue
         body_tokens = set(prose_tokens(" ".join(lines[start - 1:end])))
         weight = sum(terms[t] * idf.get(t, 0.0) for t in body_tokens if t in terms)
         if weight:
             scored.append((weight, start, end, name))
     scored.sort(key=lambda item: (-item[0], item[1]))
     top = scored[:max_blocks]
-    spans = sorted((start, end) for _, start, end, _ in top)
+    spans = [
+        focus_window(lines, (start, end), terms, idf, focus_lines)
+        if focus_lines is not None else (start, end)
+        for _, start, end, _ in top
+    ]
     symbols = [name for _, _, _, name in top]
-    return spans, symbols
+    return sorted(spans), symbols
 
 
 def enrich_context_spans(
     context: RepoContext, query: str, workdir: Path,
-    *, max_blocks: int = _DEFAULT_MAX_BLOCKS,
+    *, max_blocks: int = _DEFAULT_MAX_BLOCKS, max_block_lines: int | None = None,
+    focus_lines: int | None = None,
 ) -> RepoContext:
     """Predict function-block spans + symbols for every file in a context.
 
@@ -702,6 +746,8 @@ def enrich_context_spans(
     each retrieved file's def/class blocks against the query and predicting the
     top blocks' whole spans and names — matching the block granularity of the
     gold context so line- and symbol-level scores reflect real predictions.
+    ``max_block_lines`` caps block size so coarse whole-class spans give way to
+    their enclosed methods (keeps line/symbol precision from collapsing).
     """
     workdir = Path(workdir)
     wanted = set(context.files)
@@ -713,11 +759,269 @@ def enrich_context_spans(
     spans, symbols = {}, {}
     for rel, text in texts.items():
         block_spans, block_symbols = predict_blocks(
-            terms, idf, text.splitlines(), max_blocks
+            terms, idf, text.splitlines(), max_blocks,
+            max_block_lines=max_block_lines, focus_lines=focus_lines,
         )
         spans[rel] = block_spans
         symbols[rel] = block_symbols
     return RepoContext(context.files, spans, symbols)
+
+
+_BLOCK_RERANK_MAX_NEW_TOKENS = 512
+_DEFAULT_BLOCK_CANDIDATES = 6
+_DEFAULT_MAX_BLOCK_LINES = 120
+
+
+def _block_rows(context: RepoContext, workdir: Path) -> list[tuple[str, int, int, str]]:
+    """Flatten a context's per-file candidate spans into (path, start, end, name)."""
+    rows: list[tuple[str, int, int, str]] = []
+    for rel in context.files:
+        spans = context.spans.get(rel, [])
+        if not spans:
+            continue
+        try:
+            lines = (workdir / rel).read_text(encoding="utf-8", errors="ignore").splitlines()
+        except OSError:
+            continue
+        names = {(start, end): name for start, end, name in enclosing_blocks(lines)}
+        rows.extend((rel, start, end, names.get((start, end), "")) for start, end in spans)
+    return rows
+
+
+def _blocks_listing(rows: list[tuple[str, int, int, str]], workdir: Path) -> str:
+    """A numbered listing of candidate blocks (path::name + snippet) for the prompt."""
+    parts = []
+    for index, (rel, start, end, name) in enumerate(rows):
+        label = f"{rel}::{name}" if name else rel
+        snippet = _rerank_snippet(workdir, rel, [(start, end)])
+        parts.append(f"[{index}] {label} (lines {start}-{end})\n{snippet}")
+    return "\n".join(parts)
+
+
+def _build_block_rerank_prompt(query: str, listing: str) -> str:
+    """Prompt asking the model to select the blocks that are the relevant context."""
+    return (
+        "You are selecting the code blocks that form the relevant CONTEXT for a "
+        "software issue — the functions or classes a developer must read or change "
+        "to resolve it. From the numbered candidate blocks below, return ONLY a "
+        "JSON array of the numbers of the relevant blocks, most relevant first. Be "
+        "selective: include a block only if its code is directly involved.\n\n"
+        f"Issue:\n{query}\n\nCandidate blocks:\n{listing}\n"
+    )
+
+
+def _parse_block_selection(
+    raw: str, rows: list[tuple[str, int, int, str]]
+) -> set[tuple[str, int]]:
+    """Parse the model's chosen block indices into (path, start) keys."""
+    match = re.search(r"\[.*\]", raw, re.DOTALL)
+    if not match:
+        return set()
+    try:
+        picks = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return set()
+    return {
+        (rows[pick][0], rows[pick][1])
+        for pick in picks
+        if isinstance(pick, int) and 0 <= pick < len(rows)
+    }
+
+
+def _context_from_blocks(
+    files: tuple[str, ...], rows: list[tuple[str, int, int, str]]
+) -> RepoContext:
+    """Rebuild a RepoContext from the selected block rows (files preserved)."""
+    spans: dict[str, list[tuple[int, int]]] = {}
+    symbols: dict[str, list[str]] = {}
+    for rel, start, end, name in rows:
+        spans.setdefault(rel, []).append((start, end))
+        if name:
+            symbols.setdefault(rel, []).append(name)
+    return RepoContext(files, spans, symbols)
+
+
+class BlockRerankingRetriever(RepoContextRetriever):
+    """Two-stage RAG: file localisation, then a backend selects relevant blocks.
+
+    The inner retriever localises files; this stage enriches each with candidate
+    def/class blocks and asks the backend which blocks are the context relevant
+    to the issue. Selecting blocks — rather than dumping every candidate the way
+    a bare :func:`enrich_context_spans` pass does — keeps line and symbol
+    *precision* high while retaining the recall of block-granular spans, the
+    level ContextBench's gold context is defined at. ``votes > 1`` unions
+    repeated selections (self-consistency).
+    """
+
+    def __init__(
+        self,
+        inner: RepoContextRetriever,
+        backend: _Backend,
+        *,
+        block_candidates: int = _DEFAULT_BLOCK_CANDIDATES,
+        max_block_lines: int | None = _DEFAULT_MAX_BLOCK_LINES,
+        focus_lines: int | None = None,
+        max_new_tokens: int = _BLOCK_RERANK_MAX_NEW_TOKENS,
+        votes: int = 1,
+    ) -> None:
+        self._inner = inner
+        self._backend = backend
+        self._block_candidates = max(1, block_candidates)
+        self._max_block_lines = max_block_lines
+        self._focus_lines = focus_lines
+        self._max_new_tokens = max_new_tokens
+        self._votes = max(1, votes)
+
+    def retrieve(self, query: str, workdir: Path) -> RepoContext:
+        """Localise files, then keep the backend-selected candidate blocks."""
+        workdir = Path(workdir)
+        context = enrich_context_spans(
+            self._inner.retrieve(query, workdir), query, workdir,
+            max_blocks=self._block_candidates, max_block_lines=self._max_block_lines,
+            focus_lines=self._focus_lines,
+        )
+        rows = _block_rows(context, workdir)
+        if not rows:
+            return context
+        prompt = _build_block_rerank_prompt(query, _blocks_listing(rows, workdir))
+        chosen = self._vote(prompt, rows) or rows
+        return _context_from_blocks(context.files, chosen)
+
+    def _vote(
+        self, prompt: str, rows: list[tuple[str, int, int, str]]
+    ) -> list[tuple[str, int, int, str]]:
+        """Union the block selection across ``votes`` runs, preserving order."""
+        picked: set[tuple[str, int]] = set()
+        for _ in range(self._votes):
+            raw = self._backend.generate(prompt, self._max_new_tokens)
+            picked.update(_parse_block_selection(raw, rows))
+        return [row for row in rows if (row[0], row[1]) in picked]
+
+
+_ITER_ROUNDS = 3
+_ITER_MAX_NEW_TOKENS = 512
+
+
+@dataclass(frozen=True)
+class _IterStep:
+    """One round's outcome: selected block rows, the next query, and a stop flag."""
+
+    rows: tuple[tuple[str, int, int, str], ...]
+    next_query: str
+    done: bool
+
+
+def _build_iter_prompt(query: str, listing: str, selected_count: int) -> str:
+    """Prompt for one retrieval round: select blocks and propose the next search."""
+    return (
+        "You are iteratively retrieving the code context needed to resolve an "
+        f"issue. You have selected {selected_count} block(s) so far. From the "
+        "candidate blocks below, return ONLY a JSON object: "
+        '{"blocks": [indices of the directly relevant blocks], '
+        '"next_query": "search terms for code you still need, empty if done", '
+        '"done": true or false}. Select only blocks whose code is directly '
+        "involved.\n\n"
+        f"Issue:\n{query}\n\nCandidate blocks:\n{listing}\n"
+    )
+
+
+def _parse_iter_response(
+    raw: str, rows: list[tuple[str, int, int, str]]
+) -> _IterStep:
+    """Parse one round's JSON object into selected rows, next query and stop flag."""
+    match = re.search(r"\{.*\}", raw, re.DOTALL)
+    if not match:
+        return _IterStep((), "", True)
+    try:
+        obj = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return _IterStep((), "", True)
+    picks = obj.get("blocks", []) if isinstance(obj, dict) else []
+    chosen = tuple(
+        rows[pick] for pick in picks
+        if isinstance(pick, int) and 0 <= pick < len(rows)
+    )
+    return _IterStep(chosen, str(obj.get("next_query", "")), bool(obj.get("done", False)))
+
+
+class IterativeRetriever(RepoContextRetriever):
+    """Agentic multi-round retrieval: explore, select blocks, repeat.
+
+    Mirrors the ContextBench SOTA mechanism — a coding agent gathers context over
+    several rounds rather than in one shot. Each round the backend selects the
+    relevant blocks from the current candidate pool *and* proposes the next search
+    query, which widens the pool with newly relevant files; selections accumulate
+    until the backend signals it has enough or the round budget runs out.
+    ``focus_lines`` keeps each block at the balance-point granularity.
+    """
+
+    def __init__(
+        self,
+        base: RepoContextRetriever,
+        backend: _Backend,
+        *,
+        rounds: int = _ITER_ROUNDS,
+        block_candidates: int = _DEFAULT_BLOCK_CANDIDATES,
+        max_block_lines: int | None = _DEFAULT_MAX_BLOCK_LINES,
+        focus_lines: int | None = None,
+        max_new_tokens: int = _ITER_MAX_NEW_TOKENS,
+    ) -> None:
+        self._base = base
+        self._backend = backend
+        self._rounds = max(1, rounds)
+        self._block_candidates = max(1, block_candidates)
+        self._max_block_lines = max_block_lines
+        self._focus_lines = focus_lines
+        self._max_new_tokens = max_new_tokens
+
+    def retrieve(self, query: str, workdir: Path) -> RepoContext:
+        """Gather context over up to ``rounds`` explore-and-select rounds.
+
+        The answer is the blocks the backend *selected*, not every file it
+        browsed while exploring — so the predicted file set stays the relevant
+        subset and precision does not collapse under wide exploration.
+        """
+        workdir = Path(workdir)
+        selected: dict[tuple[str, int], tuple[str, int, int, str]] = {}
+        search = query
+        for _ in range(self._rounds):
+            rows = self._candidate_rows(search, query, workdir)
+            if not rows:
+                break
+            step = self._select(query, rows, workdir, len(selected))
+            for row in step.rows:
+                selected[(row[0], row[1])] = row
+            if step.done or not step.next_query.strip():
+                break
+            search = step.next_query
+        final_rows = list(selected.values())
+        files = tuple(dict.fromkeys(row[0] for row in final_rows))
+        return _context_from_blocks(files, final_rows)
+
+    def _candidate_rows(
+        self, search: str, query: str, workdir: Path
+    ) -> list[tuple[str, int, int, str]]:
+        """Retrieve + enrich this round's candidate block pool.
+
+        Block relevance is scored against the round's own ``search`` terms (plus
+        the standing issue ``query``) so a file surfaced by an exploration query
+        still gets its blocks predicted instead of scoring zero under the
+        original issue text.
+        """
+        context = enrich_context_spans(
+            self._base.retrieve(search, workdir), f"{query}\n{search}", workdir,
+            max_blocks=self._block_candidates, max_block_lines=self._max_block_lines,
+            focus_lines=self._focus_lines,
+        )
+        return _block_rows(context, workdir)
+
+    def _select(
+        self, query: str, rows: list[tuple[str, int, int, str]],
+        workdir: Path, selected_count: int,
+    ) -> _IterStep:
+        """Run the backend for one round and parse its selection + next query."""
+        prompt = _build_iter_prompt(query, _blocks_listing(rows, workdir), selected_count)
+        return _parse_iter_response(self._backend.generate(prompt, self._max_new_tokens), rows)
 
 
 class GraphExpandedRetriever(RepoContextRetriever):
@@ -808,6 +1112,20 @@ def _build_query_rewrite(**options) -> RepoContextRetriever:
     return QueryRewritingRetriever(base, backend)
 
 
+def _build_block_rerank(**options) -> RepoContextRetriever:
+    """Factory helper: block-reranking retriever over a file-level rerank base."""
+    backend = options.pop("backend")
+    base = options.pop("base", None) or _build_rerank(backend=backend)
+    return BlockRerankingRetriever(base, backend, **options)
+
+
+def _build_iterative(**options) -> RepoContextRetriever:
+    """Factory helper: iterative multi-round retriever over a lexical base."""
+    backend = options.pop("backend")
+    base = options.pop("base", None) or LexicalRepoRetriever(top_k=_DEFAULT_CANDIDATE_K)
+    return IterativeRetriever(base, backend, **options)
+
+
 def create_repo_retriever(kind: str = "lexical", **options) -> RepoContextRetriever:
     """Factory: build a repository context retriever by strategy name."""
     builders = {
@@ -816,6 +1134,8 @@ def create_repo_retriever(kind: str = "lexical", **options) -> RepoContextRetrie
         "structural": _build_structural,
         "graph": _build_graph,
         "rerank": _build_rerank,
+        "block_rerank": _build_block_rerank,
+        "iterative": _build_iterative,
         "query_rewrite": _build_query_rewrite,
     }
     if kind not in builders:

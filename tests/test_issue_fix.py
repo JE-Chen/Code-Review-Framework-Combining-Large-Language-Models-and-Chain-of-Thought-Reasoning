@@ -12,8 +12,10 @@ from prthinker.issue_fix import (
     IssueFixProposal,
     IssueFixProposer,
     _apply_edit,
+    _distinct,
     _edit_line_range,
     _extract_edits,
+    _span_window,
     _syntax_ok,
     apply_to_workdir,
     build_patch,
@@ -45,6 +47,19 @@ class _FixedRetriever(RepoContextRetriever):
 
     def retrieve(self, query: str, workdir: Path) -> RepoContext:
         return RepoContext(files=self._files)
+
+
+class _SpannedRetriever(RepoContextRetriever):
+    """Localises to fixed files with predicted line spans."""
+
+    def __init__(
+        self, files: tuple[str, ...], spans: dict[str, list[tuple[int, int]]]
+    ) -> None:
+        self._files = files
+        self._spans = spans
+
+    def retrieve(self, query: str, workdir: Path) -> RepoContext:
+        return RepoContext(files=self._files, spans=self._spans)
 
 
 class _ScriptedBackend:
@@ -202,6 +217,110 @@ def test_validate_fix_passes_and_applies(tmp_path):
     v = validate_fix(_valid_proposal(), tmp_path, ("noop",), _FakeExecutor(0))
     assert v.passed and v.exit_code == 0
     assert (tmp_path / "a.py").read_text(encoding="utf-8") == "x = 2\n"  # applied
+
+
+# --------------------------------------------------------------------------
+# self-consistent localised files (edited files are part of the proposal)
+# --------------------------------------------------------------------------
+
+def test_distinct_preserves_first_seen_order():
+    assert _distinct(["a", "b", "a", "c", "b"]) == ("a", "b", "c")
+    assert _distinct([]) == ()
+
+
+def test_edited_files_property_dedupes_in_order():
+    proposal = IssueFixProposal(edits=(
+        FixEdit("b.py", "x", "y"), FixEdit("a.py", "p", "q"),
+        FixEdit("b.py", "m", "n"),  # duplicate file
+    ))
+    assert proposal.edited_files == ("b.py", "a.py")
+    assert IssueFixProposal().edited_files == ()
+
+
+def test_localized_files_include_files_the_model_edited(tmp_path):
+    # The retriever surfaces a.py, but the model edits b.py (append mode). The
+    # proposal must still declare b.py localised — you cannot edit a file you
+    # did not localise. This is the file-metric consistency guarantee.
+    (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "b.py").write_text("y = 1\n", encoding="utf-8")
+    backend = _ScriptedBackend([_edits_json([
+        {"file": "b.py", "original": "", "replacement": "z = 2"}
+    ])])
+    proposer = IssueFixProposer(_FixedRetriever(("a.py",)), backend, max_retries=0)
+    proposal = proposer.propose("touch b", tmp_path)
+    assert proposal.valid
+    assert proposal.localized_files == ("a.py", "b.py")
+
+
+def test_localized_files_union_holds_on_invalid_proposal(tmp_path):
+    (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
+    backend = _ScriptedBackend([_edits_json([
+        {"file": "c.py", "original": "NOPE", "replacement": "z"}  # will not apply
+    ])])
+    proposer = IssueFixProposer(_FixedRetriever(("a.py",)), backend, max_retries=0)
+    proposal = proposer.propose("bad", tmp_path)
+    assert not proposal.valid
+    assert proposal.localized_files == ("a.py", "c.py")  # both still declared
+
+
+# --------------------------------------------------------------------------
+# span-centred file windows in the fix prompt
+# --------------------------------------------------------------------------
+
+def _big_file(marker_line: int, total: int = 200) -> str:
+    # comment filler keeps the whole module syntactically valid so an edit to
+    # the one real statement passes the proposer's syntax gate.
+    lines = [f"# filler line number {i:04d} padding padding padding" for i in range(total)]
+    lines[marker_line] = "TARGET_SNIPPET = 12345  # the line to edit"
+    return "\n".join(lines) + "\n"
+
+
+def test_span_window_covers_span_and_is_a_verbatim_substring():
+    text = _big_file(150)
+    window = _span_window(text, [(151, 151)])  # 1-based line of the marker
+    assert "TARGET_SNIPPET" in window
+    assert window in text          # exact substring -> a copied edit still applies
+    assert len(window) <= 4000     # capped
+
+
+def test_span_window_preserves_crlf_line_endings():
+    text = "a = 1\r\nb = 2\r\nTARGET\r\nc = 3\r\n"
+    window = _span_window(text, [(3, 3)])
+    assert "TARGET" in window
+    assert window in text  # CRLF kept, so the excerpt is a real substring
+
+
+def test_span_window_clamps_margin_at_file_bounds():
+    text = "one\ntwo\nthree\n"
+    assert _span_window(text, [(1, 3)]) in text  # no negative / overflow slice
+
+
+def test_file_block_small_file_shown_whole_ignoring_spans(tmp_path):
+    (tmp_path / "s.py").write_text("x = 1\n", encoding="utf-8")
+    block = IssueFixProposer._file_block("s.py", tmp_path, [(1, 1)])
+    assert block == "# s.py\nx = 1\n\n"
+
+
+def test_file_block_large_file_windows_around_spans(tmp_path):
+    (tmp_path / "big.py").write_text(_big_file(150), encoding="utf-8")
+    windowed = IssueFixProposer._file_block("big.py", tmp_path, [(151, 151)])
+    head = IssueFixProposer._file_block("big.py", tmp_path, None)
+    assert "excerpt around the relevant lines" in windowed
+    assert "TARGET_SNIPPET" in windowed          # relevant region survives
+    assert "TARGET_SNIPPET" not in head          # head truncation would miss it
+
+
+def test_build_prompt_shows_span_excerpt_for_large_file(tmp_path):
+    (tmp_path / "big.py").write_text(_big_file(150), encoding="utf-8")
+    backend = _ScriptedBackend([_edits_json([
+        {"file": "big.py", "original": "TARGET_SNIPPET = 12345",
+         "replacement": "TARGET_SNIPPET = 999"}
+    ])])
+    retriever = _SpannedRetriever(("big.py",), {"big.py": [(151, 151)]})
+    proposer = IssueFixProposer(retriever, backend, max_retries=0)
+    proposal = proposer.propose("fix the target", tmp_path)
+    assert proposal.valid                         # editable region was in view
+    assert "TARGET_SNIPPET" in backend.prompts[0]
 
 
 def test_validate_fix_fails_on_nonzero_exit(tmp_path):

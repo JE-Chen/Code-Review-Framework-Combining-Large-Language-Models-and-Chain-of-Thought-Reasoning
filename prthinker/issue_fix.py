@@ -19,6 +19,7 @@ import ast
 import difflib
 import json
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -33,9 +34,21 @@ from prthinker.repo_retrieval import (
 _DEFAULT_MAX_NEW_TOKENS = 2048
 _DEFAULT_MAX_RETRIES = 1
 _CONTEXT_FILE_CHARS = 4000
+_SPAN_WINDOW_MARGIN = 40
 _VALIDATION_OUTPUT_CAP = 4000
 _DEFAULT_TEST_TIMEOUT = 600.0
 _JSON_ARRAY_RE = re.compile(r"\[.*\]", re.DOTALL)
+
+
+def _distinct(paths: Iterable[str]) -> tuple[str, ...]:
+    """Distinct paths in first-seen order."""
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for path in paths:
+        if path not in seen:
+            seen.add(path)
+            ordered.append(path)
+    return tuple(ordered)
 
 
 class _Backend(Protocol):
@@ -63,6 +76,11 @@ class IssueFixProposal:
     valid: bool = False
     reason: str = ""
 
+    @property
+    def edited_files(self) -> tuple[str, ...]:
+        """Distinct files the edits touch, in first-seen order."""
+        return _distinct(edit.file for edit in self.edits)
+
 
 def _extract_edits(raw: str) -> list[FixEdit]:
     """Parse the model's JSON edit array into FixEdit records (lenient)."""
@@ -78,6 +96,21 @@ def _extract_edits(raw: str) -> list[FixEdit]:
         if isinstance(row, dict) and row.get("file") and "replacement" in row:
             edits.append(FixEdit(row["file"], row.get("original", ""), row["replacement"]))
     return edits
+
+
+def _span_window(text: str, spans: list[tuple[int, int]]) -> str:
+    """A contiguous excerpt covering the predicted spans plus a line margin.
+
+    Head-truncating a large file blinds the model to relevant code past the
+    char cap; centring the window on the retriever's predicted spans keeps the
+    editable region in view so a verbatim ``original`` snippet stays copyable.
+    ``keepends=True`` preserves the file's own line endings, so the excerpt is
+    an exact substring of ``text`` and the resulting edit still applies.
+    """
+    lines = text.splitlines(keepends=True)
+    low = max(0, min(start for start, _ in spans) - 1 - _SPAN_WINDOW_MARGIN)
+    high = min(len(lines), max(end for _, end in spans) + _SPAN_WINDOW_MARGIN)
+    return "".join(lines[low:high])[:_CONTEXT_FILE_CHARS]
 
 
 def _apply_edit(text: str, edit: FixEdit) -> str | None:
@@ -267,7 +300,7 @@ class IssueFixProposer:
         files = context.files
         if not files:
             return IssueFixProposal(reason="no files localised")
-        prompt = self._build_prompt(issue, files, workdir)
+        prompt = self._build_prompt(issue, context, workdir)
         return self._propose_with_retries(prompt, files, workdir)
 
     def _propose_with_retries(
@@ -281,9 +314,10 @@ class IssueFixProposer:
             edits = tuple(_extract_edits(raw))
             valid, reason = self._validate(edits, workdir)
             if valid:
-                return IssueFixProposal(files, edits, True)
+                return IssueFixProposal(_distinct((*files, *(edit.file for edit in edits))), edits, True)
             prompt = f"{prompt}\n\nYour previous edits were invalid: {reason}\nFix them."
-        return IssueFixProposal(files, edits, False, reason)
+        return IssueFixProposal(
+            _distinct((*files, *(edit.file for edit in edits))), edits, False, reason)
 
     def _validate(self, edits: tuple[FixEdit, ...], workdir: Path) -> tuple[bool, str]:
         """Every edit must apply and leave valid syntax (SWE-agent linter gate)."""
@@ -302,9 +336,10 @@ class IssueFixProposer:
                 return False, f"{edit.file}: edit produces invalid syntax"
         return True, ""
 
-    def _build_prompt(self, issue: str, files: tuple[str, ...], workdir: Path) -> str:
+    def _build_prompt(self, issue: str, context: RepoContext, workdir: Path) -> str:
         """Assemble the issue + localised file contents into a fix prompt."""
-        blocks = [self._file_block(rel, workdir) for rel in files]
+        blocks = [self._file_block(rel, workdir, context.spans.get(rel))
+                  for rel in context.files]
         return (
             "Propose the minimal code edits that resolve the issue below. "
             "Return ONLY a JSON array; each element is "
@@ -315,10 +350,19 @@ class IssueFixProposer:
         )
 
     @staticmethod
-    def _file_block(rel: str, workdir: Path) -> str:
-        """A capped view of one localised file for the fix prompt."""
+    def _file_block(
+        rel: str, workdir: Path, spans: list[tuple[int, int]] | None = None
+    ) -> str:
+        """A capped view of one localised file for the fix prompt.
+
+        A file within the char cap is shown whole; a larger one is windowed
+        around the retriever's predicted spans so the editable region survives
+        truncation, falling back to the head only when no span is available.
+        """
         try:
             text = (workdir / rel).read_text(encoding="utf-8", errors="ignore")
         except OSError:
             return f"# {rel}\n(unreadable)\n"
-        return f"# {rel}\n{text[:_CONTEXT_FILE_CHARS]}\n"
+        if len(text) <= _CONTEXT_FILE_CHARS or not spans:
+            return f"# {rel}\n{text[:_CONTEXT_FILE_CHARS]}\n"
+        return f"# {rel} (excerpt around the relevant lines)\n{_span_window(text, spans)}\n"

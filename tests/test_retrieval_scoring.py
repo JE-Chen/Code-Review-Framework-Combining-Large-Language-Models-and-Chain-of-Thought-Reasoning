@@ -99,6 +99,29 @@ def test_gold_symbols_extracts_def_and_class_names():
     assert gold_symbols(spans) == {"Widget", "render", "helper"}
 
 
+def test_gold_symbols_ast_ignores_def_in_strings_and_comments():
+    # A real AST parse must not count "def"/"class" tokens inside a docstring or
+    # comment — the regex fallback would over-count these as symbols.
+    spans = [{"file": "a.py", "content":
+              'def real():\n    "def fake(): pass"\n    # class Ghost:\n    return 1\n'}]
+    assert gold_symbols(spans) == {"real"}
+
+
+def test_gold_symbols_ast_handles_indented_method_snippet():
+    from prthinker.retrieval_scoring import _ast_symbols
+
+    # An indented method body (not a valid module as-is) parses after dedent.
+    assert _ast_symbols("    def method(self):\n        return 1\n") == {"method"}
+
+
+def test_gold_symbols_regex_fallback_on_unparseable_snippet():
+    from prthinker.retrieval_scoring import _ast_symbols
+
+    snippet = "def broken(:\n    class C:\n"  # syntactically invalid
+    assert _ast_symbols(snippet) is None                       # AST gives up
+    assert gold_symbols([{"content": snippet}]) == {"broken", "C"}  # regex fallback
+
+
 def test_score_symbols_overlap():
     gold = [{"file": "a.py", "content": "def f():\n    pass\nclass C:\n    pass\n"}]
     pred = {"a.py": ["f", "other"]}  # 1 of 2 gold symbols, 1 wrong

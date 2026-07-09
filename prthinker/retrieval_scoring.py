@@ -16,13 +16,16 @@ Runner-safe: pure stdlib.
 
 from __future__ import annotations
 
+import ast
 import re
+import textwrap
 from dataclasses import dataclass
 from typing import Any, Iterable, Sequence
 
 _START_KEYS = ("start", "start_line")
 _END_KEYS = ("end", "end_line")
 _SYMBOL_RE = re.compile(r"(?:def|class)\s+([A-Za-z_]\w*)")
+_DEF_NODES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 
 
 @dataclass(frozen=True)
@@ -123,16 +126,35 @@ def score_retrieval_case(
     )
 
 
-def gold_symbols(gold_spans: Iterable[dict]) -> set[str]:
-    """Best-effort def/class names defined in the gold span ``content`` fields.
+def _ast_symbols(source: str) -> set[str] | None:
+    """def/class names via a real AST parse, or None if the snippet won't parse.
 
-    Approximate: the official evaluator derives symbols with a full AST parser;
-    this regex over the gold content is a local stand-in, so symbol scores are
-    indicative, not official.
+    Closer to the official evaluator's AST extraction than the regex: it ignores
+    ``def``/``class`` tokens inside strings and comments, so it does not
+    over-count. A gold snippet is often an indented method body, so a raw parse
+    is retried after dedenting before giving up.
+    """
+    for candidate in (source, textwrap.dedent(source)):
+        try:
+            tree = ast.parse(candidate)
+        except (SyntaxError, ValueError):
+            continue
+        return {node.name for node in ast.walk(tree) if isinstance(node, _DEF_NODES)}
+    return None
+
+
+def gold_symbols(gold_spans: Iterable[dict]) -> set[str]:
+    """def/class names defined in the gold span ``content`` fields.
+
+    Uses a real AST parse when the content is parseable (matching the official
+    evaluator's AST-based symbol extraction) and falls back to a regex only for
+    snippets that do not parse standalone.
     """
     names: set[str] = set()
     for span in gold_spans:
-        names.update(_SYMBOL_RE.findall(str(span.get("content", ""))))
+        content = str(span.get("content", ""))
+        ast_names = _ast_symbols(content)
+        names.update(ast_names if ast_names is not None else _SYMBOL_RE.findall(content))
     return names
 
 
