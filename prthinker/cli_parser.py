@@ -109,9 +109,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     sub = parser.add_subparsers(dest="command", required=True)
+    _register_subcommands(sub, _build_common_parser())
+    return parser
 
-    common = _build_common_parser()
 
+def _register_subcommands(sub, common: argparse.ArgumentParser) -> None:
+    """Attach every subcommand parser to the shared subparsers object."""
     add_review_pr_parser(sub, common)
     add_pr_summary_parser(sub, common)
     add_review_file_parser(sub, common)
@@ -142,8 +145,6 @@ def _build_parser() -> argparse.ArgumentParser:
     add_attest_parser(sub)
     add_issue_fix_parser(sub, common)
     add_issue_autofix_parser(sub, common)
-
-    return parser
 
 
 def add_triage_parser(sub) -> None:
@@ -261,20 +262,7 @@ def _add_review_pr_gate_args(p_pr: argparse.ArgumentParser) -> None:
         help="Base branch for the auto-fix PR (defaults to the original "
         "PR's base branch, fetched from the GitHub API).",
     )
-    p_pr.add_argument(
-        "--auto-file-issues",
-        choices=["none", "off-diff", "all"],
-        default=env_str("PRTHINKER_AUTO_FILE_ISSUES", "none"),
-        help="File findings as tracker issues: 'off-diff' files only the "
-        "findings outside the diff hunks (which cannot be posted inline), "
-        "'all' files every finding. Deduplicated by a fingerprint marker "
-        "in the issue body. GitHub and GitLab; 'none' disables.",
-    )
-    p_pr.add_argument(
-        "--issue-labels",
-        default=env_str("PRTHINKER_ISSUE_LABELS", "prthinker"),
-        help="Comma-separated labels for auto-filed issues.",
-    )
+    _add_review_pr_issue_args(p_pr)
     p_pr.add_argument(
         "--gate-on",
         choices=["none", "warning", "error"],
@@ -296,6 +284,24 @@ def _add_review_pr_gate_args(p_pr: argparse.ArgumentParser) -> None:
         "--ci-signal-tail-chars",
         type=int,
         default=int(env_str("PRTHINKER_CI_SIGNAL_TAIL_CHARS", "4000") or 4000),
+    )
+
+
+def _add_review_pr_issue_args(p_pr: argparse.ArgumentParser) -> None:
+    """Add the auto-file-issues arguments to ``review-pr``."""
+    p_pr.add_argument(
+        "--auto-file-issues",
+        choices=["none", "off-diff", "all"],
+        default=env_str("PRTHINKER_AUTO_FILE_ISSUES", "none"),
+        help="File findings as tracker issues: 'off-diff' files only the "
+        "findings outside the diff hunks (which cannot be posted inline), "
+        "'all' files every finding. Deduplicated by a fingerprint marker "
+        "in the issue body. GitHub and GitLab; 'none' disables.",
+    )
+    p_pr.add_argument(
+        "--issue-labels",
+        default=env_str("PRTHINKER_ISSUE_LABELS", "prthinker"),
+        help="Comma-separated labels for auto-filed issues.",
     )
 
 
@@ -498,6 +504,11 @@ def add_report_parser(sub) -> None:
         default=None,
         help="Write to file instead of stdout.",
     )
+    _add_report_store_args(p_report)
+
+
+def _add_report_store_args(p_report: argparse.ArgumentParser) -> None:
+    """Add the store-path arguments to ``report``."""
     p_report.add_argument(
         "--telemetry-path",
         type=Path,

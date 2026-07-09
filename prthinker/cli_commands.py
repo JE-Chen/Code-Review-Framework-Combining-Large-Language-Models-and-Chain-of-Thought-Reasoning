@@ -297,28 +297,7 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
         return 0
 
     gate_handle = _open_aggregate_gate(args, adapter)
-
-    _agg_delta, _agg_resolved = _review_progress(args, adapter, merged)
-    pages = format_pr_comment_pages(
-        merged,
-        args.marker,
-        CommentOptions(
-            findings_only=getattr(args, "findings_only", False),
-            hide_info=getattr(args, "hide_info", False),
-            preliminary=_join_overview(
-                _build_preliminary_overview(args, adapter, merged),
-                _impact_note(args, merged),
-                _agg_resolved,
-            ),
-            files_url=_pr_files_url(args),
-            delta=_agg_delta,
-            min_confidence=getattr(args, "summary_min_confidence", 0.0),
-            table=getattr(args, "summary_table", False),
-            gate=_gate_line(args, merged),
-        ),
-    )
-    _append_report_links(args, pages)
-    _append_review_footer(args, merged, pages)
+    pages = _aggregate_comment_pages(args, adapter, merged)
     _maybe_write_job_summary(pages[0])
     _write_aggregate_artifacts(args, merged)
     if args.dry_run:
@@ -334,6 +313,34 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
     _maybe_update_pr_body(args, adapter, merged)
 
     return 0
+
+
+def _aggregate_comment_pages(
+    args: argparse.Namespace, adapter, merged: ReviewResult
+) -> list[str]:
+    """Render the merged review into summary-comment pages plus footers."""
+    delta, resolved = _review_progress(args, adapter, merged)
+    pages = format_pr_comment_pages(
+        merged,
+        args.marker,
+        CommentOptions(
+            findings_only=getattr(args, "findings_only", False),
+            hide_info=getattr(args, "hide_info", False),
+            preliminary=_join_overview(
+                _build_preliminary_overview(args, adapter, merged),
+                _impact_note(args, merged),
+                resolved,
+            ),
+            files_url=_pr_files_url(args),
+            delta=delta,
+            min_confidence=getattr(args, "summary_min_confidence", 0.0),
+            table=getattr(args, "summary_table", False),
+            gate=_gate_line(args, merged),
+        ),
+    )
+    _append_report_links(args, pages)
+    _append_review_footer(args, merged, pages)
+    return pages
 
 
 _STATUS_PLACEHOLDER = (

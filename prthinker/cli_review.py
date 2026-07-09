@@ -805,16 +805,10 @@ def _cmd_pr_summary(args: argparse.Namespace) -> int:
     return 0
 
 
-def _publish_review_result(
-    args: argparse.Namespace,
-    adapter: object,
-    result: ReviewResult,
-    gate_handle: object | None,
-    platform_kind: object,
-) -> int:
-    """Post comment + inline review, close the gate, and trigger auto-fix."""
-    _postprocess_findings(args, result)
-    _emit_review_artifacts(args, result)
+def _review_comment_pages(
+    args: argparse.Namespace, adapter: object, result: ReviewResult
+) -> list[str]:
+    """Render the review into summary-comment pages plus footers."""
     posted_count, off_diff = _inline_post_breakdown(args, result)
     delta_line, progress_block = _review_progress(args, adapter, result)
     files_url = _pr_files_url(args)
@@ -841,6 +835,20 @@ def _publish_review_result(
     )
     _append_report_links(args, pages)
     _append_review_footer(args, result, pages)
+    return pages
+
+
+def _publish_review_result(
+    args: argparse.Namespace,
+    adapter: object,
+    result: ReviewResult,
+    gate_handle: object | None,
+    platform_kind: object,
+) -> int:
+    """Post comment + inline review, close the gate, and trigger auto-fix."""
+    _postprocess_findings(args, result)
+    _emit_review_artifacts(args, result)
+    pages = _review_comment_pages(args, adapter, result)
     _maybe_write_job_summary(pages[0])
     if getattr(args, "api_impact", False):
         pages[-1] = _append_api_impact(pages[-1], result)

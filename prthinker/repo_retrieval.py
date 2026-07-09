@@ -715,6 +715,21 @@ def predict_blocks(
     ``focus_lines`` narrows each kept block to its densest query window, trading
     a little recall for precision at the ContextBench balance-point granularity.
     """
+    top = _scored_blocks(terms, idf, lines, max_block_lines)[:max_blocks]
+    spans = [
+        focus_window(lines, (start, end), terms, idf, focus_lines)
+        if focus_lines is not None else (start, end)
+        for _, start, end, _ in top
+    ]
+    symbols = [name for _, _, _, name in top]
+    return sorted(spans), symbols
+
+
+def _scored_blocks(
+    terms: Counter, idf: dict[str, float], lines: list[str],
+    max_block_lines: int | None,
+) -> list[tuple[float, int, int, str]]:
+    """Blocks under the line cap by IDF-weighted query-term mass, best first."""
     scored = []
     for start, end, name in enclosing_blocks(lines):
         if max_block_lines is not None and end - start + 1 > max_block_lines:
@@ -724,14 +739,7 @@ def predict_blocks(
         if weight:
             scored.append((weight, start, end, name))
     scored.sort(key=lambda item: (-item[0], item[1]))
-    top = scored[:max_blocks]
-    spans = [
-        focus_window(lines, (start, end), terms, idf, focus_lines)
-        if focus_lines is not None else (start, end)
-        for _, start, end, _ in top
-    ]
-    symbols = [name for _, _, _, name in top]
-    return sorted(spans), symbols
+    return scored
 
 
 def enrich_context_spans(
