@@ -56,6 +56,7 @@ jobs:
       files: ${{ steps.list.outputs.files }}
       empty: ${{ steps.list.outputs.empty }}
       skipped: ${{ steps.list.outputs.skipped }}
+      plan_skipped: ${{ steps.list.outputs.plan_skipped }}
       deleted: ${{ steps.list.outputs.deleted }}
     steps:
       # Checkout first so its working-tree clean does not wipe the
@@ -146,19 +147,37 @@ jobs:
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUNNER_TEMP: ${{ runner.temp }}
+          # Keep in sync with the review job's PRTHINKER_STEP_PLAN: when
+          # adaptive, files whose diff classifies as the skip tier
+          # (lockfiles / generated / whitespace-only) are excluded from
+          # the matrix here so no shard is spawned for them at all.
+          PRTHINKER_STEP_PLAN: "adaptive"
         run: |
           set -euo pipefail
+          # Best-effort: the step-plan prefilter needs the runner-profile
+          # prthinker package (earlier installs are continue-on-error).
+          # On failure the inline script degrades to a no-op prefilter.
+          pip install -q -e ".[runner]" || true
           # Pull every PR file with its current blob SHA. The blob SHA
           # is the content hash GitHub itself uses, so comparing it to
           # a previously-recorded value tells us — without any local
           # hashing — whether the file actually changed since then.
+          # `patch` (the per-file unified diff; null for binary/huge
+          # files) feeds the step-plan skip prefilter.
           ALL=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/files?per_page=100" \
-            --jq '[.[] | {path: .filename, sha: .sha, status: .status}]')
+            --jq '[.[] | {path: .filename, sha: .sha, status: .status, patch: .patch}]')
           ALL="$ALL" RUNNER_TEMP="$RUNNER_TEMP" python3 <<'PY'
           import fnmatch, hashlib, json, os, shutil
           from pathlib import Path
 
+          try:
+              from prthinker.matrix_enumerate import should_skip_shard
+          except ImportError:  # runner extras missing — prefilter no-ops
+              def should_skip_shard(path, patch, step_plan):
+                  return False
+
           raw = json.loads(os.environ["ALL"])
+          step_plan = os.environ.get("PRTHINKER_STEP_PLAN", "")
           patterns = [
               p.strip()
               for p in os.environ.get("PRTHINKER_EXCLUDE_GLOBS", "").split(",")
@@ -190,9 +209,17 @@ jobs:
 
           matrix = []
           skipped = 0
+          plan_skipped = []
           for entry in kept:
               path = entry["path"]
               sha = entry["sha"]
+              # Adaptive step-plan prefilter: a skip-tier diff (generated
+              # path or whitespace-only reformatting) never spawns a
+              # shard. A finding-less placeholder partial is emitted
+              # below so the aggregate still counts the file as scanned.
+              if should_skip_shard(path, entry.get("patch") or "", step_plan):
+                  plan_skipped.append(path)
+                  continue
               # Same content as last time AND a stored partial exists?
               # Then re-use the partial and skip the whole matrix shard.
               if prev.get(path) == sha:
@@ -203,6 +230,24 @@ jobs:
                       skipped += 1
                       continue
               matrix.append(path)
+
+          # Plan-skipped files ride the same partial-skipped artifact as
+          # the unchanged reuses, as one finding-less partial, mirroring
+          # the deleted-file shape: aggregate merges them so the full-scan
+          # check does not withhold the report waiting for a shard that
+          # was intentionally never spawned.
+          if plan_skipped:
+              placeholder = {
+                  "code_diff": "", "rag_docs": [], "step_outputs": {},
+                  "inline_findings": [],
+                  "per_file": [
+                      {"path": p, "rag_docs": [], "step_outputs": {},
+                       "inline_findings": []}
+                      for p in plan_skipped
+                  ],
+              }
+              (skipped_dir / "plan-skipped.json").write_text(
+                  json.dumps(placeholder), encoding="utf-8")
 
           # Deleted (status "removed") files never enter the matrix —
           # there is nothing in the head checkout to review — but the PR
@@ -231,14 +276,18 @@ jobs:
           with open(out, "a", encoding="utf-8") as fh:
               fh.write(f"files={json.dumps(matrix)}\n")
               fh.write(f"skipped={skipped}\n")
+              fh.write(f"plan_skipped={len(plan_skipped)}\n")
               fh.write(f"deleted={len(deleted)}\n")
               fh.write(f"empty={'true' if not matrix else 'false'}\n")
           print(f"Matrix ({len(matrix)} files): {matrix}")
           print(f"Skipped (unchanged): {skipped} · deleted: {len(deleted)}")
+          print(f"Skipped (step-plan skip tier): {len(plan_skipped)}: {plan_skipped}")
           PY
 
       - name: Upload reused partials for skipped files
-        if: steps.list.outputs.skipped != '0' && steps.list.outputs.skipped != ''
+        if: >-
+          ${{ (steps.list.outputs.skipped != '0' && steps.list.outputs.skipped != '') ||
+              (steps.list.outputs.plan_skipped != '0' && steps.list.outputs.plan_skipped != '') }}
         uses: actions/upload-artifact@v7
         with:
           name: partial-skipped
@@ -477,14 +526,15 @@ jobs:
   #    that the next push's enumerate will read.
   aggregate:
     needs: [enumerate, review]
-    # Run even when every file was reused (matrix empty but skipped > 0)
-    # because the new PR HEAD still needs its own check-run + comment
-    # upsert. Also runs on partial review failures so successful shards'
-    # findings still get posted.
+    # Run even when every file was reused or plan-skipped (matrix empty
+    # but skipped / plan_skipped > 0) because the new PR HEAD still needs
+    # its own check-run + comment upsert. Also runs on partial review
+    # failures so successful shards' findings still get posted.
     if: >-
       ${{ always() &&
           (needs.enumerate.outputs.empty == 'false' ||
-           needs.enumerate.outputs.skipped != '0') }}
+           needs.enumerate.outputs.skipped != '0' ||
+           needs.enumerate.outputs.plan_skipped != '0') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
