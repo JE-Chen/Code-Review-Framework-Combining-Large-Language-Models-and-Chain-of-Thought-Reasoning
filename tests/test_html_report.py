@@ -16,7 +16,13 @@ from prthinker.html_report import (  # noqa: E402
     write_report,
 )
 from prthinker.pipeline import FileReviewResult, ReviewResult  # noqa: E402
-from prthinker.schemas import InlineFinding  # noqa: E402
+from prthinker.schemas import (  # noqa: E402
+    Evidence,
+    InlineFinding,
+    Provenance,
+    ProvenanceCitation,
+    SuggestionVerification,
+)
 
 
 def _finding(
@@ -250,3 +256,66 @@ def test_toc_omitted_for_single_file() -> None:
 def test_toc_omitted_when_no_per_file() -> None:
     result = ReviewResult(code_diff="", rag_docs=[])
     assert '<nav class="toc">' not in render_report(result)
+
+
+def test_audit_rollups_section_rendered() -> None:
+    finding = InlineFinding(
+        path="a.py",
+        line=1,
+        comment="x",
+        suggestion="return 1",
+        verification=SuggestionVerification(status="pass", verify_cmd="pytest"),
+        provenance=Provenance(
+            confidence=0.9,
+            citations=[ProvenanceCitation(kind="rag_rule", index=1)],
+        ),
+        evidence=[
+            Evidence(kind="test", status="confirmed", tool="pytest", summary="pass")
+        ],
+    )
+    result = ReviewResult(code_diff="", rag_docs=["rule"], inline_findings=[finding])
+    out = render_report(result)
+    assert "Audit rollups" in out
+    assert "Auto-fix safety" in out
+    assert "1 provenance-backed" in out
+
+
+def _rollup_result() -> ReviewResult:
+    finding = InlineFinding(
+        path="a.py",
+        line=1,
+        comment="x",
+        suggestion="return 1",
+        verification=SuggestionVerification(status="pass", verify_cmd="pytest"),
+        provenance=Provenance(
+            confidence=0.9,
+            citations=[ProvenanceCitation(kind="rag_rule", index=1)],
+        ),
+        evidence=[
+            Evidence(kind="test", status="unsupported", tool="pytest", summary="?")
+        ],
+    )
+    return ReviewResult(code_diff="", rag_docs=["rule"], inline_findings=[finding])
+
+
+def test_rollup_surfaces_findings_confidence_and_unsupported() -> None:
+    out = render_report(_rollup_result())
+    assert "1 finding(s)" in out
+    assert "1 confidence-scored" in out
+    assert "1 unsupported" in out
+
+
+def test_render_report_accepts_precomputed_rollup() -> None:
+    from prthinker.review_rollups import rollup_review
+
+    result = _rollup_result()
+    assert render_report(result, rollup=rollup_review(result)) == render_report(result)
+
+
+def test_write_report_accepts_precomputed_rollup(tmp_path: Path) -> None:
+    from prthinker.review_rollups import rollup_review
+
+    result = _rollup_result()
+    out_path = tmp_path / "report.html"
+    write_report(result, out_path, rollup=rollup_review(result))
+    assert out_path.read_text(encoding="utf-8") == render_report(result)

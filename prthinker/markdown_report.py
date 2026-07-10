@@ -15,14 +15,20 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from prthinker.change_stats import compute_change_stats
+from prthinker.change_stats import compute_change_stats, total_changes
+from prthinker.review_rollups import (
+    ReviewRollup,
+    all_findings,
+    format_markdown_rollup,
+    severity_counts,
+)
+from prthinker.schemas import SEVERITY_ORDER
 from prthinker.signals import collect_signal_findings
 
 if TYPE_CHECKING:
     from prthinker.pipeline import FileReviewResult, ReviewResult
     from prthinker.schemas import InlineFinding
 
-_SEVERITIES = ("error", "warning", "info")
 _NO_FINDINGS = "_No findings._"
 
 
@@ -31,26 +37,17 @@ def _one_line(text: str) -> str:
     return " ".join(text.split())
 
 
-def _severity_counts(findings: list["InlineFinding"]) -> dict[str, int]:
-    """Count findings per severity, always returning every bucket."""
-    counts = {sev: 0 for sev in _SEVERITIES}
-    for finding in findings:
-        counts[finding.severity if finding.severity in counts else "info"] += 1
-    return counts
-
-
 def _summary_lines(result: "ReviewResult", findings: list["InlineFinding"]) -> list[str]:
     """The '## Summary' block: diff totals + finding counts."""
-    counts = _severity_counts(findings)
+    counts = severity_counts(findings)
     lines = ["## Summary", ""]
     stats = compute_change_stats(result.code_diff or "")
     if stats:
-        added = sum(s.added for s in stats.values())
-        removed = sum(s.removed for s in stats.values())
-        lines.append(f"- {len(stats)} file(s) changed · +{added} −{removed}")
+        files, added, removed = total_changes(stats)
+        lines.append(f"- {files} file(s) changed · +{added} −{removed}")
     lines.append(f"- Total findings: {len(findings)}")
     lines.append(
-        "- " + " · ".join(f"{sev}: {counts[sev]}" for sev in _SEVERITIES)
+        "- " + " · ".join(f"{sev}: {counts[sev]}" for sev in SEVERITY_ORDER)
     )
     return lines
 
@@ -106,13 +103,21 @@ def _file_lines(result: "ReviewResult") -> list[str]:
     return lines
 
 
-def render_markdown(result: "ReviewResult", *, title: str = "prthinker review") -> str:
-    """Render a self-contained Markdown review document as a string."""
-    findings = list(result.inline_findings)
-    for file_result in result.per_file:
-        findings.extend(file_result.inline_findings)
+def render_markdown(
+    result: "ReviewResult",
+    *,
+    title: str = "prthinker review",
+    rollup: ReviewRollup | None = None,
+) -> str:
+    """Render a self-contained Markdown review document as a string.
+
+    ``rollup`` lets a caller that already computed the audit rollup pass it
+    in; it is derived from ``result`` when omitted.
+    """
+    findings = all_findings(result)
     parts = [f"# {title}", ""]
     parts += _summary_lines(result, findings)
+    parts += [""] + format_markdown_rollup(result, rollup)
     parts += _signal_lines(result)
     parts += _file_lines(result)
     return "\n".join(parts).rstrip() + "\n"

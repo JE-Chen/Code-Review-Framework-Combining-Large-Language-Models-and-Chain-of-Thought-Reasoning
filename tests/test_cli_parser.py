@@ -24,6 +24,10 @@ _SHADOWING_VARS = (
     "CI_PROJECT_PATH",
     "CI_MERGE_REQUEST_IID",
     "GITLAB_TOKEN",
+    "PRTHINKER_VERIFY_CMD",
+    "REVIEWMIND_VERIFY_CMD",
+    "PRTHINKER_VERIFY_SUGGESTIONS",
+    "REVIEWMIND_VERIFY_SUGGESTIONS",
 )
 
 
@@ -80,3 +84,62 @@ def test_github_repository_takes_precedence_over_gitlab(
 
     assert args.repo == "owner/name"
     assert args.github_token == "gh-fixture"  # nosec B105 - test fixture token, not a credential
+
+
+def test_prthinker_env_takes_precedence_over_legacy_reviewmind(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear(monkeypatch)
+    monkeypatch.setenv("REVIEWMIND_VERIFY_CMD", "legacy")
+    monkeypatch.setenv("PRTHINKER_VERIFY_CMD", "modern")
+    monkeypatch.setenv("REVIEWMIND_VERIFY_SUGGESTIONS", "0")
+    monkeypatch.setenv("PRTHINKER_VERIFY_SUGGESTIONS", "1")
+
+    args = _build_parser().parse_args(["review-file", "-"])
+
+    assert args.verify_cmd == "modern"
+    assert args.verify_suggestions is True
+
+
+def test_repo_context_and_preset_flags_parse() -> None:
+    args = _build_parser().parse_args(
+        [
+            "review-file",
+            "-",
+            "--repo-context-strategy",
+            "structural",
+            "--repo-context-top-k",
+            "3",
+            "--review-preset",
+            "security",
+            "--calibration-gate",
+        ]
+    )
+
+    assert args.repo_context_strategy == "structural"
+    assert args.repo_context_top_k == 3
+    assert args.review_preset == "security"
+    assert args.calibration_gate is True
+
+
+def test_step_plan_defaults_to_full(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear(monkeypatch)
+    monkeypatch.delenv("PRTHINKER_STEP_PLAN", raising=False)
+
+    args = _build_parser().parse_args(["review-file", "-"])
+
+    assert args.step_plan == "full"
+
+
+def test_step_plan_env_and_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear(monkeypatch)
+    monkeypatch.setenv("PRTHINKER_STEP_PLAN", "adaptive")
+    assert _build_parser().parse_args(["review-file", "-"]).step_plan == "adaptive"
+
+    args = _build_parser().parse_args(["review-file", "-", "--step-plan", "full"])
+    assert args.step_plan == "full"
+
+
+def test_step_plan_rejects_unknown_value() -> None:
+    with pytest.raises(SystemExit):
+        _build_parser().parse_args(["review-file", "-", "--step-plan", "bogus"])

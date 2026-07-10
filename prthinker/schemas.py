@@ -7,11 +7,15 @@ server validates against — single source of truth for the wire format.
 
 from __future__ import annotations
 
+import hashlib
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
 Severity = Literal["info", "warning", "error"]
+# Descending display/gate order for the Severity ladder above; renderers
+# and gates import this instead of re-declaring their own copy.
+SEVERITY_ORDER: tuple[str, ...] = ("error", "warning", "info")
 
 
 class AskRequest(BaseModel):
@@ -178,7 +182,6 @@ class InlineFinding(BaseModel):
     @model_validator(mode="after")
     def ensure_finding_id(self):
         if not self.finding_id:
-            import hashlib
             normalized_path = self.path.replace("\\", "/")
             normalized_comment = " ".join(self.comment.lower().split())
             identity = f"{normalized_path}:{self.start_line or self.line}:{self.line}:{self.category or ''}:{normalized_comment}"
@@ -198,6 +201,10 @@ class ReviewRequest(BaseModel):
     rag_threshold: float = 0.7
     max_new_tokens: int = Field(default=32768, ge=1, le=32768)
     extra_rules: list[str] = Field(default_factory=list)
+    # Per-file review depth policy ("full" | "adaptive"). Optional with a
+    # backward-compatible default so old runners keep working; the server
+    # treats any unknown value as "full".
+    step_plan: str = "full"
 
 
 JobStatus = Literal["pending", "running", "done", "error", "cancelled"]

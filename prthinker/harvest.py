@@ -15,17 +15,16 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
+from itertools import islice
 from typing import Iterable, Iterator
 
 import httpx
 
 from prthinker.accepted import AcceptedExample, AcceptedExamplesStore
 from prthinker.dismissed import DismissedExample, DismissedExamplesStore
+from prthinker.github_api import _client, paginate
 
 log = logging.getLogger(__name__)
-
-_API_ROOT = "https://api.github.com"
-_USER_AGENT = "prthinker-harvester/0.1"
 
 # Substrings (case-insensitive) in any reply that mark the parent as dismissed.
 _DISMISS_KEYWORDS_EN = [
@@ -108,47 +107,17 @@ def harvest(
     return stats
 
 
-def _client(token: str) -> httpx.Client:
-    return httpx.Client(
-        base_url=_API_ROOT,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": _USER_AGENT,
-        },
-        timeout=30.0,
-    )
-
-
 def _iter_recent_closed_prs(
     client: httpx.Client, repo: str, max_prs: int
 ) -> Iterator[int]:
-    seen = 0
-    page = 1
-    while seen < max_prs:
-        response = client.get(
-            f"/repos/{repo}/pulls",
-            params={
-                "state": "closed",
-                "sort": "updated",
-                "direction": "desc",
-                "per_page": min(100, max_prs - seen),
-                "page": page,
-            },
-        )
-        response.raise_for_status()
-        batch = response.json()
-        if not batch:
-            return
-        for pr in batch:
-            yield int(pr["number"])
-            seen += 1
-            if seen >= max_prs:
-                return
-        if len(batch) < 100:
-            return
-        page += 1
+    """Yield the numbers of the ``max_prs`` most recently updated closed PRs."""
+    pages = paginate(
+        client,
+        f"/repos/{repo}/pulls",
+        params={"state": "closed", "sort": "updated", "direction": "desc"},
+    )
+    for pr in islice(pages, max_prs):
+        yield int(pr["number"])
 
 
 def _harvest_one_pr(
@@ -208,22 +177,7 @@ def _harvest_dismissed_comment(
 def _fetch_review_comments(
     client: httpx.Client, repo: str, pr_number: int
 ) -> list[dict]:
-    out: list[dict] = []
-    page = 1
-    while True:
-        response = client.get(
-            f"/repos/{repo}/pulls/{pr_number}/comments",
-            params={"per_page": 100, "page": page},
-        )
-        response.raise_for_status()
-        batch = response.json()
-        if not batch:
-            break
-        out.extend(batch)
-        if len(batch) < 100:
-            break
-        page += 1
-    return out
+    return list(paginate(client, f"/repos/{repo}/pulls/{pr_number}/comments"))
 
 
 def _dismissal_reason(
@@ -233,7 +187,7 @@ def _dismissal_reason(
     replies: Iterable[dict],
 ) -> str | None:
     """Return a short reason string if this comment is dismissed, else None."""
-    if _has_thumbs_down(client, repo, int(comment["id"])):
+    if _has_thumbs_down(client, repo, comment):
         return "thumbs-down reaction"
 
     for reply in replies:
@@ -246,10 +200,20 @@ def _dismissal_reason(
 
 
 def _has_thumbs_down(
-    client: httpx.Client, repo: str, comment_id: int
+    client: httpx.Client, repo: str, comment: dict
 ) -> bool:
+    """Whether the comment carries a 👎 reaction.
+
+    The review-comments list payload already ships a ``reactions``
+    rollup with per-emoji counts; using it avoids one request per
+    comment (N+1). Only when the rollup key is absent (older payloads,
+    minimal fixtures) does the per-comment reactions endpoint get hit.
+    """
+    rollup = comment.get("reactions")
+    if isinstance(rollup, dict) and "-1" in rollup:
+        return int(rollup.get("-1") or 0) > 0
     response = client.get(
-        f"/repos/{repo}/pulls/comments/{comment_id}/reactions",
+        f"/repos/{repo}/pulls/comments/{int(comment['id'])}/reactions",
         params={"content": "-1", "per_page": 1},
     )
     if response.status_code == 404:
@@ -336,23 +300,11 @@ def _harvest_accepted_one_pr(
 def _pr_has_apply_commit(
     client: httpx.Client, repo: str, pr_number: int
 ) -> bool:
-    page = 1
-    while True:
-        response = client.get(
-            f"/repos/{repo}/pulls/{pr_number}/commits",
-            params={"per_page": 100, "page": page},
-        )
-        response.raise_for_status()
-        batch = response.json()
-        if not batch:
-            return False
-        for commit in batch:
-            message = (commit.get("commit") or {}).get("message") or ""
-            if _APPLY_COMMIT_RE.search(message):
-                return True
-        if len(batch) < 100:
-            return False
-        page += 1
+    for commit in paginate(client, f"/repos/{repo}/pulls/{pr_number}/commits"):
+        message = (commit.get("commit") or {}).get("message") or ""
+        if _APPLY_COMMIT_RE.search(message):
+            return True
+    return False
 
 
 __all__ = ["harvest", "harvest_accepted", "HarvestStats"]

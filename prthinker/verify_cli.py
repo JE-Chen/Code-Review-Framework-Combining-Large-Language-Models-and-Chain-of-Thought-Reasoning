@@ -3,6 +3,7 @@
 from __future__ import annotations
 import json
 from pathlib import Path
+from prthinker.cli_io import emit_text
 from prthinker.verification_tiers import (
     DEFAULT_TOOLS,
     ToolSpec,
@@ -122,19 +123,10 @@ def _build_payload(args, evidence):
     return {"evidence": [x.model_dump() for x in evidence], "findings": serialized}
 
 
-def _emit(args, text):
-    """Write the payload text to ``--output`` or stdout."""
-    if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(text, encoding="utf-8")
-    else:
-        print(text, end="")
-
-
 def command(args):
     executor = _build_executor(args)
     evidence = _collect_evidence(args, executor)
     payload = _build_payload(args, evidence)
     text = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
-    _emit(args, text)
+    emit_text(text, args.output)
     return 1 if any(x.status == "confirmed" for x in evidence) else 0

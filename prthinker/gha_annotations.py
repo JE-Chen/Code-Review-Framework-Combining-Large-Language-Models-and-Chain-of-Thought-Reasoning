@@ -19,7 +19,7 @@ from __future__ import annotations
 import sys
 from typing import TYPE_CHECKING
 
-from prthinker.signals import collect_signal_findings
+from prthinker.signals import RULE_PREFIX, collect_signal_findings
 
 if TYPE_CHECKING:
     from prthinker.pipeline import ReviewResult
@@ -33,7 +33,6 @@ _LEVEL = {
     "note": "notice",
 }
 _DEFAULT_LEVEL = "notice"
-_RULE_PREFIX = "prthinker"
 
 
 def _escape_data(text: str) -> str:
@@ -61,7 +60,7 @@ def _finding_command(finding: "InlineFinding") -> str:
     """Workflow command for one inline finding."""
     return _command(
         _LEVEL.get(finding.severity, _DEFAULT_LEVEL),
-        f"{_RULE_PREFIX}/{finding.severity}",
+        f"{RULE_PREFIX}/{finding.severity}",
         finding.comment,
         finding.path,
         finding.line,
@@ -73,7 +72,7 @@ def _signal_commands(result: "ReviewResult") -> list[str]:
     return [
         _command(
             _LEVEL.get(signal.level, _DEFAULT_LEVEL),
-            f"{_RULE_PREFIX}/{signal.rule_id}",
+            f"{RULE_PREFIX}/{signal.rule_id}",
             signal.message,
             signal.path,
             signal.line,

@@ -207,6 +207,24 @@ class LexicalRepoRetriever(RepoContextRetriever):
         # precision is not capped by always emitting the full top_k). ``None``
         # keeps the fixed top_k behaviour.
         self._keep_ratio = keep_ratio
+        # Corpus + IDF memo keyed by workdir: retriever instances are
+        # per-review, so the work-tree is read and indexed once per
+        # retriever lifetime instead of on every query (structural
+        # expansion retrieves twice per query, iterative once per round).
+        self._index_cache: dict[Path, tuple[list[_Document], dict[str, float]]] = {}
+
+    def _corpus(self, workdir: Path) -> tuple[list[_Document], dict[str, float]]:
+        """Indexed documents + IDF for ``workdir``, built once and memoized."""
+        key = workdir.resolve()
+        cached = self._index_cache.get(key)
+        if cached is None:
+            docs = [
+                _index_document(rel, text)
+                for rel, text in _iter_code_files(workdir)
+            ]
+            cached = (docs, _compute_idf(docs))
+            self._index_cache[key] = cached
+        return cached
 
     def retrieve(self, query: str, workdir: Path) -> RepoContext:
         """Rank the work-tree's code files against the expanded query."""
@@ -214,10 +232,9 @@ class LexicalRepoRetriever(RepoContextRetriever):
         if not workdir.is_dir():
             raise FileNotFoundError(workdir)
         expansion = expand_query(query)
-        docs = [_index_document(rel, text) for rel, text in _iter_code_files(workdir)]
+        docs, idf = self._corpus(workdir)
         if not docs:
             return RepoContext()
-        idf = _compute_idf(docs)
         scored = self._rank(docs, expansion, idf)
         top = self._select(scored)
         spans = {d.rel: self._spans(d, expansion.terms, idf) for d in top}
@@ -681,10 +698,16 @@ def enrich_context_spans(
     their enclosed methods (keeps line/symbol precision from collapsing).
     """
     workdir = Path(workdir)
-    wanted = set(context.files)
-    texts = {
-        rel: text for rel, text in _iter_code_files(workdir) if rel in wanted
-    }
+    # Read only the files already in the context — walking the whole
+    # work-tree to reach a handful of known paths is wasted I/O.
+    texts: dict[str, str] = {}
+    for rel in context.files:
+        try:
+            texts[rel] = (workdir / rel).read_text(
+                encoding="utf-8", errors="ignore"
+            )
+        except OSError:
+            continue
     idf = _compute_idf([_index_document(rel, text) for rel, text in texts.items()])
     terms = expand_query(query).terms
     spans, symbols = {}, {}

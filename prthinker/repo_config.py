@@ -19,12 +19,13 @@ every option.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
+
+from prthinker.config import CACHE_DEFAULT, TELEMETRY_DEFAULT
 
 log = logging.getLogger(__name__)
 
@@ -36,6 +37,19 @@ class _RagSection(BaseModel):
     threshold: float = 0.7
     rules_dir: str | None = None
     remote: bool = False
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class _RepoContextSection(BaseModel):
+    strategy: str = "none"
+    workdir: str = "."
+    top_k: int = Field(default=10, ge=1)
+    keep_ratio: float = Field(default=0, ge=0)
+    block_candidates: int = Field(default=6, ge=1)
+    votes: int = Field(default=1, ge=1)
+    rounds: int = Field(default=3, ge=1)
+    focus_lines: int = Field(default=0, ge=0)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -58,7 +72,7 @@ class _CISignalsSection(BaseModel):
 
 class _CacheSection(BaseModel):
     enabled: bool = False
-    path: str = ".prthinker/cache.sqlite"
+    path: str = CACHE_DEFAULT
     ttl_days: float | None = 7.0
 
     model_config = ConfigDict(extra="forbid")
@@ -66,7 +80,7 @@ class _CacheSection(BaseModel):
 
 class _TelemetrySection(BaseModel):
     enabled: bool = False
-    path: str = ".prthinker/telemetry.sqlite"
+    path: str = TELEMETRY_DEFAULT
 
     model_config = ConfigDict(extra="forbid")
 
@@ -77,6 +91,7 @@ class _CalibrationSection(BaseModel):
     category: str = ""
     minimum_samples: int = Field(default=10, ge=1)
     half_life_days: float = Field(default=90, gt=0)
+    gate: bool = False
     model_config = ConfigDict(extra="forbid")
 
 
@@ -127,8 +142,10 @@ class RepoConfig(BaseModel):
     inline_review: bool = False
     max_findings_per_file: int = 10
     parallelism: int = Field(default=1, ge=1, le=64)
+    review_preset: str = "none"
 
     rag: _RagSection = Field(default_factory=_RagSection)
+    repo_context: _RepoContextSection = Field(default_factory=_RepoContextSection)
     gate: _GateSection = Field(default_factory=_GateSection)
     ci_signals: _CISignalsSection = Field(default_factory=_CISignalsSection)
     cache: _CacheSection = Field(default_factory=_CacheSection)
@@ -142,13 +159,6 @@ class RepoConfig(BaseModel):
     remote: _RemoteSection = Field(default_factory=_RemoteSection)
 
     model_config = ConfigDict(extra="forbid")
-
-
-@dataclass
-class FlattenedDefaults:
-    """argparse-friendly dict of defaults derived from a ``RepoConfig``."""
-
-    values: dict[str, Any] = field(default_factory=dict)
 
 
 def find_config_file(explicit: Path | None = None) -> Path | None:
@@ -173,13 +183,9 @@ def load_repo_config(path: Path) -> RepoConfig:
     return RepoConfig.model_validate(data)
 
 
-def to_argparse_defaults(cfg: RepoConfig) -> dict[str, Any]:
-    """Map a ``RepoConfig`` to the dict of argparse ``--flag`` defaults.
-
-    Keys match argparse ``dest`` (``--max-new-tokens`` → ``max_new_tokens``).
-    The CLI calls ``set_defaults(**values)`` so user args still win.
-    """
-    flat: dict[str, Any] = {
+def _review_defaults(cfg: RepoConfig) -> dict[str, Any]:
+    """Build the review-behaviour + RAG + repo-context argparse defaults."""
+    return {
         "backend": cfg.backend,
         "max_new_tokens": cfg.max_new_tokens,
         "per_file": cfg.per_file,
@@ -189,10 +195,25 @@ def to_argparse_defaults(cfg: RepoConfig) -> dict[str, Any]:
         "no_rag": not cfg.rag.enabled,
         "rag_threshold": cfg.rag.threshold,
         "remote_rag": cfg.rag.remote,
+        "repo_context_strategy": cfg.repo_context.strategy,
+        "repo_context_workdir": Path(cfg.repo_context.workdir),
+        "repo_context_top_k": cfg.repo_context.top_k,
+        "repo_context_keep_ratio": cfg.repo_context.keep_ratio,
+        "repo_context_block_candidates": cfg.repo_context.block_candidates,
+        "repo_context_votes": cfg.repo_context.votes,
+        "repo_context_rounds": cfg.repo_context.rounds,
+        "repo_context_focus_lines": cfg.repo_context.focus_lines,
         "gate_on": cfg.gate.severity,
         "include_ci_signals": cfg.ci_signals.enabled,
         "ci_signal_max_jobs": cfg.ci_signals.max_jobs,
         "ci_signal_tail_chars": cfg.ci_signals.tail_chars,
+        "review_preset": cfg.review_preset,
+    }
+
+
+def _bookkeeping_defaults(cfg: RepoConfig) -> dict[str, Any]:
+    """Build the cache / telemetry / calibration argparse defaults."""
+    return {
         "cache_enabled": cfg.cache.enabled,
         "cache_path": cfg.cache.path,
         "cache_ttl_days": cfg.cache.ttl_days,
@@ -203,6 +224,13 @@ def to_argparse_defaults(cfg: RepoConfig) -> dict[str, Any]:
         "calibration_category": cfg.calibration.category,
         "calibration_min_samples": cfg.calibration.minimum_samples,
         "calibration_half_life_days": cfg.calibration.half_life_days,
+        "calibration_gate": cfg.calibration.gate,
+    }
+
+
+def _backend_defaults(cfg: RepoConfig) -> dict[str, Any]:
+    """Build the per-provider backend argparse defaults."""
+    return {
         "model_name": cfg.local.model,
         "lora_path": cfg.local.lora_path,
         "openai_model": cfg.openai.model,
@@ -214,6 +242,19 @@ def to_argparse_defaults(cfg: RepoConfig) -> dict[str, Any]:
         "remote_url": cfg.remote.url,
         "remote_timeout": cfg.remote.timeout_seconds,
         "use_remote_pipeline": cfg.remote.use_pipeline_endpoint,
+    }
+
+
+def to_argparse_defaults(cfg: RepoConfig) -> dict[str, Any]:
+    """Map a ``RepoConfig`` to the dict of argparse ``--flag`` defaults.
+
+    Keys match argparse ``dest`` (``--max-new-tokens`` → ``max_new_tokens``).
+    The CLI calls ``set_defaults(**values)`` so user args still win.
+    """
+    flat: dict[str, Any] = {
+        **_review_defaults(cfg),
+        **_bookkeeping_defaults(cfg),
+        **_backend_defaults(cfg),
     }
     if cfg.rag.rules_dir is not None:
         flat["rules_dir"] = Path(cfg.rag.rules_dir)

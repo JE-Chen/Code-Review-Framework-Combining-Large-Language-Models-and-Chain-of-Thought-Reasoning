@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from prthinker.diff import iter_added_lines, parse_unified_diff
+from prthinker.detector_util import format_details_note, scan_added_lines
 
 _MARKER_LIMIT = 15
 _CONFLICT_PREFIXES = ("<<<<<<<", ">>>>>>>", "|||||||")
@@ -47,39 +47,30 @@ def _conflict_for_line(
 
 def find_conflict_markers(diff_text: str) -> list[ConflictMarker]:
     """Return every leftover conflict marker added on a new-side line."""
-    found: list[ConflictMarker] = []
-    for file_diff in parse_unified_diff(diff_text):
-        for line_no, content in iter_added_lines(file_diff.raw):
-            marker = _conflict_for_line(file_diff.path, line_no, content)
-            if marker is not None:
-                found.append(marker)
-    return found
+    return scan_added_lines(diff_text, _conflict_for_line)
+
+
+def _marker_line(marker: ConflictMarker) -> str:
+    """Render one ``path:line — marker`` bullet."""
+    return f"- `{marker.path}:{marker.line}` — `{marker.marker}`"
 
 
 def format_conflict_note(markers: list[ConflictMarker]) -> str:
     """Collapsible 'conflict markers' warning block, or ``""``."""
-    if not markers:
-        return ""
-    shown = markers[:_MARKER_LIMIT]
-    lines = [
-        f"<details open><summary>⛔ {len(markers)} leftover merge-conflict "
-        "marker(s) — likely a bad resolution</summary>",
-        "",
-    ]
-    lines += [
-        f"- `{m.path}:{m.line}` — `{m.marker}`" for m in shown
-    ]
-    extra = len(markers) - len(shown)
-    if extra > 0:
-        lines.append(f"- … and {extra} more")
-    lines += [
-        "",
-        "_Resolve the conflict before merging — these markers will break "
-        "the file._",
-        "",
-        "</details>",
-    ]
-    return "\n".join(lines)
+    return format_details_note(
+        markers,
+        summary=(
+            f"⛔ {len(markers)} leftover merge-conflict "
+            "marker(s) — likely a bad resolution"
+        ),
+        bullet=_marker_line,
+        footer=(
+            "_Resolve the conflict before merging — these markers will break "
+            "the file._"
+        ),
+        limit=_MARKER_LIMIT,
+        open_details=True,
+    )
 
 
 __all__ = ["ConflictMarker", "find_conflict_markers", "format_conflict_note"]

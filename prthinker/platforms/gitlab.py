@@ -31,6 +31,7 @@ from prthinker.ci_signals import FailureSignal
 from prthinker.dialogue import AuthorReply
 from prthinker.github_api import (
     filter_findings_to_diff,
+    format_file_diff,
     new_side_lines,
     replace_marked_section,
 )
@@ -43,7 +44,6 @@ log = logging.getLogger(__name__)
 
 _USER_AGENT = "prthinker/0.1"
 _NOTES_PER_PAGE = 100
-_DEV_NULL = "/dev/null"
 
 # Map our event vocabulary to GitLab's discussion semantics. GitLab has
 # no APPROVE / REQUEST_CHANGES verb on discussions themselves; the
@@ -347,6 +347,7 @@ class GitLabAdapter(PlatformAdapter):
         *,
         summary_body: str | None,
         event: str,
+        diff_text: str | None = None,
     ) -> int | None:
         if not findings:
             log.info("GitLab: no findings — skipping discussion creation")
@@ -358,7 +359,7 @@ class GitLabAdapter(PlatformAdapter):
             stale_note_ids = self._collect_stale_inline_notes(client)
             event_prefix = _EVENT_BODY_PREFIX.get(event, "")
             first_id: int | None = None
-            for finding in self._prefilter_findings(client, findings):
+            for finding in self._prefilter_findings(client, findings, diff_text):
                 new_id = self._post_finding_discussion(
                     client, position_base, event_prefix, finding,
                 )
@@ -410,29 +411,35 @@ class GitLabAdapter(PlatformAdapter):
         )
 
     def _prefilter_findings(
-        self, client: httpx.Client, findings: list[InlineFinding]
+        self,
+        client: httpx.Client,
+        findings: list[InlineFinding],
+        diff_text: str | None = None,
     ) -> list[InlineFinding]:
         """Drop findings off the MR's diff hunks before any discussion POST.
 
         Same first-line-of-defence as the GitHub adapter: an off-hunk
         position 400s its discussion, so filtering keeps hallucinated
-        lines from producing a run of failed POSTs. Fail-open — when the
-        diff cannot be fetched or yields no hunk lines, every finding is
-        submitted and the per-POST 4xx skip stays the backstop.
+        lines from producing a run of failed POSTs. A caller that already
+        holds the diff passes it as ``diff_text`` to skip the re-download.
+        Fail-open — when the diff cannot be fetched or yields no hunk
+        lines, every finding is submitted and the per-POST 4xx skip stays
+        the backstop.
         """
-        try:
-            response = client.get(
-                f"/projects/{self._project_quoted}"
-                f"/merge_requests/{self.mr_iid}/raw_diffs",
-            )
-            response.raise_for_status()
-            diff_text = response.text
-        except httpx.HTTPError as exc:
-            log.warning(
-                "GitLab: could not fetch MR diff for pre-filtering (%s); "
-                "submitting all findings", exc,
-            )
-            return findings
+        if diff_text is None:
+            try:
+                response = client.get(
+                    f"/projects/{self._project_quoted}"
+                    f"/merge_requests/{self.mr_iid}/raw_diffs",
+                )
+                response.raise_for_status()
+                diff_text = response.text
+            except httpx.HTTPError as exc:
+                log.warning(
+                    "GitLab: could not fetch MR diff for pre-filtering (%s); "
+                    "submitting all findings", exc,
+                )
+                return findings
         if not new_side_lines(diff_text):
             log.info(
                 "GitLab: MR diff yielded no hunk lines; "
@@ -521,15 +528,14 @@ class GitLabAdapter(PlatformAdapter):
         GitLab does not expose the issue-comment "in_reply_to" linkage
         the way GitHub does; the convention used here is positional —
         anything after the marker note is treated as a candidate reply
-        until the next marker note overwrites it.
+        until the next marker note overwrites it. The marker scan and
+        reply build are the base class's shared template method; only
+        the author-field extractor and the system-note skip below are
+        GitLab-specific.
         """
         with self._client() as client:
             notes = self._collect_all_notes(client)
-
-        marker_idx = self._find_last_marker_idx(notes, self.comment_marker)
-        if marker_idx is None:
-            return []
-        return self._build_replies(notes, marker_idx)
+        return self._replies_after_marker(notes, self.comment_marker)
 
     def _collect_all_notes(self, client: httpx.Client) -> list[dict]:
         """Page through every MR note in ascending creation order."""
@@ -541,36 +547,15 @@ class GitLabAdapter(PlatformAdapter):
         )
 
     @staticmethod
-    def _find_last_marker_idx(notes: list[dict], marker: str) -> int | None:
-        """Index of the last note containing the prthinker marker, else None."""
-        marker_idx: int | None = None
-        for i, note in enumerate(notes):
-            if marker in (note.get("body") or ""):
-                marker_idx = i  # last wins
-        return marker_idx
+    def _comment_author(comment: dict) -> str:
+        """Author username for a note (GitLab nests it under ``author``)."""
+        return (comment.get("author") or {}).get("username") or ""
 
-    @staticmethod
-    def _note_username(note: dict) -> str:
-        """Author username for a note, or empty string when absent."""
-        return (note.get("author") or {}).get("username") or ""
-
-    @staticmethod
-    def _build_replies(notes: list[dict], marker_idx: int) -> list[AuthorReply]:
-        """Author replies trailing the marker note, dropping bot/system notes."""
-        marker_user = GitLabAdapter._note_username(notes[marker_idx])
-        marker_id = int(notes[marker_idx]["id"])
-        replies: list[AuthorReply] = []
-        for note in notes[marker_idx + 1:]:
-            author = GitLabAdapter._note_username(note)
-            if author == marker_user or note.get("system"):
-                continue
-            replies.append(AuthorReply(
-                author=author,
-                body=str(note.get("body") or "").strip(),
-                in_reply_to_id=marker_id,
-                created_at=str(note.get("created_at") or ""),
-            ))
-        return replies
+    def _skip_reply(self, comment: dict, marker_author: str) -> bool:
+        """Skip system notes in addition to the bot's own follow-ups."""
+        return bool(comment.get("system")) or super()._skip_reply(
+            comment, marker_author
+        )
 
     # ----- CI failure signals ---------------------------------------------
 
@@ -629,32 +614,19 @@ def _diff_entry_paths(entry: dict[str, Any]) -> tuple[str, str]:
     return old_path, new_path
 
 
-def _diff_entry_sides(
-    entry: dict[str, Any], old_path: str, new_path: str
-) -> tuple[str, str]:
-    """Resolve the ``---`` / ``+++`` side markers, honouring add/delete."""
-    a_side = _DEV_NULL if entry.get("new_file") else f"a/{old_path}"
-    b_side = _DEV_NULL if entry.get("deleted_file") else f"b/{new_path}"
-    return a_side, b_side
-
-
 def _diff_entry_to_text(entry: dict[str, Any]) -> str:
     """Reconstruct one file's unified-diff text from a ``diffs`` entry.
 
-    Emits the ``diff --git`` + ``---`` / ``+++`` headers the pipeline's
-    parser and the inline diff-hunk filter need, followed by GitLab's
-    per-file hunks. Entries without textual hunks (binary, or collapsed
-    because the per-file diff itself is too large) are recorded as binary
-    so the file is still listed rather than silently lost.
+    Delegates to the shared :func:`prthinker.github_api.format_file_diff`
+    reconstruction (binary-safe, header-complete); only the entry-field
+    mapping is GitLab-specific.
     """
     old_path, new_path = _diff_entry_paths(entry)
-    header = f"diff --git a/{old_path} b/{new_path}\n"
-    hunks = entry.get("diff") or ""
-    if not hunks:
-        return f"{header}Binary files a/{old_path} and b/{new_path} differ\n"
-    a_side, b_side = _diff_entry_sides(entry, old_path, new_path)
-    body = hunks if hunks.endswith("\n") else hunks + "\n"
-    return f"{header}--- {a_side}\n+++ {b_side}\n{body}"
+    return format_file_diff(
+        old_path, new_path, entry.get("diff") or "",
+        is_new=bool(entry.get("new_file")),
+        is_deleted=bool(entry.get("deleted_file")),
+    )
 
 
 def _format_body(finding: InlineFinding) -> str:

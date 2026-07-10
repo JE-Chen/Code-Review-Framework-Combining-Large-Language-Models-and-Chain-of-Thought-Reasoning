@@ -13,6 +13,7 @@ from pathlib import Path
 from prthinker.backends import create_backend
 from prthinker.backends.remote import RemotePipelineClient
 from prthinker.config import (
+    SUMMARY_MARKER,
     BackendKind,
     Config,
 )
@@ -21,6 +22,7 @@ from prthinker.cli_review_helpers import (
     apply_arbitration,
     build_cache_telemetry,
     build_dialogue_block,
+    build_platform_adapter,
 )
 
 # The publish flow below calls these helpers; importing them here also
@@ -33,6 +35,7 @@ from prthinker.cli_review_emit import (
     _close_review_gate,
     _emit_review_artifacts,
     _extra_sections,
+    _gate_inputs,
     _gate_line,
     _impact_note,
     _inline_post_breakdown,
@@ -81,6 +84,7 @@ from prthinker.cli_review_overall_summary import (  # noqa: F401  # pylint: disa
 )
 from prthinker.ci_signals import format_signals_block
 from prthinker.diff import parse_unified_diff
+from prthinker.step_planner import TIER_SKIP, classify_depth
 from prthinker.formatters import (
     CommentOptions,
     format_pr_comment,
@@ -97,6 +101,9 @@ from prthinker.pipeline import (
     PerFileReviewOptions,
     ReviewResult,
 )
+from prthinker.repo_retrieval import RepoContextRetriever
+from prthinker.repo_retrieval_factory import create_repo_retriever
+from prthinker.review_presets import apply_review_preset
 from prthinker.trajectory import TrajectorySink
 from prthinker.rag import (
     FaissRAGRetriever,
@@ -151,6 +158,7 @@ def _build_config(args: argparse.Namespace) -> Config:
         rag_threshold=args.rag_threshold,
         max_new_tokens=args.max_new_tokens,
         steps=steps,
+        step_plan=getattr(args, "step_plan", "full") or "full",
         cache=cache_cfg,
         telemetry=telemetry_cfg,
     )
@@ -181,6 +189,101 @@ def _build_retriever(args: argparse.Namespace, config: Config) -> RAGRetriever:
             api_key=args.remote_api_key,
         )
     return FaissRAGRetriever(threshold=config.rag_threshold)
+
+
+_KEEP_RATIO_STRATEGIES = frozenset({"lexical", "structural", "graph", "query_rewrite"})
+
+
+def _repo_context_options(args: argparse.Namespace, backend: object) -> dict:
+    """Translate repo-context CLI flags into factory kwargs for one strategy."""
+    strategy = getattr(args, "repo_context_strategy", "none") or "none"
+    builders = {
+        "semantic": _semantic_context_options,
+        "rerank": _rerank_context_options,
+        "block_rerank": _block_rerank_context_options,
+        "iterative": _iterative_context_options,
+    }
+    builder = builders.get(strategy, _default_context_options)
+    return builder(args, backend)
+
+
+def _context_top_k(args: argparse.Namespace) -> int:
+    """Clamp the repo-context top-k flag to a positive int."""
+    return max(1, int(getattr(args, "repo_context_top_k", 10) or 10))
+
+
+def _context_votes(args: argparse.Namespace) -> int:
+    """Clamp the repo-context self-consistency vote count to a positive int."""
+    return max(1, int(getattr(args, "repo_context_votes", 1) or 1))
+
+
+def _context_block_candidates(args: argparse.Namespace) -> int:
+    """Clamp the repo-context block-candidate count to a positive int."""
+    return max(1, int(getattr(args, "repo_context_block_candidates", 6) or 6))
+
+
+def _default_context_options(args: argparse.Namespace, _backend: object) -> dict:
+    """Build top-k kwargs, with keep-ratio for the lexical-family strategies."""
+    strategy = getattr(args, "repo_context_strategy", "none") or "none"
+    keep_ratio = float(getattr(args, "repo_context_keep_ratio", 0) or 0)
+    options: dict = {"top_k": _context_top_k(args)}
+    if strategy in _KEEP_RATIO_STRATEGIES and keep_ratio > 0:
+        options["keep_ratio"] = keep_ratio
+    return options
+
+
+def _semantic_context_options(args: argparse.Namespace, _backend: object) -> dict:
+    """Build factory kwargs for the semantic strategy."""
+    return {"top_k": _context_top_k(args)}
+
+
+def _rerank_context_options(args: argparse.Namespace, backend: object) -> dict:
+    """Build factory kwargs for the model-in-the-loop rerank strategy."""
+    return {"backend": backend, "votes": _context_votes(args)}
+
+
+def _block_rerank_context_options(args: argparse.Namespace, backend: object) -> dict:
+    """Build factory kwargs for the block-level rerank strategy."""
+    return {
+        "backend": backend,
+        "block_candidates": _context_block_candidates(args),
+        "focus_lines": _positive_or_none(
+            getattr(args, "repo_context_focus_lines", 0)
+        ),
+        "votes": _context_votes(args),
+    }
+
+
+def _iterative_context_options(args: argparse.Namespace, backend: object) -> dict:
+    """Build factory kwargs for the iterative repo-context strategy."""
+    return {
+        "backend": backend,
+        "rounds": max(1, int(getattr(args, "repo_context_rounds", 3) or 3)),
+        "block_candidates": _context_block_candidates(args),
+        "focus_lines": _positive_or_none(
+            getattr(args, "repo_context_focus_lines", 0)
+        ),
+    }
+
+
+def _positive_or_none(value: object) -> int | None:
+    """Return a positive int or None for optional line-window settings."""
+    number = int(value or 0)
+    return number if number > 0 else None
+
+
+def _build_repo_context(
+    args: argparse.Namespace, backend: object
+) -> tuple[RepoContextRetriever | None, Path | None]:
+    """Build optional cross-file repository context retrieval for local reviews."""
+    strategy = getattr(args, "repo_context_strategy", "none") or "none"
+    workdir = Path(getattr(args, "repo_context_workdir", ".") or ".")
+    if strategy == "none":
+        return None, None
+    retriever = create_repo_retriever(
+        strategy, **_repo_context_options(args, backend)
+    )
+    return retriever, workdir
 
 
 def _read_stdin_or_file(path: str) -> str:
@@ -298,6 +401,7 @@ def _server_review_request(
         max_new_tokens=config.max_new_tokens,
         steps=list(config.steps) or None,
         extra_rules=extra_rules,
+        step_plan=config.step_plan,
     )
 
 
@@ -350,6 +454,19 @@ def _review_per_file_via_server(
     for fd in files:
         if fd.is_binary or fd.is_deleted:
             continue
+        if config.step_plan == "adaptive" and classify_depth(fd) == TIER_SKIP:
+            # Generated / whitespace-only file: skip the server round-trip
+            # entirely, but keep the file visible in the summary.
+            log.info("step_plan: %s tier=skip — no server call", fd.path)
+            per_file.append(
+                FileReviewResult(
+                    path=fd.path,
+                    rag_docs=[],
+                    step_outputs={"step_plan": TIER_SKIP},
+                    inline_findings=[],
+                )
+            )
+            continue
         file_result, namespaced = _review_one_file_via_server(
             client, config, fd, extra_rules
         )
@@ -390,6 +507,7 @@ def _review_via_pipeline(
 ) -> ReviewResult:
     backend = create_backend(config)
     retriever = _build_retriever(args, config)
+    repo_retriever, repo_workdir = _build_repo_context(args, backend)
     extra_rules = load_rules_dir(args.rules_dir)
     pipeline = CoTPipeline(
         backend=backend,
@@ -406,6 +524,8 @@ def _review_via_pipeline(
         )
         if getattr(args, "trajectory_out", "")
         else None,
+        repo_retriever=repo_retriever,
+        repo_workdir=repo_workdir,
     )
     try:
         if args.per_file:
@@ -438,23 +558,29 @@ def _csv_tuple(args: argparse.Namespace, attr: str) -> tuple[str, ...]:
     return tuple(s.strip() for s in raw.split(",") if s.strip())
 
 
+def _flag(args: argparse.Namespace, name: str) -> bool:
+    """True when the boolean CLI flag ``name`` is set on ``args``."""
+    return bool(getattr(args, name, False))
+
+
 def _collect_core_kwargs(args: argparse.Namespace) -> dict:
     """Collect the always-present per-file review toggles."""
     return {
         "inline_review": args.inline_review,
-        "judge": bool(getattr(args, "judge", False)),
-        "self_correct": bool(getattr(args, "self_correct", False)),
-        "counterfactual": bool(getattr(args, "counterfactual", False)),
-        "walkthrough": bool(getattr(args, "walkthrough", False)),
-        "provenance": bool(getattr(args, "provenance", False)),
+        "judge": _flag(args, "judge"),
+        "self_correct": _flag(args, "self_correct"),
+        "counterfactual": _flag(args, "counterfactual"),
+        "walkthrough": _flag(args, "walkthrough"),
+        "provenance": _flag(args, "provenance"),
         "max_findings_per_file": args.max_findings_per_file,
+        "step_plan": getattr(args, "step_plan", "full") or "full",
     }
 
 
 def _collect_verify_kwargs(args: argparse.Namespace) -> dict:
     """Collect the suggestion-verification per-file toggles."""
     return {
-        "verify_suggestions": bool(getattr(args, "verify_suggestions", False)),
+        "verify_suggestions": _flag(args, "verify_suggestions"),
         "verify_workdir": getattr(args, "verify_workdir", None),
         "verify_cmd": getattr(args, "verify_cmd", "") or "",
         "verify_timeout": float(getattr(args, "verify_timeout", 60.0) or 60.0),
@@ -464,12 +590,12 @@ def _collect_verify_kwargs(args: argparse.Namespace) -> dict:
 def _collect_classify_kwargs(args: argparse.Namespace) -> dict:
     """Collect the PR-classification / consistency per-file toggles."""
     return {
-        "api_consistency_check": bool(getattr(args, "api_consistency", False)),
-        "pr_classify": bool(getattr(args, "pr_classify", False)),
+        "api_consistency_check": _flag(args, "api_consistency"),
+        "pr_classify": _flag(args, "pr_classify"),
         "pr_title": getattr(args, "pr_title", "") or "",
         "pr_body": getattr(args, "pr_body", "") or "",
-        "reproducibility_check": bool(getattr(args, "reproducibility_check", False)),
-        "dep_upgrade_check": bool(getattr(args, "dep_upgrade_check", False)),
+        "reproducibility_check": _flag(args, "reproducibility_check"),
+        "dep_upgrade_check": _flag(args, "dep_upgrade_check"),
     }
 
 
@@ -477,9 +603,9 @@ def _collect_risk_kwargs(args: argparse.Namespace) -> dict:
     """Collect the persona / risk / entropy per-file toggles."""
     return {
         "persona_set": _csv_tuple(args, "personas"),
-        "risk_weighted": bool(getattr(args, "risk_weighted", False)),
+        "risk_weighted": _flag(args, "risk_weighted"),
         "risk_workdir": getattr(args, "risk_workdir", None),
-        "diff_entropy_check": bool(getattr(args, "diff_entropy", False)),
+        "diff_entropy_check": _flag(args, "diff_entropy"),
         "review_modes": _csv_tuple(args, "review_modes"),
         "parallelism": max(1, int(getattr(args, "parallelism", 1))),
     }
@@ -578,10 +704,11 @@ def _run_review(
 
 
 def _cmd_review_file(args: argparse.Namespace) -> int:
+    apply_review_preset(args)
     config = _build_config(args)
     code = _read_stdin_or_file(args.path)
     result = _run_review(args, config, code, output_dir=args.output_dir)
-    sys.stdout.write(format_pr_comment(result, marker="<!-- prthinker:summary -->"))
+    sys.stdout.write(format_pr_comment(result, marker=SUMMARY_MARKER))
     if result.inline_findings:
         sys.stdout.write(f"\n[{len(result.inline_findings)} inline findings parsed]\n")
     return 0
@@ -778,17 +905,8 @@ def _cmd_pr_summary(args: argparse.Namespace) -> int:
     backend or network failure logs a warning and returns 0 so it never
     blocks the review matrix.
     """
-    from prthinker.platforms import PlatformKind, create_platform_adapter
-
     _validate_pr_args(args)
-    adapter = create_platform_adapter(
-        PlatformKind(args.platform),
-        repo=args.repo,
-        token=args.github_token,
-        pr_number=args.pr_number,
-        comment_marker=args.marker,
-        base_url=args.platform_base_url,
-    )
+    adapter = build_platform_adapter(args)
     try:
         body = _generate_pr_summary_body(args, adapter)
     except Exception as exc:  # noqa: BLE001 — summary must never block the matrix
@@ -806,7 +924,10 @@ def _cmd_pr_summary(args: argparse.Namespace) -> int:
 
 
 def _review_comment_pages(
-    args: argparse.Namespace, adapter: object, result: ReviewResult
+    args: argparse.Namespace,
+    adapter: object,
+    result: ReviewResult,
+    calibrated: tuple[list[InlineFinding], int] | None = None,
 ) -> list[str]:
     """Render the review into summary-comment pages plus footers."""
     posted_count, off_diff = _inline_post_breakdown(args, result)
@@ -828,7 +949,7 @@ def _review_comment_pages(
             delta=delta_line,
             min_confidence=getattr(args, "summary_min_confidence", 0.0),
             table=getattr(args, "summary_table", False),
-            gate=_gate_line(args, result, files_url),
+            gate=_gate_line(args, result, files_url, calibrated),
             off_diff_findings=off_diff,
             extra_sections=_extra_sections(args, result, files_url),
         ),
@@ -847,8 +968,11 @@ def _publish_review_result(
 ) -> int:
     """Post comment + inline review, close the gate, and trigger auto-fix."""
     _postprocess_findings(args, result)
+    # Calibrated gate scoring runs per-finding SQLite queries; compute it
+    # once here and hand the same tuple to the gate line and the gate close.
+    calibrated = _gate_inputs(args, result)
     _emit_review_artifacts(args, result)
-    pages = _review_comment_pages(args, adapter, result)
+    pages = _review_comment_pages(args, adapter, result, calibrated)
     _maybe_write_job_summary(pages[0])
     if getattr(args, "api_impact", False):
         pages[-1] = _append_api_impact(pages[-1], result)
@@ -862,7 +986,7 @@ def _publish_review_result(
     log.info("Posted %d summary comment(s): %s", len(comment_ids), comment_ids)
 
     _submit_inline_review(args, adapter, result)
-    _close_review_gate(args, adapter, result, gate_handle)
+    _close_review_gate(args, adapter, result, gate_handle, calibrated)
 
     _maybe_set_labels(args, adapter, result)
     _maybe_update_pr_body(args, adapter, result)
@@ -872,20 +996,14 @@ def _publish_review_result(
 
 
 def _cmd_review_pr(args: argparse.Namespace) -> int:
+    apply_review_preset(args)
     config = _build_config(args)
     _validate_pr_args(args)
 
-    from prthinker.platforms import PlatformKind, create_platform_adapter
+    from prthinker.platforms import PlatformKind
 
     platform_kind = PlatformKind(args.platform)
-    adapter = create_platform_adapter(
-        platform_kind,
-        repo=args.repo,
-        token=args.github_token,
-        pr_number=args.pr_number,
-        comment_marker=args.marker,
-        base_url=args.platform_base_url,
-    )
+    adapter = build_platform_adapter(args)
 
     log.info(
         "Fetching diff for %s %s#%d", platform_kind.value, args.repo, args.pr_number

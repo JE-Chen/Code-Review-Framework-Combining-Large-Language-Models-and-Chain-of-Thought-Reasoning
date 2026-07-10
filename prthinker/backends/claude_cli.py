@@ -23,6 +23,7 @@ import json
 import logging
 
 from prthinker.backends.agent_cli import (
+    parse_cli_usage,
     raise_on_failure,
     run_print_mode_cli,
     validate_workdir,
@@ -97,17 +98,10 @@ class ClaudeCliBackend(InferenceBackend):
         if data.get("is_error"):
             snippet = str(data.get("result") or "")[:_ERROR_RESULT_SNIPPET_CHARS]
             raise RuntimeError(f"claude CLI reported an error result: {snippet}")
-        self._record_usage(data.get("usage") or {})
+        usage = parse_cli_usage(data.get("usage") or {})
+        if usage is not None:
+            self._last_usage = usage
         return str(data.get("result") or "")
-
-    def _record_usage(self, usage: dict) -> None:
-        input_tokens = usage.get("input_tokens")
-        output_tokens = usage.get("output_tokens")
-        if input_tokens is not None and output_tokens is not None:
-            self._last_usage = Usage(
-                prompt_tokens=int(input_tokens),
-                completion_tokens=int(output_tokens),
-            )
 
 
 __all__ = ["ClaudeCliBackend"]

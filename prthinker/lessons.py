@@ -25,6 +25,12 @@ from pathlib import Path
 from typing import Iterable
 
 from prthinker.backends.base import InferenceBackend
+from prthinker.corpora_base import JsonlCorpusStore
+from prthinker.findings import (
+    JSON_ARRAY_RE,
+    extract_lenient_json,
+    strip_json_fences,
+)
 
 log = logging.getLogger(__name__)
 
@@ -67,7 +73,7 @@ class LessonRule:
         )
 
 
-class LessonsStore:
+class LessonsStore(JsonlCorpusStore[LessonRule]):
     """Append-only JSONL store of derived lessons.
 
     Symmetric to :class:`prthinker.accepted.AcceptedExamplesStore` — the
@@ -77,32 +83,10 @@ class LessonsStore:
     """
 
     def __init__(self, path: Path) -> None:
-        self._path = Path(path)
-        self._rules: list[LessonRule] = []
-        if self._path.exists():
-            self._load()
+        super().__init__(path, LessonRule.from_dict)
 
-    def _load(self) -> None:
-        for raw in self._path.read_text(encoding="utf-8").splitlines():
-            raw = raw.strip()
-            if not raw:
-                continue
-            try:
-                self._rules.append(LessonRule.from_dict(json.loads(raw)))
-            except json.JSONDecodeError:
-                log.debug("Skipping malformed lesson row: %s", raw[:80])
-
-    def __len__(self) -> int:
-        return len(self._rules)
-
-    def __iter__(self):
-        return iter(self._rules)
-
-    def append(self, rule: LessonRule) -> None:
-        self._rules.append(rule)
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        with self._path.open("a", encoding="utf-8") as fh:
-            fh.write(rule.to_jsonl() + "\n")
+    def _on_malformed(self, raw: str) -> None:
+        log.debug("Skipping malformed lesson row: %s", raw[:80])
 
 
 DERIVE_PROMPT_TEMPLATE = """\
@@ -193,23 +177,17 @@ def build_derive_prompt(
 
 def _extract_lessons_json_array(raw_output: str) -> list | None:
     """Pull the JSON array out of the model reply, or ``None`` on failure."""
-    import re
-    body = raw_output.strip()
-    fence = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", body, re.IGNORECASE)
-    if fence:
-        body = fence.group(1).strip()
+    body = strip_json_fences(raw_output)
     if not body or body == "[]":
         return None
-    match = re.search(r"\[[\s\S]*\]", body)
-    if match is None:
+    result = extract_lenient_json(raw_output, pattern=JSON_ARRAY_RE)
+    if not result.matched:
         log.warning("lessons parser: no JSON array found")
         return None
-    try:
-        data = json.loads(match.group(0))
-    except json.JSONDecodeError as exc:
-        log.warning("lessons parser: JSON decode failed (%s)", exc)
+    if result.decode_error is not None:
+        log.warning("lessons parser: JSON decode failed (%s)", result.decode_error)
         return None
-    return data if isinstance(data, list) else None
+    return result.data if isinstance(result.data, list) else None
 
 
 def _lesson_from_entry(

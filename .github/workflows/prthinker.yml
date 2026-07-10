@@ -332,6 +332,12 @@ jobs:
           PRTHINKER_PER_FILE: "true"
           PRTHINKER_INLINE_REVIEW: "true"
           PRTHINKER_MAX_FINDINGS_PER_FILE: "10"
+          # Adaptive depth: the server prunes the CoT chain per file
+          # (skip/trivial/standard/deep) instead of always running the
+          # full five-step sweep. Requires a server built from a commit
+          # that carries ReviewRequest.step_plan; older servers ignore
+          # the field harmlessly and keep the full chain.
+          PRTHINKER_STEP_PLAN: "adaptive"
           # The CLI loops over the PR diff but skips every path except
           # this one — so the matrix iteration only spends GPU time on
           # the file it owns.

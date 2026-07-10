@@ -6,7 +6,15 @@ comments on lines it will reject.
 
 from __future__ import annotations
 
-from prthinker.diff import new_side_content, parse_unified_diff
+import hashlib
+
+from prthinker.diff import (
+    FileDiff,
+    _iter_new_side,
+    iter_added_lines,
+    new_side_content,
+    parse_unified_diff,
+)
 
 
 def test_empty_diff_returns_no_files() -> None:
@@ -132,3 +140,89 @@ def test_new_side_content_maps_lines_to_text() -> None:
 
 def test_new_side_content_empty_diff() -> None:
     assert new_side_content("") == {}
+
+
+# ----- shared new-side walker (_iter_new_side) ---------------------------
+
+_WALKER_DIFF = (
+    "diff --git a/w.py b/w.py\n"
+    "--- a/w.py\n"
+    "+++ b/w.py\n"
+    "@@ -1,2 +10,3 @@\n"
+    " context\n"
+    "-removed\n"
+    "+added one\n"
+    "+added two\n"
+)
+
+
+def test_iter_new_side_yields_numbered_content_and_added_flag() -> None:
+    assert list(_iter_new_side(_WALKER_DIFF)) == [
+        (10, "context", False),
+        (11, "added one", True),
+        (12, "added two", True),
+    ]
+
+
+def test_iter_new_side_skips_preamble_by_default() -> None:
+    # '+++ b/…' is metadata and the '--- a/…' header never matches the
+    # '+'/' ' checks; nothing before '@@' may leak into the walk.
+    assert list(_iter_new_side("+loose add\n context\n")) == []
+
+
+def test_iter_new_side_includes_preamble_when_asked() -> None:
+    out = list(_iter_new_side("+loose add\n context\n", in_hunks_only=False))
+    assert [(content, added) for _, content, added in out] == [
+        ("loose add", True), ("context", False),
+    ]
+
+
+def test_iter_added_lines_emits_only_added_lines() -> None:
+    assert iter_added_lines(_WALKER_DIFF) == [
+        (11, "added one"), (12, "added two"),
+    ]
+
+
+def test_iter_added_lines_empty_for_deletion_only_hunk() -> None:
+    diff = "@@ -1,2 +0,0 @@\n-gone\n-also gone\n"
+    assert iter_added_lines(diff) == []
+
+
+# ----- content_sha256 (differential-review cache key) --------------------
+
+# Pinned digests: content_sha256 keys the differential-review cache, so
+# its output must never change across refactors — a silent change would
+# invalidate (or worse, falsely hit) every existing cache row.
+_PINNED_DIFF = (
+    "diff --git a/foo.py b/foo.py\n"
+    "index 1..2 100644\n"
+    "--- a/foo.py\n"
+    "+++ b/foo.py\n"
+    "@@ -1,3 +1,4 @@\n"
+    " import os\n"
+    "+import sys\n"
+    " def f():\n"
+    "     return 1\n"
+)
+_PINNED_SHA = "6415508cc0f5038bb644407455894057b994dbd0f18cef15c6fd414f42fe0339"
+# sha256 of b"" — a raw with no new-side lines hashes the empty string.
+_EMPTY_SHA = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+
+def test_content_sha256_matches_pinned_digest() -> None:
+    [fd] = parse_unified_diff(_PINNED_DIFF)
+    assert fd.content_sha256() == _PINNED_SHA
+
+
+def test_content_sha256_empty_and_headerless_raw() -> None:
+    assert FileDiff(path="x", raw="").content_sha256() == _EMPTY_SHA
+    # Header/metadata-only raw contributes no new-side lines.
+    assert FileDiff(path="x", raw="just prose\n").content_sha256() == _EMPTY_SHA
+
+
+def test_content_sha256_headerless_plus_lines_still_hash() -> None:
+    # Historical behaviour: the hasher never gated on hunk headers, so
+    # +/space lines in a raw without any '@@' still count.
+    raw = "+added\n context\n-removed\n+++ b/x\n"
+    expected = hashlib.sha256(b"added\ncontext").hexdigest()
+    assert FileDiff(path="x", raw=raw).content_sha256() == expected

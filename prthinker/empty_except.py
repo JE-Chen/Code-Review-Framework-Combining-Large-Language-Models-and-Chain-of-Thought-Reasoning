@@ -20,7 +20,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from prthinker.diff import iter_added_lines, parse_unified_diff
+from prthinker.detector_util import format_details_note, iter_file_added_lines
 
 _EXCEPT_LIMIT = 15
 _INLINE_RE = re.compile(r"^except\b.*:\s*(pass|\.\.\.)\s*$")
@@ -68,33 +68,31 @@ def _next_is_empty(
 def find_swallowed_excepts(diff_text: str) -> list[SwallowedExcept]:
     """Return every swallowed-exception site added on a new-side line."""
     found: list[SwallowedExcept] = []
-    for file_diff in parse_unified_diff(diff_text):
-        found += _hits_in_file(file_diff.path, iter_added_lines(file_diff.raw))
+    for path, added in iter_file_added_lines(diff_text):
+        found += _hits_in_file(path, added)
     return found
+
+
+def _hit_line(hit: SwallowedExcept) -> str:
+    """Render one ``path:line`` bullet."""
+    return f"- `{hit.path}:{hit.line}`"
 
 
 def format_swallowed_note(hits: list[SwallowedExcept]) -> str:
     """Collapsible 'swallowed exception' block, or ``""``."""
-    if not hits:
-        return ""
-    shown = hits[:_EXCEPT_LIMIT]
-    lines = [
-        f"<details><summary>🤫 {len(hits)} swallowed exception(s) added "
-        "(except: pass)</summary>",
-        "",
-    ]
-    lines += [f"- `{h.path}:{h.line}`" for h in shown]
-    extra = len(hits) - len(shown)
-    if extra > 0:
-        lines.append(f"- … and {extra} more")
-    lines += [
-        "",
-        "_An empty except body hides the error — log it, handle it, or "
-        "narrow the caught type._",
-        "",
-        "</details>",
-    ]
-    return "\n".join(lines)
+    return format_details_note(
+        hits,
+        summary=(
+            f"🤫 {len(hits)} swallowed exception(s) added "
+            "(except: pass)"
+        ),
+        bullet=_hit_line,
+        footer=(
+            "_An empty except body hides the error — log it, handle it, or "
+            "narrow the caught type._"
+        ),
+        limit=_EXCEPT_LIMIT,
+    )
 
 
 __all__ = [

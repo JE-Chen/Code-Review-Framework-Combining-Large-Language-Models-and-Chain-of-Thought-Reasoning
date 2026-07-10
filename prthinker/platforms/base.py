@@ -146,13 +146,16 @@ class PlatformAdapter(ABC):
         *,
         summary_body: str | None,
         event: str,
+        diff_text: str | None = None,
     ) -> int | None:
         """Post inline comments with optional ``suggestion`` blocks.
 
         ``event`` is the platform-neutral verdict — one of ``COMMENT``,
         ``APPROVE``, ``REQUEST_CHANGES``. Each adapter maps to its own
-        API verb. Return the new review / discussion id, or ``None`` if
-        the findings list was empty.
+        API verb. ``diff_text`` lets a caller that already holds the PR
+        diff skip the off-hunk pre-filter's re-download (``None`` keeps
+        the fetch-on-demand behaviour). Return the new review /
+        discussion id, or ``None`` if the findings list was empty.
         """
 
     # ----- CI failure signals -------------------------------------------
@@ -186,6 +189,64 @@ class PlatformAdapter(ABC):
         override to fetch from the platform's reply / thread API.
         """
         return []
+
+    # ----- dialogue helpers (shared marker scan / reply build) ----------
+
+    @staticmethod
+    def _comment_author(comment: dict) -> str:
+        """Author login of a raw comment payload, or empty string.
+
+        Template-method hook: GitHub and Gitea nest the author under
+        ``user.login`` (this default); adapters with a different payload
+        shape (GitLab notes use ``author.username``) override just this
+        extractor and reuse the shared reply scan below.
+        """
+        return (comment.get("user") or {}).get("login") or ""
+
+    def _skip_reply(self, comment: dict, marker_author: str) -> bool:
+        """Whether a trailing comment is not an author reply.
+
+        Default skips the bot's own follow-up comments; adapters add
+        platform-specific noise (e.g. GitLab system notes) on top.
+        """
+        return self._comment_author(comment) == marker_author
+
+    @staticmethod
+    def _find_last_marker_index(
+        comments: list[dict], marker: str
+    ) -> int | None:
+        """Index of the most recent comment containing ``marker``, if any."""
+        marker_idx: int | None = None
+        for i, comment in enumerate(comments):
+            if marker in (comment.get("body") or ""):
+                marker_idx = i  # last one wins (re-scan continues)
+        return marker_idx
+
+    def _replies_after_marker(
+        self, comments: list[dict], marker: str
+    ) -> list[AuthorReply]:
+        """Author replies trailing the last ``marker`` comment (template).
+
+        Shared by every adapter: find the most recent marker comment,
+        then collect the non-skipped comments after it as
+        :class:`AuthorReply` objects. The per-platform variation lives in
+        the ``_comment_author`` / ``_skip_reply`` hooks.
+        """
+        marker_idx = self._find_last_marker_index(comments, marker)
+        if marker_idx is None:
+            return []
+        marker_author = self._comment_author(comments[marker_idx])
+        in_reply_to_id = int(comments[marker_idx]["id"])
+        return [
+            AuthorReply(
+                author=self._comment_author(comment),
+                body=str(comment.get("body") or "").strip(),
+                in_reply_to_id=in_reply_to_id,
+                created_at=str(comment.get("created_at") or ""),
+            )
+            for comment in comments[marker_idx + 1:]
+            if not self._skip_reply(comment, marker_author)
+        ]
 
     # ----- status-check / gate (Check Run on GitHub, commit status on GitLab) ---
 

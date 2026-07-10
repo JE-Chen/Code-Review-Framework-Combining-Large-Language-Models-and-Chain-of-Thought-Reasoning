@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable
 
+from prthinker.corpora_base import JsonlCorpusStore, embed_store_comments
 from prthinker.schemas import InlineFinding
 
 if TYPE_CHECKING:
@@ -58,40 +59,18 @@ class DismissedExample:
         )
 
 
-class DismissedExamplesStore:
+class DismissedExamplesStore(JsonlCorpusStore[DismissedExample]):
     """JSONL-backed store of dismissed inline findings."""
 
     def __init__(self, path: Path) -> None:
-        self._path = Path(path)
-        self._examples: list[DismissedExample] = []
-        if self._path.exists():
-            self._load()
+        super().__init__(path, DismissedExample.from_dict)
 
-    def _load(self) -> None:
-        for raw in self._path.read_text(encoding="utf-8").splitlines():
-            raw = raw.strip()
-            if not raw:
-                continue
-            try:
-                data = json.loads(raw)
-            except json.JSONDecodeError:
-                log.warning("skipping malformed line in %s", self._path)
-                continue
-            self._examples.append(DismissedExample.from_dict(data))
-        log.info("Loaded %d dismissed example(s) from %s",
-                 len(self._examples), self._path)
+    def _on_malformed(self, raw: str) -> None:
+        del raw  # the path, not the payload, is what the operator needs
+        log.warning("skipping malformed line in %s", self._path)
 
-    def __len__(self) -> int:
-        return len(self._examples)
-
-    def __iter__(self):
-        return iter(self._examples)
-
-    def append(self, example: DismissedExample) -> None:
-        self._examples.append(example)
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        with self._path.open("a", encoding="utf-8") as fh:
-            fh.write(example.to_jsonl() + "\n")
+    def _on_loaded(self) -> None:
+        log.info("Loaded %d dismissed example(s) from %s", len(self), self._path)
 
 
 class DismissedFilter:
@@ -112,12 +91,7 @@ class DismissedFilter:
     def _ensure_embeddings(self) -> None:
         if self._example_embeddings or len(self._store) == 0:
             return
-        # Lazy import — keeps this module usable in tests without faiss.
-        from codes.util.faiss_util import get_embedding
-
-        self._example_embeddings = [
-            (ex, get_embedding(ex.comment)) for ex in self._store
-        ]
+        self._example_embeddings = embed_store_comments(self._store)
 
     def _best_match(
         self, finding: InlineFinding, candidate: "np.ndarray"

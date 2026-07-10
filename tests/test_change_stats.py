@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from prthinker.change_stats import ChangeStat, change_badge, compute_change_stats
+from prthinker.change_stats import (
+    ChangeStat,
+    change_badge,
+    compute_change_stats,
+    total_changes,
+)
 
 _DIFF = (
     "diff --git a/a.py b/a.py\n"
@@ -52,3 +57,11 @@ def test_change_badge_uses_minus_sign_not_hyphen():
     # The U+2212 minus avoids being parsed as a markdown list bullet.
     badge = change_badge(ChangeStat(path="a", added=1, removed=2, hunks=1))
     assert "−2" in badge and "-2" not in badge
+
+
+def test_total_changes_sums_across_files():
+    assert total_changes(compute_change_stats(_DIFF)) == (2, 4, 1)
+
+
+def test_total_changes_empty_stats():
+    assert total_changes({}) == (0, 0, 0)

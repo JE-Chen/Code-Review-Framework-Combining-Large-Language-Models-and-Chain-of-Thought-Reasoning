@@ -1,11 +1,15 @@
 """Feedback calibration and embedding-drift primitives."""
 
 from __future__ import annotations
+
+import contextlib
+import hashlib
 import math
 import sqlite3
+import threading
 import time
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -30,13 +34,49 @@ def _f1_at(threshold, scored_labels):
     return 2 * tp / denom if denom else 0
 
 
+def _f1(true_pos, false_pos, false_neg):
+    """F1 from confusion counts; 0 when there is nothing to score."""
+    denom = 2 * true_pos + false_pos + false_neg
+    return 2 * true_pos / denom if denom else 0
+
+
+def _consume_tied_scores(pairs, index, true_pos, false_pos):
+    """Fold every pair tied at ``pairs[index]``'s score into tp/fp.
+
+    Returns ``(threshold, next_index, true_pos, false_pos)`` so the sweep
+    in :func:`select_threshold` can evaluate F1 once per unique score.
+    """
+    threshold = pairs[index][0]
+    while index < len(pairs) and pairs[index][0] == threshold:
+        true_pos += 1 if pairs[index][1] else 0
+        false_pos += 0 if pairs[index][1] else 1
+        index += 1
+    return threshold, index, true_pos, false_pos
+
+
 def select_threshold(scored_labels):
-    best = (0.0, -1.0)
-    for threshold in sorted({float(s) for s, _ in scored_labels}):
-        f = _f1_at(threshold, scored_labels)
-        if f > best[1]:
-            best = (threshold, f)
-    return best[0]
+    """Score threshold maximising F1, smallest such threshold on ties.
+
+    Single descending sweep over the sorted pairs: every item with a score
+    equal to the candidate threshold joins the positive-prediction side, so
+    tp/fp accumulate and fn derives from the positive total — O(n log n)
+    versus the naive O(unique_scores x n) rescan (see ``_f1_at``, kept as
+    the reference implementation for the regression test).
+    """
+    pairs = sorted(
+        ((float(s), bool(y)) for s, y in scored_labels), reverse=True
+    )
+    total_positive = sum(1 for _, y in pairs if y)
+    best_threshold, best_f1 = 0.0, -1.0
+    true_pos = false_pos = index = 0
+    while index < len(pairs):
+        threshold, index, true_pos, false_pos = _consume_tied_scores(
+            pairs, index, true_pos, false_pos
+        )
+        f1 = _f1(true_pos, false_pos, total_positive - true_pos)
+        if f1 >= best_f1:
+            best_threshold, best_f1 = threshold, f1
+    return best_threshold
 
 
 def cosine_drift(reference, current):
@@ -46,6 +86,18 @@ def cosine_drift(reference, current):
     return 1 - dot / (a * b) if a and b else 1.0
 
 
+_CALIBRATION_SCHEMA = (
+    "CREATE TABLE IF NOT EXISTS feedback (repo TEXT, author TEXT, "
+    "category TEXT, accepted INTEGER NOT NULL DEFAULT 0, "
+    "dismissed INTEGER NOT NULL DEFAULT 0, "
+    "PRIMARY KEY(repo,author,category))",
+    "CREATE TABLE IF NOT EXISTS feedback_events (event_id TEXT "
+    "PRIMARY KEY, repo TEXT NOT NULL, author TEXT NOT NULL, "
+    "category TEXT NOT NULL, accepted INTEGER NOT NULL, "
+    "ts REAL NOT NULL)",
+)
+
+
 class CalibrationStore:
     """Persistent repository/author/category feedback calibration."""
 
@@ -53,19 +105,33 @@ class CalibrationStore:
         target = Path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
         self.path = str(target)
-        with sqlite3.connect(self.path) as conn:
-            conn.execute(
-                "CREATE TABLE IF NOT EXISTS feedback (repo TEXT, author TEXT, "
-                "category TEXT, accepted INTEGER NOT NULL DEFAULT 0, "
-                "dismissed INTEGER NOT NULL DEFAULT 0, "
-                "PRIMARY KEY(repo,author,category))"
-            )
-            conn.execute(
-                "CREATE TABLE IF NOT EXISTS feedback_events (event_id TEXT "
-                "PRIMARY KEY, repo TEXT NOT NULL, author TEXT NOT NULL, "
-                "category TEXT NOT NULL, accepted INTEGER NOT NULL, "
-                "ts REAL NOT NULL)"
-            )
+        self._lock = threading.Lock()
+        self._conn: sqlite3.Connection | None = None
+        # Create the database file and schema eagerly (as before) with a
+        # short-lived bootstrap connection; the shared read/write
+        # connection is opened lazily on first use.
+        with contextlib.closing(sqlite3.connect(self.path)) as conn:
+            with conn:
+                for statement in _CALIBRATION_SCHEMA:
+                    conn.execute(statement)
+
+    def _connection(self) -> sqlite3.Connection:
+        """The lazily-created shared connection; call with ``_lock`` held.
+
+        ``check_same_thread=False`` lets one connection serve every
+        caller thread; the lock serialises use because sqlite3 objects
+        are shareable but not thread-safe.
+        """
+        if self._conn is None:
+            self._conn = sqlite3.connect(self.path, check_same_thread=False)
+        return self._conn
+
+    def close(self) -> None:
+        """Close the shared connection; the store reopens lazily if reused."""
+        with self._lock:
+            if self._conn is not None:
+                self._conn.close()
+                self._conn = None
 
     def record(
         self,
@@ -80,11 +146,11 @@ class CalibrationStore:
         timestamp = time.time() if timestamp is None else timestamp
         event_id = (
             event_id
-            or __import__("hashlib")
-            .sha256(f"{repo}:{author}:{category}:{accepted}:{timestamp}".encode())
-            .hexdigest()
+            or hashlib.sha256(
+                f"{repo}:{author}:{category}:{accepted}:{timestamp}".encode()
+            ).hexdigest()
         )
-        with sqlite3.connect(self.path) as conn:
+        with self._lock, self._connection() as conn:
             inserted = conn.execute(
                 "INSERT OR IGNORE INTO feedback_events VALUES(?,?,?,?,?,?)",
                 (event_id, repo, author, category, 1 if accepted else 0, timestamp),
@@ -100,8 +166,8 @@ class CalibrationStore:
             )
 
     def calibration(self, repo: str, author: str, category: str) -> BetaCalibration:
-        with sqlite3.connect(self.path) as conn:
-            rows = conn.execute(
+        with self._lock:
+            rows = self._connection().execute(
                 "SELECT accepted,dismissed FROM feedback WHERE repo=? AND author IN (?, '') AND category IN (?, '')",
                 (repo, author, category),
             ).fetchall()
@@ -120,8 +186,8 @@ class CalibrationStore:
     ) -> BetaCalibration:
         """Time-decayed posterior pooling exact and repository-level feedback."""
         now = time.time() if now is None else now
-        with sqlite3.connect(self.path) as conn:
-            rows = conn.execute(
+        with self._lock:
+            rows = self._connection().execute(
                 "SELECT author,category,accepted,ts FROM feedback_events WHERE repo=? AND author IN (?, '') AND category IN (?, '')",
                 (repo, author, category),
             ).fetchall()

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from prthinker.markdown_report import render_markdown, write_markdown
 from prthinker.pipeline import FileReviewResult, ReviewResult
-from prthinker.schemas import InlineFinding
+from prthinker.schemas import Evidence, InlineFinding, Provenance, ProvenanceCitation, SuggestionVerification
 
 
 def _finding(path="a.py", line=5, severity="warning", comment="needs work"):
@@ -88,3 +88,41 @@ def test_write_markdown_roundtrips(tmp_path):
     text = out_path.read_text(encoding="utf-8")
     assert text == render_markdown(_result([_finding(comment="boom")]))
     assert "boom" in text
+
+
+def test_audit_rollups_rendered():
+    finding = InlineFinding(
+        path="a.py",
+        line=1,
+        comment="x",
+        suggestion="return 1",
+        verification=SuggestionVerification(status="pass", verify_cmd="pytest"),
+        provenance=Provenance(
+            confidence=0.8,
+            citations=[ProvenanceCitation(kind="rag_rule", index=1)],
+        ),
+        evidence=[
+            Evidence(kind="test", status="confirmed", tool="pytest", summary="pass")
+        ],
+    )
+    out = render_markdown(_result([finding], code_diff=""))
+    assert "## Audit rollups" in out
+    assert "Verification: 1 pass" in out
+    assert "1 provenance-backed" in out
+
+
+def test_rollup_surfaces_findings_and_confidence_scored():
+    finding = InlineFinding(
+        path="a.py", line=1, comment="x",
+        provenance=Provenance(confidence=0.8, citations=[]),
+    )
+    out = render_markdown(_result([finding], code_diff=""))
+    assert "Findings: 1 finding(s) · 1 confidence-scored" in out
+
+
+def test_render_markdown_accepts_precomputed_rollup():
+    from prthinker.review_rollups import rollup_review
+
+    result = _result([_finding()], code_diff="")
+    precomputed = rollup_review(result)
+    assert render_markdown(result, rollup=precomputed) == render_markdown(result)

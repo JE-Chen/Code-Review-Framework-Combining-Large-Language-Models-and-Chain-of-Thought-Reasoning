@@ -494,3 +494,103 @@ def test_run_retrieval_cases_uses_retriever_and_handles_missing_workdir(tmp_path
     assert "pkg/widgets.py" in json.loads(outcomes[0].raw_output)["retrieved"]
     # An unresolved work-tree yields an empty retrieval, not a crash.
     assert json.loads(outcomes[1].raw_output)["retrieved"] == []
+
+
+# --------------------------------------------------------------------------
+# per-retriever corpus memo (documents indexed once per workdir)
+# --------------------------------------------------------------------------
+
+def test_lexical_retriever_indexes_worktree_once(tmp_path, monkeypatch):
+    import prthinker.repo_retrieval as rr
+
+    repo = _make_repo(tmp_path, {
+        "a.py": "def alpha():\n    return token\n",
+        "b.py": "def beta():\n    return token\n",
+    })
+    walks = []
+    real_iter = rr._iter_code_files
+
+    def _counting_iter(workdir):
+        walks.append(workdir)
+        return real_iter(workdir)
+
+    monkeypatch.setattr(rr, "_iter_code_files", _counting_iter)
+    retriever = LexicalRepoRetriever()
+    first = retriever.retrieve("token", repo)
+    second = retriever.retrieve("alpha token", repo)
+    assert first.files and second.files
+    assert len(walks) == 1  # corpus + IDF memoized on the instance
+
+
+def test_lexical_retriever_memo_is_per_workdir(tmp_path, monkeypatch):
+    import prthinker.repo_retrieval as rr
+
+    repo_a = _make_repo(tmp_path / "a", {"a.py": "def fa():\n    return token\n"})
+    repo_b = _make_repo(tmp_path / "b", {"b.py": "def fb():\n    return token\n"})
+    walks = []
+    real_iter = rr._iter_code_files
+
+    def _counting_iter(workdir):
+        walks.append(workdir)
+        return real_iter(workdir)
+
+    monkeypatch.setattr(rr, "_iter_code_files", _counting_iter)
+    retriever = LexicalRepoRetriever()
+    assert retriever.retrieve("token", repo_a).files == ("a.py",)
+    assert retriever.retrieve("token", repo_b).files == ("b.py",)
+    assert len(walks) == 2  # one index per distinct workdir
+
+
+def test_structural_expansion_reuses_base_index(tmp_path, monkeypatch):
+    import prthinker.repo_retrieval as rr
+
+    repo = _make_repo(tmp_path, {
+        "pkg/widgets.py": "class WidgetRenderer:\n    def render(self):\n        return 1\n",
+        "pkg/other.py": "def add(a, b):\n    return a + b\n",
+    })
+    walks = []
+    real_iter = rr._iter_code_files
+
+    def _counting_iter(workdir):
+        walks.append(workdir)
+        return real_iter(workdir)
+
+    monkeypatch.setattr(rr, "_iter_code_files", _counting_iter)
+    base = LexicalRepoRetriever()
+    result = StructuralExpansionRetriever(base).retrieve("WidgetRenderer render", repo)
+    assert result.files
+    assert len(walks) == 1  # both retrieval rounds share one corpus walk
+
+
+# --------------------------------------------------------------------------
+# enrich_context_spans reads only the context files
+# --------------------------------------------------------------------------
+
+def test_enrich_context_spans_skips_missing_files(tmp_path):
+    from prthinker.repo_retrieval import enrich_context_spans
+
+    repo = _make_repo(tmp_path, {
+        "m.py": "def relevant():\n    return widget\n",
+    })
+    bare = RepoContext(files=("m.py", "ghost.py"))
+    enriched = enrich_context_spans(bare, "widget", repo)
+    assert enriched.spans["m.py"]  # present file still enriched
+    assert "ghost.py" not in enriched.spans  # unreadable file skipped
+    assert enriched.files == ("m.py", "ghost.py")  # file list preserved
+
+
+def test_enrich_context_spans_does_not_walk_worktree(tmp_path, monkeypatch):
+    import prthinker.repo_retrieval as rr
+    from prthinker.repo_retrieval import enrich_context_spans
+
+    repo = _make_repo(tmp_path, {
+        "m.py": "def relevant():\n    return widget\n",
+        "huge_unrelated.py": "def other():\n    return 1\n",
+    })
+
+    def _forbidden(_workdir):
+        raise AssertionError("enrich_context_spans must not walk the tree")
+
+    monkeypatch.setattr(rr, "_iter_code_files", _forbidden)
+    enriched = enrich_context_spans(RepoContext(files=("m.py",)), "widget", repo)
+    assert enriched.spans["m.py"]

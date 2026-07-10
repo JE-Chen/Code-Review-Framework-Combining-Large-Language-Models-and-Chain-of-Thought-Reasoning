@@ -688,5 +688,57 @@ def _make_config(**overrides):
     return Config(**base)
 
 
+# --- _flag: boolean CLI-flag reader -------------------------------------------
+
+def test_flag_true_when_set():
+    assert cli_review._flag(Namespace(judge=True), "judge") is True
+
+
+def test_flag_false_when_unset_attribute():
+    assert cli_review._flag(Namespace(), "judge") is False
+
+
+def test_flag_coerces_truthy_and_falsy_values():
+    assert cli_review._flag(Namespace(judge=1), "judge") is True
+    assert cli_review._flag(Namespace(judge=None), "judge") is False
+    assert cli_review._flag(Namespace(judge=""), "judge") is False
+
+
+def test_collect_core_kwargs_uses_flags():
+    args = Namespace(
+        inline_review=True,
+        judge=True,
+        max_findings_per_file=5,
+        step_plan="full",
+    )
+    kwargs = cli_review._collect_core_kwargs(args)
+    assert kwargs["judge"] is True
+    assert kwargs["self_correct"] is False  # missing attr → False
+    assert kwargs["max_findings_per_file"] == 5
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))
+
+
+def test_server_review_request_carries_step_plan() -> None:
+    from prthinker.cli_review import _server_review_request
+    from prthinker.config import BackendKind, Config, RemoteBackendConfig
+
+    config = Config(
+        backend=BackendKind.REMOTE,
+        remote=RemoteBackendConfig(url="https://srv.example"),
+        step_plan="adaptive",
+    )
+    request = _server_review_request(config, "+diff", [])
+    assert request.step_plan == "adaptive"
+
+
+def test_review_request_step_plan_defaults_to_full() -> None:
+    from prthinker.schemas import ReviewRequest
+
+    # Old runners omit the field entirely — the wire default keeps the
+    # historical full-chain behaviour.
+    request = ReviewRequest.model_validate({"code_diff": "+x"})
+    assert request.step_plan == "full"
+    assert ReviewRequest(code_diff="+x", step_plan="adaptive").step_plan == "adaptive"

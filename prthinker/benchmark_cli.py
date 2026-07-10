@@ -8,6 +8,7 @@ from pathlib import Path
 from prthinker.ablation import compare_runs
 from prthinker.benchmark_datasets import convert_dataset
 from prthinker.benchmark_scoring import aggregate, score_files
+from prthinker.cli_io import emit_text
 
 DATASETS = (
     "codefuse-cr-bench",
@@ -53,12 +54,7 @@ def add_benchmark_parser(sub, common=None) -> None:
 
 
 def _emit(payload, output: Path | None) -> None:
-    text = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
-    if output:
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(text, encoding="utf-8")
-    else:
-        print(text, end="")
+    emit_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", output)
 
 
 def _run_convert(args: argparse.Namespace) -> int:

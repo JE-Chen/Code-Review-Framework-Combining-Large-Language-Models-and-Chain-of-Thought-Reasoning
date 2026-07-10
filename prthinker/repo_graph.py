@@ -122,6 +122,24 @@ class GraphExpandedRetriever(RepoContextRetriever):
         self._seed_files = max(1, seed_files)
         self._neighbour_budget = max(0, neighbour_budget)
         self._hops = max(1, hops)
+        # Graph memo keyed by workdir: building the import graph re-reads
+        # the whole work-tree, so graph + reverse graph are computed once
+        # per retriever lifetime instead of on every query.
+        self._graph_cache: dict[
+            Path, tuple[dict[str, set[str]], dict[str, set[str]]]
+        ] = {}
+
+    def _graphs(
+        self, workdir: Path
+    ) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
+        """Import graph + reverse graph for ``workdir``, built once and memoized."""
+        key = workdir.resolve()
+        cached = self._graph_cache.get(key)
+        if cached is None:
+            graph = build_python_import_graph(list(_iter_code_files(workdir)))
+            cached = (graph, _reverse_graph(graph))
+            self._graph_cache[key] = cached
+        return cached
 
     def retrieve(self, query: str, workdir: Path) -> RepoContext:
         """Retrieve lexically, then append import-graph neighbours of top hits."""
@@ -129,8 +147,8 @@ class GraphExpandedRetriever(RepoContextRetriever):
         base = self._base.retrieve(query, workdir)
         if not base.files or not self._neighbour_budget:
             return base
-        graph = build_python_import_graph(list(_iter_code_files(workdir)))
-        neighbours = self._neighbours(base.files, graph)
+        graph, importers = self._graphs(workdir)
+        neighbours = self._neighbours(base.files, graph, importers)
         merged = list(base.files) + [n for n in neighbours if n not in base.files]
         return RepoContext(
             tuple(merged),
@@ -138,9 +156,13 @@ class GraphExpandedRetriever(RepoContextRetriever):
             {rel: base.symbols.get(rel, []) for rel in merged},
         )
 
-    def _neighbours(self, files: tuple[str, ...], graph: dict[str, set[str]]) -> list[str]:
+    def _neighbours(
+        self,
+        files: tuple[str, ...],
+        graph: dict[str, set[str]],
+        importers: dict[str, set[str]],
+    ) -> list[str]:
         """Import-graph neighbours within ``hops`` of the seed files, up to budget."""
-        importers = _reverse_graph(graph)
         seen = set(files)
         found: list[str] = []
         queue = [(seed, 0) for seed in files[: self._seed_files]]

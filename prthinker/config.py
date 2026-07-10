@@ -10,6 +10,16 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
+
+# Canonical on-disk store locations and the summary-comment marker, shared
+# across the CLI parser / review / report modules so the literals are
+# declared exactly once.
+KG_STORE_DEFAULT = ".prthinker/repo-kg.sqlite"
+TELEMETRY_DEFAULT = ".prthinker/telemetry.sqlite"
+CACHE_DEFAULT = ".prthinker/cache.sqlite"
+LESSONS_DEFAULT = ".prthinker/lessons.jsonl"
+SUMMARY_MARKER = "<!-- prthinker:summary -->"
 
 
 class BackendKind(str, Enum):
@@ -221,7 +231,7 @@ class GitHubConfig:
     repo: str
     pr_number: int
     token: str
-    comment_marker: str = "<!-- prthinker:summary -->"
+    comment_marker: str = SUMMARY_MARKER
 
     def __post_init__(self) -> None:
         if "/" not in self.repo:
@@ -235,14 +245,14 @@ class GitHubConfig:
 @dataclass(frozen=True)
 class CacheConfig:
     enabled: bool = False
-    path: str = ".prthinker/cache.sqlite"
+    path: str = CACHE_DEFAULT
     ttl_days: float | None = 7.0
 
 
 @dataclass(frozen=True)
 class TelemetryConfig:
     enabled: bool = False
-    path: str = ".prthinker/telemetry.sqlite"
+    path: str = TELEMETRY_DEFAULT
 
 
 @dataclass(frozen=True)
@@ -264,6 +274,9 @@ class Config:
     rag_threshold: float | None = None
     max_new_tokens: int = 32768
     steps: tuple[str, ...] = field(default_factory=tuple)
+    # Per-file review depth policy ("full" | "adaptive"); forwarded to the
+    # remote pipeline server so single-file shards plan depth too.
+    step_plan: str = "full"
     cache: CacheConfig = field(default_factory=CacheConfig)
     telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
 
@@ -294,3 +307,31 @@ def env_bool(name: str, default: bool) -> bool:
     if raw is None:
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def env_int(name: str, default: int) -> int:
+    """Integer env var; unset / empty / non-numeric all fall back to ``default``."""
+    raw = (os.environ.get(name) or "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+def env_float(name: str, default: float) -> float:
+    """Float env var; unset / empty / non-numeric all fall back to ``default``."""
+    raw = (os.environ.get(name) or "").strip()
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+def env_path(name: str, default: str) -> Path:
+    """Path env var; unset / empty falls back to ``Path(default)``."""
+    raw = (os.environ.get(name) or "").strip()
+    return Path(raw) if raw else Path(default)

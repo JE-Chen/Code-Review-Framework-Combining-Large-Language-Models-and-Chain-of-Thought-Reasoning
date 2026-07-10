@@ -15,35 +15,38 @@ import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from prthinker import (
-    api_consistency,
-    dep_upgrade,
-    diff_entropy,
-    personas,
-    pr_classifier,
-    risk_score,
-)
+from prthinker import risk_score
 from prthinker.accepted import AcceptedExamplesRetriever, format_examples_block
-from prthinker.review_modes import run_review_modes
 from prthinker.backends.base import InferenceBackend
 from prthinker.counterfactual import parse_counterfactuals
 from prthinker.diff import FileDiff, parse_unified_diff
 from prthinker.dismissed import DismissedFilter
-from prthinker.findings import build_provenance_block, parse_inline_findings
+from prthinker.findings import (
+    build_provenance_block,
+    parse_inline_findings,
+    split_unified_review,
+)
 from prthinker.judge import parse_verdict
 from prthinker.rag import RAGRetriever
 from prthinker.review_cache import CacheKey
 from prthinker.undefined_guard import suppress_phantom_undefined
 from prthinker.schemas import (
-    ApiDriftFinding,
     CounterfactualBlock,
-    DependencyUpgradeFinding,
-    DiffEntropySummary,
     InlineFinding,
     JudgeVerdict,
-    PersonaConflict,
-    PersonaReview,
-    PRClassification,
+)
+from prthinker.batch_review import (
+    build_batch_prompt,
+    chunk_batchable,
+    parse_batch_findings,
+)
+from prthinker.step_planner import (
+    STEP_PLAN_ADAPTIVE,
+    TIER_SKIP,
+    TIER_STANDARD,
+    TIER_TOKEN_BUDGETS,
+    TIER_TRIVIAL,
+    plan_steps,
 )
 from prthinker.steps import (
     CounterfactualStep,
@@ -51,6 +54,7 @@ from prthinker.steps import (
     JudgeStep,
     ReviewContext,
     ReviewStep,
+    UnifiedReviewStep,
     WalkthroughStep,
     resolve_steps,
 )
@@ -59,12 +63,12 @@ from prthinker.otel import operation_span
 from prthinker.repo_graph import build_import_adjacency
 from prthinker.repo_retrieval import RepoContextRetriever
 from prthinker.pipeline_exec import PipelineExecutionMixin
+from prthinker.pipeline_extras import PipelineAggregateExtrasMixin
 from prthinker.pipeline_types import (
     FileReviewResult,
     PerFileReviewOptions,
     ReviewCancelledError,
     ReviewResult,
-    _AggregateExtras,
     _AggregatedFiles,
     _ClassifyOutcome,
     _FileRunFlags,
@@ -104,7 +108,7 @@ def _invoke_on_file_done(
 _DEFAULT_MAX_STEP_RESULT_CHARS = 6000
 
 
-class CoTPipeline(PipelineExecutionMixin):
+class CoTPipeline(PipelineExecutionMixin, PipelineAggregateExtrasMixin):
     def __init__(
         self,
         backend: InferenceBackend,
@@ -172,6 +176,13 @@ class CoTPipeline(PipelineExecutionMixin):
         # RAG context first, then team-specific overrides.
         return list(retrieved) + list(self._extra_rules)
 
+    @staticmethod
+    def _doc_ids(rag_docs: list[str]) -> list[str]:
+        """Short stable content ids for retrieved docs (trajectory metadata)."""
+        return [
+            hashlib.sha256(doc.encode()).hexdigest()[:16] for doc in rag_docs
+        ]
+
     # ---------- single-pass mode --------------------------------------------
 
     def run(
@@ -191,10 +202,7 @@ class CoTPipeline(PipelineExecutionMixin):
                 status="ok",
                 metadata={
                     "documents": len(rag_docs),
-                    "retrieved": [
-                        hashlib.sha256(doc.encode()).hexdigest()[:16]
-                        for doc in rag_docs
-                    ],
+                    "retrieved": self._doc_ids(rag_docs),
                 },
             )
         ctx = ReviewContext(code_diff=code_diff, rag_docs=rag_docs)
@@ -215,10 +223,15 @@ class CoTPipeline(PipelineExecutionMixin):
         *,
         inline_review: bool = True,
         max_findings: int = 10,
+        step_plan: str = "full",
     ) -> "FileReviewResult":
         """Run all configured steps against one file's diff.
 
         Used by the FastAPI `/review` endpoint and by `run_per_file`.
+        ``step_plan="adaptive"`` applies the same depth planning as the
+        per-file loop, so remote single-file shards (the CI matrix) get
+        skip/trivial/standard pruning too; any other value runs the full
+        configured chain.
         """
         files = parse_unified_diff(diff_text)
         fd = files[0] if files else FileDiff(path=file_path, raw=diff_text)
@@ -228,12 +241,43 @@ class CoTPipeline(PipelineExecutionMixin):
         extra: tuple[type[ReviewStep], ...] = (
             (InlineFindingsStep,) if inline_review else ()
         )
-        return self._run_one_file(
+        all_steps = self._step_classes + extra
+        if step_plan != STEP_PLAN_ADAPTIVE:
+            return self._run_one_file(
+                fd,
+                all_steps,
+                max_findings_per_file=max_findings,
+                output_dir=None,
+            )
+        return self._run_single_file_planned(fd, all_steps, max_findings)
+
+    def _run_single_file_planned(
+        self,
+        fd: FileDiff,
+        all_steps: tuple[type[ReviewStep], ...],
+        max_findings: int,
+    ) -> "FileReviewResult":
+        """Adaptive-depth single-file review (the remote /review path)."""
+        plan = plan_steps(fd, all_steps)
+        log.info(
+            "step_plan: %s tier=%s steps=%s (single-file mode)",
+            fd.path,
+            plan.tier,
+            [cls.name for cls in plan.steps],
+        )
+        if plan.tier == TIER_SKIP:
+            skip_result = self._stub_file_result(fd, [])
+            skip_result.step_outputs["step_plan"] = plan.tier
+            return skip_result
+        result = self._run_one_file(
             fd,
-            self._step_classes + extra,
+            plan.steps,
             max_findings_per_file=max_findings,
             output_dir=None,
+            gen_budget=TIER_TOKEN_BUDGETS.get(plan.tier),
         )
+        result.step_outputs["step_plan"] = plan.tier
+        return result
 
     # ---------- per-file mode -----------------------------------------------
 
@@ -343,45 +387,7 @@ class CoTPipeline(PipelineExecutionMixin):
             verify_cmd=opts.verify_cmd,
             verify_timeout=opts.verify_timeout,
             parallelism=max(1, min(opts.parallelism, self._backend.max_concurrency())),
-        )
-
-    def _run_aggregate_extras(
-        self,
-        diff_text: str,
-        file_diffs: list[FileDiff],
-        opts: "PerFileReviewOptions",
-        aggregated_steps: dict[str, str],
-    ) -> "_AggregateExtras":
-        """Run the cross-file extra steps (dep / persona / api / review modes)."""
-        dep_upgrades = (
-            self._run_dep_upgrades(file_diffs, aggregated_steps)
-            if opts.dep_upgrade_check
-            else []
-        )
-        persona_reviews, persona_conflicts = (
-            self._run_personas(opts.persona_set, diff_text, aggregated_steps)
-            if opts.persona_set
-            else ([], [])
-        )
-        api_drift = (
-            self._run_api_consistency(file_diffs, aggregated_steps)
-            if opts.api_consistency_check
-            else []
-        )
-        if opts.review_modes:
-            aggregated_steps.update(
-                run_review_modes(
-                    self._backend,
-                    diff_text,
-                    opts.review_modes,
-                    self._max_new_tokens,
-                )
-            )
-        return _AggregateExtras(
-            dep_upgrades=dep_upgrades,
-            persona_reviews=persona_reviews,
-            persona_conflicts=persona_conflicts,
-            api_drift=api_drift,
+            step_plan=opts.step_plan,
         )
 
     def _review_each_file(
@@ -392,66 +398,36 @@ class CoTPipeline(PipelineExecutionMixin):
     ) -> _AggregatedFiles:
         """Review every file in the diff and accumulate the aggregated state."""
         agg = _AggregatedFiles()
+        batched = self._review_trivial_batches(file_diffs, opts)
+        loop_fds = [fd for fd in file_diffs if fd.path not in batched]
         if opts.parallelism > 1:
             with ThreadPoolExecutor(max_workers=opts.parallelism) as pool:
-                reviewed = list(
-                    pool.map(lambda fd: self._review_single_file(fd, opts), file_diffs)
+                loop_results = list(
+                    pool.map(lambda fd: self._review_single_file(fd, opts), loop_fds)
                 )
         else:
-            reviewed = [self._review_single_file(fd, opts) for fd in file_diffs]
-        for fd, fr in zip(file_diffs, reviewed):
-            agg.per_file_results.append(fr)
-            agg.inline_findings.extend(fr.inline_findings)
-            agg.counterfactuals.extend(fr.counterfactuals)
-            for name, output in fr.step_outputs.items():
-                # Namespace each per-file output for the consolidated comment.
-                agg.step_outputs[f"{fd.path}::{name}"] = output
-            _invoke_on_file_done(on_file_done, fr)
+            loop_results = [self._review_single_file(fd, opts) for fd in loop_fds]
+        by_path = dict(batched)
+        by_path.update({fd.path: fr for fd, fr in zip(loop_fds, loop_results)})
+        for fd in file_diffs:
+            self._accumulate_file(agg, fd, by_path[fd.path], on_file_done)
         return agg
 
-    def _classify_pr(
-        self,
-        diff_text: str,
-        pr_title: str,
-        pr_body: str,
-        inline_review: bool,
-        max_findings_per_file: int,
-        dialogue_block: str,
-    ) -> _ClassifyOutcome:
-        """Classify the PR type and fold the classifier's budget into the knobs."""
-        log.info("Classifying PR type")
-        classify_prompt = pr_classifier.build_prompt(
-            diff_text=diff_text,
-            title=pr_title,
-            body=pr_body,
-        )
-        raw_classify = self._backend.generate(
-            classify_prompt,
-            max_new_tokens=self._max_new_tokens,
-        )
-        parsed = pr_classifier.parse_classification(raw_classify)
-        budget = pr_classifier.budget_for(parsed.pr_type)
-        log.info(
-            "PR classified as %s -> inline=%s, max_findings=%d",
-            parsed.pr_type.value,
-            budget.run_inline_findings,
-            budget.max_findings_per_file,
-        )
-        # Override caller knobs with the classifier's budget; caller can
-        # still pass --no-pr-classify to bypass entirely.
-        if budget.max_findings_per_file > 0:
-            max_findings_per_file = budget.max_findings_per_file
-        if budget.focus_hint:
-            dialogue_block = (dialogue_block + "\n\n" + budget.focus_hint).strip()
-        return _ClassifyOutcome(
-            classification=PRClassification(
-                pr_type=parsed.pr_type.value,
-                reason=parsed.reason,
-            ),
-            inline_review=inline_review and budget.run_inline_findings,
-            max_findings_per_file=max_findings_per_file,
-            dialogue_block=dialogue_block,
-        )
+    @staticmethod
+    def _accumulate_file(
+        agg: _AggregatedFiles,
+        fd: FileDiff,
+        fr: FileReviewResult,
+        on_file_done: "object | None",
+    ) -> None:
+        """Fold one file's result into the aggregate and fire the done hook."""
+        agg.per_file_results.append(fr)
+        agg.inline_findings.extend(fr.inline_findings)
+        agg.counterfactuals.extend(fr.counterfactuals)
+        for name, output in fr.step_outputs.items():
+            # Namespace each per-file output for the consolidated comment.
+            agg.step_outputs[f"{fd.path}::{name}"] = output
+        _invoke_on_file_done(on_file_done, fr)
 
     def _build_step_sequence(
         self,
@@ -476,29 +452,6 @@ class CoTPipeline(PipelineExecutionMixin):
         if judge:
             extra += (JudgeStep,)
         return self._step_classes + extra
-
-    def _compute_entropy_summary(
-        self,
-        file_diffs: list[FileDiff],
-    ) -> DiffEntropySummary:
-        """Compute the diff-entropy ("diff bomb") summary for the PR."""
-        e = diff_entropy.compute_entropy(file_diffs)
-        log.info(
-            "diff_entropy: %d file(s) +%d/-%d score=%.2f verdict=%s",
-            e.file_count,
-            e.added_lines,
-            e.removed_lines,
-            e.score,
-            e.verdict,
-        )
-        return DiffEntropySummary(
-            file_count=e.file_count,
-            added_lines=e.added_lines,
-            removed_lines=e.removed_lines,
-            dispersion_entropy=e.dispersion_entropy,
-            score=e.score,
-            verdict=e.verdict,
-        )
 
     def _compute_risk_by_path(
         self,
@@ -553,18 +506,25 @@ class CoTPipeline(PipelineExecutionMixin):
         )
         return budget
 
-    def _skipped_file_result(self, fd: FileDiff) -> FileReviewResult:
-        """Marked, finding-less result for a binary/deleted skipped file."""
-        reason = "binary" if fd.is_binary else "deleted"
-        log.info("Recording %s file %s as skipped", reason, fd.path)
+    @staticmethod
+    def _stub_file_result(
+        fd: FileDiff, findings: list[InlineFinding]
+    ) -> FileReviewResult:
+        """Step-less result shell shared by the skip and cache-hit paths."""
         return FileReviewResult(
             path=fd.path,
             rag_docs=[],
             step_outputs={},
-            inline_findings=[],
+            inline_findings=findings,
             is_binary=fd.is_binary,
             is_deleted=fd.is_deleted,
         )
+
+    def _skipped_file_result(self, fd: FileDiff) -> FileReviewResult:
+        """Marked, finding-less result for a binary/deleted skipped file."""
+        reason = "binary" if fd.is_binary else "deleted"
+        log.info("Recording %s file %s as skipped", reason, fd.path)
+        return self._stub_file_result(fd, [])
 
     def _cached_file_result(
         self,
@@ -581,14 +541,7 @@ class CoTPipeline(PipelineExecutionMixin):
             len(cached),
             fd.path,
         )
-        return FileReviewResult(
-            path=fd.path,
-            rag_docs=[],
-            step_outputs={},
-            inline_findings=cached,
-            is_binary=fd.is_binary,
-            is_deleted=fd.is_deleted,
-        )
+        return self._stub_file_result(fd, cached)
 
     def _run_and_cache_file(
         self,
@@ -598,9 +551,18 @@ class CoTPipeline(PipelineExecutionMixin):
     ) -> FileReviewResult:
         """Run the steps for a file, persist to cache, then verify suggestions."""
         file_out_dir = opts.output_dir / _sanitize(fd.path) if opts.output_dir else None
+        steps, plan_tier = self._planned_steps(fd, opts)
+        if plan_tier == TIER_SKIP:
+            # Generated / lockfile / whitespace-only change: zero model
+            # calls, zero retrieval. The file still appears in the summary
+            # so "skipped by policy" is visible rather than silent.
+            log.info("step_plan: %s tier=skip — no review steps run", fd.path)
+            skip_result = self._stub_file_result(fd, [])
+            skip_result.step_outputs["step_plan"] = plan_tier
+            return skip_result
         file_result = self._run_one_file(
             fd,
-            opts.all_steps,
+            steps,
             max_findings_per_file=self._effective_max(fd, opts),
             output_dir=file_out_dir,
             flags=_FileRunFlags(
@@ -609,7 +571,10 @@ class CoTPipeline(PipelineExecutionMixin):
                 provenance=opts.provenance,
                 reproducibility_check=opts.reproducibility_check,
             ),
+            gen_budget=TIER_TOKEN_BUDGETS.get(plan_tier),
         )
+        if plan_tier:
+            file_result.step_outputs["step_plan"] = plan_tier
         if cache_key is not None:
             opts.review_cache.put(
                 cache_key,
@@ -618,6 +583,116 @@ class CoTPipeline(PipelineExecutionMixin):
                 model=self._backend.model_name(),
             )
         return self._maybe_verify(file_result, opts)
+
+    def _planned_steps(
+        self,
+        fd: FileDiff,
+        opts: _PerFileOptions,
+    ) -> tuple[tuple[type[ReviewStep], ...], str]:
+        """The step chain for one file, pruned per plan; tier '' when full."""
+        if opts.step_plan != STEP_PLAN_ADAPTIVE:
+            return opts.all_steps, ""
+        risk_entry = opts.risk_by_path.get(fd.path)
+        plan = plan_steps(
+            fd,
+            opts.all_steps,
+            risk=risk_entry.score if risk_entry is not None else None,
+        )
+        log.info(
+            "step_plan: %s tier=%s steps=%s skipped=%s",
+            fd.path,
+            plan.tier,
+            [cls.name for cls in plan.steps],
+            list(plan.skipped),
+        )
+        return plan.steps, plan.tier
+
+    def _is_batchable(self, fd: FileDiff, opts: _PerFileOptions) -> bool:
+        """Trivial-tier files whose whole plan is one findings pass batch
+        together; anything with extra steps or special handling stays in
+        the per-file loop."""
+        if fd.is_binary or fd.is_deleted:
+            return False
+        steps, tier = self._planned_steps(fd, opts)
+        return tier == TIER_TRIVIAL and [cls.name for cls in steps] == [
+            InlineFindingsStep.name
+        ]
+
+    def _review_trivial_batches(
+        self,
+        file_diffs: list[FileDiff],
+        opts: _PerFileOptions,
+    ) -> dict[str, FileReviewResult]:
+        """Review all batchable trivial files in a few merged model calls.
+
+        Returns results keyed by path; files not in the mapping go through
+        the normal per-file loop. Cache hits are honoured per file before
+        batching, and each batched file's findings are cached individually
+        so a later force-push still gets per-file differential reuse.
+        """
+        if opts.step_plan != STEP_PLAN_ADAPTIVE:
+            return {}
+        results: dict[str, FileReviewResult] = {}
+        pending: list[FileDiff] = []
+        for fd in file_diffs:
+            if not self._is_batchable(fd, opts):
+                continue
+            cache_key = self._cache_key_for(fd, opts)
+            cached = (
+                self._cached_file_result(fd, cache_key, opts)
+                if cache_key is not None
+                else None
+            )
+            if cached is not None:
+                results[fd.path] = cached
+                continue
+            pending.append(fd)
+        for chunk in chunk_batchable(pending):
+            results.update(self._run_batch_chunk(chunk, opts))
+        return results
+
+    def _run_batch_chunk(
+        self,
+        chunk: list[FileDiff],
+        opts: _PerFileOptions,
+    ) -> dict[str, FileReviewResult]:
+        """One model call reviews a chunk of trivial files."""
+        self._check_cancel()
+        log.info(
+            "step_plan: batching %d trivial file(s) into one call: %s",
+            len(chunk),
+            [fd.path for fd in chunk],
+        )
+        prompt = build_batch_prompt(chunk, opts.max_findings_per_file)
+        raw = self._backend.generate(
+            prompt,
+            max_new_tokens=min(
+                self._max_new_tokens, TIER_TOKEN_BUDGETS[TIER_STANDARD]
+            ),
+            cancel_event=self._cancel_event,
+        )
+        findings_by_path = parse_batch_findings(raw, chunk)
+        results: dict[str, FileReviewResult] = {}
+        for fd in chunk:
+            findings = suppress_phantom_undefined(
+                findings_by_path.get(fd.path, []),
+                diff_text=fd.raw,
+                path=fd.path,
+            )
+            if self._dismissed_filter is not None and findings:
+                findings = self._dismissed_filter.filter(findings)
+            file_result = self._stub_file_result(fd, findings)
+            file_result.step_outputs["step_plan"] = TIER_TRIVIAL
+            cache_key = self._cache_key_for(fd, opts)
+            if cache_key is not None:
+                opts.review_cache.put(
+                    cache_key,
+                    findings,
+                    backend=self._backend.backend_kind(),
+                    model=self._backend.model_name(),
+                )
+            results[fd.path] = file_result
+        return results
 
     def _maybe_verify(
         self,
@@ -661,81 +736,6 @@ class CoTPipeline(PipelineExecutionMixin):
 
         return self._run_and_cache_file(fd, cache_key, opts)
 
-    def _run_dep_upgrades(
-        self,
-        file_diffs: list[FileDiff],
-        aggregated_steps: dict[str, str],
-    ) -> list[DependencyUpgradeFinding]:
-        """Run the dependency-upgrade impact step, recording raw outputs."""
-        dep_upgrades: list[DependencyUpgradeFinding] = []
-        for up in dep_upgrade.detect_upgrades(file_diffs):
-            log.info(
-                "dep-upgrade: %s %s %s -> %s",
-                up.ecosystem,
-                up.package,
-                up.old_version,
-                up.new_version,
-            )
-            prompt = dep_upgrade.build_prompt(up, file_diffs)
-            raw = self._backend.generate(
-                prompt,
-                max_new_tokens=self._max_new_tokens,
-            )
-            aggregated_steps[f"dep_upgrade::{up.package}::{up.new_version}"] = raw
-            dep_upgrades.extend(dep_upgrade.parse_impact(raw, upgrade=up))
-        return dep_upgrades
-
-    def _run_personas(
-        self,
-        persona_set: tuple[str, ...],
-        diff_text: str,
-        aggregated_steps: dict[str, str],
-    ) -> tuple[list[PersonaReview], list[PersonaConflict]]:
-        """Run the selected reviewer personas and surface their conflicts."""
-        selected = self._resolve_personas(persona_set)
-        log.info("personas: running %s", [p.value for p in selected])
-        persona_outputs: dict[personas.Persona, str] = {}
-        reviews: list[PersonaReview] = []
-        for p in selected:
-            parts = personas.build_persona_prompt(p, diff_text=diff_text)
-            raw = self._backend.generate(
-                parts.prompt,
-                max_new_tokens=self._max_new_tokens,
-            )
-            persona_outputs[p] = raw
-            aggregated_steps[f"persona::{p.value}"] = raw
-            reviews.append(PersonaReview(persona=p.value, output=raw))
-        conflicts: list[PersonaConflict] = []
-        if len(selected) >= 2:
-            conflict_prompt = personas.build_conflict_prompt(persona_outputs)
-            conflict_raw = self._backend.generate(
-                conflict_prompt,
-                max_new_tokens=self._max_new_tokens,
-            )
-            aggregated_steps["persona::conflicts"] = conflict_raw
-            conflicts = personas.parse_conflicts(
-                conflict_raw,
-                valid_personas=set(selected),
-            )
-        return reviews, conflicts
-
-    def _run_api_consistency(
-        self,
-        file_diffs: list[FileDiff],
-        aggregated_steps: dict[str, str],
-    ) -> list[ApiDriftFinding]:
-        """Run the cross-language API-drift step on mixed-language diffs."""
-        if not api_consistency.is_mixed_language(file_diffs):
-            return []
-        log.info("Mixed-language PR detected → running api-consistency step")
-        prompt = api_consistency.build_prompt(file_diffs)
-        raw = self._backend.generate(prompt, max_new_tokens=self._max_new_tokens)
-        aggregated_steps["api_consistency"] = raw
-        return api_consistency.parse_drift_findings(
-            raw,
-            allowed_paths={fd.path for fd in file_diffs},
-        )
-
     def _accepted_examples(self, fd: FileDiff) -> tuple[int, str]:
         """Retrieve positive examples for a file; return (count, block)."""
         if self._accepted_retriever is None:
@@ -770,7 +770,7 @@ class CoTPipeline(PipelineExecutionMixin):
         provenance: bool,
     ) -> list[InlineFinding]:
         """Re-query the inline step once and label findings by agreement."""
-        from reviewmind import reproducibility
+        from prthinker import reproducibility
 
         # Rebuild the same prompt and re-query the model. With
         # non-deterministic backends we get a second sample; with
@@ -841,11 +841,12 @@ class CoTPipeline(PipelineExecutionMixin):
         max_findings_per_file: int,
         output_dir: Path | None,
         flags: "_FileRunFlags | None" = None,
+        gen_budget: int | None = None,
     ) -> FileReviewResult:
         flags = flags or _FileRunFlags()
         with operation_span("retrieve", {"prthinker.file.path": fd.path}):
             rag_docs = self._merge_rules(self._retriever.retrieve(fd.raw))
-        doc_ids = [hashlib.sha256(doc.encode()).hexdigest()[:16] for doc in rag_docs]
+        doc_ids = self._doc_ids(rag_docs)
         self._record_retrieval(fd, doc_ids)
         n_accepted_examples, positive_examples_block = self._accepted_examples(fd)
 
@@ -853,7 +854,9 @@ class CoTPipeline(PipelineExecutionMixin):
             fd, rag_docs, max_findings_per_file,
             positive_examples_block, flags, n_accepted_examples,
         )
+        ctx.gen_budget = gen_budget
         self._run_steps(ctx, step_classes, output_dir)
+        self._split_unified_result(ctx)
 
         findings = self._collect_findings(
             fd,
@@ -878,6 +881,22 @@ class CoTPipeline(PipelineExecutionMixin):
             is_deleted=fd.is_deleted,
             counterfactuals=counterfactuals,
         )
+
+    @staticmethod
+    def _split_unified_result(ctx: ReviewContext) -> None:
+        """Fan the unified single-call payload out to its historical keys.
+
+        The unified step merges analysis + findings into one model call;
+        splitting its JSON into the ``compact_review`` / ``inline_findings``
+        result keys keeps findings parsing, reports, and gates unchanged.
+        Explicitly-run inline/compact steps are never overwritten.
+        """
+        raw = ctx.results.get(UnifiedReviewStep.name)
+        if raw is None:
+            return
+        summary, findings_json = split_unified_review(raw)
+        ctx.results.setdefault("compact_review", summary)
+        ctx.results.setdefault(InlineFindingsStep.name, findings_json)
 
     def _make_review_context(
         self, fd, rag_docs, max_findings, positive_examples_block,
@@ -993,29 +1012,6 @@ class CoTPipeline(PipelineExecutionMixin):
                 total_findings=len(findings),
             )
         return verdict, counterfactuals
-
-    def _resolve_personas(
-        self,
-        persona_set: tuple[str, ...],
-    ) -> list["personas.Persona"]:
-        """Translate user-supplied persona names into the enum.
-
-        ``("all",)`` expands to every persona; unknown names raise
-        ``ValueError`` so a typo doesn't silently cost a backend call.
-        """
-        if not persona_set:
-            return []
-        if len(persona_set) == 1 and persona_set[0].lower() == "all":
-            return list(personas.Persona)
-        by_value = {p.value: p for p in personas.Persona}
-        out: list[personas.Persona] = []
-        for raw in persona_set:
-            key = raw.strip().lower()
-            if key not in by_value:
-                raise ValueError(f"Unknown persona {raw!r}. Known: {sorted(by_value)}")
-            out.append(by_value[key])
-        return out
-
 
 
 def _sanitize(path: str) -> str:

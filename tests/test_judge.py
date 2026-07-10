@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from prthinker.judge import aggregate, parse_verdict, to_github_event
 from prthinker.schemas import JudgeVerdict
 
@@ -32,6 +34,32 @@ def test_parse_falls_back_safely_on_invalid_schema() -> None:
     # ``score`` is out of range — Pydantic should reject and we fall back.
     v = parse_verdict('{"verdict": "approve", "score": 99}')
     assert v.verdict == "comment"
+    assert v.reasons == ["invalid judge verdict"]
+
+
+def test_parse_no_object_warns_and_records_reason(caplog) -> None:
+    with caplog.at_level(logging.WARNING, logger="prthinker.judge"):
+        v = parse_verdict("not a json verdict, just prose")
+    assert v.verdict == "comment"
+    assert v.score == 5
+    assert v.reasons == ["unparseable judge output"]
+    assert "Judge output had no JSON object" in caplog.text
+
+
+def test_parse_decode_error_warns_and_falls_back(caplog) -> None:
+    # An object is present but its JSON is broken — decode-failure branch.
+    with caplog.at_level(logging.WARNING, logger="prthinker.judge"):
+        v = parse_verdict('{"verdict": broken}')
+    assert v.verdict == "comment"
+    assert v.score == 5
+    assert v.reasons == ["unparseable judge output"]
+    assert "Judge JSON decode failed" in caplog.text
+
+
+def test_parse_empty_string_falls_back() -> None:
+    v = parse_verdict("")
+    assert v.verdict == "comment"
+    assert v.reasons == ["unparseable judge output"]
 
 
 def test_aggregate_request_changes_wins() -> None:

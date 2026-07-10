@@ -1106,3 +1106,72 @@ def test_filtered_note_shown_on_paginated_single_page():
     pages = formatters.format_pr_comment_pages(_review(per_file=[fr]), _MARKER, formatters.CommentOptions(hide_info=True))
     assert len(pages) == 1
     assert "1 info hidden" in pages[0]
+
+
+# --------------------------------------------------------------------------
+# Severity groups — single-pass grouping semantics
+# --------------------------------------------------------------------------
+
+def test_severity_groups_file_lands_only_in_worst_bucket():
+    mixed = _file_result(path="m.py", inline_findings=[
+        _finding(path="m.py", line=1, severity="info"),
+        _finding(path="m.py", line=2, severity="error"),
+    ])
+    out = formatters.format_pr_comment(_review(per_file=[mixed]), _MARKER)
+    assert "By severity (1 group(s))" in out
+    assert "🔴 **error** (1 file(s)):" in out
+    assert "**info**" not in out
+
+
+def test_severity_groups_skips_files_without_findings():
+    clean = _file_result(path="clean.py")
+    out = "\n".join(formatters._format_severity_groups(_review(per_file=[clean])))
+    assert out == ""
+
+
+# --------------------------------------------------------------------------
+# compact_review is reserved (never double-rendered as a step block)
+# --------------------------------------------------------------------------
+
+def test_compact_review_not_rendered_as_per_file_step_block():
+    fr = _file_result(
+        path="a.py",
+        step_outputs={"compact_review": "compact-body"},
+        inline_findings=[_finding(path="a.py")],
+    )
+    out = formatters.format_pr_comment(_review(per_file=[fr]), _MARKER)
+    # The compact output feeds the summary via the total_summary fallback…
+    assert "compact-body" in out
+    # …and must not ALSO appear as a generic "Compact Review" step block.
+    assert "<details><summary>Compact Review</summary>" not in out
+
+
+def test_compact_review_not_rendered_as_single_pass_step_block():
+    result = _review(step_outputs={"compact_review": "compact-body"})
+    out = formatters.format_pr_comment(result, _MARKER)
+    assert "compact-body" in out
+    assert "<details><summary>Compact Review</summary>" not in out
+
+
+# --------------------------------------------------------------------------
+# Pagination fast paths reuse the same rendering as format_pr_comment
+# --------------------------------------------------------------------------
+
+def test_pages_clean_comment_matches_format_pr_comment():
+    result = _review(per_file=[_file_result(path="a.py")])
+    opts = formatters.CommentOptions(findings_only=True)
+    pages = formatters.format_pr_comment_pages(result, _MARKER, opts)
+    assert pages == [formatters.format_pr_comment(result, _MARKER, opts)]
+
+
+def test_pages_single_pass_result_matches_format_pr_comment():
+    result = _review(step_outputs={"total_summary": "overall"})
+    pages = formatters.format_pr_comment_pages(result, _MARKER)
+    assert pages == [formatters.format_pr_comment(result, _MARKER)]
+
+
+def test_pages_table_matches_format_pr_comment():
+    fr = _file_result(path="a.py", inline_findings=[_finding(path="a.py")])
+    opts = formatters.CommentOptions(table=True)
+    pages = formatters.format_pr_comment_pages(_review(per_file=[fr]), _MARKER, opts)
+    assert pages == [formatters.format_pr_comment(_review(per_file=[fr]), _MARKER, opts)]

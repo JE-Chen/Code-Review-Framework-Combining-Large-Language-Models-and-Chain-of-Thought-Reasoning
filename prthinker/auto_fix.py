@@ -32,11 +32,11 @@ from typing import Iterable
 import httpx
 
 from prthinker.config import GitHubConfig
+from prthinker.github_api import _client as _github_client
 from prthinker.schemas import InlineFinding
 
 log = logging.getLogger(__name__)
 
-_API_ROOT = "https://api.github.com"
 _USER_AGENT = "prthinker/0.1"
 
 # Severities that get auto-applied. ``error`` stays inline so a human
@@ -298,16 +298,7 @@ def _open_draft_pr(
         ),
         "draft": True,
     }
-    with httpx.Client(
-        base_url=_API_ROOT,
-        timeout=30.0,
-        headers={
-            "Authorization": f"Bearer {config.token}",
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": _USER_AGENT,
-        },
-    ) as client:
+    with _github_client(config.token) as client:
         response = client.post(
             f"/repos/{config.repo}/pulls",
             json=payload,

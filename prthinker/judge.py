@@ -9,49 +9,56 @@ the review.
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 from typing import Iterable
 
 from pydantic import ValidationError
 
+from prthinker.findings import extract_lenient_json
 from prthinker.schemas import JudgeVerdict, Verdict
 
 log = logging.getLogger(__name__)
 
-_FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
 _OBJ_RE = re.compile(r"\{[\s\S]*\}")
 
+VERDICT_APPROVE: Verdict = "approve"
+VERDICT_REQUEST_CHANGES: Verdict = "request_changes"
+VERDICT_COMMENT: Verdict = "comment"
+
 _GITHUB_EVENT = {
-    "approve": "APPROVE",
-    "request_changes": "REQUEST_CHANGES",
-    "comment": "COMMENT",
+    VERDICT_APPROVE: "APPROVE",
+    VERDICT_REQUEST_CHANGES: "REQUEST_CHANGES",
+    VERDICT_COMMENT: "COMMENT",
 }
+
+# Mid-scale score so the safe default neither approves nor blocks.
+_FALLBACK_SCORE = 5
+_REASON_UNPARSEABLE = "unparseable judge output"
+
+
+def _fallback_verdict(reason: str) -> JudgeVerdict:
+    """Safe default verdict used whenever the judge output is unusable."""
+    return JudgeVerdict(
+        verdict=VERDICT_COMMENT, score=_FALLBACK_SCORE, reasons=[reason]
+    )
 
 
 def parse_verdict(raw: str) -> JudgeVerdict:
     """Best-effort parse; return the safe ``comment`` default on failure."""
-    body = raw.strip()
-    fence = _FENCE_RE.search(body)
-    if fence:
-        body = fence.group(1).strip()
-    match = _OBJ_RE.search(body)
-    if match is None:
+    result = extract_lenient_json(raw, pattern=_OBJ_RE)
+    if not result.matched:
         log.warning("Judge output had no JSON object: %r", raw[:200])
-        return JudgeVerdict(verdict="comment", score=5, reasons=["unparseable judge output"])
+        return _fallback_verdict(_REASON_UNPARSEABLE)
+    if result.decode_error is not None:
+        log.warning("Judge JSON decode failed: %s", result.decode_error)
+        return _fallback_verdict(_REASON_UNPARSEABLE)
 
     try:
-        data = json.loads(match.group(0))
-    except json.JSONDecodeError as exc:
-        log.warning("Judge JSON decode failed: %s", exc)
-        return JudgeVerdict(verdict="comment", score=5, reasons=["unparseable judge output"])
-
-    try:
-        return JudgeVerdict.model_validate(data)
+        return JudgeVerdict.model_validate(result.data)
     except ValidationError as exc:
         log.warning("Judge verdict failed schema: %s", exc)
-        return JudgeVerdict(verdict="comment", score=5, reasons=["invalid judge verdict"])
+        return _fallback_verdict("invalid judge verdict")
 
 
 def aggregate(verdicts: Iterable[JudgeVerdict]) -> Verdict:
@@ -62,12 +69,12 @@ def aggregate(verdicts: Iterable[JudgeVerdict]) -> Verdict:
     """
     items = list(verdicts)
     if not items:
-        return "comment"
-    if any(v.verdict == "request_changes" for v in items):
-        return "request_changes"
-    if all(v.verdict == "approve" for v in items):
-        return "approve"
-    return "comment"
+        return VERDICT_COMMENT
+    if any(v.verdict == VERDICT_REQUEST_CHANGES for v in items):
+        return VERDICT_REQUEST_CHANGES
+    if all(v.verdict == VERDICT_APPROVE for v in items):
+        return VERDICT_APPROVE
+    return VERDICT_COMMENT
 
 
 def to_github_event(verdict: Verdict) -> str:

@@ -8,6 +8,7 @@ imported the function-style API are not broken.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from prthinker.checks import (
     CheckResult,
@@ -21,11 +22,11 @@ from prthinker.ci_signals import (
 from prthinker.config import GitHubConfig
 from prthinker.dialogue import AuthorReply
 from prthinker.github_api import (
-    fetch_pr_base_branch,
+    _client,
     fetch_pr_commit_messages,
     fetch_pr_diff,
     fetch_pr_file_paths,
-    fetch_pr_head_sha,
+    paginate,
     set_pr_labels,
     submit_inline_review,
     upsert_pr_body_section,
@@ -47,6 +48,11 @@ class GitHubAdapter(PlatformAdapter):
     comment_marker: str = "<!-- prthinker:summary -->"
     base_url: str = "https://api.github.com"
 
+    def __post_init__(self) -> None:
+        # Cache the PR object so head SHA / base branch / title+body don't
+        # refetch it across calls (mirrors the GitLab adapter's _mr_cache).
+        self._pr_cache: dict[str, Any] | None = None
+
     def _gh(self) -> GitHubConfig:
         return GitHubConfig(
             repo=self.repo,
@@ -55,16 +61,27 @@ class GitHubAdapter(PlatformAdapter):
             comment_marker=self.comment_marker,
         )
 
+    def _pull(self) -> dict[str, Any]:
+        """Fetch (and cache) the PR object from ``GET /repos/{repo}/pulls/{n}``."""
+        if self._pr_cache is None:
+            with _client(self.token, self.base_url) as client:
+                response = client.get(
+                    f"/repos/{self.repo}/pulls/{self.pr_number}"
+                )
+                response.raise_for_status()
+                self._pr_cache = response.json()
+        return self._pr_cache
+
     # ----- metadata ------------------------------------------------------
 
     def fetch_diff(self) -> str:
         return fetch_pr_diff(self._gh())
 
     def fetch_head_sha(self) -> str:
-        return fetch_pr_head_sha(self._gh())
+        return str((self._pull().get("head") or {}).get("sha") or "")
 
     def fetch_base_branch(self) -> str:
-        return fetch_pr_base_branch(self._gh())
+        return str((self._pull().get("base") or {}).get("ref") or "")
 
     def fetch_commit_messages(self) -> list[str]:
         return fetch_pr_commit_messages(self._gh())
@@ -74,32 +91,16 @@ class GitHubAdapter(PlatformAdapter):
 
     def set_labels(self, labels: list[str]) -> None:
         set_pr_labels(self._gh(), labels, managed_prefix=MANAGED_PREFIX)
+        self._pr_cache = None
 
     def update_body_section(self, section: str) -> None:
         upsert_pr_body_section(self._gh(), section)
+        self._pr_cache = None
 
     def fetch_pr_meta(self) -> tuple[str, str]:
-        """Pull ``(title, body)`` from ``GET /repos/{repo}/pulls/{n}``."""
-        import httpx
-
-        with httpx.Client(
-            base_url=self.base_url.rstrip("/"),
-            timeout=30.0,
-            headers={
-                "Authorization": f"Bearer {self.token}",
-                "Accept": "application/vnd.github+json",
-                "X-GitHub-Api-Version": "2022-11-28",
-                "User-Agent": "reviewmind/0.1",
-            },
-        ) as client:
-            response = client.get(
-                f"/repos/{self.repo}/pulls/{self.pr_number}"
-            )
-            response.raise_for_status()
-            data = response.json()
-        title = str(data.get("title") or "")
-        body = str(data.get("body") or "")
-        return (title, body)
+        """Pull ``(title, body)`` from the PR object we already cache."""
+        pull = self._pull()
+        return (str(pull.get("title") or ""), str(pull.get("body") or ""))
 
     # ----- comments ------------------------------------------------------
 
@@ -126,10 +127,11 @@ class GitHubAdapter(PlatformAdapter):
         *,
         summary_body: str | None,
         event: str,
+        diff_text: str | None = None,
     ) -> int | None:
         return submit_inline_review(
             self._gh(), findings,
-            summary_body=summary_body, event=event,
+            summary_body=summary_body, event=event, diff_text=diff_text,
         )
 
     # ----- CI failure signals ---------------------------------------------
@@ -164,79 +166,16 @@ class GitHubAdapter(PlatformAdapter):
         ``/issues/:n/comments`` returns the PR conversation timeline
         (NOT the per-line review comments). The summary comment we
         upsert lives there, so all replies to it appear in the same
-        feed, ordered by ``created_at``.
+        feed, ordered by ``created_at``. The marker scan and reply build
+        are the base class's shared template method.
         """
-        import httpx
-
-        with httpx.Client(
-            base_url=self.base_url.rstrip("/"),
-            timeout=30.0,
-            headers={
-                "Authorization": f"Bearer {self.token}",
-                "Accept": "application/vnd.github+json",
-                "X-GitHub-Api-Version": "2022-11-28",
-                "User-Agent": "prthinker/0.1",
-            },
-        ) as client:
-            comments = self._paginate_issue_comments(client)
-
-        # Find the latest prthinker comment by marker; everything posted
-        # after it is potential author reply.
-        marker_idx = self._find_last_marker_index(comments)
-        if marker_idx is None:
-            return []
-        return self._collect_replies_after_marker(comments, marker_idx)
-
-    def _paginate_issue_comments(self, client: object) -> list[dict]:
-        """Fetch every issue-comment page for this PR, oldest first."""
-        comments: list[dict] = []
-        page = 1
-        while True:
-            response = client.get(
+        with _client(self.token, self.base_url) as client:
+            comments = list(paginate(
+                client,
                 f"/repos/{self.repo}/issues/{self.pr_number}/comments",
-                params={"per_page": _COMMENTS_PER_PAGE, "page": page},
-            )
-            response.raise_for_status()
-            batch = response.json()
-            if not batch:
-                break
-            comments.extend(batch)
-            if len(batch) < _COMMENTS_PER_PAGE:
-                break
-            page += 1
-        return comments
-
-    def _find_last_marker_index(self, comments: list[dict]) -> int | None:
-        """Index of the most recent prthinker summary comment, if any."""
-        marker_idx = None
-        for i, comment in enumerate(comments):
-            if self.comment_marker in (comment.get("body") or ""):
-                marker_idx = i  # last one wins (re-scan continues)
-        return marker_idx
-
-    @staticmethod
-    def _comment_login(comment: dict) -> str:
-        """Login of the comment author, or empty string when absent."""
-        return (comment.get("user") or {}).get("login") or ""
-
-    def _collect_replies_after_marker(
-        self, comments: list[dict], marker_idx: int,
-    ) -> list[AuthorReply]:
-        """Build :class:`AuthorReply` objects for non-bot comments after the marker."""
-        marker_user = self._comment_login(comments[marker_idx])
-        in_reply_to_id = int(comments[marker_idx]["id"])
-        replies: list[AuthorReply] = []
-        for comment in comments[marker_idx + 1:]:
-            user = self._comment_login(comment)
-            if user == marker_user:
-                continue  # skip our own follow-up comments
-            replies.append(AuthorReply(
-                author=user,
-                body=str(comment.get("body") or "").strip(),
-                in_reply_to_id=in_reply_to_id,
-                created_at=str(comment.get("created_at") or ""),
+                per_page=_COMMENTS_PER_PAGE,
             ))
-        return replies
+        return self._replies_after_marker(comments, self.comment_marker)
 
 
 __all__ = ["GitHubAdapter"]

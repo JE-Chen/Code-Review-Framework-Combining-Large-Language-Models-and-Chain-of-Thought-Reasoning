@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from prthinker.diff import iter_added_lines, parse_unified_diff
+from prthinker.detector_util import format_details_note, scan_added_lines
 
 _MARKER_LIMIT = 15
 _TEXT_CAP = 80
@@ -50,13 +50,7 @@ def _marker_for_line(path: str, line_no: int, content: str) -> Marker | None:
 
 def new_markers(diff_text: str) -> list[Marker]:
     """Return every deferred-work marker added on a new-side line."""
-    found: list[Marker] = []
-    for file_diff in parse_unified_diff(diff_text):
-        for line_no, content in iter_added_lines(file_diff.raw):
-            marker = _marker_for_line(file_diff.path, line_no, content)
-            if marker is not None:
-                found.append(marker)
-    return found
+    return scan_added_lines(diff_text, _marker_for_line)
 
 
 def _marker_line(marker: Marker) -> str:
@@ -66,26 +60,19 @@ def _marker_line(marker: Marker) -> str:
 
 def format_new_markers_note(markers: list[Marker]) -> str:
     """Collapsible 'deferred-work markers added' block, or ``""``."""
-    if not markers:
-        return ""
-    shown = markers[:_MARKER_LIMIT]
-    lines = [
-        f"<details><summary>📌 {len(markers)} deferred-work marker(s) "
-        "added (TODO / FIXME / …)</summary>",
-        "",
-    ]
-    lines += [_marker_line(m) for m in shown]
-    extra = len(markers) - len(shown)
-    if extra > 0:
-        lines.append(f"- … and {extra} more")
-    lines += [
-        "",
-        "_Confirm each is acceptable debt, not a blocker shipped by "
-        "accident._",
-        "",
-        "</details>",
-    ]
-    return "\n".join(lines)
+    return format_details_note(
+        markers,
+        summary=(
+            f"📌 {len(markers)} deferred-work marker(s) "
+            "added (TODO / FIXME / …)"
+        ),
+        bullet=_marker_line,
+        footer=(
+            "_Confirm each is acceptable debt, not a blocker shipped by "
+            "accident._"
+        ),
+        limit=_MARKER_LIMIT,
+    )
 
 
 __all__ = ["Marker", "format_new_markers_note", "new_markers"]

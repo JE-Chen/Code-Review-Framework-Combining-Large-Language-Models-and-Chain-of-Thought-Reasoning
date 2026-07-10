@@ -24,6 +24,12 @@ from prthinker.formatters_blocks import (
     _sort_files_by_severity,
 )
 from prthinker.pipeline import ReviewResult
+from prthinker.review_rollups import (
+    ReviewRollup,
+    rollup_review,
+    rollup_rows,
+    severity_counts,
+)
 from prthinker.schemas import InlineFinding
 
 
@@ -67,12 +73,9 @@ _OVERVIEW_HOTSPOT_LIMIT = 5
 
 def _severity_counts(result: ReviewResult) -> dict[str, int]:
     """Tally inline findings by severity across every reviewed file."""
-    counts = {"error": 0, "warning": 0, "info": 0}
-    for fr in result.per_file:
-        for finding in fr.inline_findings:
-            key = finding.severity if finding.severity in counts else "info"
-            counts[key] += 1
-    return counts
+    return severity_counts(
+        [f for fr in result.per_file for f in fr.inline_findings]
+    )
 
 
 def _overall_status(counts: dict[str, int]) -> str:
@@ -103,20 +106,6 @@ _EFFORT_PER_FILE_MIN = 1
 _EFFORT_SEVERITY_MIN: dict[str, int] = {"error": 5, "warning": 3, "info": 1}
 
 
-def _suggestion_counts(result: ReviewResult) -> tuple[int, int]:
-    """(one-click suggestions, sandbox-verified) across every finding."""
-    suggestions = 0
-    verified = 0
-    for fr in result.per_file:
-        for finding in fr.inline_findings:
-            if finding.suggestion:
-                suggestions += 1
-            verification = finding.verification
-            if verification is not None and verification.status == "pass":
-                verified += 1
-    return suggestions, verified
-
-
 def _effort_estimate_minutes(result: ReviewResult) -> int:
     """Rough review-time estimate from file count and finding severity."""
     minutes = _EFFORT_BASE_MIN + _reviewed_file_count(result) * _EFFORT_PER_FILE_MIN
@@ -126,13 +115,42 @@ def _effort_estimate_minutes(result: ReviewResult) -> int:
     return minutes
 
 
-def _overview_extra_lines(result: ReviewResult, with_findings: int) -> list[str]:
+def _suggestions_line(rollup: ReviewRollup) -> str | None:
+    """The suggestion-aggregate digest line, or ``None`` when empty."""
+    if not rollup.suggestions:
+        return None
+    extra = f" · {rollup.verified_pass} sandbox-verified" if rollup.verified_pass else ""
+    return f"- **Suggestions:** {rollup.suggestions} one-click fix(es){extra}"
+
+
+def _audit_signals_line(rollup: ReviewRollup) -> str | None:
+    """The audit-signals digest line, or ``None`` when there are none."""
+    if not (rollup.evidence_backed or rollup.provenance_backed or rollup.rag_cited):
+        return None
+    return (
+        "- **Audit signals:** "
+        f"{rollup.evidence_backed} evidence-confirmed · "
+        f"{rollup.provenance_backed} provenance-backed · "
+        f"{rollup.rag_cited} RAG-cited"
+    )
+
+
+def _overview_extra_lines(
+    result: ReviewResult,
+    with_findings: int,
+    rollup: ReviewRollup | None = None,
+) -> list[str]:
     """Suggestion-aggregate and review-effort digest lines."""
-    lines: list[str] = []
-    suggestions, verified = _suggestion_counts(result)
-    if suggestions:
-        extra = f" · {verified} sandbox-verified" if verified else ""
-        lines.append(f"- **Suggestions:** {suggestions} one-click fix(es){extra}")
+    rollup = rollup if rollup is not None else rollup_review(result)
+    lines = [
+        line
+        for line in (_suggestions_line(rollup), _audit_signals_line(rollup))
+        if line is not None
+    ]
+    if rollup.verification and any(rollup.verification.values()):
+        # Same wording as every other renderer — formatted from the shared
+        # rollup rows so the digest can never drift from the reports.
+        lines.append(f"- **Verification:** {dict(rollup_rows(rollup))['Verification']}")
     attention = f" · {with_findings} file(s) need attention" if with_findings else ""
     lines.append(
         f"- **Review effort:** ~{_effort_estimate_minutes(result)} min{attention}"
@@ -146,6 +164,7 @@ def _format_overview_block(
     delta: str | None = None,
     gate: str | None = None,
     filtered: str | None = None,
+    rollup: ReviewRollup | None = None,
 ) -> list[str]:
     """A compact, scannable digest pinned to the top of the summary.
 
@@ -172,7 +191,7 @@ def _format_overview_block(
     ]
     if filtered:
         lines.append(f"- **Filtered from view:** {filtered}")
-    lines += _overview_extra_lines(result, with_findings)
+    lines += _overview_extra_lines(result, with_findings, rollup)
     if delta:
         lines.append(f"- **Since last review:** {delta}")
     hotspots = _hotspots_line(result, files_url)
@@ -212,13 +231,20 @@ def format_review_footer(
     return "\n".join(["---", "", meta, "", *_format_legend()]).rstrip() + "\n"
 
 
-def format_digest(result: ReviewResult, files_url: str | None = None) -> str:
+def format_digest(
+    result: ReviewResult,
+    files_url: str | None = None,
+    rollup: ReviewRollup | None = None,
+) -> str:
     """The standalone at-a-glance digest (status / counts / hotspots).
 
     Reused for the compact PR-description section so the verdict shows at
-    the top of the PR, not only in the comments.
+    the top of the PR, not only in the comments. ``rollup`` lets a caller
+    that already computed the audit rollup pass it in.
     """
-    return "\n".join(_format_overview_block(result, files_url)).strip()
+    return "\n".join(
+        _format_overview_block(result, files_url, rollup=rollup)
+    ).strip()
 
 
 _CHECKLIST_LIMIT = 12

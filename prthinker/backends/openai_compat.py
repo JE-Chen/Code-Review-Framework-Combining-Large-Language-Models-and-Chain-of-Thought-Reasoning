@@ -14,13 +14,18 @@ OpenAI request/response shape. Tested compatibility list:
 - DeepInfra (``https://api.deepinfra.com/v1/openai``)
 - OpenRouter (``https://openrouter.ai/api/v1``)
 
+The module-level helpers (``extract_chat_text`` / ``usage_from_payload``
+/ ``iter_sse_deltas``) hold the response / SSE parsing shared with the
+other OpenAI-shaped providers (Mistral); the class keeps only transport
+and payload construction.
+
 The HTTP client is reused across calls to keep the connection pool warm.
 """
 
 from __future__ import annotations
 
 import json
-from typing import Iterator
+from typing import Callable, Iterable, Iterator
 
 import httpx
 
@@ -29,6 +34,81 @@ from prthinker.config import OpenAICompatConfig
 
 SSE_DATA_PREFIX = "data:"
 SSE_DONE_SENTINEL = "[DONE]"
+
+
+def extract_chat_text(body: dict, provider: str) -> str:
+    """Return ``choices[0].message.content`` of a Chat Completions body.
+
+    Raises ``RuntimeError`` naming ``provider`` when the response does
+    not have the expected OpenAI shape.
+    """
+    try:
+        return str(body["choices"][0]["message"]["content"])
+    except (KeyError, IndexError, TypeError) as exc:
+        raise RuntimeError(
+            f"Unexpected {provider} response shape: {body!r}"
+        ) from exc
+
+
+def usage_from_payload(usage: dict) -> Usage | None:
+    """Usage from a ``prompt_tokens``/``completion_tokens`` block, else None."""
+    prompt_tokens = usage.get("prompt_tokens")
+    completion_tokens = usage.get("completion_tokens")
+    if prompt_tokens is None or completion_tokens is None:
+        return None
+    return Usage(int(prompt_tokens), int(completion_tokens))
+
+
+def _sse_payload(line: str) -> str | None:
+    """Strip the ``data:`` prefix from one SSE line, or None if not data."""
+    if not line or not line.startswith(SSE_DATA_PREFIX):
+        return None
+    return line[len(SSE_DATA_PREFIX):].strip()
+
+
+def _decode_sse_event(data: str) -> dict | None:
+    """Parse one SSE payload as JSON, returning None on malformed data."""
+    try:
+        return json.loads(data)
+    except json.JSONDecodeError:
+        return None
+
+
+def _extract_delta_content(event: dict) -> str | None:
+    """Return the content delta of an event, or None when absent / empty."""
+    choices = event.get("choices") or []
+    if not choices:
+        return None
+    delta = (choices[0] or {}).get("delta") or {}
+    chunk = delta.get("content")
+    return str(chunk) if chunk else None
+
+
+def iter_sse_deltas(
+    lines: Iterable[str], record_usage: Callable[[Usage], None]
+) -> Iterator[str]:
+    """Yield ``choices[0].delta.content`` chunks from SSE ``data:`` lines.
+
+    Stops at the ``[DONE]`` sentinel; blank / comment / malformed lines
+    are skipped. An event carrying a full ``usage`` block (typically the
+    final chunk) is passed to ``record_usage`` so the caller can expose
+    ``last_usage`` like the non-streaming path.
+    """
+    for line in lines:
+        data = _sse_payload(line)
+        if data is None:
+            continue
+        if data == SSE_DONE_SENTINEL:
+            return
+        event = _decode_sse_event(data)
+        if event is None:
+            continue
+        usage = usage_from_payload(event.get("usage") or {})
+        if usage is not None:
+            record_usage(usage)
+        chunk = _extract_delta_content(event)
+        if chunk is not None:
+            yield chunk
 
 
 class OpenAICompatBackend(InferenceBackend):
@@ -78,56 +158,11 @@ class OpenAICompatBackend(InferenceBackend):
         response = self._client.post("/chat/completions", json=payload)
         response.raise_for_status()
         body = response.json()
-        try:
-            text = str(body["choices"][0]["message"]["content"])
-        except (KeyError, IndexError, TypeError) as exc:
-            raise RuntimeError(
-                f"Unexpected OpenAI-compat response shape: {body!r}"
-            ) from exc
-
-        usage = body.get("usage") or {}
-        prompt_tokens = usage.get("prompt_tokens")
-        completion_tokens = usage.get("completion_tokens")
-        if prompt_tokens is not None and completion_tokens is not None:
-            self._usage.set(Usage(
-                prompt_tokens=int(prompt_tokens),
-                completion_tokens=int(completion_tokens),
-            ))
-
+        text = extract_chat_text(body, "OpenAI-compat")
+        usage = usage_from_payload(body.get("usage") or {})
+        if usage is not None:
+            self._usage.set(usage)
         return text
-
-    @staticmethod
-    def _sse_payload(line: str) -> str | None:
-        """Strip the ``data:`` prefix from one SSE line, or None if not data."""
-        if not line or not line.startswith(SSE_DATA_PREFIX):
-            return None
-        return line[len(SSE_DATA_PREFIX) :].strip()
-
-    @staticmethod
-    def _decode_sse_event(data: str) -> dict | None:
-        """Parse one SSE payload as JSON, returning None on malformed data."""
-        try:
-            return json.loads(data)
-        except json.JSONDecodeError:
-            return None
-
-    def _record_stream_usage(self, event: dict) -> None:
-        """Populate ``last_usage`` when an event carries a full usage block."""
-        usage = event.get("usage") or {}
-        prompt_tokens = usage.get("prompt_tokens")
-        completion_tokens = usage.get("completion_tokens")
-        if prompt_tokens is not None and completion_tokens is not None:
-            self._usage.set(Usage(int(prompt_tokens), int(completion_tokens)))
-
-    @staticmethod
-    def _extract_delta_content(event: dict) -> str | None:
-        """Return the content delta of an event, or None when absent / empty."""
-        choices = event.get("choices") or []
-        if not choices:
-            return None
-        delta = (choices[0] or {}).get("delta") or {}
-        chunk = delta.get("content")
-        return str(chunk) if chunk else None
 
     def stream_generate(self, prompt: str, max_new_tokens: int) -> Iterator[str]:
         """Native SSE streaming via ``stream: true``.
@@ -147,19 +182,7 @@ class OpenAICompatBackend(InferenceBackend):
         }
         with self._client.stream("POST", "/chat/completions", json=payload) as response:
             response.raise_for_status()
-            for line in response.iter_lines():
-                data = self._sse_payload(line)
-                if data is None:
-                    continue
-                if data == SSE_DONE_SENTINEL:
-                    break
-                event = self._decode_sse_event(data)
-                if event is None:
-                    continue
-                self._record_stream_usage(event)
-                chunk = self._extract_delta_content(event)
-                if chunk is not None:
-                    yield chunk
+            yield from iter_sse_deltas(response.iter_lines(), self._usage.set)
 
     def close(self) -> None:
         self._client.close()

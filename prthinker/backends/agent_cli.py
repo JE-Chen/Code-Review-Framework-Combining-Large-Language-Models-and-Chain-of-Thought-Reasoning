@@ -14,9 +14,28 @@ import logging
 import subprocess
 from pathlib import Path
 
+from prthinker.backends.base import Usage
+
 log = logging.getLogger(__name__)
 
 STDERR_SNIPPET_CHARS = 500
+
+
+def parse_cli_usage(usage: dict) -> Usage | None:
+    """Usage from a CLI's ``input_tokens``/``output_tokens`` block, else None.
+
+    Both agent CLIs report token usage with the same field names; a
+    partial block (either count missing) yields ``None`` so callers keep
+    their previous ``last_usage`` state untouched.
+    """
+    input_tokens = usage.get("input_tokens")
+    output_tokens = usage.get("output_tokens")
+    if input_tokens is None or output_tokens is None:
+        return None
+    return Usage(
+        prompt_tokens=int(input_tokens),
+        completion_tokens=int(output_tokens),
+    )
 
 
 def validate_workdir(working_dir: str, config_name: str) -> Path:
@@ -74,6 +93,7 @@ def raise_on_failure(
 
 __all__ = [
     "STDERR_SNIPPET_CHARS",
+    "parse_cli_usage",
     "raise_on_failure",
     "run_print_mode_cli",
     "validate_workdir",

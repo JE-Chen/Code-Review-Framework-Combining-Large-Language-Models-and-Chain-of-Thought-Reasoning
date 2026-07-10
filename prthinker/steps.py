@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from typing import ClassVar
 
 from prthinker.prompts.code_smell_detector import CODE_SMELL_DETECTOR_TEMPLATE
+from prthinker.prompts.compact_review import COMPACT_REVIEW_TEMPLATE
 from prthinker.prompts.counterfactual_review import COUNTERFACTUAL_REVIEW_TEMPLATE
 from prthinker.prompts.first_code_review import FIRST_CODE_REVIEW_TEMPLATE
 from prthinker.prompts.first_summary_prompt import FIRST_SUMMARY_TEMPLATE
@@ -26,6 +27,7 @@ from prthinker.prompts.inline_findings import INLINE_FINDINGS_TEMPLATE
 from prthinker.prompts.judge_step import JUDGE_STEP_TEMPLATE
 from prthinker.prompts.linter import LINTER_TEMPLATE
 from prthinker.prompts.total_summary import TOTAL_SUMMARY_TEMPLATE
+from prthinker.prompts.unified_review import UNIFIED_REVIEW_TEMPLATE
 from prthinker.prompts.walkthrough import WALKTHROUGH_TEMPLATE
 
 
@@ -42,6 +44,9 @@ class ReviewContext:
     # Cross-file context retrieved from the repository (empty unless the
     # pipeline was given a repo retriever); prepended to step prompts.
     repo_context_block: str = ""
+    # Per-file generation cap chosen by the step planner tier; None keeps
+    # the pipeline-wide max_new_tokens.
+    gen_budget: int | None = None
 
 
 class ReviewStep(ABC):
@@ -147,9 +152,21 @@ class CodeSmellStep(ReviewStep):
         )
 
 
+# Substituted for pruned analysis steps so the total-summary prompt can
+# tell "intentionally skipped" apart from "empty output". The wording is
+# referenced verbatim in TOTAL_SUMMARY_TEMPLATE — keep the two in sync.
+SKIPPED_STEP_NOTE = "(step skipped at this review depth)"
+
+
 @register_step
 class TotalSummaryStep(ReviewStep):
-    """Aggregates all prior step outputs. Must run last."""
+    """Aggregates all prior step outputs. Must run last.
+
+    Tolerates a partially-pruned chain (adaptive step planning): absent
+    inputs are marked with :data:`SKIPPED_STEP_NOTE` so the model bases
+    its conclusion on the evidence that exists. At least one input must
+    be present — with nothing to aggregate the step is meaningless.
+    """
 
     name = "total_summary"
 
@@ -161,18 +178,20 @@ class TotalSummaryStep(ReviewStep):
     )
 
     def build_prompt(self, ctx: ReviewContext) -> str:
-        missing = [k for k in self._REQUIRES if k not in ctx.results]
-        if missing:
+        if not any(k in ctx.results for k in self._REQUIRES):
             raise ValueError(
-                f"total_summary requires prior steps {missing} but they were not run"
+                "total_summary requires at least one prior step result out of "
+                f"{list(self._REQUIRES)} but none were run"
             )
         return _wrap(
             ctx,
             TOTAL_SUMMARY_TEMPLATE.format(
-                first_code_review=ctx.results["first_code_review"],
-                first_summary=ctx.results["first_summary"],
-                linter_result=ctx.results["linter"],
-                code_smell_result=ctx.results["code_smell"],
+                first_code_review=ctx.results.get(
+                    "first_code_review", SKIPPED_STEP_NOTE
+                ),
+                first_summary=ctx.results.get("first_summary", SKIPPED_STEP_NOTE),
+                linter_result=ctx.results.get("linter", SKIPPED_STEP_NOTE),
+                code_smell_result=ctx.results.get("code_smell", SKIPPED_STEP_NOTE),
                 code_diff=ctx.code_diff,
             ),
         )
@@ -224,6 +243,53 @@ class WalkthroughStep(ReviewStep):
         )
 
 
+class CompactReviewStep(ReviewStep):
+    """Single-call review replacing the full analysis chain at reduced depth.
+
+    One prompt covers correctness, lint-level issues, code smells, and a
+    brief conclusion — what the five-step chain spends five model calls on.
+    Not auto-registered: the adaptive step planner (and explicit ``--steps``
+    selection via the per-file extras) opts in for standard-depth files;
+    the full chain remains the default and the deep-tier behaviour.
+    """
+
+    name = "compact_review"
+
+    def build_prompt(self, ctx: ReviewContext) -> str:
+        return _wrap(
+            ctx,
+            COMPACT_REVIEW_TEMPLATE.format(code_diff=ctx.code_diff),
+        )
+
+
+class UnifiedReviewStep(ReviewStep):
+    """Per-file step: findings JSON plus a brief summary in ONE model call.
+
+    The single-call replacement for ``compact_review`` + ``inline_findings``
+    at standard review depth: one JSON object carrying the findings array,
+    a short analysis summary, and a verdict. The pipeline splits the payload
+    back into the ``inline_findings`` / ``compact_review`` result keys, so
+    every downstream consumer (findings parsing, reports, gates) is
+    unchanged. Not auto-registered: the adaptive step planner opts in.
+    """
+
+    name = "unified_review"
+
+    def build_prompt(self, ctx: ReviewContext) -> str:
+        if not ctx.file_path:
+            raise ValueError("UnifiedReviewStep requires ctx.file_path")
+        # Skip the global-rule wrap so the output is more likely to be raw JSON.
+        prompt = UNIFIED_REVIEW_TEMPLATE.format(
+            file_path=ctx.file_path,
+            code_diff=ctx.code_diff,
+            max_findings=ctx.max_findings,
+            positive_examples=ctx.positive_examples_block,
+            dialogue_block=ctx.dialogue_block,
+            provenance_block=ctx.provenance_block,
+        )
+        return _prepend_repo_context(ctx, prompt)
+
+
 class CounterfactualStep(ReviewStep):
     """Per-file step: surface competing alternative implementations for
     findings that look like design choices.
@@ -235,7 +301,7 @@ class CounterfactualStep(ReviewStep):
 
     name = "counterfactual"
 
-    _REQUIRES: ClassVar[tuple[str, ...]] = ("inline_findings",)
+    _REQUIRES: ClassVar[tuple[str, ...]] = (InlineFindingsStep.name,)
 
     def build_prompt(self, ctx: ReviewContext) -> str:
         if not ctx.file_path:
@@ -245,7 +311,7 @@ class CounterfactualStep(ReviewStep):
             raise ValueError(
                 f"counterfactual step needs prior steps {missing} but they were not run"
             )
-        findings_json = ctx.results.get("inline_findings", "[]").strip()
+        findings_json = ctx.results.get(InlineFindingsStep.name, "[]").strip()
         return COUNTERFACTUAL_REVIEW_TEMPLATE.format(
             code_diff=ctx.code_diff,
             findings_block=findings_json,
@@ -262,7 +328,7 @@ class JudgeStep(ReviewStep):
 
     name = "judge"
 
-    _REQUIRES: ClassVar[tuple[str, ...]] = ("total_summary",)
+    _REQUIRES: ClassVar[tuple[str, ...]] = (TotalSummaryStep.name,)
 
     def build_prompt(self, ctx: ReviewContext) -> str:
         if not ctx.file_path:
@@ -272,7 +338,7 @@ class JudgeStep(ReviewStep):
             raise ValueError(
                 f"judge step needs prior steps {missing} but they were not run"
             )
-        inline_findings_json = ctx.results.get("inline_findings", "[]").strip()
+        inline_findings_json = ctx.results.get(InlineFindingsStep.name, "[]").strip()
         # Skip the global-rule wrap so the model is more likely to emit raw JSON.
         return JUDGE_STEP_TEMPLATE.format(
             file_path=ctx.file_path,
@@ -285,10 +351,13 @@ class JudgeStep(ReviewStep):
 __all__ = [
     "ReviewContext",
     "ReviewStep",
+    "CompactReviewStep",
     "InlineFindingsStep",
+    "UnifiedReviewStep",
     "CounterfactualStep",
     "JudgeStep",
     "WalkthroughStep",
+    "SKIPPED_STEP_NOTE",
     "register_step",
     "registered_steps",
     "resolve_steps",

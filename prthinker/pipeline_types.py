@@ -65,7 +65,12 @@ class FileReviewResult:
 
     @property
     def total_summary(self) -> str | None:
-        return self.step_outputs.get("total_summary")
+        # Reduced-depth plans substitute the compact single-call review
+        # for the analysis chain; renderers read it through the same
+        # property so every report keeps working unchanged.
+        return self.step_outputs.get("total_summary") or self.step_outputs.get(
+            "compact_review"
+        )
 
 
 class ReviewCancelledError(Exception):
@@ -119,6 +124,7 @@ class _PerFileOptions:
     verify_cmd: str
     verify_timeout: float
     parallelism: int
+    step_plan: str = "full"
 
 
 @dataclass
@@ -181,3 +187,6 @@ class PerFileReviewOptions:
     review_modes: tuple[str, ...] = ()
     on_file_done: "object | None" = None
     parallelism: int = 1
+    # "full" runs every configured step on every file; "adaptive" scales
+    # the chain per file via prthinker.step_planner.plan_steps.
+    step_plan: str = "full"

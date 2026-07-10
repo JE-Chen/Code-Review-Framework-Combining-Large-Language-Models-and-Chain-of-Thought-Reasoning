@@ -8,12 +8,16 @@ no heavy ML imports.
 
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from prthinker.signals import SignalFinding, collect_signal_findings
+from prthinker.signals import (
+    RULE_PREFIX,
+    SignalFinding,
+    collect_signal_findings,
+    report_fingerprint,
+)
 
 if TYPE_CHECKING:
     from prthinker.pipeline import ReviewResult
@@ -38,9 +42,6 @@ _SEVERITY_TO_LEVEL: dict[str, str] = {
     "warning": _LEVEL_WARNING,
 }
 
-# Stable ruleId prefix so every finding shares a recognisable namespace.
-_RULE_ID_PREFIX = "prthinker"
-
 # Documentation linked from every rule so a code-scanning viewer can deep
 # link to what each rule means.
 _HELP_URI = (
@@ -57,12 +58,6 @@ def severity_to_level(severity: str) -> str:
     return _SEVERITY_TO_LEVEL.get(severity, _LEVEL_NOTE)
 
 
-def _fingerprint(rule_id: str, path: str, line: int, text: str) -> str:
-    """Stable per-result hash so code scanning can dedup across runs."""
-    raw = f"{rule_id}\0{path}\0{line}\0{text}".encode("utf-8")
-    return hashlib.sha256(raw, usedforsecurity=False).hexdigest()
-
-
 def _finding_to_result(finding: "InlineFinding") -> dict:
     """Build one SARIF ``results[]`` entry from an inline finding."""
     region: dict = {"startLine": finding.line}
@@ -75,14 +70,14 @@ def _finding_to_result(finding: "InlineFinding") -> dict:
             "region": region,
         }
     }
-    rule_id = f"{_RULE_ID_PREFIX}/{finding.severity}"
+    rule_id = f"{RULE_PREFIX}/{finding.severity}"
     return {
         "ruleId": rule_id,
         "level": severity_to_level(finding.severity),
         "message": {"text": finding.comment},
         "locations": [location],
         "partialFingerprints": {
-            _FINGERPRINT_KEY: _fingerprint(
+            _FINGERPRINT_KEY: report_fingerprint(
                 rule_id, finding.path, finding.line, finding.comment
             )
         },
@@ -93,7 +88,7 @@ def _collect_rules(findings: "list[InlineFinding]") -> list[dict]:
     """Derive the deduplicated ``tool.driver.rules[]`` array from findings."""
     seen: dict[str, dict] = {}
     for finding in findings:
-        rule_id = f"{_RULE_ID_PREFIX}/{finding.severity}"
+        rule_id = f"{RULE_PREFIX}/{finding.severity}"
         if rule_id not in seen:
             seen[rule_id] = {
                 "id": rule_id,
@@ -115,13 +110,13 @@ def _collect_rules(findings: "list[InlineFinding]") -> list[dict]:
 
 def _signal_to_result(signal: SignalFinding) -> dict:
     """Build one SARIF ``results[]`` entry from an orientation signal."""
-    rule_id = f"{_RULE_ID_PREFIX}/{signal.rule_id}"
+    rule_id = f"{RULE_PREFIX}/{signal.rule_id}"
     entry: dict = {
         "ruleId": rule_id,
         "level": signal.level,
         "message": {"text": signal.message},
         "partialFingerprints": {
-            _FINGERPRINT_KEY: _fingerprint(
+            _FINGERPRINT_KEY: report_fingerprint(
                 rule_id, signal.path or "", signal.line or 0, signal.message
             )
         },
@@ -138,7 +133,7 @@ def _signal_rules(signals: list[SignalFinding]) -> list[dict]:
     """Derive the deduplicated rule objects for the orientation signals."""
     seen: dict[str, dict] = {}
     for signal in signals:
-        rule_id = f"{_RULE_ID_PREFIX}/{signal.rule_id}"
+        rule_id = f"{RULE_PREFIX}/{signal.rule_id}"
         if rule_id not in seen:
             seen[rule_id] = {
                 "id": rule_id,

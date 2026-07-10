@@ -30,9 +30,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PRTHINKER_DISMISSED_PATH=/data/dismissed.jsonl \
     PRTHINKER_ACCEPTED_PATH=/data/accepted.jsonl
 
+# gcc + libc6-dev: torch>=2.13 routes eager-mode ops (e.g. the Qwen3-MoE
+# rotary-embedding matmul) through triton, whose NVIDIA driver backend
+# compiles a small C stub at first use. Without a C compiler the boot
+# probe dies with "Failed to find C compiler" and the container crash-loops.
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         software-properties-common ca-certificates curl git gnupg \
+        gcc libc6-dev \
  && add-apt-repository -y ppa:deadsnakes/ppa \
  && apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \

@@ -5,15 +5,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="c7802227-67ad-4e04-beaf-4bd7338f9cbd" name="Changes" comment="Rename qwen2.5-coder folder to qwen2.5-coder-7b">
-      <change beforePath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_5_28_26__9_42AM__Changes_.xml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/codes/run/fastapi_server.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/run/fastapi_server.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/codes/util/hf_model_util.py" beforeDir="false" afterPath="$PROJECT_DIR$/codes/util/hf_model_util.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/paper/REWRITE_BRIEF.md" beforeDir="false" afterPath="$PROJECT_DIR$/paper/REWRITE_BRIEF.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/paper/論文_v2.9.docx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/prthinker/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/prthinker/schemas.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_attn_impl_guard.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_attn_impl_guard.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_fastapi_server.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_fastapi_server.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/prthinker/issue_fix.py" beforeDir="false" afterPath="$PROJECT_DIR$/prthinker/issue_fix.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/prthinker/repo_retrieval.py" beforeDir="false" afterPath="$PROJECT_DIR$/prthinker/repo_retrieval.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/prthinker/retrieval_scoring.py" beforeDir="false" afterPath="$PROJECT_DIR$/prthinker/retrieval_scoring.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/test_issue_fix.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_issue_fix.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/test_repo_retrieval.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_repo_retrieval.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/test_retrieval_scoring.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_retrieval_scoring.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -112,7 +110,7 @@
     &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
     &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1&quot;: &quot;true&quot;,
     &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;dev&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;feat/repo-retrieval-and-issue-fix&quot;,
     &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
     &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
     &quot;last_opened_file_path&quot;: &quot;D:/Codes/Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning/paper&quot;,
@@ -121,6 +119,7 @@
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
     &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
     &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;python.lsp.tool.dont.ask.Ruff&quot;: &quot;true&quot;,
     &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;,
     &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
@@ -490,8 +489,8 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-js-predefined-d6986cc7102b-31caf2ab9e3c-JavaScript-PY-261.25134.203" />
-        <option value="bundled-python-sdk-245168a56dbd-c2ffad84badb-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-261.25134.203" />
+        <option value="bundled-js-predefined-d6986cc7102b-31caf2ab9e3c-JavaScript-PY-261.26222.68" />
+        <option value="bundled-python-sdk-50341a9f1f9c-c2ffad84badb-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-261.26222.68" />
       </set>
     </attachedChunks>
   </component>
@@ -562,6 +561,9 @@
       <workItem from="1782455528012" duration="38000" />
       <workItem from="1782875897369" duration="4555000" />
       <workItem from="1782979623929" duration="4959000" />
+      <workItem from="1783350016342" duration="418000" />
+      <workItem from="1783350473211" duration="593000" />
+      <workItem from="1783476499899" duration="646000" />
     </task>
     <task id="LOCAL-00001" summary="Edit rag rules">
       <option name="closed" value="true" />

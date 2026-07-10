@@ -22,6 +22,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable
 
+from prthinker.corpora_base import JsonlCorpusStore, embed_store_comments
+
 if TYPE_CHECKING:
     import numpy as np
 
@@ -56,37 +58,11 @@ class AcceptedExample:
         )
 
 
-class AcceptedExamplesStore:
+class AcceptedExamplesStore(JsonlCorpusStore[AcceptedExample]):
     """JSONL-backed store of accepted suggestion examples."""
 
     def __init__(self, path: Path) -> None:
-        self._path = Path(path)
-        self._examples: list[AcceptedExample] = []
-        if self._path.exists():
-            self._load()
-
-    def _load(self) -> None:
-        for raw in self._path.read_text(encoding="utf-8").splitlines():
-            raw = raw.strip()
-            if not raw:
-                continue
-            try:
-                data = json.loads(raw)
-            except json.JSONDecodeError:
-                continue
-            self._examples.append(AcceptedExample.from_dict(data))
-
-    def __len__(self) -> int:
-        return len(self._examples)
-
-    def __iter__(self):
-        return iter(self._examples)
-
-    def append(self, example: AcceptedExample) -> None:
-        self._examples.append(example)
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        with self._path.open("a", encoding="utf-8") as fh:
-            fh.write(example.to_jsonl() + "\n")
+        super().__init__(path, AcceptedExample.from_dict)
 
 
 class AcceptedExamplesRetriever:
@@ -108,13 +84,7 @@ class AcceptedExamplesRetriever:
     def _ensure_embeddings(self) -> None:
         if self._embeddings or len(self._store) == 0:
             return
-        from codes.util.faiss_util import get_embedding
-
-        # Embed on `comment` so similarity reflects advisory content, not
-        # the suggestion text (which can be repo-specific code).
-        self._embeddings = [
-            (ex, get_embedding(ex.comment)) for ex in self._store
-        ]
+        self._embeddings = embed_store_comments(self._store)
 
     def top_k(self, query: str, path: str | None = None) -> list[AcceptedExample]:
         if len(self._store) == 0:

@@ -76,3 +76,11 @@ def test_annotation_batches_split_at_50() -> None:
     assert len(one) == 1 and len(one[0]) == 50
     two = _annotation_batches([{"a": 1}] * 51)
     assert len(two) == 2 and len(two[0]) == 50 and len(two[1]) == 1
+
+
+def test_gate_order_has_no_dead_none_entry() -> None:
+    # "none" is handled by the early return in _derive_conclusion; a
+    # value for it in _GATE_ORDER would be unreachable dead config.
+    from prthinker.checks import _GATE_ORDER
+
+    assert set(_GATE_ORDER) == {"warning", "error"}

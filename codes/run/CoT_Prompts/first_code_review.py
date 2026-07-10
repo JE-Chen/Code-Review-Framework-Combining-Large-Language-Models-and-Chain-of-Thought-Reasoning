@@ -9,6 +9,7 @@ Perform a first-step code review focusing on:
 4. Identification of obvious logical errors or potential bugs.
 5. Provide concise improvement suggestions with short explanations.
 6. Focus only on the most obvious issues; avoid deep analysis at this stage.
+7. Scale depth to the size of the diff. If the change is clean, say so in one line — do not invent minor nitpicks to fill space.
 
 Respond in a structured bullet-point format, keeping feedback concise and professional.
 

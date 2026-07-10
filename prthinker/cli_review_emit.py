@@ -26,7 +26,7 @@ from prthinker.calibration import CalibrationStore
 from prthinker.change_map import change_map_edges, format_change_map_mermaid
 from prthinker.checks import evaluate_gate
 from prthinker.codequality import write_codequality
-from prthinker.config import env_str
+from prthinker.config import KG_STORE_DEFAULT, env_str
 from prthinker.confidence import filter_by_confidence
 from prthinker.csv_report import write_csv
 from prthinker.diff import parse_unified_diff
@@ -41,6 +41,7 @@ from prthinker.gha_annotations import print_gha_annotations
 from prthinker.github_api import findings_off_diff
 from prthinker.html_report import write_report
 from prthinker.ignore import filter_findings, load_ignore
+from prthinker.incremental_save import list_completed_files
 from prthinker.impact_map import format_impact_note, impacted_files
 from prthinker.inline_ignore import filter_inline_ignored
 from prthinker.judge import aggregate, to_github_event
@@ -137,6 +138,70 @@ def _resolve_min_confidence(args: argparse.Namespace) -> float:
     if min_conf <= 0:
         return _calibrated_min_confidence(args)
     return min_conf
+
+
+def _finding_confidence(finding: InlineFinding) -> float | None:
+    """Return model confidence when provenance supplied one."""
+    if finding.provenance is None:
+        return None
+    return finding.provenance.confidence
+
+
+def _finding_category(args: argparse.Namespace, finding: InlineFinding) -> str:
+    """Calibration category for one finding, falling back to CLI/global keys."""
+    return (
+        finding.category
+        or getattr(args, "calibration_category", "")
+        or finding.severity
+        or "other"
+    )
+
+
+def _calibration_gate_decision(
+    args: argparse.Namespace, store: CalibrationStore, finding: InlineFinding
+) -> str:
+    """Return publish/abstain/request-human-review for merge-gate scoring."""
+    repo = getattr(args, "repo", "") or ""
+    author = getattr(args, "calibration_author", "") or ""
+    category = _finding_category(args, finding)
+    posterior = store.hierarchical(
+        repo,
+        author,
+        category,
+        half_life_days=float(
+            getattr(args, "calibration_half_life_days", _DEFAULT_HALF_LIFE_DAYS)
+        ),
+    )
+    minimum_samples = int(
+        getattr(args, "calibration_min_samples", _DEFAULT_MIN_SAMPLES)
+    )
+    if posterior.accepted + posterior.dismissed + _CALIBRATION_EPSILON < minimum_samples:
+        return "request-human-review"
+    confidence = _finding_confidence(finding)
+    if confidence is None:
+        return "request-human-review"
+    return "publish" if confidence >= posterior.threshold() else "abstain"
+
+
+def _calibrated_gate_findings(
+    args: argparse.Namespace, findings: list[InlineFinding]
+) -> tuple[list[InlineFinding], int]:
+    """Findings used by the gate plus count excluded by calibrated abstention."""
+    if not getattr(args, "calibration_gate", False):
+        return findings, 0
+    calibration_path = (getattr(args, "calibration_store", "") or "").strip()
+    if not calibration_path:
+        return findings, 0
+    store = CalibrationStore(calibration_path)
+    kept: list[InlineFinding] = []
+    abstained = 0
+    for finding in findings:
+        decision = _calibration_gate_decision(args, store, finding)
+        if decision == "abstain":
+            abstained += 1
+        else:
+            kept.append(finding)
+    return kept, abstained
 
 
 def _postprocess_findings(args: argparse.Namespace, result: ReviewResult) -> None:
@@ -309,25 +374,47 @@ _GATE_FLOOR_SEVERITIES: dict[str, tuple[str, ...]] = {
 }
 
 
+def _gate_inputs(
+    args: argparse.Namespace, result: ReviewResult
+) -> tuple[list[InlineFinding], int] | None:
+    """Precompute (gate findings, abstained count) once per publish, or None.
+
+    Returns None when gating is off so the calibration store is never
+    touched; the publish flow hands the tuple to both ``_gate_line`` and
+    ``_close_review_gate`` so the per-finding SQLite queries run once.
+    """
+    if getattr(args, "gate_on", "none") == "none":
+        return None
+    return _calibrated_gate_findings(args, result.inline_findings)
+
+
 def _gate_line(
     args: argparse.Namespace,
     result: ReviewResult,
     files_url: str | None = None,
+    calibrated: tuple[list[InlineFinding], int] | None = None,
 ) -> str | None:
     """A pass/fail gate line for the digest, or None when not gating."""
     gate_on = getattr(args, "gate_on", "none")
     if gate_on == "none":
         return None
-    gate = evaluate_gate(result.inline_findings, gate_on=gate_on)
+    gate_findings, abstained = (
+        calibrated
+        if calibrated is not None
+        else _calibrated_gate_findings(args, result.inline_findings)
+    )
+    gate = evaluate_gate(gate_findings, gate_on=gate_on)
     icon = _GATE_CONCLUSION_ICON.get(gate.conclusion, "")
     line = (
         f"{icon} {gate.conclusion} (gate-on: {gate_on}; "
         f"{gate.error_count} error, {gate.warning_count} warning, "
         f"{gate.info_count} info)"
     )
+    if abstained:
+        line += f"; calibration abstained {abstained} from blocking"
     if gate.conclusion == "failure":
         blocker = first_finding_ref(
-            result.inline_findings,
+            gate_findings,
             _GATE_FLOOR_SEVERITIES.get(gate_on, ()),
             files_url,
         )
@@ -372,27 +459,9 @@ def _maybe_write_job_summary(body: str) -> None:
         log.warning("Could not write job summary (%s)", exc)
 
 
-def _impact_note(args: argparse.Namespace, result: ReviewResult) -> str | None:
-    """'Impacted areas' note from the repo KG, or None (best-effort)."""
-    if not getattr(args, "impact_map", False):
-        return None
-    kg_path = Path(getattr(args, "kg_store", "") or ".prthinker/repo-kg.sqlite")
-    if not kg_path.exists():
-        return None
-    try:
-        imports = KnowledgeGraphStore(kg_path).all_imports(
-            Path(getattr(args, "kg_workdir", "") or ".")
-        )
-        changed = [fr.path for fr in result.per_file]
-        return format_impact_note(impacted_files(imports, changed)) or None
-    except Exception as exc:  # noqa: BLE001 — impact map is best-effort
-        log.warning("Could not build impact map (%s)", exc)
-        return None
-
-
 def _kg_imports(args: argparse.Namespace) -> list | None:
     """Import edges from the repo KG, or None when unavailable (best-effort)."""
-    kg_path = Path(getattr(args, "kg_store", "") or ".prthinker/repo-kg.sqlite")
+    kg_path = Path(getattr(args, "kg_store", "") or KG_STORE_DEFAULT)
     if not kg_path.exists():
         return None
     try:
@@ -402,6 +471,17 @@ def _kg_imports(args: argparse.Namespace) -> list | None:
     except Exception as exc:  # noqa: BLE001 — KG-derived sections are best-effort
         log.warning("Could not read repo KG (%s)", exc)
         return None
+
+
+def _impact_note(args: argparse.Namespace, result: ReviewResult) -> str | None:
+    """'Impacted areas' note from the repo KG, or None (best-effort)."""
+    if not getattr(args, "impact_map", False):
+        return None
+    imports = _kg_imports(args)
+    if imports is None:
+        return None
+    changed = [fr.path for fr in result.per_file]
+    return format_impact_note(impacted_files(imports, changed)) or None
 
 
 def _review_order_note(args: argparse.Namespace, result: ReviewResult) -> str:
@@ -424,6 +504,20 @@ def _change_map_note(args: argparse.Namespace, result: ReviewResult) -> str:
         return ""
     changed = [fr.path for fr in result.per_file]
     return format_change_map_mermaid(change_map_edges(imports, changed))
+
+
+def _incremental_save_note(args: argparse.Namespace, result: ReviewResult) -> str:
+    """A compact note showing incremental-save coverage, or '' when disabled."""
+    out_dir = (getattr(args, "incremental_save_dir", "") or "").strip()
+    if not out_dir:
+        return ""
+    completed = list_completed_files(Path(out_dir))
+    final = Path(out_dir) / "review.json"
+    status = "final aggregate saved" if final.exists() else "partial files saved"
+    return (
+        f"**Incremental review state:** {len(completed)} file result(s) saved "
+        f"under `{out_dir}` ({status}; current result has {len(result.per_file)} file(s))."
+    )
 
 
 def _risk_note(args: argparse.Namespace, result: ReviewResult) -> str:
@@ -455,6 +549,7 @@ def _extra_sections(
         _review_order_note(args, result),
         _risk_note(args, result),
         _change_map_note(args, result),
+        _incremental_save_note(args, result),
         format_reviewer_checklist(result, files_url),
     )
     return tuple(s for s in sections if s)
@@ -562,18 +657,28 @@ def _submit_inline_review(
 
 
 def _close_review_gate(
-    args: argparse.Namespace, adapter: object, result: ReviewResult, gate_handle: object | None
+    args: argparse.Namespace,
+    adapter: object,
+    result: ReviewResult,
+    gate_handle: object | None,
+    calibrated: tuple[list[InlineFinding], int] | None = None,
 ) -> None:
     """Evaluate and close the merge gate when one was opened."""
     if gate_handle is None:
         return
+    gate_findings, abstained = (
+        calibrated
+        if calibrated is not None
+        else _calibrated_gate_findings(args, result.inline_findings)
+    )
     gate_result = evaluate_gate(
-        result.inline_findings, gate_on=args.gate_on,
+        gate_findings, gate_on=args.gate_on,
         with_annotations=getattr(args, "check_annotations", False),
     )
     adapter.close_gate(gate_handle, gate_result)
     log.info(
-        "Gate conclusion=%s (errors=%d warnings=%d info=%d, floor=%s)",
+        "Gate conclusion=%s (errors=%d warnings=%d info=%d, floor=%s, "
+        "calibration_abstained=%d)",
         gate_result.conclusion, gate_result.error_count,
-        gate_result.warning_count, gate_result.info_count, args.gate_on,
+        gate_result.warning_count, gate_result.info_count, args.gate_on, abstained,
     )

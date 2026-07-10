@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from prthinker.diff import parse_unified_diff
@@ -116,3 +118,52 @@ diff --git a/foo.py b/foo.py
     [a] = parse_unified_diff(base)
     [b] = parse_unified_diff(other)
     assert a.content_sha256() == b.content_sha256()
+
+# ----- thread-local connections ------------------------------------------
+
+def test_connection_reused_within_a_thread(tmp_path: Path) -> None:
+    store = ReviewCache(tmp_path / "c.sqlite")
+    assert store._conn() is store._conn()  # lazy-created once, then cached
+
+
+def test_each_thread_gets_its_own_connection(tmp_path: Path) -> None:
+    store = ReviewCache(tmp_path / "c.sqlite")
+    main_conn = store._conn()
+    seen: list[object] = []
+
+    def grab() -> None:
+        seen.append(store._conn())
+
+    thread = threading.Thread(target=grab)
+    thread.start()
+    thread.join()
+    assert len(seen) == 1
+    assert seen[0] is not main_conn
+
+
+def test_put_get_across_thread_pool(tmp_path: Path) -> None:
+    # get/put are called from the per-file ThreadPoolExecutor; rows
+    # written by pool threads must be visible everywhere.
+    store = ReviewCache(tmp_path / "c.sqlite")
+
+    def put_one(index: int) -> None:
+        key = CacheKey(
+            pr_number=1, repo="o/r", file_path=f"f{index}.py", hunk_sha256="h",
+        )
+        store.put(key, [_finding(index + 1)], backend="b", model="m")
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(put_one, range(8)))
+
+    def get_one(index: int) -> int:
+        key = CacheKey(
+            pr_number=1, repo="o/r", file_path=f"f{index}.py", hunk_sha256="h",
+        )
+        found = store.get(key)
+        assert found is not None
+        return found[0].line
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        assert sorted(pool.map(get_one, range(8))) == list(range(1, 9))
+    # And the main thread (a different connection) sees every row too.
+    assert store.evict_pr(1, "o/r") == 8

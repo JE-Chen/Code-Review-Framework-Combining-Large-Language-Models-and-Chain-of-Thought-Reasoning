@@ -12,9 +12,16 @@ from __future__ import annotations
 import html
 from pathlib import Path
 
-from prthinker.change_stats import compute_change_stats
+from prthinker.change_stats import compute_change_stats, total_changes
 from prthinker.pipeline import FileReviewResult, ReviewResult
-from prthinker.schemas import InlineFinding
+from prthinker.review_rollups import (
+    ReviewRollup,
+    all_findings,
+    rollup_review,
+    rollup_rows,
+    severity_counts,
+)
+from prthinker.schemas import SEVERITY_ORDER, InlineFinding
 from prthinker.signals import SignalFinding, collect_signal_findings
 
 # Map a signal level onto the existing severity CSS classes so signals
@@ -58,11 +65,6 @@ _FOOTER = (
     '<span class="sev sev-info">info</span>.</footer>'
 )
 
-# Severity ladder, ordered most→least serious so summary counts and the
-# per-file listing render in a stable, meaningful order. Mirrors the
-# ``Severity`` literal in :mod:`prthinker.schemas`.
-_SEVERITIES: tuple[str, ...] = ("error", "warning", "info")
-
 # Declared >=3 times across the markup, so hoisted to module constants
 # (SonarQube python:S1192).
 _DOCTYPE = "<!DOCTYPE html>"
@@ -75,34 +77,14 @@ def _esc(text: object) -> str:
     return html.escape(str(text), quote=True)
 
 
-def severity_counts(findings: list[InlineFinding]) -> dict[str, int]:
-    """Count findings per severity, always returning all known buckets."""
-    counts = {sev: 0 for sev in _SEVERITIES}
-    for finding in findings:
-        # Unknown severities (should not happen given the schema) are
-        # bucketed under "info" rather than dropped, so the total stays
-        # honest.
-        counts[finding.severity if finding.severity in counts else "info"] += 1
-    return counts
-
-
-def _all_findings(result: ReviewResult) -> list[InlineFinding]:
-    """Gather top-level and per-file findings into one flat list."""
-    findings: list[InlineFinding] = list(result.inline_findings)
-    for file_result in result.per_file:
-        findings.extend(file_result.inline_findings)
-    return findings
-
-
 def _diff_totals(result: ReviewResult) -> str:
     """A 'N file(s), +A −R' line from the diff, or '' when no diff."""
     stats = compute_change_stats(result.code_diff or "")
     if not stats:
         return ""
-    added = sum(stat.added for stat in stats.values())
-    removed = sum(stat.removed for stat in stats.values())
+    files, added, removed = total_changes(stats)
     return (
-        f'<p class="meta">{len(stats)} file(s) changed · '
+        f'<p class="meta">{files} file(s) changed · '
         f"+{added} −{removed}</p>"
     )
 
@@ -113,7 +95,7 @@ def _render_summary(
     """Render the severity-count summary block plus the diff totals."""
     items = [
         f'<li class="sev-{sev}">{_esc(sev)}: {counts[sev]}</li>'
-        for sev in _SEVERITIES
+        for sev in SEVERITY_ORDER
     ]
     return (
         '<section class="summary">'
@@ -123,6 +105,16 @@ def _render_summary(
         f'<ul>{"".join(items)}</ul>'
         "</section>"
     )
+
+
+def _render_rollups(result: ReviewResult, rollup: ReviewRollup | None = None) -> str:
+    """Render verification/evidence/retrieval audit totals."""
+    rollup = rollup if rollup is not None else rollup_review(result)
+    items = "".join(
+        f"<li><strong>{_esc(label)}:</strong> {_esc(value)}</li>"
+        for label, value in rollup_rows(rollup)
+    )
+    return f'<section class="rollups"><h2>Audit rollups</h2><ul>{items}</ul></section>'
 
 
 def _render_finding(finding: InlineFinding) -> str:
@@ -244,9 +236,18 @@ def _render_signals(result: ReviewResult) -> str:
     )
 
 
-def render_report(result: ReviewResult, *, title: str = "prthinker review") -> str:
-    """Render a self-contained, XSS-safe HTML review document as a string."""
-    findings = _all_findings(result)
+def render_report(
+    result: ReviewResult,
+    *,
+    title: str = "prthinker review",
+    rollup: ReviewRollup | None = None,
+) -> str:
+    """Render a self-contained, XSS-safe HTML review document as a string.
+
+    ``rollup`` lets a caller that already computed the audit rollup pass it
+    in; it is derived from ``result`` when omitted.
+    """
+    findings = all_findings(result)
     counts = severity_counts(findings)
     safe_title = _esc(title)
     return (
@@ -258,6 +259,7 @@ def render_report(result: ReviewResult, *, title: str = "prthinker review") -> s
         "</head><body>"
         f"<h1>{safe_title}</h1>"
         f"{_render_summary(counts, len(findings), result)}"
+        f"{_render_rollups(result, rollup)}"
         f"{_render_signals(result)}"
         f"{_render_toc(result)}"
         f"{_render_files(result)}"
@@ -266,12 +268,19 @@ def render_report(result: ReviewResult, *, title: str = "prthinker review") -> s
     )
 
 
-def write_report(result: ReviewResult, out_path: Path) -> None:
+def write_report(
+    result: ReviewResult,
+    out_path: Path,
+    *,
+    rollup: ReviewRollup | None = None,
+) -> None:
     """Render ``result`` and write the HTML document to ``out_path``."""
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="utf-8") as handle:
-        handle.write(render_report(result))
+        handle.write(render_report(result, rollup=rollup))
 
 
+# ``severity_counts`` moved to :mod:`prthinker.review_rollups`; re-exported
+# here because tests and downstream callers import it from this module.
 __all__ = ["render_report", "write_report", "severity_counts"]

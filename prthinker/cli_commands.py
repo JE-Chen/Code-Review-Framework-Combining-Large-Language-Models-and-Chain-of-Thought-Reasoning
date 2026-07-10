@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import sys
+from collections import deque
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -40,20 +41,14 @@ from prthinker.cli_review import (
     _run_review,
     _synthesize_overall_summary,
 )
-from prthinker.html_report import write_report
-from prthinker.sarif import write_sarif
-from prthinker.codequality import write_codequality
-from prthinker.junit_report import write_junit
-from prthinker.csv_report import write_csv
-from prthinker.metrics import write_metrics
-from prthinker.markdown_report import write_markdown
-from prthinker.gha_annotations import print_gha_annotations
-from prthinker.sonar_report import write_sonar
-from prthinker.report_formats import write_report_dir
+from prthinker.cli_review_emit import (
+    _emit_review_artifacts,
+    _resolve_review_event,
+)
+from prthinker.cli_review_helpers import build_platform_adapter
 from prthinker.cli_commands_helpers import (
     _close_aggregate_gate,
     _open_aggregate_gate,
-    _resolve_review_event,
     _submit_aggregate_inline_review,
     _validate_aggregate_args,
     merge_partial_reviews,
@@ -74,93 +69,6 @@ _STATS_ROW_FMT = (
 )
 _STATS_RULE = "-" * 110 + "\n"
 _STATS_MODEL_CAP = 35
-
-
-def _maybe_write_sarif(args: argparse.Namespace, result: ReviewResult) -> None:
-    """Write SARIF for upload to GitHub code scanning when requested."""
-    out = getattr(args, "sarif_out", "") or ""
-    if not out:
-        return
-    write_sarif(result, out)
-    log.info("Wrote SARIF to %s", out)
-
-
-def _maybe_write_html_report(args: argparse.Namespace, result: ReviewResult) -> None:
-    """Write the standalone HTML report (a workflow artifact) when requested."""
-    out = getattr(args, "html_report", "") or ""
-    if not out:
-        return
-    write_report(result, Path(out))
-    log.info("Wrote HTML report to %s", out)
-
-
-def _maybe_write_codequality(args: argparse.Namespace, result: ReviewResult) -> None:
-    """Write the GitLab Code Quality JSON report when requested."""
-    out = getattr(args, "codequality_out", "") or ""
-    if not out:
-        return
-    write_codequality(result, out)
-    log.info("Wrote Code Quality report to %s", out)
-
-
-def _maybe_write_junit(args: argparse.Namespace, result: ReviewResult) -> None:
-    """Write the JUnit XML report when requested."""
-    out = getattr(args, "junit_out", "") or ""
-    if not out:
-        return
-    write_junit(result, out)
-    log.info("Wrote JUnit report to %s", out)
-
-
-def _maybe_write_csv(args: argparse.Namespace, result: ReviewResult) -> None:
-    """Write the flat CSV report when requested."""
-    out = getattr(args, "csv_out", "") or ""
-    if not out:
-        return
-    write_csv(result, out)
-    log.info("Wrote CSV report to %s", out)
-
-
-def _maybe_write_metrics(args: argparse.Namespace, result: ReviewResult) -> None:
-    """Write the metrics-rollup JSON when requested."""
-    out = getattr(args, "metrics_out", "") or ""
-    if not out:
-        return
-    write_metrics(result, out)
-    log.info("Wrote metrics to %s", out)
-
-
-def _maybe_write_markdown(args: argparse.Namespace, result: ReviewResult) -> None:
-    """Write the standalone Markdown report when requested."""
-    out = getattr(args, "markdown_out", "") or ""
-    if not out:
-        return
-    write_markdown(result, out)
-    log.info("Wrote Markdown report to %s", out)
-
-
-def _maybe_write_sonar(args: argparse.Namespace, result: ReviewResult) -> None:
-    """Write the SonarQube generic-issue JSON when requested."""
-    out = getattr(args, "sonar_out", "") or ""
-    if not out:
-        return
-    write_sonar(result, out)
-    log.info("Wrote Sonar report to %s", out)
-
-
-def _maybe_write_report_dir(args: argparse.Namespace, result: ReviewResult) -> None:
-    """Write every file-based report into --report-dir when requested."""
-    out = getattr(args, "report_dir", "") or ""
-    if not out:
-        return
-    written = write_report_dir(result, out)
-    log.info("Wrote %d reports to %s", len(written), out)
-
-
-def _maybe_emit_gha_annotations(args: argparse.Namespace, result: ReviewResult) -> None:
-    """Emit GitHub Actions inline annotations on stdout when requested."""
-    if getattr(args, "gha_annotations", False):
-        print_gha_annotations(result)
 
 
 def _exclude_glob_patterns(args: argparse.Namespace) -> list[str]:
@@ -222,34 +130,6 @@ def _withhold_partial_review(
     return True
 
 
-def _build_aggregate_adapter(args: argparse.Namespace) -> object:
-    """Create the platform adapter for the aggregate-posting job."""
-    from prthinker.platforms import PlatformKind, create_platform_adapter
-
-    return create_platform_adapter(
-        PlatformKind(args.platform),
-        repo=args.repo,
-        token=args.github_token,
-        pr_number=args.pr_number,
-        comment_marker=args.marker,
-        base_url=args.platform_base_url,
-    )
-
-
-def _write_aggregate_artifacts(args: argparse.Namespace, merged: ReviewResult) -> None:
-    """Write every optional report artifact for the aggregated result."""
-    _maybe_write_sarif(args, merged)
-    _maybe_write_html_report(args, merged)
-    _maybe_write_codequality(args, merged)
-    _maybe_write_junit(args, merged)
-    _maybe_write_csv(args, merged)
-    _maybe_write_metrics(args, merged)
-    _maybe_write_markdown(args, merged)
-    _maybe_write_sonar(args, merged)
-    _maybe_write_report_dir(args, merged)
-    _maybe_emit_gha_annotations(args, merged)
-
-
 def _dry_run_aggregate(pages: list[str], merged: ReviewResult) -> int:
     """Print what would be posted without touching the platform."""
     sys.stdout.write("\n\n".join(pages))
@@ -270,28 +150,11 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
     job to do the GitHub-side posting exactly once.
     """
     input_dir = _validate_aggregate_args(args)
-
-    # Walk the dir recursively so artifact-download layouts (which often
-    # nest one folder per matrix iteration) are handled without extra
-    # wiring on the workflow side.
-    json_paths = sorted(input_dir.rglob("*.json"))
-    if not json_paths:
-        log.warning("No *.json found under %s — nothing to aggregate", input_dir)
+    merged = _load_merged_partials(input_dir)
+    if merged is None:
         return 0
 
-    merged = merge_partial_reviews(json_paths)
-    log.info(
-        "Aggregated %d partial(s): files=%d findings=%d",
-        len(json_paths),
-        len(merged.per_file),
-        len(merged.inline_findings),
-    )
-
-    overall = _synthesize_overall_summary(merged.per_file)
-    if overall:
-        merged.step_outputs["total_summary"] = overall
-
-    adapter = _build_aggregate_adapter(args)
+    adapter = build_platform_adapter(args)
 
     if _withhold_partial_review(args, adapter, merged):
         return 0
@@ -299,7 +162,7 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
     gate_handle = _open_aggregate_gate(args, adapter)
     pages = _aggregate_comment_pages(args, adapter, merged)
     _maybe_write_job_summary(pages[0])
-    _write_aggregate_artifacts(args, merged)
+    _emit_review_artifacts(args, merged)
     if args.dry_run:
         return _dry_run_aggregate(pages, merged)
 
@@ -313,6 +176,32 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
     _maybe_update_pr_body(args, adapter, merged)
 
     return 0
+
+
+def _load_merged_partials(input_dir: Path) -> ReviewResult | None:
+    """Merge the partial review JSONs under ``input_dir``; None when empty.
+
+    Walks the dir recursively so artifact-download layouts (which often
+    nest one folder per matrix iteration) are handled without extra
+    wiring on the workflow side.
+    """
+    json_paths = sorted(input_dir.rglob("*.json"))
+    if not json_paths:
+        log.warning("No *.json found under %s — nothing to aggregate", input_dir)
+        return None
+
+    merged = merge_partial_reviews(json_paths)
+    log.info(
+        "Aggregated %d partial(s): files=%d findings=%d",
+        len(json_paths),
+        len(merged.per_file),
+        len(merged.inline_findings),
+    )
+
+    overall = _synthesize_overall_summary(merged.per_file)
+    if overall:
+        merged.step_outputs["total_summary"] = overall
+    return merged
 
 
 def _aggregate_comment_pages(
@@ -357,16 +246,7 @@ def _cmd_post_status(args: argparse.Namespace) -> int:
     has started; the later aggregate run reconciles it into the real
     summary via the same marker.
     """
-    from prthinker.platforms import PlatformKind, create_platform_adapter
-
-    adapter = create_platform_adapter(
-        PlatformKind(args.platform),
-        repo=args.repo,
-        token=args.github_token,
-        pr_number=args.pr_number,
-        comment_marker=args.marker,
-        base_url=args.platform_base_url,
-    )
+    adapter = build_platform_adapter(args)
     body = f"{args.marker}\n{_STATUS_PLACEHOLDER}\n"
     if args.dry_run:
         sys.stdout.write(body)
@@ -395,12 +275,16 @@ def _gitlab_harvest_base_url(args: argparse.Namespace) -> str:
     )
 
 
-def _cmd_harvest(args: argparse.Namespace) -> int:
+def _run_harvest(args: argparse.Namespace, *, accepted: bool) -> int:
+    """Shared harvest driver: pick the store + harvester by outcome kind."""
     _require_harvest_args(args)
 
-    store = DismissedExamplesStore(args.out)
+    store = (
+        AcceptedExamplesStore(args.out) if accepted else DismissedExamplesStore(args.out)
+    )
     if args.platform == "gitlab":
-        stats = gitlab_harvest.harvest(
+        harvester = gitlab_harvest.harvest_accepted if accepted else gitlab_harvest.harvest
+        stats = harvester(
             project=args.repo,
             token=args.github_token,
             store=store,
@@ -409,52 +293,34 @@ def _cmd_harvest(args: argparse.Namespace) -> int:
             base_url=_gitlab_harvest_base_url(args),
         )
     else:
-        stats = harvest(
+        harvester = harvest_accepted if accepted else harvest
+        stats = harvester(
             repo=args.repo,
             token=args.github_token,
             store=store,
             pr_number=args.pr_number,
             max_prs=args.max_prs,
         )
-    _record_harvest_calibration(args, stats.dismissed_found, accepted=False)
+    count = stats.accepted_found if accepted else stats.dismissed_found
+    _record_harvest_calibration(args, count, accepted=accepted)
+    label = "Accepted" if accepted else "Dismissed"
     sys.stdout.write(
         f"PRs scanned: {stats.prs_scanned}\n"
         f"Comments scanned: {stats.comments_scanned}\n"
-        f"Dismissed appended: {stats.dismissed_found}\n"
+        f"{label} appended: {count}\n"
         f"Store: {args.out}\n"
     )
     return 0
+
+
+def _cmd_harvest(args: argparse.Namespace) -> int:
+    """Harvest dismissed review findings into the dismissed corpus."""
+    return _run_harvest(args, accepted=False)
 
 
 def _cmd_harvest_accepted(args: argparse.Namespace) -> int:
-    _require_harvest_args(args)
-
-    store = AcceptedExamplesStore(args.out)
-    if args.platform == "gitlab":
-        stats = gitlab_harvest.harvest_accepted(
-            project=args.repo,
-            token=args.github_token,
-            store=store,
-            mr_iid=args.pr_number,
-            max_mrs=args.max_prs,
-            base_url=_gitlab_harvest_base_url(args),
-        )
-    else:
-        stats = harvest_accepted(
-            repo=args.repo,
-            token=args.github_token,
-            store=store,
-            pr_number=args.pr_number,
-            max_prs=args.max_prs,
-        )
-    _record_harvest_calibration(args, stats.accepted_found, accepted=True)
-    sys.stdout.write(
-        f"PRs scanned: {stats.prs_scanned}\n"
-        f"Comments scanned: {stats.comments_scanned}\n"
-        f"Accepted appended: {stats.accepted_found}\n"
-        f"Store: {args.out}\n"
-    )
-    return 0
+    """Harvest applied suggestions into the accepted corpus."""
+    return _run_harvest(args, accepted=True)
 
 
 def _record_harvest_calibration(
@@ -611,8 +477,11 @@ def _cmd_derive_lessons(args: argparse.Namespace) -> int:
         )
         return 0
 
-    dismissed_recent = list(dismissed_store)[-args.lookback_recent :]
-    accepted_recent = list(accepted_store)[-args.lookback_recent :]
+    # deque(maxlen=k) keeps only the corpus tail without materializing the
+    # whole append-only store in memory.
+    lookback = args.lookback_recent if args.lookback_recent > 0 else None
+    dismissed_recent = list(deque(dismissed_store, maxlen=lookback))
+    accepted_recent = list(deque(accepted_store, maxlen=lookback))
     source_prs = tuple(
         sorted(
             {
