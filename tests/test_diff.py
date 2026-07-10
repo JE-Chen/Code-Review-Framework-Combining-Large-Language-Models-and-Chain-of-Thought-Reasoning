@@ -141,6 +141,7 @@ def test_new_side_content_maps_lines_to_text() -> None:
 def test_new_side_content_empty_diff() -> None:
     assert new_side_content("") == {}
 
+
 # ----- shared new-side walker (_iter_new_side) ---------------------------
 
 _WALKER_DIFF = (

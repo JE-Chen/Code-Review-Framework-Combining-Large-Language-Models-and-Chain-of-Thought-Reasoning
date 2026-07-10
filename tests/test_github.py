@@ -203,7 +203,7 @@ def _install_pr_client(
             urls.append(url)
             return _PrObjectResponse(payload)
 
-    monkeypatch.setattr(httpx, "Client", lambda **kwargs: _Client(**kwargs))
+    monkeypatch.setattr(httpx, "Client", _Client)
     return urls
 
 

@@ -38,7 +38,6 @@ class JsonlRow(Protocol):
 
     def to_jsonl(self) -> str:
         """Serialise this row to a single JSONL line."""
-        ...
 
 
 class CommentRow(Protocol):

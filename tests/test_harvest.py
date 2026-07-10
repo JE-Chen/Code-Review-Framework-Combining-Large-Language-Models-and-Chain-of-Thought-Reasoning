@@ -205,7 +205,7 @@ def test_reactions_rollup_missing_key_falls_back_to_endpoint() -> None:
         }],
         reactions_by_id={3: [{"content": "-1"}]},
     )
-    store, stats = _run(client)
+    _store, stats = _run(client)
     assert stats.dismissed_found == 1
     assert len(client.reaction_urls) == 1
 

@@ -110,9 +110,10 @@ class CalibrationStore:
         # Create the database file and schema eagerly (as before) with a
         # short-lived bootstrap connection; the shared read/write
         # connection is opened lazily on first use.
-        with contextlib.closing(sqlite3.connect(self.path)) as conn, conn:
-            for statement in _CALIBRATION_SCHEMA:
-                conn.execute(statement)
+        with contextlib.closing(sqlite3.connect(self.path)) as conn:
+            with conn:
+                for statement in _CALIBRATION_SCHEMA:
+                    conn.execute(statement)
 
     def _connection(self) -> sqlite3.Connection:
         """The lazily-created shared connection; call with ``_lock`` held.

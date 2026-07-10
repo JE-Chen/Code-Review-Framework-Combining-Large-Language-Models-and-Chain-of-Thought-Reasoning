@@ -138,7 +138,6 @@ def test_extract_chat_text_empty_choices() -> None:
 
 
 def test_usage_from_payload_full_block() -> None:
-    from prthinker.backends.base import Usage
     from prthinker.backends.openai_compat import usage_from_payload
 
     assert usage_from_payload(
