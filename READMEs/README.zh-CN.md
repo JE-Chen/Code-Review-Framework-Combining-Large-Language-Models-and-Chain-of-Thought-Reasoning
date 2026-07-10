@@ -4,10 +4,12 @@
 
 📖 **在线文档：** <https://code-review-framework.readthedocs.io/en/latest/>
 
-> 为 GitHub Pull Request 设计的思维链（Chain-of-Thought）代码审查框架，
-> 底层由微调后的 Qwen3-Coder 模型加上检索增强（RAG）提示驱动。
+> 为 GitHub / GitLab / Gitea Pull Request 设计的思维链（Chain-of-Thought）
+> 代码审查框架，底层由微调后的 Qwen3-Coder 模型加上检索增强（RAG）
+> 提示驱动。
 
-`prthinker` 会读取 PR diff、执行五步思维链审查、把结构化的总结与一键应用的
+`prthinker` 会读取 PR diff、执行思维链审查──默认仍是五步完整链，开启
+`--step-plan adaptive` 时审查深度会逐文件自适应──再把结构化的总结与一键应用的
 `suggestion` 区块回帖到 PR。它会从每个 repo 的历史中学习──被 PR 作者拒绝的评论
 下次会被过滤掉，被采纳的建议会以示例（exemplar）的形式注入下一轮 prompt──
 并且可以作为合并前的必需状态检查。
@@ -24,7 +26,8 @@
   建议，下次会被当成示例重用。
 - **它能守住合并按钮**──你可以把它设成必需检查，让 Pull Request 在严重
   问题尚未解决前无法被合并。
-- **两个半边**──轻量的 **runner** 负责跟 GitHub 对话、不需要特殊硬件；
+- **两个半边**──轻量的 **runner** 负责跟代码平台（GitHub / GitLab /
+  Gitea）对话、不需要特殊硬件；
   较重的 **AI「大脑」**（语言模型）则跑在另一台 GPU 服务器上，或通过
   OpenAI / Anthropic 之类的付费 API。下方 [仓库结构](#仓库结构) 的图
   说明各部分如何衔接。
@@ -34,9 +37,21 @@
 
 ## 你会得到什么
 
-- **五步 CoT pipeline**──`first_summary` → `first_code_review` → `linter` →
-  `code_smell` → `total_summary`，外加可选的逐文件 inline-findings 步骤，
-  输出结构化 JSON。
+- **五步 CoT pipeline**──默认的完整链：`first_summary` → `first_code_review` →
+  `linter` → `code_smell` → `total_summary`，外加可选的逐文件 inline-findings
+  步骤，输出结构化 JSON。
+- **自适应审查深度（`--step-plan adaptive`）**──skip 层（lockfile／
+  机器生成文件／纯空白变更：零次模型调用）、trivial 层（findings 批量
+  处理，单次调用最多 6 个文件）、standard 层（单一整合调用：findings +
+  摘要 + verdict）、deep 层（≥ 200 行或高风险文件保留完整链），各层
+  有自己的生成预算。
+- **审查 preset**──`--review-preset backend|frontend|security|release`
+  一次打包对应的聚焦审查模式与安全检查，免得逐一手动开 flag。
+- **CLI 上的 repo-context 检索**──`--repo-context-strategy` 以八种
+  策略之一（lexical / semantic / structural / graph / rerank /
+  block_rerank / iterative / query_rewrite）把相关文件注入每个文件的
+  prompt；配套的 `retrieval-report` 子命令把内容安全的检索轨迹
+  汇整成审计报告。
 - **逐文件 inline review**，配合 GitHub `suggestion` 区块，PR 作者点一下
   即可应用。
 - **Copilot 式 PR 摘要**──审查前的 `prthinker pr-summary` 阶段读取 PR
@@ -52,6 +67,9 @@
   flagged 行与实际的测试失败。
 - **合并前 Check Run gate**：当出现 error 严重度的 finding 时让 Check Run
   变成 failure，可在 branch protection 设为必需检查。
+- **校准 gate 弃权（`--calibration-gate`）**──校准后 posterior 偏低的
+  finding 仍会出现在报告中，但不再挡 merge gate；gate 行会标注
+  「calibration abstained N from blocking」。
 - **Issue 自动化（GitHub 与 GitLab）**：`review-pr --auto-file-issues`
   把落在 diff hunks 之外（无法 inline 张贴）的 findings 自动开成
   指纹去重的 tracker issue；`prthinker issue-autofix` 则把回路闭合──
@@ -156,6 +174,11 @@ prthinker review-pr \
     --repo owner/name --pr-number 42 \
     --backend remote --remote-url http://my-host:9000 \
     --gate-on error --include-ci-signals
+
+# …或逐文件自适应审查深度（lockfile／docs 直接跳过，大文件保留完整链）
+prthinker review-pr --repo o/r --pr-number 42 \
+    --backend remote --remote-url http://my-host:9000 \
+    --per-file --inline-review --step-plan adaptive
 
 # …或通过 OpenAI-compat backend 使用 OpenAI / Azure / vLLM / Ollama
 prthinker review-pr --repo o/r --pr-number 42 \
@@ -270,7 +293,8 @@ GitLab 与 Gitea 通过 `--platform-base-url` 即可。详见
 ## 文档
 
 - **[`setup.zh-CN.md`](setup.zh-CN.md)** — 完整设置指南（六种场景、
-  所有 env var、疑难排查）。
+  所有 env var、疑难排查）。`PRTHINKER_*` 环境变量优先于旧拼法
+  `REVIEWMIND_*`。
 - **[`features.zh-CN.md`](features.zh-CN.md)** — 完整功能总览。
 - **[`docs/zh-CN/`](../docs/zh-CN/)** — Read-the-Docs 风格深度章节。
 

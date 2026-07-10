@@ -232,6 +232,9 @@ class GitHubConfig:
     pr_number: int
     token: str
     comment_marker: str = SUMMARY_MARKER
+    # API root override for GitHub Enterprise (e.g. "https://ghe.corp/api/v3").
+    # Empty keeps the public-cloud default so existing configs are unchanged.
+    base_url: str = ""
 
     def __post_init__(self) -> None:
         if "/" not in self.repo:
@@ -240,6 +243,9 @@ class GitHubConfig:
             )
         if not self.token:
             raise ValueError("GitHubConfig.token is required")
+        # Normalise the trailing slash once at the boundary so every
+        # downstream client joins paths cleanly (frozen dataclass).
+        object.__setattr__(self, "base_url", (self.base_url or "").rstrip("/"))
 
 
 @dataclass(frozen=True)

@@ -106,6 +106,18 @@ Check Run。CLI 會：
 ``info`` 嚴重度的 finding **永遠不會**\ 觸發 gate。它們是團隊可能在意也可能
 不在意的小問題──如果連這也擋合併，merge friction 會爆炸。
 
+校準後的 gate 棄權（``--calibration-gate``）
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+加上 ``--calibration-gate``\ （環境變數 ``PRTHINKER_CALIBRATION_GATE``）
+與 ``--calibration-store`` 後，gate 不再把每個 finding 一視同仁。每個
+finding 的模型信心會與其（repo、author、category）回饋歷史所校準出的
+後驗門檻比較：信心低於門檻的 finding **仍會顯示在總結與報告中，但不再
+阻擋 gate**\ ，gate 那行也會如實報告──``calibration abstained N from
+blocking``\ 。棄權是保守的：回饋樣本少於 ``--calibration-min-samples``
+（預設 ``10``\ ）的類別，或完全沒有信心分數的 finding，一律不棄權──
+它會留在 gate 裡作為請求人工審查，而非憑薄弱證據放行。
+
 設成 branch protection
 ----------------------
 

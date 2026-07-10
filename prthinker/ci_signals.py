@@ -36,14 +36,17 @@ def fetch_ci_failure_signals(
     *,
     max_jobs: int = 5,
     log_tail_chars: int = 4000,
+    base_url: str = _API_ROOT,
 ) -> list[FailureSignal]:
     """Return up to `max_jobs` failed jobs' tail logs for the commit.
 
     Workflow runs that are still in progress, or that completed successfully,
     are skipped. Jobs without logs (e.g. cancelled) yield an empty tail.
+    ``base_url`` points the client at a GitHub Enterprise API root; the
+    default keeps the public cloud.
     """
     signals: list[FailureSignal] = []
-    with _client(token) as client:
+    with _client(token, base_url) as client:
         for run in _list_failed_runs(client, repo, head_sha):
             if len(signals) >= max_jobs:
                 break
@@ -99,9 +102,9 @@ def format_signals_block(signals: list[FailureSignal]) -> str:
     return "\n".join(lines)
 
 
-def _client(token: str) -> httpx.Client:
+def _client(token: str, base_url: str = _API_ROOT) -> httpx.Client:
     return httpx.Client(
-        base_url=_API_ROOT,
+        base_url=base_url.rstrip("/"),
         headers={
             "Authorization": f"Bearer {token}",
             "Accept": "application/vnd.github+json",

@@ -1,10 +1,12 @@
 The CoT pipeline
 ================
 
-The pipeline runs a fixed sequence of *review steps* against a code diff.
+The pipeline runs a chain of *review steps* against a code diff.
 Each step produces a markdown blob; later steps may read earlier outputs
-from the shared ``ReviewContext``. The default registry has five steps;
-per-file mode opts into a sixth that emits structured findings.
+from the shared ``ReviewContext``. The default registry has five steps —
+this five-step chain is the full (and deep-tier) behaviour; with
+``--step-plan adaptive`` it is pruned per file (see below). Per-file
+mode opts into a sixth step that emits structured findings.
 
 Step sequence
 -------------
@@ -31,10 +33,82 @@ Step sequence
        ``{line, severity, comment, suggestion?}`` items that the runner
        converts into inline GitHub review comments.
 
-The first five live in ``codes/run/CoT_Prompts/`` and are wrapped by
-``build_global_rule_template`` so RAG rules and per-repo rules are
-injected uniformly. ``inline_findings`` skips that wrap so the model is
-more likely to emit raw JSON.
+The first five are wrapped by ``build_global_rule_template`` so RAG
+rules and per-repo rules are injected uniformly. ``inline_findings``
+skips that wrap so the model is more likely to emit raw JSON. All prompt
+templates ship with the package at ``prthinker/prompts/``, mirrored
+byte-for-byte from the canonical ``codes/run/CoT_Prompts/`` corpus.
+
+Three further prompt-backed steps exist only for reduced review depth
+(see the next section):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Step
+     - What it produces
+   * - ``compact_review``
+     - Single-call substitute for the whole analysis chain — one prompt
+       covers correctness, lint-level issues, code smells, and a brief
+       conclusion instead of five model calls.
+   * - ``unified_review``
+     - Findings JSON plus a short analysis summary and verdict in ONE
+       model call; the pipeline splits the payload back into the
+       historical ``inline_findings`` / ``compact_review`` result keys.
+   * - ``batch_findings``
+     - The multi-file batch prompt for trivial files: several small
+       diffs are reviewed in one call and the flat findings array,
+       tagged by ``path``, is split back into per-file findings.
+
+Adaptive step planning (``--step-plan adaptive``)
+-------------------------------------------------
+
+By default (``--step-plan full``) every file runs every configured
+step. With ``--step-plan adaptive`` a pure, deterministic planner
+(``prthinker.step_planner``) assigns each ``FileDiff`` one of four depth
+tiers, looking only at the diff (size, file kind) and the per-file risk
+score the pipeline already computes. Risk wins over size: a three-line
+change to a historically fragile file is never trivial.
+
+skip
+   Machine-written files — lockfiles (``package-lock.json``,
+   ``poetry.lock``, …), minified bundles, generated artifacts, and
+   ``vendor/`` / ``node_modules/`` style vendored trees — plus
+   whitespace-only reformatting. Zero model calls and zero retrieval,
+   but the file still appears in the summary marked as skipped, so
+   "skipped by policy" is visible rather than silent.
+
+trivial
+   Documentation / declarative-config suffixes (``.md``, ``.rst``,
+   ``.json``, ``.yaml``, ``.toml``, …) or at most 5 changed lines. Only
+   the output-producing steps survive (inline findings, walkthrough).
+   Trivial files whose whole plan is the findings pass are **batched**:
+   up to 6 files / 24 000 characters of diff per model call through the
+   ``batch_findings`` prompt. The returned array is split back per file
+   by its ``path`` tag through the same validating parser a single-file
+   review uses, and each file's findings are cached individually so
+   differential review still works per file.
+
+standard
+   Everything in between. One ``unified_review`` call returns the
+   findings JSON plus a brief summary and verdict, split back into the
+   historical ``inline_findings`` / ``compact_review`` result keys so
+   findings parsing, reports, and gates are unchanged. With
+   ``--counterfactual`` (which consumes the parsed findings) the
+   standard tier keeps the two-call ``compact_review`` +
+   ``inline_findings`` shape instead.
+
+deep
+   200 or more changed lines, or risk score ≥ 0.7 — the risk override
+   applies regardless of size or file kind. Keeps the full five-step
+   chain plus every configured extra step.
+
+Reduced tiers also cap generation: 4096 new tokens for trivial, 8192
+for standard; deep keeps the pipeline-wide budget. The chosen tier is
+recorded in each file's ``step_outputs`` under the ``step_plan`` key,
+so it travels with the review result into the serialized outputs and
+reports and the depth decision stays auditable.
 
 Two execution modes
 -------------------

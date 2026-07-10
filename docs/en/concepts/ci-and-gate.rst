@@ -104,6 +104,22 @@ Conclusion logic
 ``info``-severity findings never trip the gate. They exist for nits the
 team may or may not care about — gating on them creates merge friction.
 
+Calibrated gate abstention (``--calibration-gate``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+With ``--calibration-gate`` (env ``PRTHINKER_CALIBRATION_GATE``) and a
+``--calibration-store``, the gate stops treating every finding as
+equally trustworthy. Each finding's model confidence is compared
+against the calibrated posterior threshold for its
+(repo, author, category) feedback history: a finding whose confidence
+falls below that threshold **stays visible in the summary and reports
+but no longer blocks the gate**, and the gate line says so —
+``calibration abstained N from blocking``. Abstention is conservative:
+a category with fewer than ``--calibration-min-samples`` feedback
+samples (default ``10``), or a finding that carries no confidence score
+at all, is never abstained — it stays in the gate as a request for
+human review rather than being waved through on thin evidence.
+
 Wiring it into branch protection
 --------------------------------
 

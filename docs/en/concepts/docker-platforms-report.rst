@@ -376,6 +376,29 @@ When to use each format
 * ``json`` — feed downstream tools (DuckDB, Grafana JSON datasource,
   ad-hoc pandas analysis).
 
+Audit rollups in the per-review reports
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Separate from the longitudinal ``prthinker report``, every per-review
+markdown and HTML report (and the PR-comment digest) renders an **audit
+rollup** block summarising the review's trust signals. All renderers
+format the same label/value rows
+(``prthinker.review_rollups.rollup_rows``), so the wording can never
+drift between outputs:
+
+* **Findings** — total finding count and how many carry a confidence
+  score.
+* **Verification** — sandbox verification results:
+  pass / fail / skip / error.
+* **Auto-fix safety** — suggestion count, how many suggestions were
+  sandbox-verified, and how many failed or errored.
+* **Evidence** — evidence statuses:
+  confirmed / rejected / inconclusive / unsupported / error.
+* **Retrieval/provenance** — distinct retrieved docs,
+  provenance-backed findings, and findings citing a RAG rule.
+* **Evidence kinds** — per-kind tallies; the row is omitted when no
+  evidence items exist.
+
 No clustering yet
 ~~~~~~~~~~~~~~~~~
 

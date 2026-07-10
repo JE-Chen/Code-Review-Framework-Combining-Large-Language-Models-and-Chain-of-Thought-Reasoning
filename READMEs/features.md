@@ -103,6 +103,29 @@ cache invalidates automatically.
   runs per file, optionally adds inline_findings + judge. This is the
   production setup.
 
+### Adaptive step planning (`--step-plan adaptive`)
+
+The five-step chain above is the **full / deep** behaviour, and stays
+the default (`--step-plan full`, env `PRTHINKER_STEP_PLAN`). With
+`--step-plan adaptive`, a pure, deterministic planner
+(`prthinker/step_planner.py`) looks at each file's diff (size, file
+kind) plus the optional risk score and scales the chain per file
+across four tiers:
+
+| Tier | Trigger | What runs |
+|---|---|---|
+| `skip` | Machine-generated files — lockfiles (`package-lock.json` / `yarn.lock` / `pnpm-lock.yaml` / `poetry.lock` / `uv.lock` / `Cargo.lock` / `composer.lock` / `Gemfile.lock` / `go.sum`), minified bundles and `.map` files, generated `_pb2.py` / `.pb.go` / `.snap`, anything under `vendor/` / `node_modules/` / `dist/` / `build/` / `__snapshots__/` — and whitespace-only reformatting | **Zero model calls.** The file still appears in the result marked as skipped, so "skipped by policy" is visible rather than silent. A risk score ≥ 0.7 overrides the skip. |
+| `trivial` | Docs / config suffixes (`.md` `.rst` `.txt` `.json` `.yml` `.yaml` `.toml` `.ini` `.cfg` `.lock` `.svg`) or ≤ 5 changed lines | Findings pass only. Batchable trivial files are folded into **batched findings calls** — up to 6 files / 24 K chars of diff per model call — and split back through the same validating parser a single-file review uses. The per-file differential cache (`--diff-since-last`) is still honoured per file, before and after batching. |
+| `standard` | 6–199 changed lines | **One** `unified_review` call producing the findings JSON, a brief summary, and a verdict in a single payload. With `--counterfactual` configured it keeps the two-call `compact_review` + `inline_findings` shape instead (counterfactual consumes the findings step result). |
+| `deep` | ≥ 200 changed lines **or** risk score ≥ 0.7 | The full five-step chain, unchanged. |
+
+Reduced tiers also cap generation: 4096 tokens on `trivial`, 8192 on
+`standard` (batched calls use the 8192 cap; deep keeps the
+pipeline-wide budget). The tier substitution uses three new prompt
+templates — `compact_review`, `unified_review`, `batch_findings` —
+bundled under `prthinker/prompts/` (mirroring
+`codes/run/CoT_Prompts/`).
+
 ---
 
 ## Nine interchangeable backends
@@ -147,6 +170,34 @@ Three retriever implementations behind a single interface
 - `RemoteRAGRetriever` — POSTs to the server's `/rag` endpoint; thin
   runners avoid loading FAISS.
 - `NoOpRetriever` — returns `[]`. For pure-LLM ablations.
+
+### Cross-file repo context (`--repo-context-strategy`)
+
+Local per-file review can also inject **cross-file repository
+context** — related files from the work tree — into each file's
+prompt. `none` (the default) preserves the existing prompt; eight
+strategies sit behind one factory
+(`prthinker.repo_retrieval_factory.create_repo_retriever`):
+
+- `lexical` — BM25 lexical retrieval with issue-aware query expansion; model-free.
+- `semantic` — ranks files by embedding similarity to the query (sentence-transformers embedder).
+- `structural` — two-round lexical retrieval: round-one symbols and imports are fed back into the query; model-free.
+- `graph` — lexical recall widened with import-graph neighbours of the top hits; model-free.
+- `rerank` — lexical candidates, then the backend reads them and returns the relevant subset, ranked.
+- `block_rerank` — file-level rerank, then the backend selects the relevant `def` / `class` blocks.
+- `iterative` — agentic multi-round explore-and-select: each round the backend picks blocks and proposes the next search query.
+- `query_rewrite` — one cheap backend call distils the issue into focused search terms before a lexical pass.
+
+Tuning flags (each with a matching `PRTHINKER_REPO_CONTEXT_*` env
+var): `--repo-context-workdir` (work tree, default `.`),
+`--repo-context-top-k` (max files considered, default 10),
+`--repo-context-keep-ratio` (lexical keep-ratio cutoff; 0 keeps the
+fixed top-k tail), `--repo-context-block-candidates` (candidate
+blocks per file for `block_rerank` / `iterative`, default 6),
+`--repo-context-votes` (self-consistency votes for model-in-the-loop
+retrieval, default 1), `--repo-context-rounds` (max rounds for
+`iterative`, default 3), `--repo-context-focus-lines` (optional
+line-window focus for block context; 0 disables).
 
 ---
 
@@ -290,6 +341,22 @@ PRs cannot merge with surviving error-severity findings.
 The gate and the judge are **independent signals**: the gate is
 mechanical (count by severity), the judge is interpretive (LLM
 verdict). Both can fire on the same PR.
+
+### Calibrated abstention (`--calibration-gate`)
+
+With `--calibration-gate` (env `PRTHINKER_CALIBRATION_GATE`) plus a
+feedback store (`--calibration-store`), each finding's gate
+contribution is scored against the repo's own accept / dismiss
+history — a hierarchical posterior over (repo, author, category) with
+exponential time decay (`--calibration-half-life-days`, default 90).
+Findings whose confidence falls below the calibrated threshold
+**abstain**: they stay visible in the summary, the inline review, and
+every report, but no longer count toward the gate conclusion, and the
+gate line appends `calibration abstained N from blocking`. Categories
+with fewer than `--calibration-min-samples` (default 10) accepted +
+dismissed events — and findings that carry no confidence at all — are
+never abstained silently: they request human review and keep counting
+toward the gate as usual.
 
 ---
 
@@ -590,10 +657,31 @@ subprocess); use `PRTHINKER_BACKEND=remote` if RAG matters.
 | `prthinker triage` | Run the no-model orientation signals over a diff (stdin / `--diff-file` / `--staged` / `--against REF`); no backend |
 | `prthinker issue-fix` | Localise an issue, propose validated find/replace edits as JSON |
 | `prthinker issue-autofix` | Fetch tracker issues (GitHub / GitLab), propose fixes, open draft fix PRs / MRs |
+| `prthinker retrieval-report IN.jsonl` | Render a content-safe retrieval trajectory JSONL (from `--trajectory-out`) into a markdown / JSON audit report (`--format`, `--out`) |
 | `prthinker mcp` | Run the MCP stdio server |
 
 Every flag has a corresponding `PRTHINKER_*` env var; the
 `.prthinker.yaml` schema covers the same surface.
+
+### Review presets (`--review-preset`)
+
+`--review-modes` runs focused review passes over the whole diff
+(e.g. `security,performance,iac`); each appends its output to the
+summary, and unknown names are skipped.
+`--review-preset backend|frontend|security|release`
+(`prthinker/review_presets.py`) bundles the modes and safety checks a
+caller would otherwise spell out by hand — presets only expand into
+existing flags, never a new review path:
+
+| Preset | Modes added | Extra flags enabled |
+|---|---|---|
+| `backend` | `security`, `performance`, `test-coverage` | `--api-consistency`, `--dep-upgrade-check` |
+| `frontend` | `accessibility`, `performance`, `pii`, `test-coverage` | — |
+| `security` | `security`, `secret-scan`, `pii` | `--redact-secrets`; raises `--gate-on` to `warning` when it was `none` |
+| `release` | `security`, `test-coverage` | `--api-consistency`, `--dep-upgrade-check`, `--diff-entropy`, `--reproducibility-check`, `--judge` |
+
+Preset modes merge into any explicit `--review-modes` value without
+duplicates.
 
 ---
 
@@ -625,6 +713,11 @@ Pydantic schemas in `prthinker.schemas` are the **single source of
 truth** for the wire format — both server (FastAPI `response_model`)
 and runner (`model_validate_json`) reference them, so type drift is
 impossible.
+
+`ReviewRequest` now also carries `step_plan` (`"full"` | `"adaptive"`,
+default `"full"`), so a runner can request adaptive per-file review
+depth from the server. The field is optional and backward-compatible:
+older deployed servers ignore it harmlessly and keep the full chain.
 
 ---
 

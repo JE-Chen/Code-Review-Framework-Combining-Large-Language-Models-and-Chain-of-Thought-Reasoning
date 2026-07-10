@@ -127,3 +127,40 @@ Subclass ``RAGRetriever``:
 
 The pipeline's only contract is the one ``retrieve(str) -> list[str]``
 method — no global side effects, no setup ordering required.
+
+Repository-context retrieval strategies
+---------------------------------------
+
+Separate from the rules slot, per-file review prompts can be prefixed
+with cross-file *repository context* retrieved from a local work-tree
+(``--repo-context-workdir``). ``--repo-context-strategy`` (env
+``PRTHINKER_REPO_CONTEXT_STRATEGY``, default ``none``) selects the
+strategy; every strategy is built through the ``create_repo_retriever``
+factory:
+
+* ``lexical`` — BM25 over the work-tree's code files with issue-aware
+  query expansion. Model-free.
+* ``semantic`` — ranks files by embedding similarity to the query, via
+  an injected sentence-transformers embedder.
+* ``structural`` — two lexical rounds: the symbols defined and modules
+  imported by the round-one hits are fed back into the query, so the
+  repository's own structure sharpens the second round. Model-free.
+* ``graph`` — widens lexical recall with import-graph neighbours of the
+  top hits (the files they import, and the files that import them).
+  Model-free and deterministic.
+* ``rerank`` — retrieves lexical candidates, then the review backend
+  reads their snippets and returns the relevant subset, ranked.
+* ``block_rerank`` — on top of a file-level rerank, the backend selects
+  the relevant ``def`` / ``class`` blocks from per-file candidates,
+  keeping line and symbol precision high.
+* ``iterative`` — agentic multi-round retrieval: each round the backend
+  selects relevant blocks from the candidate pool *and* proposes the
+  next search query; selections accumulate until it signals it has
+  enough or the round budget runs out.
+* ``query_rewrite`` — one cheap backend call distils a verbose issue
+  into focused search terms, appended to the query before delegating to
+  the lexical base.
+
+The work-tree is read and indexed once per retriever instance (memoized
+per work-tree), not once per query — multi-round strategies re-query
+the built index instead of re-reading the repository.

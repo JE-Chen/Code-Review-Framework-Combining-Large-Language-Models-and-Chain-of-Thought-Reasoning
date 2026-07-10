@@ -48,6 +48,16 @@ def _client(token: str, base_url: str = _API_ROOT) -> httpx.Client:
     )
 
 
+def client_for(config: GitHubConfig) -> httpx.Client:
+    """Client bound to the config's API root (GitHub Enterprise aware).
+
+    Every GitHub call keyed off a :class:`GitHubConfig` goes through here
+    so a non-empty ``config.base_url`` (e.g. a GHE ``/api/v3`` root)
+    reaches ALL endpoints; an empty one keeps the public-cloud default.
+    """
+    return _client(config.token, config.base_url or _API_ROOT)
+
+
 def paginate(
     client: httpx.Client,
     path: str,
@@ -138,7 +148,7 @@ def fetch_pr_diff(config: GitHubConfig) -> str:
     rebuild the diff from the paginated files API rather than failing the
     whole review.
     """
-    with _client(config.token) as client:
+    with client_for(config) as client:
         response = client.get(
             f"/repos/{config.repo}/pulls/{config.pr_number}",
             headers={"Accept": "application/vnd.github.v3.diff"},
@@ -156,7 +166,7 @@ def fetch_pr_diff(config: GitHubConfig) -> str:
 
 def fetch_pr_head_sha(config: GitHubConfig) -> str:
     """Return the HEAD commit SHA of the PR — required by the Checks API."""
-    with _client(config.token) as client:
+    with client_for(config) as client:
         response = client.get(
             f"/repos/{config.repo}/pulls/{config.pr_number}",
         )
@@ -166,7 +176,7 @@ def fetch_pr_head_sha(config: GitHubConfig) -> str:
 
 def fetch_pr_base_branch(config: GitHubConfig) -> str:
     """Return the PR's base branch name — used as the target for auto-fix PRs."""
-    with _client(config.token) as client:
+    with client_for(config) as client:
         response = client.get(
             f"/repos/{config.repo}/pulls/{config.pr_number}",
         )
@@ -205,7 +215,7 @@ def set_pr_labels(
     managed labels from a previous run are dropped because only the new
     ``labels`` are re-applied under the prefix.
     """
-    with _client(config.token) as client:
+    with client_for(config) as client:
         response = client.get(
             f"/repos/{config.repo}/issues/{config.pr_number}"
         )
@@ -254,7 +264,7 @@ def replace_marked_section(
 
 def upsert_pr_body_section(config: GitHubConfig, section: str) -> None:
     """Insert/replace the prthinker section in the PR description (body)."""
-    with _client(config.token) as client:
+    with client_for(config) as client:
         response = client.get(
             f"/repos/{config.repo}/pulls/{config.pr_number}"
         )
@@ -273,7 +283,7 @@ def upsert_pr_body_section(config: GitHubConfig, section: str) -> None:
 
 def fetch_pr_file_paths(config: GitHubConfig) -> list[str]:
     """Return every changed file path on the PR (all statuses, paginated)."""
-    with _client(config.token) as client:
+    with client_for(config) as client:
         return [
             str(f["filename"])
             for f in paginate(
@@ -284,7 +294,7 @@ def fetch_pr_file_paths(config: GitHubConfig) -> list[str]:
 
 def fetch_pr_commit_messages(config: GitHubConfig) -> list[str]:
     """Return every commit message on the PR, oldest first (paginated)."""
-    with _client(config.token) as client:
+    with client_for(config) as client:
         return [
             (c.get("commit") or {}).get("message", "")
             for c in paginate(
@@ -404,7 +414,7 @@ def upsert_pr_comments(config: GitHubConfig, bodies: list[str]) -> list[int]:
             raise ValueError("each body must contain the configured comment marker")
     if not capped:
         return []
-    with _client(config.token) as client:
+    with client_for(config) as client:
         existing = sorted(
             (c for c in _iter_existing_comments(client, config) if marker in c.body),
             key=lambda c: c.id,
@@ -484,7 +494,7 @@ def _dismiss_stale_inline_reviews(
     otherwise delete its own freshly-posted comments.
     """
     exclude = exclude or set()
-    with _client(config.token) as client:
+    with client_for(config) as client:
         our_review_ids = _collect_our_review_ids(client, config) - exclude
         if not our_review_ids:
             log.info("No prior prthinker inline reviews to clean up")
@@ -709,7 +719,7 @@ def _post_inline_review(
         "comments": comments,
         "body": marked_body,
     }
-    with _client(config.token) as client:
+    with client_for(config) as client:
         response = client.post(
             f"/repos/{config.repo}/pulls/{config.pr_number}/reviews",
             json=payload,
@@ -797,6 +807,7 @@ def _format_inline_body(finding: InlineFinding) -> str:
 
 
 __all__ = [
+    "client_for",
     "fetch_pr_diff",
     "fetch_pr_head_sha",
     "fetch_pr_base_branch",

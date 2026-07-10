@@ -1,9 +1,11 @@
 CoT pipeline
 ============
 
-Pipeline 對一份 code diff 跑一連串固定的 *review steps*\ 。每個 step 產生一段
+Pipeline 對一份 code diff 跑一連串 *review steps*\ 。每個 step 產生一段
 markdown；後續 step 可以從共用的 ``ReviewContext`` 讀前面的輸出。預設
-registry 有五個 step；逐檔模式會多開一個輸出結構化 finding 的 step。
+registry 有五個 step──這條五步鏈是完整（deep 層）的行為；加上
+``--step-plan adaptive`` 時會逐檔裁剪（見下文）。逐檔模式會多開一個
+輸出結構化 finding 的 step。
 
 Step 順序
 ---------
@@ -28,9 +30,72 @@ Step 順序
      - *(僅 per-file)* 輸出 ``{line, severity, comment, suggestion?}``
        的 JSON 陣列，由 runner 轉成 GitHub inline review comment。
 
-前五個住在 ``codes/run/CoT_Prompts/``\ ，由 ``build_global_rule_template``
-包起來，讓 RAG 規則與 per-repo 規則以一致的方式注入。\ ``inline_findings``
-跳過這個 wrap，這樣模型比較可能輸出純 JSON。
+前五個由 ``build_global_rule_template`` 包起來，讓 RAG 規則與 per-repo
+規則以一致的方式注入。\ ``inline_findings`` 跳過這個 wrap，這樣模型比較
+可能輸出純 JSON。所有 prompt 模板隨套件內附於 ``prthinker/prompts/``\ ，
+逐位元組鏡射自正典的 ``codes/run/CoT_Prompts/`` 語料。
+
+另有三個只在降階審查深度時使用的 prompt-backed step（見下一節）：
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Step
+     - 它產出什麼
+   * - ``compact_review``
+     - 整條分析鏈的單呼叫替代品──一個 prompt 涵蓋正確性、lint 層級
+       問題、code smell 與簡短結論，取代五次模型呼叫。
+   * - ``unified_review``
+     - **一次**\ 模型呼叫同時產出 findings JSON、簡短分析摘要與判定；
+       pipeline 會把 payload 拆回歷史沿用的 ``inline_findings`` /
+       ``compact_review`` result key。
+   * - ``batch_findings``
+     - trivial 檔案的多檔合批 prompt：多個小 diff 併成一次呼叫審查，
+       回傳的扁平 findings 陣列依 ``path`` 標籤拆回逐檔 finding。
+
+自適應 step 規劃（``--step-plan adaptive``）
+--------------------------------------------
+
+預設（``--step-plan full``）每個檔案都跑所有已設定的 step。加上
+``--step-plan adaptive`` 時，一個純函數、確定性的規劃器
+（``prthinker.step_planner``）會為每個 ``FileDiff`` 指派四個深度層級
+之一，只看 diff 本身（大小、檔案種類）加上 pipeline 本來就會算的
+逐檔風險分。風險優先於大小：對歷史上脆弱的檔案做三行改動絕不算
+trivial。
+
+skip
+   機器產生的檔案──lockfile（``package-lock.json``\ 、
+   ``poetry.lock`` 等）、minified bundle、產生的 artifact、
+   ``vendor/`` / ``node_modules/`` 這類 vendored 目錄──以及純空白
+   的重排版。零模型呼叫、零檢索，但檔案仍會出現在總結中並標為
+   skipped，讓「依政策跳過」看得見而非無聲消失。
+
+trivial
+   文件／宣告式設定副檔名（``.md``\ 、\ ``.rst``\ 、\ ``.json``\ 、
+   ``.yaml``\ 、\ ``.toml`` 等）或至多 5 行變更。只留下產出輸出的
+   step（inline findings、walkthrough）。整份計畫只剩 findings pass
+   的 trivial 檔案會\ **合批**\ ：每次模型呼叫最多 6 個檔案／24 000
+   字元的 diff，走 ``batch_findings`` prompt。回傳陣列依 ``path``
+   標籤拆回逐檔，經過與單檔審查完全相同的驗證解析器，且每個檔案的
+   findings 各自獨立快取，differential review 仍逐檔生效。
+
+standard
+   介於兩者之間的一切。一次 ``unified_review`` 呼叫回傳 findings
+   JSON 加簡短摘要與判定，拆回歷史沿用的 ``inline_findings`` /
+   ``compact_review`` result key，因此 findings 解析、報告、gate
+   全部不變。加上 ``--counterfactual``\ （它消費解析後的 findings）
+   時，standard 層改為保留兩次呼叫的 ``compact_review`` +
+   ``inline_findings`` 形態。
+
+deep
+   變更 200 行以上，或風險分 ≥ 0.7──風險覆寫不論大小或檔案種類都
+   生效。保留完整五步鏈加上所有已設定的額外 step。
+
+降階層級同時也會壓低生成上限：trivial 為 4096 個新 token、standard
+為 8192；deep 維持 pipeline 全域預算。所選層級會記錄在每個檔案的
+``step_outputs`` 之 ``step_plan`` key，隨審查結果進入序列化輸出與
+報告，深度決策全程可稽核。
 
 兩種執行模式
 ------------

@@ -16,12 +16,10 @@ from typing import Iterable, Literal
 import httpx
 
 from prthinker.config import GitHubConfig
+from prthinker.github_api import client_for
 from prthinker.schemas import InlineFinding, Severity
 
 log = logging.getLogger(__name__)
-
-_API_ROOT = "https://api.github.com"
-_USER_AGENT = "prthinker/0.1"
 
 GateFloor = Literal["none", "warning", "error"]
 Conclusion = Literal["success", "failure", "neutral"]
@@ -69,19 +67,6 @@ def _build_annotations(findings: list[InlineFinding]) -> list[dict]:
             "message": finding.comment,
         })
     return annotations
-
-
-def _client(token: str) -> httpx.Client:
-    return httpx.Client(
-        base_url=_API_ROOT,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": _USER_AGENT,
-        },
-        timeout=30.0,
-    )
 
 
 def _list_prior_check_run_ids(
@@ -160,7 +145,7 @@ def _supersede_prior_check_runs(
     Failures here are logged at WARNING but never raised — gate
     opening must not be blocked by a cleanup hiccup.
     """
-    with _client(config.token) as client:
+    with client_for(config) as client:
         prior_ids = _list_prior_check_run_ids(client, config, head_sha, name)
         if not prior_ids:
             return
@@ -187,7 +172,7 @@ def create_check_run(
     except Exception as exc:  # noqa: BLE001 — cleanup must never block opening
         log.warning("Prior check-run cleanup failed (%s); continuing", exc)
 
-    with _client(config.token) as client:
+    with client_for(config) as client:
         response = client.post(
             f"/repos/{config.repo}/check-runs",
             json={
@@ -220,7 +205,7 @@ def complete_check_run(
     # GitHub appends annotations across successive updates and caps each
     # request at 50, so a >50-finding review is sent over several PATCHes.
     batches = _annotation_batches(result.annotations)
-    with _client(config.token) as client:
+    with client_for(config) as client:
         for batch in batches:
             output: dict[str, object] = {
                 "title": result.title,

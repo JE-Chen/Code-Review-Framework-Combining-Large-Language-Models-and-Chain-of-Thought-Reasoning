@@ -456,6 +456,13 @@ Both the `enumerate` job and the CLI's per-file loop read it, so
 generated data, IDE state, and large markdown changes never burn GPU
 minutes. Adjust the list to fit your repo.
 
+**Adaptive review depth.** The workflow's `review` job env sets
+`PRTHINKER_STEP_PLAN: "adaptive"`, so each matrix shard asks the
+server to scale the CoT chain to its file (skip / trivial / standard
+/ deep) instead of always running the full five-step sweep. The
+`step_plan` field is optional in the wire format: an older deployed
+server ignores it harmlessly and keeps the full chain.
+
 **Backend timeout safety.** The matrix runners drive the inference
 server via `POST /review/submit` + `GET /review/result/{id}` (5 s
 poll) so each individual HTTP call returns in well under a second.
@@ -590,6 +597,25 @@ for the design write-up.
 | `--personas`               | `PRTHINKER_PERSONAS`                | empty   | +N backend calls /PR (N = persona count) + 1 conflict step |
 | `--risk-weighted`          | `PRTHINKER_RISK_WEIGHTED`           | off     | a few `git log` calls   |
 | `--diff-entropy`           | `PRTHINKER_DIFF_ENTROPY`            | off     | pure CPU, no backend call |
+
+Newer flags with env vars not in the table above:
+
+| Env var | CLI flag | Values / default |
+|---|---|---|
+| `PRTHINKER_STEP_PLAN` | `--step-plan` | `full` (default) \| `adaptive` — per-file review depth |
+| `PRTHINKER_REPO_CONTEXT_STRATEGY` | `--repo-context-strategy` | `none` (default) or one of the eight retrieval strategies (`lexical` / `semantic` / `structural` / `graph` / `rerank` / `block_rerank` / `iterative` / `query_rewrite`) |
+| `PRTHINKER_REPO_CONTEXT_WORKDIR` / `_TOP_K` / `_KEEP_RATIO` / `_BLOCK_CANDIDATES` / `_VOTES` / `_ROUNDS` / `_FOCUS_LINES` | the `--repo-context-*` tuning knobs | `.` / 10 / 0.0 / 6 / 1 / 3 / 0 |
+| `PRTHINKER_VERIFY_CMD` | `--verify-cmd` | `pytest -x` |
+| `PRTHINKER_VERIFY_TIMEOUT` | `--verify-timeout` | 60 (seconds) |
+| `PRTHINKER_VERIFY_WORKDIR` | `--verify-workdir` | `.` (cwd) |
+| `PRTHINKER_CALIBRATION_GATE` | `--calibration-gate` | off — calibrated abstention on the merge gate |
+
+`PRTHINKER_*` names take precedence over the legacy `REVIEWMIND_*`
+spellings; both are still accepted for the verify vars
+(`VERIFY_SUGGESTIONS` / `VERIFY_CMD` / `VERIFY_TIMEOUT` /
+`VERIFY_WORKDIR`) and for `API_CONSISTENCY`, `PR_CLASSIFY`,
+`REPRODUCIBILITY_CHECK`, `DEP_UPGRADE_CHECK`, `PERSONAS`,
+`RISK_WEIGHTED`, `RISK_WORKDIR`, and `DIFF_ENTROPY`.
 
 ### Closed-loop multi-turn dialogue — `--reply-to-author`
 

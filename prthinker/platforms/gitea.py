@@ -34,8 +34,14 @@ import httpx
 from prthinker.checks import CheckResult
 from prthinker.conventional import format_inline_body
 from prthinker.dialogue import AuthorReply
-from prthinker.github_api import paginate
+from prthinker.github_api import (
+    filter_findings_to_diff,
+    new_side_lines,
+    paginate,
+    replace_marked_section,
+)
 from prthinker.platforms.base import PlatformAdapter
+from prthinker.pr_labels import MANAGED_PREFIX
 from prthinker.schemas import InlineFinding
 
 log = logging.getLogger(__name__)
@@ -43,6 +49,8 @@ log = logging.getLogger(__name__)
 _USER_AGENT = "prthinker/0.1"
 _COMMENTS_PER_PAGE = 50
 _STATUS_DESCRIPTION_MAX = 255
+_DEFAULT_LABEL_COLOR = "ededed"
+_LABEL_CREATED = 201
 
 # Gitea review verbs differ from GitHub's; map our platform-neutral
 # vocabulary onto Gitea's ``type`` field for ``POST .../reviews``.
@@ -119,15 +127,96 @@ class GiteaAdapter(PlatformAdapter):
             pull = self._pull(client)
         return (str(pull.get("title") or ""), str(pull.get("body") or ""))
 
+    def fetch_commit_messages(self) -> list[str]:
+        """Return the PR's commit messages, oldest first (paginated)."""
+        with self._client() as client:
+            return [
+                str((c.get("commit") or {}).get("message") or "")
+                for c in paginate(
+                    client, f"{self._pr_path()}/commits",
+                    per_page=_COMMENTS_PER_PAGE, size_param="limit",
+                )
+            ]
+
+    def fetch_changed_paths(self) -> list[str]:
+        """Return every changed file path on the PR (paginated)."""
+        with self._client() as client:
+            return [
+                str(f["filename"])
+                for f in paginate(
+                    client, f"{self._pr_path()}/files",
+                    per_page=_COMMENTS_PER_PAGE, size_param="limit",
+                )
+                if f.get("filename")
+            ]
+
+    # ----- labels / body ---------------------------------------------------
+
+    def set_labels(self, labels: list[str]) -> None:
+        """Reconcile the managed-prefix labels on the PR, keeping human ones.
+
+        Gitea's label API is GitHub-shaped and lives on the *issue*
+        resource; ``PUT .../issues/{n}/labels`` replaces the whole set, so
+        the desired list re-applies the human labels plus the new managed
+        ones (stale managed labels drop out).
+        """
+        issue_path = f"/repos/{self.repo}/issues/{self.pr_number}"
+        with self._client() as client:
+            response = client.get(f"{issue_path}/labels")
+            response.raise_for_status()
+            current = [str(lb.get("name") or "") for lb in (response.json() or [])]
+            for name in labels:
+                self._ensure_label_exists(client, name)
+            applied = client.put(
+                f"{issue_path}/labels",
+                json={"labels": _reconcile_labels(current, labels)},
+            )
+            applied.raise_for_status()
+            self._pr_cache = None
+        log.info("Gitea: set PR labels: %s", labels)
+
+    def _ensure_label_exists(self, client: httpx.Client, name: str) -> None:
+        """Create the repo label if missing; an existing one is fine."""
+        response = client.post(
+            f"/repos/{self.repo}/labels",
+            json={"name": name, "color": _DEFAULT_LABEL_COLOR},
+        )
+        if response.status_code != _LABEL_CREATED:
+            log.debug(
+                "Gitea: label %r create returned %d (already exists or "
+                "insufficient rights); continuing",
+                name, response.status_code,
+            )
+
+    def update_body_section(self, section: str) -> None:
+        """Insert / replace the prthinker block in the PR description."""
+        with self._client() as client:
+            body = str(self._pull(client).get("body") or "")
+            new_body = replace_marked_section(body, section)
+            if new_body == body:
+                return
+            response = client.patch(self._pr_path(), json={"body": new_body})
+            response.raise_for_status()
+            self._pr_cache = None
+        log.info("Gitea: updated PR description section")
+
     # ----- summary comment ----------------------------------------------
 
     def upsert_summary_comment(self, body: str) -> int:
         """Create-or-update the marker-tagged PR comment. Return its id."""
-        if self.comment_marker not in body:
+        return self._upsert_by_marker(body, self.comment_marker)
+
+    def upsert_marked_comment(self, body: str, *, marker: str) -> int:
+        """Create-or-update a secondary PR comment keyed by ``marker``."""
+        return self._upsert_by_marker(body, marker)
+
+    def _upsert_by_marker(self, body: str, marker: str) -> int:
+        """Update the first comment carrying ``marker``, or create one."""
+        if marker not in body:
             raise ValueError("body must contain the configured comment marker")
 
         with self._client() as client:
-            existing = self._find_marker_comment(client)
+            existing = self._find_marker_comment(client, marker)
             if existing is not None:
                 log.info("Gitea: updating existing comment %d", existing)
                 response = client.patch(
@@ -144,10 +233,12 @@ class GiteaAdapter(PlatformAdapter):
             response.raise_for_status()
             return int(response.json()["id"])
 
-    def _find_marker_comment(self, client: httpx.Client) -> int | None:
-        """Return the id of the first comment carrying our marker, else None."""
+    def _find_marker_comment(
+        self, client: httpx.Client, marker: str
+    ) -> int | None:
+        """Return the id of the first comment carrying ``marker``, else None."""
         for comment in self._iter_comments(client):
-            if self.comment_marker in (comment.get("body") or ""):
+            if marker in (comment.get("body") or ""):
                 return int(comment["id"])
         return None
 
@@ -174,35 +265,109 @@ class GiteaAdapter(PlatformAdapter):
         event: str,
         diff_text: str | None = None,
     ) -> int | None:
-        """Post a single PR review carrying one inline comment per finding."""
-        del diff_text  # Gitea posts reviews without a diff pre-filter
+        """Post a PR review carrying one inline comment per finding.
+
+        Findings are pre-filtered against the diff hunks first (a caller
+        that already holds the diff passes ``diff_text`` to skip the
+        re-download). If the batched review is still rejected, each
+        comment is retried in its own review so one bad line skips only
+        that comment instead of aborting the whole review.
+        """
         if not findings:
             log.info("Gitea: no findings — skipping review submission")
             return None
+        items = self._prefilter_findings(findings, diff_text)
+        if not items:
+            log.info("Gitea: all inline findings dropped — skipping review")
+            return None
 
-        comments = [_build_inline_comment(f) for f in findings]
         payload: dict[str, Any] = {
             "event": _EVENT_TO_GITEA.get(event, "COMMENT"),
             "body": summary_body or "prthinker — inline findings",
-            "comments": comments,
+            "comments": [_build_inline_comment(f) for f in items],
         }
         with self._client() as client:
-            response = client.post(
-                f"{self._pr_path()}/reviews",
-                json=payload,
-            )
-            if response.status_code >= 400:
-                log.error(
-                    "Gitea review submission failed (%d): %s",
-                    response.status_code, response.text,
+            review_id = self._post_review(client, payload)
+            if review_id is not None:
+                log.info(
+                    "Gitea: submitted review %d with %d inline comments",
+                    review_id, len(items),
                 )
-            response.raise_for_status()
-            review_id = int(response.json()["id"])
+                return review_id
+            return self._post_single_comment_reviews(client, items, payload)
+
+    def _prefilter_findings(
+        self,
+        findings: list[InlineFinding],
+        diff_text: str | None = None,
+    ) -> list[InlineFinding]:
+        """Drop findings off the PR's diff hunks before the review POST.
+
+        Same first-line-of-defence as the GitHub / GitLab adapters: an
+        off-hunk line 4xxs Gitea's whole batched review. Fail-open — when
+        the diff cannot be fetched or yields no hunk lines, every finding
+        is submitted and the per-comment fallback stays the backstop.
+        """
+        if diff_text is None:
+            try:
+                diff_text = self.fetch_diff()
+            except httpx.HTTPError as exc:
+                log.warning(
+                    "Gitea: could not fetch PR diff for pre-filtering (%s); "
+                    "submitting all findings", exc,
+                )
+                return findings
+        if not new_side_lines(diff_text):
             log.info(
-                "Gitea: submitted review %d with %d inline comments",
-                review_id, len(comments),
+                "Gitea: PR diff yielded no hunk lines; "
+                "submitting all findings unfiltered",
             )
-            return review_id
+            return findings
+        return filter_findings_to_diff(findings, diff_text)
+
+    def _post_review(
+        self, client: httpx.Client, payload: dict[str, Any]
+    ) -> int | None:
+        """POST one review payload; return the review id, or None on 4xx/5xx."""
+        response = client.post(f"{self._pr_path()}/reviews", json=payload)
+        if response.status_code >= 400:
+            log.warning(
+                "Gitea review submission failed (%d): %s",
+                response.status_code, response.text,
+            )
+            return None
+        return int(response.json()["id"])
+
+    def _post_single_comment_reviews(
+        self,
+        client: httpx.Client,
+        items: list[InlineFinding],
+        payload: dict[str, Any],
+    ) -> int | None:
+        """Fallback after a batch rejection: one review per comment.
+
+        A single unresolvable line fails Gitea's whole batched review, so
+        each finding is retried in its own single-comment review — a bad
+        line then skips only that comment (logged) instead of dropping
+        every other finding. The summary body rides on the first review
+        that succeeds. Returns that review's id, or None if all failed.
+        """
+        first_id: int | None = None
+        for finding in items:
+            single = {
+                "event": payload["event"],
+                "body": payload["body"] if first_id is None else "",
+                "comments": [_build_inline_comment(finding)],
+            }
+            review_id = self._post_review(client, single)
+            if review_id is None:
+                log.warning(
+                    "Gitea: skipped inline comment %s:%d",
+                    finding.path, finding.line,
+                )
+            elif first_id is None:
+                first_id = review_id
+        return first_id
 
     # ----- dialogue ------------------------------------------------------
 
@@ -245,6 +410,12 @@ class GiteaAdapter(PlatformAdapter):
                 },
             )
             response.raise_for_status()
+
+
+def _reconcile_labels(current: list[str], labels: list[str]) -> list[str]:
+    """Human labels (no managed prefix) survive; managed ones are replaced."""
+    human = [n for n in current if not n.startswith(MANAGED_PREFIX)]
+    return human + [n for n in labels if n not in human]
 
 
 def _build_inline_comment(finding: InlineFinding) -> dict[str, Any]:
