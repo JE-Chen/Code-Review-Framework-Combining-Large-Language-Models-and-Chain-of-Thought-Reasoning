@@ -8,18 +8,18 @@ inline findings and the no-model orientation signals onto that schema so a
 GitLab MR shows them inline without any GitLab-specific plumbing
 elsewhere.
 
-Runner-safe: stdlib ``json`` + ``hashlib`` only; the fingerprint hash is
-``usedforsecurity=False`` (it is a dedup key, not a security token).
+Runner-safe: stdlib ``json`` plus the shared signal helpers; the
+fingerprint hash (:func:`prthinker.signals.report_fingerprint`) is a dedup
+key, not a security token.
 """
 
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from prthinker.signals import collect_signal_findings
+from prthinker.signals import RULE_PREFIX, collect_signal_findings, report_fingerprint
 
 if TYPE_CHECKING:
     from prthinker.pipeline import ReviewResult
@@ -34,18 +34,11 @@ _SEVERITY_TO_CODECLIMATE = {
     "note": "info",
 }
 _DEFAULT_SEVERITY = "info"
-_RULE_PREFIX = "prthinker"
 
 
 def severity_to_codeclimate(severity: str) -> str:
     """Map a finding severity / signal level onto a CodeClimate severity."""
     return _SEVERITY_TO_CODECLIMATE.get(severity, _DEFAULT_SEVERITY)
-
-
-def _fingerprint(check_name: str, path: str, line: int, text: str) -> str:
-    """Stable dedup key for an issue (GitLab requires a unique fingerprint)."""
-    raw = f"{check_name}\0{path}\0{line}\0{text}".encode("utf-8")
-    return hashlib.sha256(raw, usedforsecurity=False).hexdigest()
 
 
 def _issue(
@@ -55,7 +48,7 @@ def _issue(
     return {
         "description": description,
         "check_name": check_name,
-        "fingerprint": _fingerprint(check_name, path, line, description),
+        "fingerprint": report_fingerprint(check_name, path, line, description),
         "severity": severity,
         "location": {"path": path, "lines": {"begin": line}},
     }
@@ -64,7 +57,7 @@ def _issue(
 def _finding_issue(finding: "InlineFinding") -> dict:
     """Map one inline finding onto a CodeClimate issue."""
     return _issue(
-        f"{_RULE_PREFIX}/{finding.severity}",
+        f"{RULE_PREFIX}/{finding.severity}",
         severity_to_codeclimate(finding.severity),
         finding.comment,
         finding.path,
@@ -84,7 +77,7 @@ def _signal_issues(result: "ReviewResult") -> list[dict]:
             continue
         issues.append(
             _issue(
-                f"{_RULE_PREFIX}/{signal.rule_id}",
+                f"{RULE_PREFIX}/{signal.rule_id}",
                 severity_to_codeclimate(signal.level),
                 signal.message,
                 signal.path,

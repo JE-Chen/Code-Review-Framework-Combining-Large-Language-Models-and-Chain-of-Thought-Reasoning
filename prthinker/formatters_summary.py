@@ -24,7 +24,12 @@ from prthinker.formatters_blocks import (
     _sort_files_by_severity,
 )
 from prthinker.pipeline import ReviewResult
-from prthinker.review_rollups import rollup_review
+from prthinker.review_rollups import (
+    ReviewRollup,
+    rollup_review,
+    rollup_rows,
+    severity_counts,
+)
 from prthinker.schemas import InlineFinding
 
 
@@ -68,12 +73,9 @@ _OVERVIEW_HOTSPOT_LIMIT = 5
 
 def _severity_counts(result: ReviewResult) -> dict[str, int]:
     """Tally inline findings by severity across every reviewed file."""
-    counts = {"error": 0, "warning": 0, "info": 0}
-    for fr in result.per_file:
-        for finding in fr.inline_findings:
-            key = finding.severity if finding.severity in counts else "info"
-            counts[key] += 1
-    return counts
+    return severity_counts(
+        [f for fr in result.per_file for f in fr.inline_findings]
+    )
 
 
 def _overall_status(counts: dict[str, int]) -> str:
@@ -113,10 +115,14 @@ def _effort_estimate_minutes(result: ReviewResult) -> int:
     return minutes
 
 
-def _overview_extra_lines(result: ReviewResult, with_findings: int) -> list[str]:
+def _overview_extra_lines(
+    result: ReviewResult,
+    with_findings: int,
+    rollup: ReviewRollup | None = None,
+) -> list[str]:
     """Suggestion-aggregate and review-effort digest lines."""
     lines: list[str] = []
-    rollup = rollup_review(result)
+    rollup = rollup if rollup is not None else rollup_review(result)
     if rollup.suggestions:
         extra = f" · {rollup.verified_pass} sandbox-verified" if rollup.verified_pass else ""
         lines.append(f"- **Suggestions:** {rollup.suggestions} one-click fix(es){extra}")
@@ -128,13 +134,9 @@ def _overview_extra_lines(result: ReviewResult, with_findings: int) -> list[str]
             f"{rollup.rag_cited} RAG-cited"
         )
     if rollup.verification and any(rollup.verification.values()):
-        lines.append(
-            "- **Verification:** "
-            f"{rollup.verification.get('pass', 0)} pass · "
-            f"{rollup.verification.get('fail', 0)} fail · "
-            f"{rollup.verification.get('skip', 0)} skip · "
-            f"{rollup.verification.get('error', 0)} error"
-        )
+        # Same wording as every other renderer — formatted from the shared
+        # rollup rows so the digest can never drift from the reports.
+        lines.append(f"- **Verification:** {dict(rollup_rows(rollup))['Verification']}")
     attention = f" · {with_findings} file(s) need attention" if with_findings else ""
     lines.append(
         f"- **Review effort:** ~{_effort_estimate_minutes(result)} min{attention}"
@@ -148,6 +150,7 @@ def _format_overview_block(
     delta: str | None = None,
     gate: str | None = None,
     filtered: str | None = None,
+    rollup: ReviewRollup | None = None,
 ) -> list[str]:
     """A compact, scannable digest pinned to the top of the summary.
 
@@ -174,7 +177,7 @@ def _format_overview_block(
     ]
     if filtered:
         lines.append(f"- **Filtered from view:** {filtered}")
-    lines += _overview_extra_lines(result, with_findings)
+    lines += _overview_extra_lines(result, with_findings, rollup)
     if delta:
         lines.append(f"- **Since last review:** {delta}")
     hotspots = _hotspots_line(result, files_url)
@@ -214,13 +217,20 @@ def format_review_footer(
     return "\n".join(["---", "", meta, "", *_format_legend()]).rstrip() + "\n"
 
 
-def format_digest(result: ReviewResult, files_url: str | None = None) -> str:
+def format_digest(
+    result: ReviewResult,
+    files_url: str | None = None,
+    rollup: ReviewRollup | None = None,
+) -> str:
     """The standalone at-a-glance digest (status / counts / hotspots).
 
     Reused for the compact PR-description section so the verdict shows at
-    the top of the PR, not only in the comments.
+    the top of the PR, not only in the comments. ``rollup`` lets a caller
+    that already computed the audit rollup pass it in.
     """
-    return "\n".join(_format_overview_block(result, files_url)).strip()
+    return "\n".join(
+        _format_overview_block(result, files_url, rollup=rollup)
+    ).strip()
 
 
 _CHECKLIST_LIMIT = 12

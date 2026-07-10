@@ -8,6 +8,7 @@ here we test the parser + the store roundtrip.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from prthinker.lessons import (
@@ -89,6 +90,26 @@ def test_parse_lessons_inside_fenced_block() -> None:
 def test_parse_lessons_returns_empty_on_garbage() -> None:
     assert parse_lessons("not json", source_prs=()) == []
     assert parse_lessons("[]", source_prs=()) == []
+
+
+def test_parse_lessons_no_array_logs_warning(caplog) -> None:
+    with caplog.at_level(logging.WARNING, logger="prthinker.lessons"):
+        assert parse_lessons("prose without an array", source_prs=()) == []
+    assert "lessons parser: no JSON array found" in caplog.text
+
+
+def test_parse_lessons_decode_error_logs_warning(caplog) -> None:
+    with caplog.at_level(logging.WARNING, logger="prthinker.lessons"):
+        assert parse_lessons('[{"name": }]', source_prs=()) == []
+    assert "lessons parser: JSON decode failed" in caplog.text
+
+
+def test_parse_lessons_empty_reply_logs_nothing(caplog) -> None:
+    # "" and "[]" short-circuit BEFORE the array search — no warning.
+    with caplog.at_level(logging.WARNING, logger="prthinker.lessons"):
+        assert parse_lessons("", source_prs=()) == []
+        assert parse_lessons("```json\n[]\n```", source_prs=()) == []
+    assert caplog.text == ""
 
 
 # ----- store roundtrip --------------------------------------------------

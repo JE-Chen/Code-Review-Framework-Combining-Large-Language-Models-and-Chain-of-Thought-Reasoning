@@ -17,6 +17,7 @@ filter on which call had real numbers.
 from __future__ import annotations
 
 import contextlib
+import itertools
 import logging
 import sqlite3
 import time
@@ -121,14 +122,14 @@ class TelemetrySink:
 
     def aggregate(self, since_seconds: float | None = None) -> list[BackendStats]:
         clause, params = self._time_filter(since_seconds)
-        out: list[BackendStats] = []
         with self._connect() as conn:
-            for backend, model in self._distinct_keys(conn, clause, params):
-                rows = self._rows_for_key(conn, clause, params, backend, model)
-                if not rows:
-                    continue
-                out.append(_stats_from_rows(backend, model, rows))
-        return out
+            rows = self._metric_rows(conn, clause, params)
+        return [
+            _stats_from_rows(backend, model, [row[2:] for row in group])
+            for (backend, model), group in itertools.groupby(
+                rows, key=lambda row: (row[0], row[1])
+            )
+        ]
 
     @staticmethod
     def _time_filter(since_seconds: float | None) -> tuple[str, tuple]:
@@ -138,34 +139,17 @@ class TelemetrySink:
         return _WHERE_SINCE, (time.time() - since_seconds,)
 
     @staticmethod
-    def _distinct_keys(
+    def _metric_rows(
         conn: sqlite3.Connection, clause: str, params: tuple
-    ) -> list[tuple[str, str]]:
-        """Return the distinct ``(backend, model)`` pairs matching the filter."""
+    ) -> list[tuple]:
+        """Fetch every call's key + metric columns ordered by (backend, model)."""
         # nosec B608 — `clause` is one of two literal strings; the actual
         # user-supplied value goes through a bound parameter.
         return conn.execute(
-            f"SELECT backend, model FROM calls {clause} "  # nosec B608
-            f"GROUP BY backend, model ORDER BY backend, model",
+            f"SELECT backend, model, prompt_tokens, completion_tokens, "  # nosec B608
+            f"latency_ms, cost_usd, cache_hit FROM calls {clause} "
+            f"ORDER BY backend, model",
             params,
-        ).fetchall()
-
-    @staticmethod
-    def _rows_for_key(
-        conn: sqlite3.Connection,
-        clause: str,
-        params: tuple,
-        backend: str,
-        model: str,
-    ) -> list[tuple]:
-        """Return the metric columns for one ``(backend, model)`` pair."""
-        connective = " AND " if clause else " WHERE "
-        return conn.execute(
-            f"SELECT prompt_tokens, completion_tokens, latency_ms, "  # nosec B608
-            f"cost_usd, cache_hit FROM calls {clause}"
-            + connective
-            + "backend = ? AND model = ?",
-            (*params, backend, model),
         ).fetchall()
 
 

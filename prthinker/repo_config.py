@@ -19,12 +19,13 @@ every option.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
+
+from prthinker.config import CACHE_DEFAULT, TELEMETRY_DEFAULT
 
 log = logging.getLogger(__name__)
 
@@ -71,7 +72,7 @@ class _CISignalsSection(BaseModel):
 
 class _CacheSection(BaseModel):
     enabled: bool = False
-    path: str = ".prthinker/cache.sqlite"
+    path: str = CACHE_DEFAULT
     ttl_days: float | None = 7.0
 
     model_config = ConfigDict(extra="forbid")
@@ -79,7 +80,7 @@ class _CacheSection(BaseModel):
 
 class _TelemetrySection(BaseModel):
     enabled: bool = False
-    path: str = ".prthinker/telemetry.sqlite"
+    path: str = TELEMETRY_DEFAULT
 
     model_config = ConfigDict(extra="forbid")
 
@@ -158,13 +159,6 @@ class RepoConfig(BaseModel):
     remote: _RemoteSection = Field(default_factory=_RemoteSection)
 
     model_config = ConfigDict(extra="forbid")
-
-
-@dataclass
-class FlattenedDefaults:
-    """argparse-friendly dict of defaults derived from a ``RepoConfig``."""
-
-    values: dict[str, Any] = field(default_factory=dict)
 
 
 def find_config_file(explicit: Path | None = None) -> Path | None:

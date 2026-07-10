@@ -115,9 +115,9 @@ def test_trivial_keeps_walkthrough_when_configured():
     assert [cls.name for cls in plan.steps] == ["walkthrough", "inline_findings"]
 
 
-def test_trivial_chain_only_falls_back_to_first_code_review():
+def test_trivial_chain_only_falls_back_to_compact_review():
     plan = plan_steps(_diff("a.py", added=1), registered_steps())
-    assert [cls.name for cls in plan.steps] == ["first_code_review"]
+    assert [cls.name for cls in plan.steps] == ["compact_review"]
 
 
 def test_trivial_drops_judge_and_counterfactual():
@@ -135,19 +135,39 @@ def test_standard_keeps_counterfactual_with_inline_present():
     assert "counterfactual" in [cls.name for cls in plan.steps]
 
 
-def test_standard_drops_first_summary_keeps_total_summary():
+def test_standard_substitutes_compact_review_for_analysis_chain():
     plan = plan_steps(_diff("a.py", added=50), _full_chain())
     assert plan.tier == TIER_STANDARD
-    names = [cls.name for cls in plan.steps]
-    assert "first_summary" not in names
-    assert "total_summary" in names
-    assert plan.skipped == ("first_summary",)
+    assert [cls.name for cls in plan.steps] == ["compact_review", "inline_findings"]
+    assert set(plan.skipped) == {
+        "first_summary",
+        "first_code_review",
+        "linter",
+        "code_smell",
+        "total_summary",
+    }
 
 
-def test_standard_keeps_judge_because_total_summary_survives():
+def test_standard_drops_judge_with_total_summary_pruned():
     steps = registered_steps() + (InlineFindingsStep, JudgeStep)
     plan = plan_steps(_diff("a.py", added=50), steps)
-    assert "judge" in [cls.name for cls in plan.steps]
+    assert "judge" not in [cls.name for cls in plan.steps]
+    assert "judge" in plan.skipped
+
+
+def test_no_compact_substitute_without_analysis_steps():
+    plan = plan_steps(_diff("a.py", added=50), (InlineFindingsStep,))
+    assert [cls.name for cls in plan.steps] == ["inline_findings"]
+
+
+def test_compact_review_prompt_contains_diff():
+    from prthinker.steps import CompactReviewStep
+
+    prompt = CompactReviewStep().build_prompt(
+        ReviewContext(code_diff="+the-changed-line", rag_docs=[])
+    )
+    assert "+the-changed-line" in prompt
+    assert "Conclusion" in prompt
 
 
 # ---------------------------------------------------------------------------
@@ -213,7 +233,9 @@ def test_run_per_file_adaptive_scales_steps_per_file(fake_backend):
     assert "inline_findings" in docs.step_outputs
     assert code.step_outputs["step_plan"] == TIER_STANDARD
     assert "first_summary" not in code.step_outputs
-    assert "total_summary" in code.step_outputs
+    assert "compact_review" in code.step_outputs
+    # Renderers read the compact output through the same property.
+    assert code.total_summary == code.step_outputs["compact_review"]
 
 
 def test_run_per_file_default_full_plan_is_unchanged(fake_backend):

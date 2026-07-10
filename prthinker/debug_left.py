@@ -21,7 +21,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from prthinker.diff import iter_added_lines, parse_unified_diff
+from prthinker.detector_util import format_details_note, scan_added_lines
 
 _DEBUG_LIMIT = 15
 _TEXT_CAP = 80
@@ -53,13 +53,7 @@ def _hit_for_line(path: str, line_no: int, content: str) -> DebugHit | None:
 
 def find_debug_statements(diff_text: str) -> list[DebugHit]:
     """Return every leftover debug statement added on a new-side line."""
-    found: list[DebugHit] = []
-    for file_diff in parse_unified_diff(diff_text):
-        for line_no, content in iter_added_lines(file_diff.raw):
-            hit = _hit_for_line(file_diff.path, line_no, content)
-            if hit is not None:
-                found.append(hit)
-    return found
+    return scan_added_lines(diff_text, _hit_for_line)
 
 
 def _hit_line(hit: DebugHit) -> str:
@@ -69,26 +63,16 @@ def _hit_line(hit: DebugHit) -> str:
 
 def format_debug_note(hits: list[DebugHit]) -> str:
     """Collapsible 'debug statements added' block, or ``""``."""
-    if not hits:
-        return ""
-    shown = hits[:_DEBUG_LIMIT]
-    lines = [
-        f"<details><summary>🐞 {len(hits)} leftover debug statement(s) "
-        "added</summary>",
-        "",
-    ]
-    lines += [_hit_line(h) for h in shown]
-    extra = len(hits) - len(shown)
-    if extra > 0:
-        lines.append(f"- … and {extra} more")
-    lines += [
-        "",
-        "_Confirm these are not debugging leftovers that should be "
-        "removed before merge._",
-        "",
-        "</details>",
-    ]
-    return "\n".join(lines)
+    return format_details_note(
+        hits,
+        summary=f"🐞 {len(hits)} leftover debug statement(s) added",
+        bullet=_hit_line,
+        footer=(
+            "_Confirm these are not debugging leftovers that should be "
+            "removed before merge._"
+        ),
+        limit=_DEBUG_LIMIT,
+    )
 
 
 __all__ = ["DebugHit", "find_debug_statements", "format_debug_note"]

@@ -15,12 +15,44 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 _HUNK_RE = re.compile(
     r"^@@\s+-(?P<old_start>\d+)(?:,(?P<old_count>\d+))?\s+"
     r"\+(?P<new_start>\d+)(?:,(?P<new_count>\d+))?\s+@@"
 )
+
+
+def _iter_new_side(
+    raw: str, *, in_hunks_only: bool = True
+) -> Iterator[tuple[int, str, bool]]:
+    """Yield ``(new_line_no, content, is_added)`` per new-side diff line.
+
+    Shared hunk walker behind :func:`iter_added_lines`,
+    :func:`_content_from_raw` and :meth:`FileDiff.content_sha256`. The
+    new-side counter resets at each ``@@`` header and advances on added
+    (``+``) and context (space) lines; removed / metadata lines are
+    skipped. With ``in_hunks_only`` (the default) lines before the first
+    hunk header are ignored; ``content_sha256`` disables it to keep its
+    historical treatment of raw text without hunk headers.
+    """
+    new_line = 0
+    in_hunk = False
+    for line in raw.splitlines():
+        match = _HUNK_RE.match(line)
+        if match:
+            in_hunk = True
+            new_line = int(match.group("new_start")) - 1
+            continue
+        if in_hunks_only and not in_hunk:
+            continue
+        if line.startswith("+") and not line.startswith("+++"):
+            new_line += 1
+            yield new_line, line[1:], True
+        elif line.startswith(" "):
+            new_line += 1
+            yield new_line, line[1:], False
 
 
 @dataclass
@@ -45,13 +77,11 @@ class FileDiff:
         diff metadata are excluded so a no-op force-push that only
         re-orders hunks still hits the cache.
         """
+        new_side = [
+            content
+            for _, content, _ in _iter_new_side(self.raw, in_hunks_only=False)
+        ]
         h = hashlib.sha256()
-        new_side: list[str] = []
-        for line in self.raw.splitlines():
-            if line.startswith("+") and not line.startswith("+++"):
-                new_side.append(line[1:])
-            elif line.startswith(" "):
-                new_side.append(line[1:])
         h.update("\n".join(new_side).encode("utf-8"))
         return h.hexdigest()
 
@@ -212,26 +242,7 @@ def parse_unified_diff(diff_text: str) -> list[FileDiff]:
 
 def _content_from_raw(raw: str) -> dict[int, str]:
     """Map new-side line numbers to their content within one file's diff."""
-    content: dict[int, str] = {}
-    new_line = 0
-    in_hunk = False
-    for line in raw.splitlines():
-        if line.startswith("@@"):
-            match = _HUNK_RE.match(line)
-            in_hunk = match is not None
-            if match:
-                new_line = int(match.group("new_start")) - 1
-            continue
-        if not in_hunk:
-            continue
-        if line.startswith("+") and not line.startswith("+++"):
-            new_line += 1
-            content[new_line] = line[1:]
-        elif line.startswith(" "):
-            new_line += 1
-            content[new_line] = line[1:]
-        # '-' lines are old-side deletions and do not advance the new side.
-    return content
+    return {no: content for no, content, _ in _iter_new_side(raw)}
 
 
 def iter_added_lines(raw: str) -> list[tuple[int, str]]:
@@ -242,23 +253,11 @@ def iter_added_lines(raw: str) -> list[tuple[int, str]]:
     skipped. Shared by the orientation scanners that care specifically
     about what a PR *introduces* (deferred-work markers, conflict markers).
     """
-    out: list[tuple[int, str]] = []
-    new_line = 0
-    in_hunk = False
-    for line in raw.splitlines():
-        match = _HUNK_RE.match(line)
-        if match:
-            in_hunk = True
-            new_line = int(match.group("new_start")) - 1
-            continue
-        if not in_hunk:
-            continue
-        if line.startswith("+") and not line.startswith("+++"):
-            new_line += 1
-            out.append((new_line, line[1:]))
-        elif line.startswith(" "):
-            new_line += 1
-    return out
+    return [
+        (no, content)
+        for no, content, is_added in _iter_new_side(raw)
+        if is_added
+    ]
 
 
 def new_side_content(diff_text: str) -> dict[str, dict[int, str]]:

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+from collections import deque
 from pathlib import Path
 
 from prthinker.arbitration import (
@@ -16,6 +17,10 @@ from prthinker.arbitration import (
 )
 from prthinker.backends import InferenceBackend, create_backend
 from prthinker.config import (
+    CACHE_DEFAULT,
+    KG_STORE_DEFAULT,
+    LESSONS_DEFAULT,
+    TELEMETRY_DEFAULT,
     AnthropicConfig,
     BackendKind,
     CacheConfig,
@@ -195,7 +200,7 @@ def build_cache_telemetry(
     """Build the CacheConfig / TelemetryConfig pair from CLI args."""
     cache_cfg = CacheConfig(
         enabled=bool(getattr(args, "cache_enabled", False)),
-        path=str(getattr(args, "cache_path", ".prthinker/cache.sqlite")),
+        path=str(getattr(args, "cache_path", CACHE_DEFAULT)),
         ttl_days=(
             None
             if getattr(args, "cache_ttl_days", 7.0) in (None, 0, 0.0)
@@ -204,9 +209,28 @@ def build_cache_telemetry(
     )
     telemetry_cfg = TelemetryConfig(
         enabled=bool(getattr(args, "telemetry_enabled", False)),
-        path=str(getattr(args, "telemetry_path", ".prthinker/telemetry.sqlite")),
+        path=str(getattr(args, "telemetry_path", TELEMETRY_DEFAULT)),
     )
     return cache_cfg, telemetry_cfg
+
+
+def build_platform_adapter(args: argparse.Namespace) -> object:
+    """Create the forge adapter every PR-facing command shares.
+
+    Imported lazily so tests can monkeypatch
+    ``prthinker.platforms.create_platform_adapter`` and so the platforms
+    package stays off the import path of non-PR commands.
+    """
+    from prthinker.platforms import PlatformKind, create_platform_adapter
+
+    return create_platform_adapter(
+        PlatformKind(args.platform),
+        repo=args.repo,
+        token=args.github_token,
+        pr_number=args.pr_number,
+        comment_marker=args.marker,
+        base_url=args.platform_base_url,
+    )
 
 
 def _dialogue_from_replies(adapter: object) -> str:
@@ -225,12 +249,14 @@ def _dialogue_from_replies(adapter: object) -> str:
 
 def _dialogue_from_lessons(args: argparse.Namespace) -> str:
     """Render the derived-lessons block from the lessons store."""
-    lessons_path = Path(getattr(args, "lessons_path", "") or ".prthinker/lessons.jsonl")
+    lessons_path = Path(getattr(args, "lessons_path", "") or LESSONS_DEFAULT)
     if not lessons_path.exists():
         return ""
     from prthinker.lessons import LessonsStore, format_lessons_block
     top_k = int(getattr(args, "lessons_top_k", 5) or 5)
-    recent = list(LessonsStore(lessons_path))[-top_k:]
+    # deque(maxlen=k) keeps only the corpus tail without materializing the
+    # whole append-only store in memory.
+    recent = list(deque(LessonsStore(lessons_path), maxlen=top_k))
     block = format_lessons_block(recent)
     if block:
         log.info("Injecting %d derived lesson(s) into inline-findings prompt", len(recent))
@@ -239,7 +265,7 @@ def _dialogue_from_lessons(args: argparse.Namespace) -> str:
 
 def _dialogue_from_kg(args: argparse.Namespace) -> str:
     """Render the repo knowledge-graph symbol block."""
-    kg_store_path = Path(getattr(args, "kg_store", "") or ".prthinker/repo-kg.sqlite")
+    kg_store_path = Path(getattr(args, "kg_store", "") or KG_STORE_DEFAULT)
     if not kg_store_path.exists():
         return ""
     kg_workdir = Path(getattr(args, "kg_workdir", "") or ".")

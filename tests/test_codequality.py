@@ -97,3 +97,14 @@ def test_findings_and_signals_coexist():
         _result([_finding(severity="error")], code_diff=diff))}
     assert "prthinker/error" in names
     assert "prthinker/merge-conflict" in names
+
+
+def test_fingerprint_pinned_known_answer():
+    # Known-answer pin: sha256 of "prthinker/warning\0src/app.py\x0010\0boom".
+    # GitLab dedups by fingerprint, so this value must never change.
+    issue = to_codequality(
+        _result([_finding(path="src/app.py", line=10, severity="warning", comment="boom")])
+    )[0]
+    assert issue["fingerprint"] == (
+        "97e31f15f1e9c112fdee8ea2983451f8a534f26ff92841f5e0d67cdf05e1f7e4"
+    )

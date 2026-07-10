@@ -26,7 +26,7 @@ from prthinker.calibration import CalibrationStore
 from prthinker.change_map import change_map_edges, format_change_map_mermaid
 from prthinker.checks import evaluate_gate
 from prthinker.codequality import write_codequality
-from prthinker.config import env_str
+from prthinker.config import KG_STORE_DEFAULT, env_str
 from prthinker.confidence import filter_by_confidence
 from prthinker.csv_report import write_csv
 from prthinker.diff import parse_unified_diff
@@ -374,16 +374,35 @@ _GATE_FLOOR_SEVERITIES: dict[str, tuple[str, ...]] = {
 }
 
 
+def _gate_inputs(
+    args: argparse.Namespace, result: ReviewResult
+) -> tuple[list[InlineFinding], int] | None:
+    """Precompute (gate findings, abstained count) once per publish, or None.
+
+    Returns None when gating is off so the calibration store is never
+    touched; the publish flow hands the tuple to both ``_gate_line`` and
+    ``_close_review_gate`` so the per-finding SQLite queries run once.
+    """
+    if getattr(args, "gate_on", "none") == "none":
+        return None
+    return _calibrated_gate_findings(args, result.inline_findings)
+
+
 def _gate_line(
     args: argparse.Namespace,
     result: ReviewResult,
     files_url: str | None = None,
+    calibrated: tuple[list[InlineFinding], int] | None = None,
 ) -> str | None:
     """A pass/fail gate line for the digest, or None when not gating."""
     gate_on = getattr(args, "gate_on", "none")
     if gate_on == "none":
         return None
-    gate_findings, abstained = _calibrated_gate_findings(args, result.inline_findings)
+    gate_findings, abstained = (
+        calibrated
+        if calibrated is not None
+        else _calibrated_gate_findings(args, result.inline_findings)
+    )
     gate = evaluate_gate(gate_findings, gate_on=gate_on)
     icon = _GATE_CONCLUSION_ICON.get(gate.conclusion, "")
     line = (
@@ -440,27 +459,9 @@ def _maybe_write_job_summary(body: str) -> None:
         log.warning("Could not write job summary (%s)", exc)
 
 
-def _impact_note(args: argparse.Namespace, result: ReviewResult) -> str | None:
-    """'Impacted areas' note from the repo KG, or None (best-effort)."""
-    if not getattr(args, "impact_map", False):
-        return None
-    kg_path = Path(getattr(args, "kg_store", "") or ".prthinker/repo-kg.sqlite")
-    if not kg_path.exists():
-        return None
-    try:
-        imports = KnowledgeGraphStore(kg_path).all_imports(
-            Path(getattr(args, "kg_workdir", "") or ".")
-        )
-        changed = [fr.path for fr in result.per_file]
-        return format_impact_note(impacted_files(imports, changed)) or None
-    except Exception as exc:  # noqa: BLE001 — impact map is best-effort
-        log.warning("Could not build impact map (%s)", exc)
-        return None
-
-
 def _kg_imports(args: argparse.Namespace) -> list | None:
     """Import edges from the repo KG, or None when unavailable (best-effort)."""
-    kg_path = Path(getattr(args, "kg_store", "") or ".prthinker/repo-kg.sqlite")
+    kg_path = Path(getattr(args, "kg_store", "") or KG_STORE_DEFAULT)
     if not kg_path.exists():
         return None
     try:
@@ -470,6 +471,17 @@ def _kg_imports(args: argparse.Namespace) -> list | None:
     except Exception as exc:  # noqa: BLE001 — KG-derived sections are best-effort
         log.warning("Could not read repo KG (%s)", exc)
         return None
+
+
+def _impact_note(args: argparse.Namespace, result: ReviewResult) -> str | None:
+    """'Impacted areas' note from the repo KG, or None (best-effort)."""
+    if not getattr(args, "impact_map", False):
+        return None
+    imports = _kg_imports(args)
+    if imports is None:
+        return None
+    changed = [fr.path for fr in result.per_file]
+    return format_impact_note(impacted_files(imports, changed)) or None
 
 
 def _review_order_note(args: argparse.Namespace, result: ReviewResult) -> str:
@@ -645,12 +657,20 @@ def _submit_inline_review(
 
 
 def _close_review_gate(
-    args: argparse.Namespace, adapter: object, result: ReviewResult, gate_handle: object | None
+    args: argparse.Namespace,
+    adapter: object,
+    result: ReviewResult,
+    gate_handle: object | None,
+    calibrated: tuple[list[InlineFinding], int] | None = None,
 ) -> None:
     """Evaluate and close the merge gate when one was opened."""
     if gate_handle is None:
         return
-    gate_findings, abstained = _calibrated_gate_findings(args, result.inline_findings)
+    gate_findings, abstained = (
+        calibrated
+        if calibrated is not None
+        else _calibrated_gate_findings(args, result.inline_findings)
+    )
     gate_result = evaluate_gate(
         gate_findings, gate_on=args.gate_on,
         with_annotations=getattr(args, "check_annotations", False),

@@ -6,6 +6,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from prthinker.schemas import SEVERITY_ORDER
+
 if TYPE_CHECKING:
     from prthinker.pipeline import ReviewResult
     from prthinker.schemas import InlineFinding
@@ -40,11 +42,23 @@ class ReviewRollup:
         return self.evidence.get("confirmed", 0)
 
 
-def _all_findings(result: "ReviewResult") -> list["InlineFinding"]:
+def all_findings(result: "ReviewResult") -> list["InlineFinding"]:
+    """Flatten the top-level and per-file findings into one list."""
     findings = list(result.inline_findings)
     for file_result in result.per_file:
         findings.extend(file_result.inline_findings)
     return findings
+
+
+def severity_counts(findings: "list[InlineFinding]") -> dict[str, int]:
+    """Count findings per severity, always returning every known bucket."""
+    counts = {sev: 0 for sev in SEVERITY_ORDER}
+    for finding in findings:
+        # Unknown severities (should not happen given the schema) are
+        # bucketed under "info" rather than dropped, so the total stays
+        # honest.
+        counts[finding.severity if finding.severity in counts else "info"] += 1
+    return counts
 
 
 def _count_docs(result: "ReviewResult") -> int:
@@ -56,7 +70,7 @@ def _count_docs(result: "ReviewResult") -> int:
 
 def rollup_review(result: "ReviewResult") -> ReviewRollup:
     """Return a compact audit-signal rollup for reports and PR summaries."""
-    findings = _all_findings(result)
+    findings = all_findings(result)
     verification = Counter({status: 0 for status in _VERIFICATION_STATUSES})
     evidence = Counter({status: 0 for status in _EVIDENCE_STATUSES})
     evidence_kinds: Counter[str] = Counter()
@@ -89,40 +103,75 @@ def rollup_review(result: "ReviewResult") -> ReviewRollup:
     )
 
 
-def format_markdown_rollup(result: "ReviewResult") -> list[str]:
-    """Markdown bullets for the audit-signal rollup."""
-    rollup = rollup_review(result)
-    lines = [
-        "## Audit rollups",
-        "",
+def rollup_rows(rollup: ReviewRollup) -> list[tuple[str, str]]:
+    """Label/value pairs for the audit rollup, shared by every renderer.
+
+    Single source of truth for the rollup lines: the markdown rollup, the
+    HTML report's audit section, and the PR-comment digest all format from
+    these rows, so the wording can never drift between outputs.
+    """
+    rows = [
         (
-            f"- Verification: {rollup.verified_pass} pass · "
+            "Findings",
+            f"{rollup.findings} finding(s) · "
+            f"{rollup.confidence_scored} confidence-scored",
+        ),
+        (
+            "Verification",
+            f"{rollup.verified_pass} pass · "
             f"{rollup.verification.get('fail', 0)} fail · "
             f"{rollup.verification.get('skip', 0)} skip · "
-            f"{rollup.verification.get('error', 0)} error"
+            f"{rollup.verification.get('error', 0)} error",
         ),
         (
-            f"- Auto-fix safety: {rollup.suggestions} suggestion(s) · "
+            "Auto-fix safety",
+            f"{rollup.suggestions} suggestion(s) · "
             f"{rollup.verified_pass} sandbox-verified · "
-            f"{rollup.verified_problem} failed/error"
+            f"{rollup.verified_problem} failed/error",
         ),
         (
-            f"- Evidence: {rollup.evidence_backed} confirmed · "
+            "Evidence",
+            f"{rollup.evidence_backed} confirmed · "
             f"{rollup.evidence.get('rejected', 0)} rejected · "
-            f"{rollup.evidence.get('inconclusive', 0)} inconclusive"
+            f"{rollup.evidence.get('inconclusive', 0)} inconclusive · "
+            f"{rollup.evidence.get('unsupported', 0)} unsupported · "
+            f"{rollup.evidence.get('error', 0)} error",
         ),
         (
-            f"- Retrieval/provenance: {rollup.retrieved_docs} retrieved doc(s) · "
+            "Retrieval/provenance",
+            f"{rollup.retrieved_docs} retrieved doc(s) · "
             f"{rollup.provenance_backed} provenance-backed finding(s) · "
-            f"{rollup.rag_cited} RAG-cited"
+            f"{rollup.rag_cited} RAG-cited",
         ),
     ]
     if rollup.evidence_kinds:
         kinds = " · ".join(
-            f"{kind}: {count}" for kind, count in sorted(rollup.evidence_kinds.items())
+            f"{kind}: {count}"
+            for kind, count in sorted(rollup.evidence_kinds.items())
         )
-        lines.append(f"- Evidence kinds: {kinds}")
-    return lines
+        rows.append(("Evidence kinds", kinds))
+    return rows
 
 
-__all__ = ["ReviewRollup", "format_markdown_rollup", "rollup_review"]
+def format_markdown_rollup(
+    result: "ReviewResult", rollup: ReviewRollup | None = None
+) -> list[str]:
+    """Markdown bullets for the audit-signal rollup.
+
+    ``rollup`` lets a caller that already computed the rollup pass it in;
+    it is derived from ``result`` when omitted.
+    """
+    rollup = rollup if rollup is not None else rollup_review(result)
+    return ["## Audit rollups", ""] + [
+        f"- {label}: {value}" for label, value in rollup_rows(rollup)
+    ]
+
+
+__all__ = [
+    "ReviewRollup",
+    "all_findings",
+    "format_markdown_rollup",
+    "rollup_review",
+    "rollup_rows",
+    "severity_counts",
+]

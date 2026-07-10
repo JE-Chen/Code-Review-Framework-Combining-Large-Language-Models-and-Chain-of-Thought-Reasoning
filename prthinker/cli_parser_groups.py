@@ -11,7 +11,16 @@ import argparse
 from pathlib import Path
 
 from prthinker.arbitration import STRATEGY_NAMES
-from prthinker.config import env_bool, env_str
+from prthinker.config import (
+    CACHE_DEFAULT,
+    KG_STORE_DEFAULT,
+    TELEMETRY_DEFAULT,
+    env_bool,
+    env_float,
+    env_int,
+    env_path,
+    env_str,
+)
 from prthinker.cli_parser_provider_groups import (
     add_backend_args,
     add_provider_args,
@@ -19,9 +28,6 @@ from prthinker.cli_parser_provider_groups import (
 
 __all__ = ["add_backend_args", "add_provider_args"]
 
-_KG_STORE_DEFAULT = ".prthinker/repo-kg.sqlite"
-_TELEMETRY_DEFAULT = ".prthinker/telemetry.sqlite"
-_CACHE_DEFAULT = ".prthinker/cache.sqlite"
 _REPO_CONTEXT_STRATEGIES = (
     "none",
     "lexical",
@@ -77,7 +83,7 @@ def add_arbitration_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--arbitration-max-new-tokens",
         type=int,
-        default=int(env_str("PRTHINKER_ARBITRATION_MAX_NEW_TOKENS", "4096") or 4096),
+        default=env_int("PRTHINKER_ARBITRATION_MAX_NEW_TOKENS", 4096),
         help="Generation budget for each arbiter's vote call.",
     )
 
@@ -108,7 +114,7 @@ def add_rag_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--max-new-tokens",
         type=int,
-        default=int(env_str("PRTHINKER_MAX_NEW_TOKENS", "32768") or 32768),
+        default=env_int("PRTHINKER_MAX_NEW_TOKENS", 32768),
     )
     common.add_argument(
         "--steps",
@@ -128,19 +134,19 @@ def add_rag_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--repo-context-workdir",
         type=Path,
-        default=Path(env_str("PRTHINKER_REPO_CONTEXT_WORKDIR") or "."),
+        default=env_path("PRTHINKER_REPO_CONTEXT_WORKDIR", "."),
         help="Work tree used by --repo-context-strategy and import-graph context.",
     )
     common.add_argument(
         "--repo-context-top-k",
         type=int,
-        default=int(env_str("PRTHINKER_REPO_CONTEXT_TOP_K", "10") or 10),
+        default=env_int("PRTHINKER_REPO_CONTEXT_TOP_K", 10),
         help="Maximum files considered by file-level repository context retrieval.",
     )
     common.add_argument(
         "--repo-context-keep-ratio",
         type=float,
-        default=float(env_str("PRTHINKER_REPO_CONTEXT_KEEP_RATIO", "0") or 0),
+        default=env_float("PRTHINKER_REPO_CONTEXT_KEEP_RATIO", 0.0),
         help=(
             "Lexical keep-ratio cutoff for repo-context retrieval; 0 keeps the "
             "fixed top-k tail."
@@ -149,25 +155,25 @@ def add_rag_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--repo-context-block-candidates",
         type=int,
-        default=int(env_str("PRTHINKER_REPO_CONTEXT_BLOCK_CANDIDATES", "6") or 6),
+        default=env_int("PRTHINKER_REPO_CONTEXT_BLOCK_CANDIDATES", 6),
         help="Candidate blocks per file for block_rerank/iterative strategies.",
     )
     common.add_argument(
         "--repo-context-votes",
         type=int,
-        default=int(env_str("PRTHINKER_REPO_CONTEXT_VOTES", "1") or 1),
+        default=env_int("PRTHINKER_REPO_CONTEXT_VOTES", 1),
         help="Self-consistency votes for model-in-the-loop repo retrieval.",
     )
     common.add_argument(
         "--repo-context-rounds",
         type=int,
-        default=int(env_str("PRTHINKER_REPO_CONTEXT_ROUNDS", "3") or 3),
+        default=env_int("PRTHINKER_REPO_CONTEXT_ROUNDS", 3),
         help="Maximum rounds for the iterative repo-context strategy.",
     )
     common.add_argument(
         "--repo-context-focus-lines",
         type=int,
-        default=int(env_str("PRTHINKER_REPO_CONTEXT_FOCUS_LINES", "0") or 0),
+        default=env_int("PRTHINKER_REPO_CONTEXT_FOCUS_LINES", 0),
         help="Optional line-window focus for block context; 0 disables.",
     )
 
@@ -302,7 +308,7 @@ def _add_per_file_summary_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--summary-min-confidence",
         type=float,
-        default=float(env_str("PRTHINKER_SUMMARY_MIN_CONFIDENCE", "0") or 0),
+        default=env_float("PRTHINKER_SUMMARY_MIN_CONFIDENCE", 0.0),
         help=(
             "Drop findings whose model confidence is below this floor (0–1) "
             "from the rendered summary; findings without a score are kept. "
@@ -321,7 +327,7 @@ def _add_per_file_summary_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--max-findings-per-file",
         type=int,
-        default=int(env_str("PRTHINKER_MAX_FINDINGS_PER_FILE", "10") or 10),
+        default=env_int("PRTHINKER_MAX_FINDINGS_PER_FILE", 10),
     )
 
 
@@ -456,14 +462,12 @@ def _add_kg_grounding_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--kg-store",
         type=Path,
-        default=Path(
-            env_str("PRTHINKER_KG_STORE", _KG_STORE_DEFAULT) or _KG_STORE_DEFAULT
-        ),
+        default=env_path("PRTHINKER_KG_STORE", KG_STORE_DEFAULT),
     )
     common.add_argument(
         "--kg-workdir",
         type=Path,
-        default=Path(env_str("PRTHINKER_KG_WORKDIR") or "."),
+        default=env_path("PRTHINKER_KG_WORKDIR", "."),
         help="Workdir scope the KG was built against.",
     )
 
@@ -541,7 +545,7 @@ def _add_lessons_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--lessons-top-k",
         type=int,
-        default=int(env_str("PRTHINKER_LESSONS_TOP_K", "5") or 5),
+        default=env_int("PRTHINKER_LESSONS_TOP_K", 5),
         help="Number of lessons to inject per file (most recent first).",
     )
 
@@ -742,12 +746,12 @@ def add_cache_telemetry_args(common: argparse.ArgumentParser) -> None:
     )
     common.add_argument(
         "--cache-path",
-        default=env_str("PRTHINKER_CACHE_PATH", _CACHE_DEFAULT),
+        default=env_str("PRTHINKER_CACHE_PATH", CACHE_DEFAULT),
     )
     common.add_argument(
         "--cache-ttl-days",
         type=float,
-        default=float(env_str("PRTHINKER_CACHE_TTL_DAYS", "7") or 7),
+        default=env_float("PRTHINKER_CACHE_TTL_DAYS", 7.0),
         help="Drop cache entries older than this many days; set to 0 to disable TTL",
     )
     common.add_argument(
@@ -759,7 +763,7 @@ def add_cache_telemetry_args(common: argparse.ArgumentParser) -> None:
     )
     common.add_argument(
         "--telemetry-path",
-        default=env_str("PRTHINKER_TELEMETRY_PATH", _TELEMETRY_DEFAULT),
+        default=env_str("PRTHINKER_TELEMETRY_PATH", TELEMETRY_DEFAULT),
     )
 
 
@@ -906,7 +910,7 @@ def _add_report_filter_args(common: argparse.ArgumentParser) -> None:
     common.add_argument(
         "--min-confidence",
         type=float,
-        default=float(env_str("PRTHINKER_MIN_CONFIDENCE", "0") or 0),
+        default=env_float("PRTHINKER_MIN_CONFIDENCE", 0.0),
         help="Drop findings whose provenance confidence is below this "
         "threshold (0 keeps all; findings without a confidence are "
         "always kept). Use with --provenance.",

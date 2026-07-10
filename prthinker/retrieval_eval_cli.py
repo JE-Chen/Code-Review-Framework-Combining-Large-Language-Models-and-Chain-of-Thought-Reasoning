@@ -6,6 +6,7 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 from statistics import mean
+from prthinker.cli_io import emit_text
 from prthinker.retrieval_eval import evaluate
 
 
@@ -44,9 +45,5 @@ def command(args: argparse.Namespace) -> int:
         )
         + "\n"
     )
-    if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(text, encoding="utf-8")
-    else:
-        print(text, end="")
+    emit_text(text, args.output)
     return 0

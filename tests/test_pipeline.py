@@ -138,3 +138,38 @@ def test_binary_and_deleted_files_skip_pipeline() -> None:
     assert by_path["logo.png"].is_binary and not by_path["logo.png"].inline_findings
     # Skipped files contribute no findings to the flat list.
     assert result.inline_findings == []
+
+
+# ----- small shared helpers ----------------------------------------------
+
+def test_stub_file_result_carries_flags_and_findings() -> None:
+    from prthinker.diff import FileDiff
+    from prthinker.schemas import InlineFinding
+
+    fd = FileDiff(path="bin.dat", raw="", is_binary=True, is_deleted=False)
+    finding = InlineFinding(path="bin.dat", line=1, severity="info", comment="c")
+    result = CoTPipeline._stub_file_result(fd, [finding])
+    assert result.path == "bin.dat"
+    assert result.is_binary and not result.is_deleted
+    assert result.inline_findings == [finding]
+    assert result.step_outputs == {} and result.rag_docs == []
+
+
+def test_stub_file_result_empty_findings() -> None:
+    from prthinker.diff import FileDiff
+
+    fd = FileDiff(path="gone.py", raw="", is_deleted=True)
+    result = CoTPipeline._stub_file_result(fd, [])
+    assert result.is_deleted and result.inline_findings == []
+
+
+def test_doc_ids_are_short_stable_sha256_prefixes() -> None:
+    import hashlib
+
+    docs = ["rule one", "rule two"]
+    ids = CoTPipeline._doc_ids(docs)
+    assert ids == [
+        hashlib.sha256(doc.encode()).hexdigest()[:16] for doc in docs
+    ]
+    assert all(len(doc_id) == 16 for doc_id in ids)
+    assert CoTPipeline._doc_ids([]) == []

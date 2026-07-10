@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import sys
+import time
 from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -22,11 +24,11 @@ from prthinker.self_review import (
     parse_drop_indices,
     render_findings_block,
 )
-from prthinker.pipeline_types import FileReviewResult
-from prthinker.schemas import InlineFinding
 
 if TYPE_CHECKING:
     from prthinker.diff import FileDiff
+    from prthinker.pipeline_types import FileReviewResult
+    from prthinker.schemas import InlineFinding
     from prthinker.steps import ReviewContext, ReviewStep
 
 # Keep the pipeline logger name so log records read identically to when
@@ -80,16 +82,7 @@ class PipelineExecutionMixin:
                 outcome.status,
                 outcome.duration_ms,
             )
-        return FileReviewResult(
-            path=file_result.path,
-            rag_docs=file_result.rag_docs,
-            step_outputs=file_result.step_outputs,
-            inline_findings=new_findings,
-            verdict=file_result.verdict,
-            is_binary=file_result.is_binary,
-            is_deleted=file_result.is_deleted,
-            counterfactuals=file_result.counterfactuals,
-        )
+        return replace(file_result, inline_findings=new_findings)
 
     def _self_correct(
         self,
@@ -138,8 +131,6 @@ class PipelineExecutionMixin:
         Falls back to ``stderr`` when no explicit sink was passed. Returns
         the concatenated full text just like ``backend.generate``.
         """
-        import sys
-
         sink = self._stream_sink or sys.stderr
         header = f"\n[{step_name}" + (f" :: {file_path}" if file_path else "") + "]\n"
         sink.write(header)
@@ -155,6 +146,55 @@ class PipelineExecutionMixin:
         sink.write("\n")
         return "".join(chunks)
 
+    def _execute_step(
+        self,
+        step_cls: type[ReviewStep],
+        ctx: ReviewContext,
+        output_dir: Path | None,
+        *,
+        stream: bool = False,
+        record_trajectory: bool = False,
+    ) -> str:
+        """Run one step against ``ctx`` and return the capped output.
+
+        Shared by the sequential loop and the DAG node runner: build the
+        prompt, invoke the backend inside an ``invoke_agent`` span,
+        persist the raw output to ``{step.name}_result.md`` when an
+        output directory is set, and cap the in-pipeline copy. The caller
+        decides where the capped result lands (``ctx.results`` for the
+        sequential loop, the node result for the DAG).
+        """
+        step: ReviewStep = step_cls()
+        prompt = step.build_prompt(ctx)
+        started = time.perf_counter()
+        with operation_span(
+            "invoke_agent",
+            {"prthinker.step.name": step.name,
+             "prthinker.file.path": ctx.file_path or ""},
+        ):
+            if stream:
+                output = self._generate_streaming(step.name, prompt, ctx.file_path)
+            else:
+                output = self._backend.generate(
+                    prompt,
+                    max_new_tokens=self._max_new_tokens,
+                    cancel_event=self._cancel_event,
+                )
+        if record_trajectory and self._trajectory:
+            self._trajectory.record(
+                "step",
+                content=prompt,
+                path=ctx.file_path,
+                tool=step.name,
+                status="ok",
+                duration_ms=(time.perf_counter() - started) * 1000,
+            )
+        if output_dir is not None:
+            (output_dir / f"{step.name}_result.md").write_text(
+                output, encoding="utf-8"
+            )
+        return self._cap_step_result(output)
+
     def _run_steps(
         self,
         ctx: ReviewContext,
@@ -168,33 +208,14 @@ class PipelineExecutionMixin:
             return
         for step_cls in self._order_steps(step_classes):
             self._check_cancel()
-            step: ReviewStep = step_cls()
-            log.info("Running step: %s (file=%s)", step.name, ctx.file_path)
-            prompt = step.build_prompt(ctx)
-            started = __import__("time").perf_counter()
-            with operation_span("invoke_agent", {"prthinker.step.name": step.name, "prthinker.file.path": ctx.file_path or ""}):
-                if self._stream:
-                    output = self._generate_streaming(step.name, prompt, ctx.file_path)
-                else:
-                    output = self._backend.generate(
-                        prompt,
-                        max_new_tokens=self._max_new_tokens,
-                        cancel_event=self._cancel_event,
-                    )
-            ctx.results[step.name] = self._cap_step_result(output)
-            if self._trajectory:
-                self._trajectory.record(
-                    "step",
-                    content=prompt,
-                    path=ctx.file_path,
-                    tool=step.name,
-                    status="ok",
-                    duration_ms=(__import__("time").perf_counter() - started) * 1000,
-                )
-            if output_dir is not None:
-                (output_dir / f"{step.name}_result.md").write_text(
-                    output, encoding="utf-8"
-                )
+            log.info("Running step: %s (file=%s)", step_cls.name, ctx.file_path)
+            ctx.results[step_cls.name] = self._execute_step(
+                step_cls,
+                ctx,
+                output_dir,
+                stream=self._stream,
+                record_trajectory=True,
+            )
 
     def _step_config(self, step_name: str) -> dict:
         """Return a step's dependency config, normalising the raw tuple form."""
@@ -210,22 +231,7 @@ class PipelineExecutionMixin:
 
         def run(snapshot, cls=step_cls):
             local = replace(ctx, results=dict(snapshot))
-            step = cls()
-            prompt = step.build_prompt(local)
-            with operation_span(
-                "invoke_agent",
-                {"prthinker.step.name": step.name,
-                 "prthinker.file.path": ctx.file_path or ""},
-            ):
-                output = self._backend.generate(
-                    prompt, max_new_tokens=self._max_new_tokens,
-                    cancel_event=self._cancel_event,
-                )
-            if output_dir is not None:
-                (output_dir / f"{step.name}_result.md").write_text(
-                    output, encoding="utf-8"
-                )
-            return self._cap_step_result(output)
+            return self._execute_step(cls, local, output_dir)
 
         return run
 

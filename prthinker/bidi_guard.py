@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from prthinker.diff import iter_added_lines, parse_unified_diff
+from prthinker.detector_util import format_details_note, scan_added_lines
 
 _BIDI_LIMIT = 15
 
@@ -67,15 +67,17 @@ def _markers_in(content: str) -> tuple[str, ...]:
     return tuple(sorted(found))
 
 
+def _hit_for_line(path: str, line_no: int, content: str) -> BidiHit | None:
+    """Build a :class:`BidiHit` when the line carries dangerous chars."""
+    markers = _markers_in(content)
+    if not markers:
+        return None
+    return BidiHit(path, line_no, markers)
+
+
 def find_bidi_hits(diff_text: str) -> list[BidiHit]:
     """Return every added line carrying bidi / invisible control chars."""
-    found: list[BidiHit] = []
-    for file_diff in parse_unified_diff(diff_text):
-        for line_no, content in iter_added_lines(file_diff.raw):
-            markers = _markers_in(content)
-            if markers:
-                found.append(BidiHit(file_diff.path, line_no, markers))
-    return found
+    return scan_added_lines(diff_text, _hit_for_line)
 
 
 def _hit_line(hit: BidiHit) -> str:
@@ -85,26 +87,20 @@ def _hit_line(hit: BidiHit) -> str:
 
 def format_bidi_note(hits: list[BidiHit]) -> str:
     """Collapsible 'hidden-character' warning block, or ``""``."""
-    if not hits:
-        return ""
-    shown = hits[:_BIDI_LIMIT]
-    lines = [
-        f"<details open><summary>🚨 {len(hits)} line(s) with hidden "
-        "bidi / invisible characters</summary>",
-        "",
-    ]
-    lines += [_hit_line(h) for h in shown]
-    extra = len(hits) - len(shown)
-    if extra > 0:
-        lines.append(f"- … and {extra} more")
-    lines += [
-        "",
-        "_These render differently from what executes (Trojan Source) — "
-        "treat as suspicious and verify the raw bytes._",
-        "",
-        "</details>",
-    ]
-    return "\n".join(lines)
+    return format_details_note(
+        hits,
+        summary=(
+            f"🚨 {len(hits)} line(s) with hidden "
+            "bidi / invisible characters"
+        ),
+        bullet=_hit_line,
+        footer=(
+            "_These render differently from what executes (Trojan Source) — "
+            "treat as suspicious and verify the raw bytes._"
+        ),
+        limit=_BIDI_LIMIT,
+        open_details=True,
+    )
 
 
 __all__ = ["BidiHit", "find_bidi_hits", "format_bidi_note"]

@@ -22,7 +22,18 @@ from prthinker.cli_parser_groups import (
     add_rag_args,
     add_review_feature_args,
 )
-from prthinker.config import env_bool, env_str
+from prthinker.config import (
+    CACHE_DEFAULT,
+    KG_STORE_DEFAULT,
+    LESSONS_DEFAULT,
+    SUMMARY_MARKER,
+    TELEMETRY_DEFAULT,
+    env_bool,
+    env_float,
+    env_int,
+    env_path,
+    env_str,
+)
 from prthinker.repo_config import (
     find_config_file,
     load_repo_config,
@@ -38,16 +49,12 @@ from prthinker.issue_fix_cli import add_parser as add_issue_fix_parser
 
 log = logging.getLogger("prthinker")
 
-_SUMMARY_MARKER = "<!-- prthinker:summary -->"
 _GATE_HELP = (
     "Open a Check Run; conclude as 'failure' when findings of this "
     "severity or higher exist. Required for branch-protection gating."
 )
-_KG_STORE_DEFAULT = ".prthinker/repo-kg.sqlite"
 _DISMISSED_DEFAULT = ".prthinker/dismissed.jsonl"
 _ACCEPTED_DEFAULT = ".prthinker/accepted.jsonl"
-_TELEMETRY_DEFAULT = ".prthinker/telemetry.sqlite"
-_CACHE_DEFAULT = ".prthinker/cache.sqlite"
 
 
 def _apply_repo_defaults(
@@ -227,9 +234,7 @@ def _add_review_pr_platform_args(p_pr: argparse.ArgumentParser) -> None:
     p_pr.add_argument(
         "--pr-number",
         type=int,
-        default=int(
-            env_str("PRTHINKER_PR_NUMBER") or env_str("CI_MERGE_REQUEST_IID", "0") or 0
-        ),
+        default=env_int("PRTHINKER_PR_NUMBER", env_int("CI_MERGE_REQUEST_IID", 0)),
         help="GitHub PR number or GitLab MR iid.",
     )
     p_pr.add_argument(
@@ -240,7 +245,7 @@ def _add_review_pr_platform_args(p_pr: argparse.ArgumentParser) -> None:
     )
     p_pr.add_argument(
         "--marker",
-        default=env_str("PRTHINKER_COMMENT_MARKER", _SUMMARY_MARKER),
+        default=env_str("PRTHINKER_COMMENT_MARKER", SUMMARY_MARKER),
     )
     p_pr.add_argument(
         "--dry-run",
@@ -253,7 +258,7 @@ def _add_review_pr_gate_args(p_pr: argparse.ArgumentParser) -> None:
     p_pr.add_argument(
         "--auto-fix-threshold",
         type=int,
-        default=int(env_str("PRTHINKER_AUTO_FIX_THRESHOLD", "0") or 0),
+        default=env_int("PRTHINKER_AUTO_FIX_THRESHOLD", 0),
         help="When ≥ N warning-severity findings carry a `suggestion` "
         "block, auto-apply them on a fresh branch and open a draft "
         "PR pointed at the original PR's base. Set to 0 to disable.",
@@ -280,12 +285,12 @@ def _add_review_pr_gate_args(p_pr: argparse.ArgumentParser) -> None:
     p_pr.add_argument(
         "--ci-signal-max-jobs",
         type=int,
-        default=int(env_str("PRTHINKER_CI_SIGNAL_MAX_JOBS", "5") or 5),
+        default=env_int("PRTHINKER_CI_SIGNAL_MAX_JOBS", 5),
     )
     p_pr.add_argument(
         "--ci-signal-tail-chars",
         type=int,
-        default=int(env_str("PRTHINKER_CI_SIGNAL_TAIL_CHARS", "4000") or 4000),
+        default=env_int("PRTHINKER_CI_SIGNAL_TAIL_CHARS", 4000),
     )
 
 
@@ -364,9 +369,7 @@ def _add_aggregate_target_args(p_agg: argparse.ArgumentParser) -> None:
     p_agg.add_argument(
         "--pr-number",
         type=int,
-        default=int(
-            env_str("PRTHINKER_PR_NUMBER") or env_str("CI_MERGE_REQUEST_IID", "0") or 0
-        ),
+        default=env_int("PRTHINKER_PR_NUMBER", env_int("CI_MERGE_REQUEST_IID", 0)),
     )
     p_agg.add_argument(
         "--github-token",
@@ -374,7 +377,7 @@ def _add_aggregate_target_args(p_agg: argparse.ArgumentParser) -> None:
     )
     p_agg.add_argument(
         "--marker",
-        default=env_str("PRTHINKER_COMMENT_MARKER", _SUMMARY_MARKER),
+        default=env_str("PRTHINKER_COMMENT_MARKER", SUMMARY_MARKER),
     )
     p_agg.add_argument(
         "--dry-run",
@@ -398,10 +401,7 @@ def add_harvest_parsers(sub) -> None:
     p_harvest.add_argument(
         "--out",
         type=Path,
-        default=Path(
-            env_str("PRTHINKER_DISMISSED_PATH", _DISMISSED_DEFAULT)
-            or _DISMISSED_DEFAULT
-        ),
+        default=env_path("PRTHINKER_DISMISSED_PATH", _DISMISSED_DEFAULT),
     )
 
     p_acc = sub.add_parser(
@@ -412,9 +412,7 @@ def add_harvest_parsers(sub) -> None:
     p_acc.add_argument(
         "--out",
         type=Path,
-        default=Path(
-            env_str("PRTHINKER_ACCEPTED_PATH", _ACCEPTED_DEFAULT) or _ACCEPTED_DEFAULT
-        ),
+        default=env_path("PRTHINKER_ACCEPTED_PATH", _ACCEPTED_DEFAULT),
     )
 
 
@@ -467,7 +465,7 @@ def add_stats_parser(sub) -> None:
     )
     p_stats.add_argument(
         "--telemetry-path",
-        default=env_str("PRTHINKER_TELEMETRY_PATH", _TELEMETRY_DEFAULT),
+        default=env_str("PRTHINKER_TELEMETRY_PATH", TELEMETRY_DEFAULT),
     )
     p_stats.add_argument(
         "--since-days",
@@ -477,7 +475,7 @@ def add_stats_parser(sub) -> None:
     )
     p_stats.add_argument(
         "--cache-path",
-        default=env_str("PRTHINKER_CACHE_PATH", _CACHE_DEFAULT),
+        default=env_str("PRTHINKER_CACHE_PATH", CACHE_DEFAULT),
         help="Also report cache fill / hit counters if the file exists",
     )
 
@@ -514,30 +512,22 @@ def _add_report_store_args(p_report: argparse.ArgumentParser) -> None:
     p_report.add_argument(
         "--telemetry-path",
         type=Path,
-        default=Path(
-            env_str("PRTHINKER_TELEMETRY_PATH", _TELEMETRY_DEFAULT)
-            or _TELEMETRY_DEFAULT
-        ),
+        default=env_path("PRTHINKER_TELEMETRY_PATH", TELEMETRY_DEFAULT),
     )
     p_report.add_argument(
         "--cache-path",
         type=Path,
-        default=Path(env_str("PRTHINKER_CACHE_PATH", _CACHE_DEFAULT) or _CACHE_DEFAULT),
+        default=env_path("PRTHINKER_CACHE_PATH", CACHE_DEFAULT),
     )
     p_report.add_argument(
         "--dismissed-path",
         type=Path,
-        default=Path(
-            env_str("PRTHINKER_DISMISSED_PATH", _DISMISSED_DEFAULT)
-            or _DISMISSED_DEFAULT
-        ),
+        default=env_path("PRTHINKER_DISMISSED_PATH", _DISMISSED_DEFAULT),
     )
     p_report.add_argument(
         "--accepted-path",
         type=Path,
-        default=Path(
-            env_str("PRTHINKER_ACCEPTED_PATH", _ACCEPTED_DEFAULT) or _ACCEPTED_DEFAULT
-        ),
+        default=env_path("PRTHINKER_ACCEPTED_PATH", _ACCEPTED_DEFAULT),
     )
 
 
@@ -560,11 +550,8 @@ def add_adversarial_parser(sub, common: argparse.ArgumentParser) -> None:
     p_adv.add_argument(
         "--outcomes-path",
         type=Path,
-        default=Path(
-            env_str(
-                "PRTHINKER_ADV_OUTCOMES_PATH", ".prthinker/adversarial-outcomes.sqlite"
-            )
-            or ".prthinker/adversarial-outcomes.sqlite"
+        default=env_path(
+            "PRTHINKER_ADV_OUTCOMES_PATH", ".prthinker/adversarial-outcomes.sqlite"
         ),
     )
 
@@ -586,14 +573,12 @@ def _add_build_kg_parser(sub) -> None:
     p_build_kg.add_argument(
         "--workdir",
         type=Path,
-        default=Path(env_str("PRTHINKER_KG_WORKDIR") or "."),
+        default=env_path("PRTHINKER_KG_WORKDIR", "."),
     )
     p_build_kg.add_argument(
         "--kg-store",
         type=Path,
-        default=Path(
-            env_str("PRTHINKER_KG_STORE", _KG_STORE_DEFAULT) or _KG_STORE_DEFAULT
-        ),
+        default=env_path("PRTHINKER_KG_STORE", KG_STORE_DEFAULT),
     )
 
 
@@ -608,22 +593,17 @@ def _add_visualize_kg_parser(sub) -> None:
     p_viz_kg.add_argument(
         "--workdir",
         type=Path,
-        default=Path(env_str("PRTHINKER_KG_WORKDIR") or "."),
+        default=env_path("PRTHINKER_KG_WORKDIR", "."),
     )
     p_viz_kg.add_argument(
         "--kg-store",
         type=Path,
-        default=Path(
-            env_str("PRTHINKER_KG_STORE", _KG_STORE_DEFAULT) or _KG_STORE_DEFAULT
-        ),
+        default=env_path("PRTHINKER_KG_STORE", KG_STORE_DEFAULT),
     )
     p_viz_kg.add_argument(
         "--output",
         type=Path,
-        default=Path(
-            env_str("PRTHINKER_KG_HTML", ".prthinker/repo-kg.html")
-            or ".prthinker/repo-kg.html"
-        ),
+        default=env_path("PRTHINKER_KG_HTML", ".prthinker/repo-kg.html"),
     )
     p_viz_kg.add_argument(
         "--name",
@@ -653,20 +633,17 @@ def add_discover_rules_parser(sub, common: argparse.ArgumentParser) -> None:
     p_discover.add_argument(
         "--cluster-store",
         type=Path,
-        default=Path(
-            env_str("PRTHINKER_CLUSTER_STORE", ".prthinker/findings-index.sqlite")
-            or ".prthinker/findings-index.sqlite"
-        ),
+        default=env_path("PRTHINKER_CLUSTER_STORE", ".prthinker/findings-index.sqlite"),
     )
     p_discover.add_argument(
         "--similarity-threshold",
         type=float,
-        default=float(env_str("PRTHINKER_CLUSTER_THRESHOLD", "0.85") or 0.85),
+        default=env_float("PRTHINKER_CLUSTER_THRESHOLD", 0.85),
     )
     p_discover.add_argument(
         "--min-cluster-size",
         type=int,
-        default=int(env_str("PRTHINKER_CLUSTER_MIN_SIZE", "5") or 5),
+        default=env_int("PRTHINKER_CLUSTER_MIN_SIZE", 5),
     )
     p_discover.add_argument(
         "--repo",
@@ -687,36 +664,28 @@ def add_derive_lessons_parser(sub, common: argparse.ArgumentParser) -> None:
     p_lessons.add_argument(
         "--dismissed-path",
         type=Path,
-        default=Path(
-            env_str("PRTHINKER_DISMISSED_PATH", _DISMISSED_DEFAULT)
-            or _DISMISSED_DEFAULT
-        ),
+        default=env_path("PRTHINKER_DISMISSED_PATH", _DISMISSED_DEFAULT),
     )
     p_lessons.add_argument(
         "--accepted-path",
         type=Path,
-        default=Path(
-            env_str("PRTHINKER_ACCEPTED_PATH", _ACCEPTED_DEFAULT) or _ACCEPTED_DEFAULT
-        ),
+        default=env_path("PRTHINKER_ACCEPTED_PATH", _ACCEPTED_DEFAULT),
     )
     p_lessons.add_argument(
         "--lessons-path",
         type=Path,
-        default=Path(
-            env_str("PRTHINKER_LESSONS_PATH", ".prthinker/lessons.jsonl")
-            or ".prthinker/lessons.jsonl"
-        ),
+        default=env_path("PRTHINKER_LESSONS_PATH", LESSONS_DEFAULT),
     )
     p_lessons.add_argument(
         "--lookback-recent",
         type=int,
-        default=int(env_str("PRTHINKER_LESSONS_LOOKBACK", "200") or 200),
+        default=env_int("PRTHINKER_LESSONS_LOOKBACK", 200),
         help="Take the most recent N entries from each corpus.",
     )
     p_lessons.add_argument(
         "--max-rules",
         type=int,
-        default=int(env_str("PRTHINKER_LESSONS_MAX_RULES", "5") or 5),
+        default=env_int("PRTHINKER_LESSONS_MAX_RULES", 5),
     )
 
 

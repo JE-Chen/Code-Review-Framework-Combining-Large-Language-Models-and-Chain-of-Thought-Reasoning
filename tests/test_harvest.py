@@ -146,3 +146,75 @@ def test_no_comments_harvests_nothing() -> None:
     assert stats.comments_scanned == 0
     assert stats.dismissed_found == 0
     assert store.appended == []
+
+
+# --------------------------------------------------------------------------
+# reactions rollup — the list payload's counts avoid the per-comment call
+# --------------------------------------------------------------------------
+
+class _RecordingClient(_ScriptedClient):
+    """Scripted client that records hits on the per-comment reactions endpoint."""
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.reaction_urls: list[str] = []
+
+    def get(self, url: str, params: dict | None = None) -> _FakeResponse:
+        if "/pulls/comments/" in url and url.endswith("/reactions"):
+            self.reaction_urls.append(url)
+        return super().get(url, params)
+
+
+def test_reactions_rollup_positive_skips_endpoint() -> None:
+    client = _RecordingClient(
+        comments=[{
+            "id": 1,
+            "path": "a.py",
+            "body": "wrong",
+            "reactions": {"-1": 2, "+1": 0},
+        }],
+    )
+    store, stats = _run(client)
+    assert stats.dismissed_found == 1
+    assert store.appended[0].reason == "thumbs-down reaction"
+    assert client.reaction_urls == []  # rollup answered without a request
+
+
+def test_reactions_rollup_zero_skips_endpoint_and_not_dismissed() -> None:
+    client = _RecordingClient(
+        comments=[{
+            "id": 2,
+            "path": "a.py",
+            "body": "fine",
+            "reactions": {"-1": 0},
+        }],
+    )
+    store, stats = _run(client)
+    assert stats.dismissed_found == 0
+    assert store.appended == []
+    assert client.reaction_urls == []
+
+
+def test_reactions_rollup_missing_key_falls_back_to_endpoint() -> None:
+    client = _RecordingClient(
+        comments=[{
+            "id": 3,
+            "path": "a.py",
+            "body": "wrong",
+            "reactions": {"+1": 1},  # no "-1" key -> endpoint consulted
+        }],
+        reactions_by_id={3: [{"content": "-1"}]},
+    )
+    store, stats = _run(client)
+    assert stats.dismissed_found == 1
+    assert len(client.reaction_urls) == 1
+
+
+def test_reactions_absent_falls_back_to_endpoint() -> None:
+    client = _RecordingClient(
+        comments=[{"id": 4, "path": "a.py", "body": "wrong"}],
+        reactions_by_id={4: [{"content": "-1"}]},
+    )
+    store, stats = _run(client)
+    assert stats.dismissed_found == 1
+    assert len(client.reaction_urls) == 1

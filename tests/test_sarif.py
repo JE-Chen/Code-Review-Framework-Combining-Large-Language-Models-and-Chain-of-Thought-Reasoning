@@ -287,3 +287,29 @@ def test_signal_result_has_fingerprint():
         if r["ruleId"] == "prthinker/merge-conflict"
     )
     assert len(res["partialFingerprints"][_FP_KEY]) == 64
+
+
+# Known-answer pin for the shared fingerprint helper: sha256 of
+# "prthinker/warning\0src/app.py\x0010\0boom". If this changes, code
+# scanning stops deduplicating results across runs.
+_PINNED_FP = "97e31f15f1e9c112fdee8ea2983451f8a534f26ff92841f5e0d67cdf05e1f7e4"
+
+
+def test_fingerprint_pinned_known_answer():
+    res = to_sarif(
+        _result([_finding(path="src/app.py", line=10, severity="warning", comment="boom")])
+    )["runs"][0]["results"][0]
+    assert res["partialFingerprints"][_FP_KEY] == _PINNED_FP
+
+
+def test_fingerprint_matches_codequality_fingerprint():
+    # Both exporters hash the same four fields through the shared helper,
+    # so the same finding must fingerprint identically in both formats.
+    from prthinker.codequality import to_codequality
+
+    finding = _finding(path="src/app.py", line=10, severity="warning", comment="boom")
+    sarif_fp = to_sarif(_result([finding]))["runs"][0]["results"][0][
+        "partialFingerprints"
+    ][_FP_KEY]
+    cq_fp = to_codequality(_result([finding]))[0]["fingerprint"]
+    assert sarif_fp == cq_fp == _PINNED_FP

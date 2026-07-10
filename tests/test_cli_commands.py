@@ -296,17 +296,19 @@ def test_maybe_write_job_summary_noop_without_env(monkeypatch) -> None:
     _maybe_write_job_summary("ignored")
 
 
-def test_maybe_write_sarif(tmp_path: Path) -> None:
+def test_aggregate_artifacts_write_sarif(tmp_path: Path) -> None:
+    # The aggregate job shares the table-driven artifact writer with the
+    # single-runner publish flow (cli_review_emit._emit_review_artifacts).
     out = tmp_path / "out.sarif"
     merged = _review([_file_result("a.py")])
-    cli_commands._maybe_write_sarif(_make_args(sarif_out=str(out)), merged)
+    cli_commands._emit_review_artifacts(_make_args(sarif_out=str(out)), merged)
     assert out.exists()
     assert "$schema" in out.read_text(encoding="utf-8")
 
 
-def test_maybe_write_sarif_noop_when_unset(tmp_path: Path) -> None:
+def test_aggregate_artifacts_noop_when_unset(tmp_path: Path) -> None:
     merged = _review([_file_result("a.py")])
-    cli_commands._maybe_write_sarif(_make_args(sarif_out=""), merged)  # no raise
+    cli_commands._emit_review_artifacts(_make_args(sarif_out=""), merged)  # no raise
 
 
 def test_cmd_aggregate_posts_summary(tmp_path: Path, monkeypatch) -> None:
@@ -465,10 +467,10 @@ def test_append_report_links_appends_to_last_page(monkeypatch) -> None:
     assert "Reports:" in pages[-1] and "Reports:" not in pages[0]
 
 
-def test_maybe_write_html_report(tmp_path: Path) -> None:
+def test_aggregate_artifacts_write_html_report(tmp_path: Path) -> None:
     out = tmp_path / "r.html"
     merged = _review([_file_result("a.py")])
-    cli_commands._maybe_write_html_report(_make_args(html_report=str(out)), merged)
+    cli_commands._emit_review_artifacts(_make_args(html_report=str(out)), merged)
     assert out.exists()
 
 
@@ -625,3 +627,17 @@ def test_gitlab_harvest_base_url_prefers_explicit_flag(monkeypatch) -> None:
     monkeypatch.setenv("CI_API_V4_URL", "https://gl.example.com/api/v4")
     args = _harvest_args(platform_base_url="https://explicit/api/v4")
     assert cli_commands._gitlab_harvest_base_url(args) == "https://explicit/api/v4"
+
+
+def test_run_harvest_labels_dismissed_output(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(cli_commands, "harvest", lambda **kw: _fake_stats())
+    rc = cli_commands._cmd_harvest(_harvest_args())
+    assert rc == 0
+    assert "Dismissed appended: 0" in capsys.readouterr().out
+
+
+def test_run_harvest_labels_accepted_output(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(cli_commands, "harvest_accepted", lambda **kw: _fake_stats())
+    rc = cli_commands._cmd_harvest_accepted(_harvest_args())
+    assert rc == 0
+    assert "Accepted appended: 0" in capsys.readouterr().out

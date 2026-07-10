@@ -8,6 +8,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
+from prthinker.cli_io import emit_text
+
 
 def add_parser(sub) -> None:
     """Register the ``retrieval-report`` subcommand."""
@@ -95,11 +97,7 @@ def command(args: argparse.Namespace) -> int:
         text = json.dumps(summary, indent=2) + "\n"
     else:
         text = render_markdown(summary)
-    if args.out:
-        args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(text, encoding="utf-8")
-    else:
-        print(text, end="")
+    emit_text(text, args.out)
     return 0
 
 

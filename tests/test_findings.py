@@ -9,7 +9,16 @@ from __future__ import annotations
 
 import json
 
-from prthinker.findings import parse_inline_findings
+import re
+
+from prthinker.findings import (
+    JSON_ARRAY_RE,
+    extract_lenient_json,
+    parse_inline_findings,
+    strip_json_fences,
+)
+
+_OBJ_RE = re.compile(r"\{[\s\S]*\}")
 
 
 def test_empty_array_returns_no_findings() -> None:
@@ -155,3 +164,63 @@ def test_malformed_entries_are_skipped() -> None:
     ])
     findings = parse_inline_findings(raw, path="x.py", allowed_lines={1, 2})
     assert [f.line for f in findings] == [1, 2]
+
+
+def test_object_fallback_when_array_is_truncated() -> None:
+    # A trailing-off array cannot be json.loads'd; the per-object regex
+    # fallback must still recover the complete objects.
+    raw = (
+        '[{"line": 1, "severity": "info", "comment": "ok"}, {"line": 2,'
+    )
+    findings = parse_inline_findings(raw, path="x.py", allowed_lines={1})
+    assert [f.line for f in findings] == [1]
+
+
+# ----- shared lenient-JSON helpers ---------------------------------------
+
+def test_strip_json_fences_unwraps_fenced_body() -> None:
+    assert strip_json_fences("```json\n[1, 2]\n```") == "[1, 2]"
+
+
+def test_strip_json_fences_plain_fence_without_language() -> None:
+    assert strip_json_fences("```\n{}\n```") == "{}"
+
+
+def test_strip_json_fences_no_fence_strips_whitespace() -> None:
+    assert strip_json_fences("  [1]\n") == "[1]"
+
+
+def test_strip_json_fences_empty_input() -> None:
+    assert strip_json_fences("") == ""
+
+
+def test_extract_lenient_json_array_happy_path() -> None:
+    result = extract_lenient_json("noise [1, 2, 3] trailing", pattern=JSON_ARRAY_RE)
+    assert result.matched is True
+    assert result.decode_error is None
+    assert result.data == [1, 2, 3]
+
+
+def test_extract_lenient_json_object_happy_path() -> None:
+    result = extract_lenient_json('```json\n{"a": 1}\n```', pattern=_OBJ_RE)
+    assert result.matched is True
+    assert result.data == {"a": 1}
+
+
+def test_extract_lenient_json_no_match() -> None:
+    result = extract_lenient_json("no json here", pattern=JSON_ARRAY_RE)
+    assert result.matched is False
+    assert result.data is None
+    assert result.decode_error is None
+
+
+def test_extract_lenient_json_empty_input() -> None:
+    result = extract_lenient_json("", pattern=JSON_ARRAY_RE)
+    assert result.matched is False
+
+
+def test_extract_lenient_json_decode_error_is_reported() -> None:
+    result = extract_lenient_json('[{"a": }]', pattern=JSON_ARRAY_RE)
+    assert result.matched is True
+    assert result.data is None
+    assert result.decode_error is not None

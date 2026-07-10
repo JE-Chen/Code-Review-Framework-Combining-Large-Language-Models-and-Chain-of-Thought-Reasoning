@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Iterator
 
 import httpx
 
@@ -24,6 +24,8 @@ log = logging.getLogger(__name__)
 
 _API_ROOT = "https://api.github.com"
 _USER_AGENT = "prthinker/0.1"
+_DEV_NULL = "/dev/null"
+_PER_PAGE = 100
 
 
 @dataclass
@@ -32,9 +34,10 @@ class _Comment:
     body: str
 
 
-def _client(token: str) -> httpx.Client:
+def _client(token: str, base_url: str = _API_ROOT) -> httpx.Client:
+    """Authenticated GitHub-API client shared by every GitHub-shaped caller."""
     return httpx.Client(
-        base_url=_API_ROOT,
+        base_url=base_url.rstrip("/"),
         headers={
             "Authorization": f"Bearer {token}",
             "Accept": "application/vnd.github+json",
@@ -45,54 +48,87 @@ def _client(token: str) -> httpx.Client:
     )
 
 
+def paginate(
+    client: httpx.Client,
+    path: str,
+    *,
+    params: dict | None = None,
+    per_page: int = _PER_PAGE,
+    size_param: str = "per_page",
+) -> Iterator[dict]:
+    """Yield every item of a GitHub-shaped paginated list endpoint.
+
+    Requests ``page=1..n`` with ``per_page`` items each and stops on the
+    first empty or short page. Gitea uses the same page scheme with the
+    page-size parameter named ``limit``; ``size_param`` covers that.
+    """
+    page = 1
+    while True:
+        response = client.get(
+            path,
+            params={**(params or {}), size_param: per_page, "page": page},
+        )
+        response.raise_for_status()
+        batch = response.json()
+        if not batch:
+            return
+        yield from batch
+        if len(batch) < per_page:
+            return
+        page += 1
+
+
 # GitHub rejects the ``.diff`` / ``.patch`` media type with 406 once a PR's
 # diff grows past its rendering cap. The files API still serves each file's
 # hunks, so we reconstruct the diff from there instead of crashing.
 _DIFF_TOO_LARGE = 406
 
 
-def _file_patch_to_diff(file_entry: dict) -> str:
-    """Reconstruct one file's unified-diff text from a files-API entry.
+def format_file_diff(
+    old_path: str,
+    new_path: str,
+    patch: str,
+    *,
+    is_new: bool = False,
+    is_deleted: bool = False,
+) -> str:
+    """Reconstruct one file's unified-diff text from per-file API data.
 
     Emits the ``diff --git`` + ``---`` / ``+++`` headers the pipeline's
-    parser and the inline diff-hunk filter need, followed by GitHub's
-    ``patch`` hunks. Files with no textual patch (binary, or a per-file
-    patch too large for GitHub to return) are recorded as binary so the
-    file is still listed rather than silently lost.
+    parser and the inline diff-hunk filter need, followed by the
+    provider's per-file hunks. An empty ``patch`` (binary, or a per-file
+    patch too large for the provider to return) is recorded as binary so
+    the file is still listed rather than silently lost. Shared by the
+    GitHub files-API and GitLab diffs-endpoint reconstructions.
     """
-    new_path = file_entry["filename"]
-    old_path = file_entry.get("previous_filename", new_path)
     header = f"diff --git a/{old_path} b/{new_path}\n"
-    patch = file_entry.get("patch")
     if not patch:
         return f"{header}Binary files a/{old_path} and b/{new_path} differ\n"
-    status = file_entry.get("status")
-    a_side = "/dev/null" if status == "added" else f"a/{old_path}"
-    b_side = "/dev/null" if status == "removed" else f"b/{new_path}"
+    a_side = _DEV_NULL if is_new else f"a/{old_path}"
+    b_side = _DEV_NULL if is_deleted else f"b/{new_path}"
     body = patch if patch.endswith("\n") else patch + "\n"
     return f"{header}--- {a_side}\n+++ {b_side}\n{body}"
+
+
+def _file_patch_to_diff(file_entry: dict) -> str:
+    """Reconstruct one file's unified-diff text from a files-API entry."""
+    new_path = file_entry["filename"]
+    old_path = file_entry.get("previous_filename", new_path)
+    status = file_entry.get("status")
+    return format_file_diff(
+        old_path, new_path, file_entry.get("patch") or "",
+        is_new=status == "added", is_deleted=status == "removed",
+    )
 
 
 def _reconstruct_diff_from_files(
     client: httpx.Client, config: GitHubConfig
 ) -> str:
     """Rebuild a unified diff from the paginated PR files API."""
-    parts: list[str] = []
-    page = 1
-    while True:
-        resp = client.get(
-            f"/repos/{config.repo}/pulls/{config.pr_number}/files",
-            params={"per_page": 100, "page": page},
-        )
-        resp.raise_for_status()
-        batch = resp.json()
-        if not batch:
-            break
-        parts.extend(_file_patch_to_diff(f) for f in batch)
-        if len(batch) < 100:
-            break
-        page += 1
-    return "".join(parts)
+    files = paginate(
+        client, f"/repos/{config.repo}/pulls/{config.pr_number}/files"
+    )
+    return "".join(_file_patch_to_diff(f) for f in files)
 
 
 def fetch_pr_diff(config: GitHubConfig) -> str:
@@ -237,67 +273,35 @@ def upsert_pr_body_section(config: GitHubConfig, section: str) -> None:
 
 def fetch_pr_file_paths(config: GitHubConfig) -> list[str]:
     """Return every changed file path on the PR (all statuses, paginated)."""
-    paths: list[str] = []
-    page = 1
     with _client(config.token) as client:
-        while True:
-            response = client.get(
-                f"/repos/{config.repo}/pulls/{config.pr_number}/files",
-                params={"per_page": 100, "page": page},
+        return [
+            str(f["filename"])
+            for f in paginate(
+                client, f"/repos/{config.repo}/pulls/{config.pr_number}/files"
             )
-            response.raise_for_status()
-            batch = response.json()
-            if not batch:
-                break
-            paths.extend(str(f["filename"]) for f in batch)
-            if len(batch) < 100:
-                break
-            page += 1
-    return paths
+        ]
 
 
 def fetch_pr_commit_messages(config: GitHubConfig) -> list[str]:
     """Return every commit message on the PR, oldest first (paginated)."""
-    messages: list[str] = []
-    page = 1
     with _client(config.token) as client:
-        while True:
-            response = client.get(
-                f"/repos/{config.repo}/pulls/{config.pr_number}/commits",
-                params={"per_page": 100, "page": page},
+        return [
+            (c.get("commit") or {}).get("message", "")
+            for c in paginate(
+                client, f"/repos/{config.repo}/pulls/{config.pr_number}/commits"
             )
-            response.raise_for_status()
-            batch = response.json()
-            if not batch:
-                break
-            messages.extend(
-                (c.get("commit") or {}).get("message", "") for c in batch
-            )
-            if len(batch) < 100:
-                break
-            page += 1
-    return messages
+        ]
 
 
 def _iter_existing_comments(
     client: httpx.Client, config: GitHubConfig
 ) -> list[_Comment]:
-    comments: list[_Comment] = []
-    page = 1
-    while True:
-        response = client.get(
-            f"/repos/{config.repo}/issues/{config.pr_number}/comments",
-            params={"per_page": 100, "page": page},
+    return [
+        _Comment(id=int(c["id"]), body=c.get("body") or "")
+        for c in paginate(
+            client, f"/repos/{config.repo}/issues/{config.pr_number}/comments"
         )
-        response.raise_for_status()
-        batch = response.json()
-        if not batch:
-            break
-        comments.extend(_Comment(id=int(c["id"]), body=c.get("body") or "") for c in batch)
-        if len(batch) < 100:
-            break
-        page += 1
-    return comments
+    ]
 
 
 # GitHub rejects an issue / PR comment body longer than 65 536 chars
@@ -421,23 +425,13 @@ _INLINE_REVIEW_MARKER = "<!-- prthinker:inline -->"
 
 def _collect_our_review_ids(client: httpx.Client, config: GitHubConfig) -> set[int]:
     """Page through PR reviews and collect those carrying our marker."""
-    our_review_ids: set[int] = set()
-    page = 1
-    while True:
-        resp = client.get(
-            f"/repos/{config.repo}/pulls/{config.pr_number}/reviews",
-            params={"per_page": 100, "page": page},
+    return {
+        int(r["id"])
+        for r in paginate(
+            client, f"/repos/{config.repo}/pulls/{config.pr_number}/reviews"
         )
-        resp.raise_for_status()
-        reviews = resp.json()
-        if not reviews:
-            return our_review_ids
-        for r in reviews:
-            if _INLINE_REVIEW_MARKER in (r.get("body") or ""):
-                our_review_ids.add(int(r["id"]))
-        if len(reviews) < 100:
-            return our_review_ids
-        page += 1
+        if _INLINE_REVIEW_MARKER in (r.get("body") or "")
+    }
 
 
 def _delete_inline_comments_for_reviews(
@@ -447,22 +441,12 @@ def _delete_inline_comments_for_reviews(
 ) -> int:
     """Page through PR review comments and delete those owned by review_ids."""
     deleted = 0
-    page = 1
-    while True:
-        resp = client.get(
-            f"/repos/{config.repo}/pulls/{config.pr_number}/comments",
-            params={"per_page": 100, "page": page},
-        )
-        resp.raise_for_status()
-        comments = resp.json()
-        if not comments:
-            return deleted
-        for c in comments:
-            if c.get("pull_request_review_id") in review_ids:
-                deleted += _delete_one_inline_comment(client, config, int(c["id"]))
-        if len(comments) < 100:
-            return deleted
-        page += 1
+    for c in paginate(
+        client, f"/repos/{config.repo}/pulls/{config.pr_number}/comments"
+    ):
+        if c.get("pull_request_review_id") in review_ids:
+            deleted += _delete_one_inline_comment(client, config, int(c["id"]))
+    return deleted
 
 
 def _delete_one_inline_comment(
@@ -523,7 +507,7 @@ def _parse_new_side_file_header(raw: str) -> tuple[bool, str | None]:
     if not raw.startswith("+++ "):
         return False, None
     path = raw[4:].split("\t", 1)[0].strip()
-    if path == "/dev/null":
+    if path == _DEV_NULL:
         return True, None
     return True, (path[2:] if path.startswith("b/") else path)
 
@@ -686,17 +670,21 @@ def findings_off_diff(
 
 
 def _prefilter_inline_findings(
-    config: GitHubConfig, items: list[InlineFinding]
+    config: GitHubConfig,
+    items: list[InlineFinding],
+    diff_text: str | None = None,
 ) -> list[InlineFinding]:
     """Drop findings off the PR's diff hunks; submit all if the diff fetch fails.
 
     A single hallucinated line number 422s the whole review, so the diff
-    pre-filter is the first line of defence. If the diff cannot be
-    fetched we fall through to the unfiltered set — the caller already
-    handles a 422 by logging and continuing.
+    pre-filter is the first line of defence. A caller that already holds
+    the diff passes it as ``diff_text`` to skip the re-download. If the
+    diff cannot be fetched we fall through to the unfiltered set — the
+    caller already handles a 422 by logging and continuing.
     """
     try:
-        diff_text = fetch_pr_diff(config)
+        if diff_text is None:
+            diff_text = fetch_pr_diff(config)
         return _filter_findings_to_diff(items, diff_text)
     except Exception as exc:  # noqa: BLE001 — pre-filter is best-effort
         log.warning(
@@ -743,6 +731,8 @@ def submit_inline_review(
     findings: Iterable[InlineFinding],
     summary_body: str | None = None,
     event: str = "COMMENT",
+    *,
+    diff_text: str | None = None,
 ) -> int | None:
     """Post a PR review containing one inline comment per finding.
 
@@ -750,6 +740,8 @@ def submit_inline_review(
     creating an empty review).
 
     `event` is one of GitHub's review states: COMMENT, APPROVE, REQUEST_CHANGES.
+    ``diff_text`` lets a caller that already holds the PR diff skip the
+    pre-filter's re-download; ``None`` keeps the fetch-on-demand behaviour.
 
     The new review is posted FIRST; only after it succeeds are the inline
     comments from previous prthinker reviews removed (identified by
@@ -767,7 +759,7 @@ def submit_inline_review(
         log.info("No inline findings — skipping review submission")
         return None
 
-    items = _prefilter_inline_findings(config, items)
+    items = _prefilter_inline_findings(config, items, diff_text)
     if not items:
         log.info("All inline findings dropped — skipping review submission")
         return None
@@ -810,6 +802,8 @@ __all__ = [
     "fetch_pr_base_branch",
     "fetch_pr_commit_messages",
     "fetch_pr_file_paths",
+    "format_file_diff",
+    "paginate",
     "set_pr_labels",
     "upsert_pr_body_section",
     "upsert_pr_comment",

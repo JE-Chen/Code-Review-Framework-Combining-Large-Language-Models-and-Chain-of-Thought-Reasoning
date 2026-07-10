@@ -76,3 +76,33 @@ def test_run_passes_prompt_and_workdir(monkeypatch, tmp_path) -> None:
     assert seen["timeout"] == 5.0
     # Arg-list invocation only — shell=True is never passed.
     assert "shell" not in seen
+
+
+# --------------------------------------------------------------------------
+# parse_cli_usage — shared token-usage parsing for both agent CLIs
+# --------------------------------------------------------------------------
+
+
+def test_parse_cli_usage_full_block() -> None:
+    from prthinker.backends.agent_cli import parse_cli_usage
+    from prthinker.backends.base import Usage
+
+    assert parse_cli_usage(
+        {"input_tokens": 11, "output_tokens": 4}
+    ) == Usage(prompt_tokens=11, completion_tokens=4)
+
+
+def test_parse_cli_usage_partial_or_empty_is_none() -> None:
+    from prthinker.backends.agent_cli import parse_cli_usage
+
+    assert parse_cli_usage({"input_tokens": 11}) is None
+    assert parse_cli_usage({"output_tokens": 4}) is None
+    assert parse_cli_usage({}) is None
+
+
+def test_parse_cli_usage_coerces_numeric_strings() -> None:
+    from prthinker.backends.agent_cli import parse_cli_usage
+
+    usage = parse_cli_usage({"input_tokens": "7", "output_tokens": "2"})
+    assert usage is not None
+    assert (usage.prompt_tokens, usage.completion_tokens) == (7, 2)

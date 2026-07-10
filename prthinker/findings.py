@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from dataclasses import dataclass
 from typing import Iterable
 
 from pydantic import ValidationError
@@ -25,8 +26,48 @@ from prthinker.schemas import InlineFinding, ProvenanceCitation
 log = logging.getLogger(__name__)
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
-_ARRAY_RE = re.compile(r"\[[\s\S]*\]")
+JSON_ARRAY_RE = re.compile(r"\[[\s\S]*\]")
 _OBJECT_RE = re.compile(r"\{[^{}]*\}")
+
+
+@dataclass(frozen=True)
+class LenientJson:
+    """Outcome of :func:`extract_lenient_json`.
+
+    ``matched`` says whether ``pattern`` found a candidate payload;
+    ``decode_error`` carries the ``json.JSONDecodeError`` message when
+    the matched text failed to parse; ``data`` is the parsed JSON on
+    success and ``None`` otherwise.
+    """
+
+    data: object | None = None
+    matched: bool = False
+    decode_error: str | None = None
+
+
+def strip_json_fences(raw: str) -> str:
+    """Return the ``` fence body when ``raw`` wraps one, else ``raw``, stripped."""
+    match = _FENCE_RE.search(raw)
+    if match:
+        return match.group(1).strip()
+    return raw.strip()
+
+
+def extract_lenient_json(raw: str, *, pattern: re.Pattern[str]) -> LenientJson:
+    """Fence-strip ``raw``, locate ``pattern``'s match, and JSON-parse it.
+
+    Shared by the findings / judge / lessons parsers; each caller keeps
+    its own logging and fallback so failure behaviour stays
+    caller-specific.
+    """
+    body = strip_json_fences(raw)
+    match = pattern.search(body)
+    if match is None:
+        return LenientJson()
+    try:
+        return LenientJson(data=json.loads(match.group(0)), matched=True)
+    except json.JSONDecodeError as exc:
+        return LenientJson(matched=True, decode_error=str(exc))
 
 
 def build_provenance_block(
@@ -79,18 +120,6 @@ def build_provenance_block(
     )
 
 
-def _strip_fences(text: str) -> str:
-    match = _FENCE_RE.search(text)
-    if match:
-        return match.group(1)
-    return text
-
-
-def _extract_array(text: str) -> str | None:
-    match = _ARRAY_RE.search(text)
-    return match.group(0) if match else None
-
-
 def _coerce_objects(text: str) -> list[dict]:
     items: list[dict] = []
     for raw in _OBJECT_RE.findall(text):
@@ -103,14 +132,9 @@ def _coerce_objects(text: str) -> list[dict]:
 
 def _extract_findings_objects(body: str) -> list[dict]:
     """Parse the model body into a list of finding dicts (best effort)."""
-    array_text = _extract_array(body)
-    if array_text is not None:
-        try:
-            data = json.loads(array_text)
-        except json.JSONDecodeError:
-            data = None
-        if isinstance(data, list):
-            return [item for item in data if isinstance(item, dict)]
+    result = extract_lenient_json(body, pattern=JSON_ARRAY_RE)
+    if result.matched and isinstance(result.data, list):
+        return [item for item in result.data if isinstance(item, dict)]
     return _coerce_objects(body)
 
 
@@ -155,7 +179,7 @@ def parse_inline_findings(
     index outside that range are silently dropped (the *citation*,
     never the whole finding — safe-failure direction).
     """
-    body = _strip_fences(raw_output).strip()
+    body = strip_json_fences(raw_output)
     if not body or body == "[]":
         return []
 
@@ -344,4 +368,11 @@ def _sanitize_suggestion(
     return finding
 
 
-__all__ = ["parse_inline_findings", "build_provenance_block"]
+__all__ = [
+    "JSON_ARRAY_RE",
+    "LenientJson",
+    "build_provenance_block",
+    "extract_lenient_json",
+    "parse_inline_findings",
+    "strip_json_fences",
+]

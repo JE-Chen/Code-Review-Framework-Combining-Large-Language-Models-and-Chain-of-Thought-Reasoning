@@ -13,14 +13,13 @@ Runner-safe: every detector is a pure function over the diff text.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 
 from prthinker.bidi_guard import find_bidi_hits
-from prthinker.binary_changes import binary_changed_files
 from prthinker.coverage_gap import coverage_gaps
 from prthinker.debug_left import find_debug_statements
-from prthinker.deleted_files import deleted_files
-from prthinker.diff import parse_unified_diff
+from prthinker.diff import FileDiff, parse_unified_diff
 from prthinker.empty_except import find_swallowed_excepts
 from prthinker.large_hunk import large_blocks
 from prthinker.merge_markers import find_conflict_markers
@@ -33,6 +32,23 @@ from prthinker.whitespace_only import whitespace_only_files
 _LEVEL_ERROR = "error"
 _LEVEL_WARNING = "warning"
 _LEVEL_NOTE = "note"
+
+# Shared rule-id namespace for every exporter (SARIF, CodeClimate, CSV,
+# GHA annotations) so a finding carries the same `prthinker/<rule>` id
+# everywhere it surfaces.
+RULE_PREFIX = "prthinker"
+
+
+def report_fingerprint(rule_id: str, path: str, line: int, text: str) -> str:
+    """Stable per-result SHA-256 dedup key shared by the report exporters.
+
+    SARIF ``partialFingerprints`` and GitLab CodeClimate ``fingerprint``
+    both hash the same four fields; keeping the single implementation here
+    guarantees the two outputs never drift apart across runs.
+    """
+    raw = f"{rule_id}\0{path}\0{line}\0{text}".encode("utf-8")
+    # Dedup key, not a security token.
+    return hashlib.sha256(raw, usedforsecurity=False).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -116,13 +132,16 @@ def _renames(diff: str) -> list[SignalFinding]:
     return out
 
 
-def _deleted(diff: str) -> list[SignalFinding]:
+def _deleted(files: list[FileDiff]) -> list[SignalFinding]:
+    # Attribute filter over the shared parse (mirrors
+    # prthinker.deleted_files.deleted_files without re-parsing the diff).
     return [
         SignalFinding(
             "file-deleted", "Deleted file", _LEVEL_NOTE,
-            "File deleted", path, None,
+            "File deleted", file_diff.path, None,
         )
-        for path in deleted_files(diff)
+        for file_diff in files
+        if file_diff.is_deleted
     ]
 
 
@@ -161,13 +180,16 @@ def _whitespace(diff: str) -> list[SignalFinding]:
     ]
 
 
-def _binary(diff: str) -> list[SignalFinding]:
+def _binary(files: list[FileDiff]) -> list[SignalFinding]:
+    # Attribute filter over the shared parse (mirrors
+    # prthinker.binary_changes.binary_changed_files without re-parsing).
     return [
         SignalFinding(
             "binary-change", "Binary change", _LEVEL_NOTE,
-            "Binary change (no textual diff)", path, None,
+            "Binary change (no textual diff)", file_diff.path, None,
         )
-        for path in binary_changed_files(diff)
+        for file_diff in files
+        if file_diff.is_binary
     ]
 
 
@@ -192,24 +214,19 @@ def _coverage(paths: list[str]) -> list[SignalFinding]:
     ]
 
 
-def collect_signal_findings(diff_text: str) -> list[SignalFinding]:
-    """Flatten every no-model signal for ``diff_text`` into one list.
-
-    Changed paths for the path-based signals (noise, coverage) are derived
-    from the diff itself, so the caller only supplies the diff. Ordering
-    matches the markdown report: security first, then navigation, skim
-    guidance, and code-quality hints.
-    """
-    paths = [file_diff.path for file_diff in parse_unified_diff(diff_text)]
+def _collect(diff_text: str) -> list[SignalFinding]:
+    """Run every detector once over ``diff_text`` (single shared parse)."""
+    files = parse_unified_diff(diff_text)
+    paths = [file_diff.path for file_diff in files]
     return [
         *_bidi(diff_text),
         *_conflict(diff_text),
         *_renames(diff_text),
-        *_deleted(diff_text),
+        *_deleted(files),
         *_modes(diff_text),
         *_noise(paths),
         *_whitespace(diff_text),
-        *_binary(diff_text),
+        *_binary(files),
         *_large_blocks(diff_text),
         *_coverage(paths),
         *_markers(diff_text),
@@ -218,4 +235,39 @@ def collect_signal_findings(diff_text: str) -> list[SignalFinding]:
     ]
 
 
-__all__ = ["SignalFinding", "collect_signal_findings"]
+# ``write_report_dir`` runs 6+ writers over the SAME diff and each one calls
+# :func:`collect_signal_findings`; the memo makes those repeats free. Keyed
+# by the diff's SHA-256 and size-capped (FIFO) so a long-lived process never
+# grows without bound. Cached as a tuple of frozen dataclasses, so entries
+# are safe to share; callers get a fresh list they may mutate.
+_MEMO_MAX_ENTRIES = 4
+_SIGNAL_MEMO: dict[str, tuple[SignalFinding, ...]] = {}
+
+
+def collect_signal_findings(diff_text: str) -> list[SignalFinding]:
+    """Flatten every no-model signal for ``diff_text`` into one list.
+
+    Changed paths for the path-based signals (noise, coverage) are derived
+    from the diff itself, so the caller only supplies the diff. Ordering
+    matches the markdown report: security first, then navigation, skim
+    guidance, and code-quality hints. Repeated calls with the same diff
+    (the ``--report-dir`` writers) are served from a small in-process memo.
+    """
+    key = hashlib.sha256(
+        diff_text.encode("utf-8"), usedforsecurity=False
+    ).hexdigest()
+    cached = _SIGNAL_MEMO.get(key)
+    if cached is None:
+        if len(_SIGNAL_MEMO) >= _MEMO_MAX_ENTRIES:
+            _SIGNAL_MEMO.pop(next(iter(_SIGNAL_MEMO)))
+        cached = tuple(_collect(diff_text))
+        _SIGNAL_MEMO[key] = cached
+    return list(cached)
+
+
+__all__ = [
+    "RULE_PREFIX",
+    "SignalFinding",
+    "collect_signal_findings",
+    "report_fingerprint",
+]

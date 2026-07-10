@@ -109,3 +109,20 @@ def test_audit_rollups_rendered():
     assert "## Audit rollups" in out
     assert "Verification: 1 pass" in out
     assert "1 provenance-backed" in out
+
+
+def test_rollup_surfaces_findings_and_confidence_scored():
+    finding = InlineFinding(
+        path="a.py", line=1, comment="x",
+        provenance=Provenance(confidence=0.8, citations=[]),
+    )
+    out = render_markdown(_result([finding], code_diff=""))
+    assert "Findings: 1 finding(s) · 1 confidence-scored" in out
+
+
+def test_render_markdown_accepts_precomputed_rollup():
+    from prthinker.review_rollups import rollup_review
+
+    result = _result([_finding()], code_diff="")
+    precomputed = rollup_review(result)
+    assert render_markdown(result, rollup=precomputed) == render_markdown(result)

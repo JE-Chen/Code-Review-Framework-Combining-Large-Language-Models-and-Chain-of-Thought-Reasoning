@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from typing import ClassVar
 
 from prthinker.prompts.code_smell_detector import CODE_SMELL_DETECTOR_TEMPLATE
+from prthinker.prompts.compact_review import COMPACT_REVIEW_TEMPLATE
 from prthinker.prompts.counterfactual_review import COUNTERFACTUAL_REVIEW_TEMPLATE
 from prthinker.prompts.first_code_review import FIRST_CODE_REVIEW_TEMPLATE
 from prthinker.prompts.first_summary_prompt import FIRST_SUMMARY_TEMPLATE
@@ -238,6 +239,25 @@ class WalkthroughStep(ReviewStep):
         )
 
 
+class CompactReviewStep(ReviewStep):
+    """Single-call review replacing the full analysis chain at reduced depth.
+
+    One prompt covers correctness, lint-level issues, code smells, and a
+    brief conclusion — what the five-step chain spends five model calls on.
+    Not auto-registered: the adaptive step planner (and explicit ``--steps``
+    selection via the per-file extras) opts in for standard-depth files;
+    the full chain remains the default and the deep-tier behaviour.
+    """
+
+    name = "compact_review"
+
+    def build_prompt(self, ctx: ReviewContext) -> str:
+        return _wrap(
+            ctx,
+            COMPACT_REVIEW_TEMPLATE.format(code_diff=ctx.code_diff),
+        )
+
+
 class CounterfactualStep(ReviewStep):
     """Per-file step: surface competing alternative implementations for
     findings that look like design choices.
@@ -249,7 +269,7 @@ class CounterfactualStep(ReviewStep):
 
     name = "counterfactual"
 
-    _REQUIRES: ClassVar[tuple[str, ...]] = ("inline_findings",)
+    _REQUIRES: ClassVar[tuple[str, ...]] = (InlineFindingsStep.name,)
 
     def build_prompt(self, ctx: ReviewContext) -> str:
         if not ctx.file_path:
@@ -259,7 +279,7 @@ class CounterfactualStep(ReviewStep):
             raise ValueError(
                 f"counterfactual step needs prior steps {missing} but they were not run"
             )
-        findings_json = ctx.results.get("inline_findings", "[]").strip()
+        findings_json = ctx.results.get(InlineFindingsStep.name, "[]").strip()
         return COUNTERFACTUAL_REVIEW_TEMPLATE.format(
             code_diff=ctx.code_diff,
             findings_block=findings_json,
@@ -276,7 +296,7 @@ class JudgeStep(ReviewStep):
 
     name = "judge"
 
-    _REQUIRES: ClassVar[tuple[str, ...]] = ("total_summary",)
+    _REQUIRES: ClassVar[tuple[str, ...]] = (TotalSummaryStep.name,)
 
     def build_prompt(self, ctx: ReviewContext) -> str:
         if not ctx.file_path:
@@ -286,7 +306,7 @@ class JudgeStep(ReviewStep):
             raise ValueError(
                 f"judge step needs prior steps {missing} but they were not run"
             )
-        inline_findings_json = ctx.results.get("inline_findings", "[]").strip()
+        inline_findings_json = ctx.results.get(InlineFindingsStep.name, "[]").strip()
         # Skip the global-rule wrap so the model is more likely to emit raw JSON.
         return JUDGE_STEP_TEMPLATE.format(
             file_path=ctx.file_path,
@@ -299,10 +319,12 @@ class JudgeStep(ReviewStep):
 __all__ = [
     "ReviewContext",
     "ReviewStep",
+    "CompactReviewStep",
     "InlineFindingsStep",
     "CounterfactualStep",
     "JudgeStep",
     "WalkthroughStep",
+    "SKIPPED_STEP_NOTE",
     "register_step",
     "registered_steps",
     "resolve_steps",

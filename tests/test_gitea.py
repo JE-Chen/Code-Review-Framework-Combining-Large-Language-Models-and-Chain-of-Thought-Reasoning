@@ -394,3 +394,27 @@ def test_replies_collected_after_marker(
         AuthorReply(author="alice", body="wontfix",
                     in_reply_to_id=1, created_at="t1"),
     ]
+
+
+# ----- PR-object cache -----------------------------------------------------
+
+
+def test_pr_object_fetched_once_across_meta_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install(monkeypatch, {
+        ("GET", "/repos/o/r/pulls/7"): _Resp(json_data={
+            "head": {"sha": "abc123"},
+            "base": {"ref": "main"},
+            "title": "Fix",
+            "body": "why",
+        }),
+    })
+    adapter = _adapter()
+    assert adapter.fetch_head_sha() == "abc123"
+    assert adapter.fetch_base_branch() == "main"
+    assert adapter.fetch_pr_meta() == ("Fix", "why")
+    total_gets = sum(
+        1 for c in clients for r in c.requests if r["method"] == "GET"
+    )
+    assert total_gets == 1  # PR object cached after the first fetch

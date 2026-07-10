@@ -13,6 +13,7 @@ from pathlib import Path
 from prthinker.backends import create_backend
 from prthinker.backends.remote import RemotePipelineClient
 from prthinker.config import (
+    SUMMARY_MARKER,
     BackendKind,
     Config,
 )
@@ -21,6 +22,7 @@ from prthinker.cli_review_helpers import (
     apply_arbitration,
     build_cache_telemetry,
     build_dialogue_block,
+    build_platform_adapter,
 )
 
 # The publish flow below calls these helpers; importing them here also
@@ -33,6 +35,7 @@ from prthinker.cli_review_emit import (
     _close_review_gate,
     _emit_review_artifacts,
     _extra_sections,
+    _gate_inputs,
     _gate_line,
     _impact_note,
     _inline_post_breakdown,
@@ -505,15 +508,20 @@ def _csv_tuple(args: argparse.Namespace, attr: str) -> tuple[str, ...]:
     return tuple(s.strip() for s in raw.split(",") if s.strip())
 
 
+def _flag(args: argparse.Namespace, name: str) -> bool:
+    """True when the boolean CLI flag ``name`` is set on ``args``."""
+    return bool(getattr(args, name, False))
+
+
 def _collect_core_kwargs(args: argparse.Namespace) -> dict:
     """Collect the always-present per-file review toggles."""
     return {
         "inline_review": args.inline_review,
-        "judge": bool(getattr(args, "judge", False)),
-        "self_correct": bool(getattr(args, "self_correct", False)),
-        "counterfactual": bool(getattr(args, "counterfactual", False)),
-        "walkthrough": bool(getattr(args, "walkthrough", False)),
-        "provenance": bool(getattr(args, "provenance", False)),
+        "judge": _flag(args, "judge"),
+        "self_correct": _flag(args, "self_correct"),
+        "counterfactual": _flag(args, "counterfactual"),
+        "walkthrough": _flag(args, "walkthrough"),
+        "provenance": _flag(args, "provenance"),
         "max_findings_per_file": args.max_findings_per_file,
         "step_plan": getattr(args, "step_plan", "full") or "full",
     }
@@ -522,7 +530,7 @@ def _collect_core_kwargs(args: argparse.Namespace) -> dict:
 def _collect_verify_kwargs(args: argparse.Namespace) -> dict:
     """Collect the suggestion-verification per-file toggles."""
     return {
-        "verify_suggestions": bool(getattr(args, "verify_suggestions", False)),
+        "verify_suggestions": _flag(args, "verify_suggestions"),
         "verify_workdir": getattr(args, "verify_workdir", None),
         "verify_cmd": getattr(args, "verify_cmd", "") or "",
         "verify_timeout": float(getattr(args, "verify_timeout", 60.0) or 60.0),
@@ -532,12 +540,12 @@ def _collect_verify_kwargs(args: argparse.Namespace) -> dict:
 def _collect_classify_kwargs(args: argparse.Namespace) -> dict:
     """Collect the PR-classification / consistency per-file toggles."""
     return {
-        "api_consistency_check": bool(getattr(args, "api_consistency", False)),
-        "pr_classify": bool(getattr(args, "pr_classify", False)),
+        "api_consistency_check": _flag(args, "api_consistency"),
+        "pr_classify": _flag(args, "pr_classify"),
         "pr_title": getattr(args, "pr_title", "") or "",
         "pr_body": getattr(args, "pr_body", "") or "",
-        "reproducibility_check": bool(getattr(args, "reproducibility_check", False)),
-        "dep_upgrade_check": bool(getattr(args, "dep_upgrade_check", False)),
+        "reproducibility_check": _flag(args, "reproducibility_check"),
+        "dep_upgrade_check": _flag(args, "dep_upgrade_check"),
     }
 
 
@@ -545,9 +553,9 @@ def _collect_risk_kwargs(args: argparse.Namespace) -> dict:
     """Collect the persona / risk / entropy per-file toggles."""
     return {
         "persona_set": _csv_tuple(args, "personas"),
-        "risk_weighted": bool(getattr(args, "risk_weighted", False)),
+        "risk_weighted": _flag(args, "risk_weighted"),
         "risk_workdir": getattr(args, "risk_workdir", None),
-        "diff_entropy_check": bool(getattr(args, "diff_entropy", False)),
+        "diff_entropy_check": _flag(args, "diff_entropy"),
         "review_modes": _csv_tuple(args, "review_modes"),
         "parallelism": max(1, int(getattr(args, "parallelism", 1))),
     }
@@ -650,7 +658,7 @@ def _cmd_review_file(args: argparse.Namespace) -> int:
     config = _build_config(args)
     code = _read_stdin_or_file(args.path)
     result = _run_review(args, config, code, output_dir=args.output_dir)
-    sys.stdout.write(format_pr_comment(result, marker="<!-- prthinker:summary -->"))
+    sys.stdout.write(format_pr_comment(result, marker=SUMMARY_MARKER))
     if result.inline_findings:
         sys.stdout.write(f"\n[{len(result.inline_findings)} inline findings parsed]\n")
     return 0
@@ -847,17 +855,8 @@ def _cmd_pr_summary(args: argparse.Namespace) -> int:
     backend or network failure logs a warning and returns 0 so it never
     blocks the review matrix.
     """
-    from prthinker.platforms import PlatformKind, create_platform_adapter
-
     _validate_pr_args(args)
-    adapter = create_platform_adapter(
-        PlatformKind(args.platform),
-        repo=args.repo,
-        token=args.github_token,
-        pr_number=args.pr_number,
-        comment_marker=args.marker,
-        base_url=args.platform_base_url,
-    )
+    adapter = build_platform_adapter(args)
     try:
         body = _generate_pr_summary_body(args, adapter)
     except Exception as exc:  # noqa: BLE001 — summary must never block the matrix
@@ -875,7 +874,10 @@ def _cmd_pr_summary(args: argparse.Namespace) -> int:
 
 
 def _review_comment_pages(
-    args: argparse.Namespace, adapter: object, result: ReviewResult
+    args: argparse.Namespace,
+    adapter: object,
+    result: ReviewResult,
+    calibrated: tuple[list[InlineFinding], int] | None = None,
 ) -> list[str]:
     """Render the review into summary-comment pages plus footers."""
     posted_count, off_diff = _inline_post_breakdown(args, result)
@@ -897,7 +899,7 @@ def _review_comment_pages(
             delta=delta_line,
             min_confidence=getattr(args, "summary_min_confidence", 0.0),
             table=getattr(args, "summary_table", False),
-            gate=_gate_line(args, result, files_url),
+            gate=_gate_line(args, result, files_url, calibrated),
             off_diff_findings=off_diff,
             extra_sections=_extra_sections(args, result, files_url),
         ),
@@ -916,8 +918,11 @@ def _publish_review_result(
 ) -> int:
     """Post comment + inline review, close the gate, and trigger auto-fix."""
     _postprocess_findings(args, result)
+    # Calibrated gate scoring runs per-finding SQLite queries; compute it
+    # once here and hand the same tuple to the gate line and the gate close.
+    calibrated = _gate_inputs(args, result)
     _emit_review_artifacts(args, result)
-    pages = _review_comment_pages(args, adapter, result)
+    pages = _review_comment_pages(args, adapter, result, calibrated)
     _maybe_write_job_summary(pages[0])
     if getattr(args, "api_impact", False):
         pages[-1] = _append_api_impact(pages[-1], result)
@@ -931,7 +936,7 @@ def _publish_review_result(
     log.info("Posted %d summary comment(s): %s", len(comment_ids), comment_ids)
 
     _submit_inline_review(args, adapter, result)
-    _close_review_gate(args, adapter, result, gate_handle)
+    _close_review_gate(args, adapter, result, gate_handle, calibrated)
 
     _maybe_set_labels(args, adapter, result)
     _maybe_update_pr_body(args, adapter, result)
@@ -945,17 +950,10 @@ def _cmd_review_pr(args: argparse.Namespace) -> int:
     config = _build_config(args)
     _validate_pr_args(args)
 
-    from prthinker.platforms import PlatformKind, create_platform_adapter
+    from prthinker.platforms import PlatformKind
 
     platform_kind = PlatformKind(args.platform)
-    adapter = create_platform_adapter(
-        platform_kind,
-        repo=args.repo,
-        token=args.github_token,
-        pr_number=args.pr_number,
-        comment_marker=args.marker,
-        base_url=args.platform_base_url,
-    )
+    adapter = build_platform_adapter(args)
 
     log.info(
         "Fetching diff for %s %s#%d", platform_kind.value, args.repo, args.pr_number

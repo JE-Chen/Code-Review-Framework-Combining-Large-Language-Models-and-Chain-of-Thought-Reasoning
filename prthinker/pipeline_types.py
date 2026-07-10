@@ -65,7 +65,12 @@ class FileReviewResult:
 
     @property
     def total_summary(self) -> str | None:
-        return self.step_outputs.get("total_summary")
+        # Reduced-depth plans substitute the compact single-call review
+        # for the analysis chain; renderers read it through the same
+        # property so every report keeps working unchanged.
+        return self.step_outputs.get("total_summary") or self.step_outputs.get(
+            "compact_review"
+        )
 
 
 class ReviewCancelledError(Exception):

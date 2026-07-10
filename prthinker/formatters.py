@@ -26,7 +26,7 @@ from prthinker.formatters_blocks import (
     _SEVERITY_ICON_BY_NAME,
     _SEVERITY_RANK,
     _file_ref,
-    _file_status_icon,
+    _files_by_worst_severity,
     _first_finding_line,
     _first_line,
     _format_api_drift_block,
@@ -39,9 +39,11 @@ from prthinker.formatters_blocks import (
     _sort_files_by_severity,
     _step_title,
 )
-# Not called in this module — re-exported on its own statement (so the
-# suppressions sit on the reported line) because the test-suite reaches it
-# via ``prthinker.formatters._format_provenance_block``.
+# Not called in this module — re-exported on their own statements (so the
+# suppressions sit on the reported line) because the test-suite reaches them
+# via ``prthinker.formatters._format_provenance_block`` /
+# ``prthinker.formatters._file_status_icon``.
+from prthinker.formatters_blocks import _file_status_icon  # noqa: F401  # pylint: disable=unused-import
 from prthinker.formatters_blocks import _format_provenance_block  # noqa: F401  # pylint: disable=unused-import
 from prthinker.pipeline import FileReviewResult, ReviewResult
 from prthinker.schemas import InlineFinding
@@ -333,12 +335,19 @@ def format_pr_comment(
     return _format_single(result, marker)
 
 
-_SINGLE_RESERVED_STEPS: frozenset[str] = frozenset({"total_summary", "inline_findings"})
+# "compact_review" feeds total_summary via its fallback; rendering it again
+# as a generic per-step detail block would duplicate the summary.
+_SINGLE_RESERVED_STEPS: frozenset[str] = frozenset(
+    {"total_summary", "inline_findings", "compact_review"}
+)
 
 
 def _format_single_total(result: ReviewResult) -> list[str]:
     """Render the top-level total-summary lead for a single-pass review."""
-    total = result.total_summary
+    # Mirror FileReviewResult.total_summary's compact_review fallback:
+    # ReviewResult has no such property fallback, and the compact output is
+    # reserved from the generic step blocks, so it surfaces here instead.
+    total = result.total_summary or result.step_outputs.get("compact_review")
     if total:
         return ["### Total Summary", "", total.strip(), ""]
     return ["_No total summary produced._", ""]
@@ -464,24 +473,18 @@ def _hidden_clean_note(result: ReviewResult, findings_only: bool) -> list[str]:
     return [f"_{hidden} file(s) reviewed with no findings — hidden._", ""]
 
 
-def _files_with_severity(result: ReviewResult, severity: str) -> list[FileReviewResult]:
-    """Files whose worst displayed severity equals ``severity``."""
-    out = []
-    for fr in result.per_file:
-        if not fr.inline_findings:
-            continue
-        if _file_status_icon(fr.inline_findings) == _SEVERITY_ICON_BY_NAME[severity]:
-            out.append(fr)
-    return out
-
-
 def _format_severity_groups(
     result: ReviewResult, files_url: str | None = None
 ) -> list[str]:
-    """Collapsible 'By severity' index grouping files by worst severity."""
+    """Collapsible 'By severity' index grouping files by worst severity.
+
+    Built from a single pass over the findings (one grouping dict) instead
+    of one full scan per severity bucket.
+    """
+    groups = _files_by_worst_severity(result.per_file)
     rows: list[str] = []
     for severity, icon in _SEVERITY_ICON:
-        files = _files_with_severity(result, severity)
+        files = groups[severity]
         if not files:
             continue
         refs = " · ".join(
@@ -686,6 +689,15 @@ def _format_findings_table(
     return ["| | Location | Finding |", "| --- | --- | --- |", *rows, ""]
 
 
+def _per_file_blocks(result: ReviewResult, opts: _RenderOpts) -> list[str]:
+    """One rendered markdown block per file, shared by page assembly."""
+    change_stats = compute_change_stats(result.code_diff)
+    return [
+        "\n".join(_format_file_block(fr, opts.files_url, change_stats))
+        for fr in _files_to_render(result.per_file, opts.findings_only)
+    ]
+
+
 def _format_per_file(
     result: ReviewResult, marker: str, opts: _RenderOpts
 ) -> str:
@@ -693,10 +705,7 @@ def _format_per_file(
     if opts.table:
         parts += _format_findings_table(result, opts.files_url, opts.findings_only)
     else:
-        change_stats = compute_change_stats(result.code_diff)
-        for fr in _files_to_render(result.per_file, opts.findings_only):
-            parts += _format_file_block(fr, opts.files_url, change_stats)
-
+        parts += _per_file_blocks(result, opts)
     return "\n".join(parts).rstrip() + "\n"
 
 
@@ -844,19 +853,20 @@ def format_pr_comment_pages(
     """
     options = options or CommentOptions()
     result, filtered = _apply_display_filters(result, options)
-    page_options = dataclasses.replace(
-        options, hide_info=False, min_confidence=0.0, filtered=filtered
-    )
-    single = format_pr_comment(result, marker, page_options)
-    # The table layout is compact; never block-paginate it.
-    if len(single) <= max_chars or not result.per_file or options.table:
-        return [single]
+    if options.findings_only and _total_inline_findings(result) == 0:
+        return [_format_clean_comment(result, marker, options.preliminary)]
+    if not result.per_file:
+        return [_format_single(result, marker)]
     opts = _render_opts_from(options, filtered)
+    # The table layout is compact; never block-paginate it.
+    if options.table:
+        return [_format_per_file(result, marker, opts)]
+    # Head and file blocks are rendered exactly once and reused for both
+    # the single-page fast path and the paginated split.
     head = "\n".join(_per_file_head_parts(result, marker, opts))
-    change_stats = compute_change_stats(result.code_diff)
-    blocks = [
-        "\n".join(_format_file_block(fr, options.files_url, change_stats))
-        for fr in _files_to_render(result.per_file, options.findings_only)
-    ]
+    blocks = _per_file_blocks(result, opts)
+    single = "\n".join([head, *blocks]).rstrip() + "\n"
+    if len(single) <= max_chars:
+        return [single]
     pages = _paginate_blocks(head, blocks, marker, max_chars)
     return _label_pages(pages, marker)

@@ -27,7 +27,9 @@ GateFloor = Literal["none", "warning", "error"]
 Conclusion = Literal["success", "failure", "neutral"]
 
 _SEVERITY_ORDER: dict[Severity, int] = {"info": 0, "warning": 1, "error": 2}
-_GATE_ORDER: dict[str, int] = {"none": 99, "warning": 1, "error": 2}
+# "none" is absent on purpose: _derive_conclusion early-returns before the
+# lookup, so only the gating floors need an order value.
+_GATE_ORDER: dict[str, int] = {"warning": 1, "error": 2}
 
 
 @dataclass

@@ -21,15 +21,18 @@ from collections.abc import Callable
 
 from prthinker.change_stats import ChangeStat, change_badge
 from prthinker.pipeline import FileReviewResult
-from prthinker.schemas import InlineFinding
+from prthinker.schemas import SEVERITY_ORDER, InlineFinding
 
-# Severity presentation, shared by the at-a-glance digest and per-file badges.
-_SEVERITY_ICON: tuple[tuple[str, str], ...] = (
-    ("error", "🔴"),
-    ("warning", "🟡"),
-    ("info", "🔵"),
+# Severity presentation, shared by the at-a-glance digest and per-file
+# badges. Icons pair positionally with the shared SEVERITY_ORDER ladder
+# (most→least serious) so the display order can never drift from it.
+_ICONS: tuple[str, ...] = ("🔴", "🟡", "🔵")
+_SEVERITY_ICON: tuple[tuple[str, str], ...] = tuple(
+    zip(SEVERITY_ORDER, _ICONS, strict=True)
 )
-_SEVERITY_RANK: dict[str, int] = {"error": 3, "warning": 2, "info": 1}
+_SEVERITY_RANK: dict[str, int] = {
+    sev: rank for rank, sev in enumerate(reversed(SEVERITY_ORDER), start=1)
+}
 _SEVERITY_ICON_BY_NAME: dict[str, str] = dict(_SEVERITY_ICON)
 
 _SECTION_TITLES: dict[str, str] = {
@@ -39,8 +42,17 @@ _SECTION_TITLES: dict[str, str] = {
     "code_smell": "Code Smell Detection",
 }
 
+# "compact_review" is the adaptive step planner's substitute for the
+# analysis chain; ``total_summary`` already falls back to it, so rendering
+# it again as a generic step block would duplicate the summary.
 _FILE_RESERVED_STEPS: frozenset[str] = frozenset(
-    {"total_summary", "inline_findings", "counterfactual", "walkthrough"}
+    {
+        "total_summary",
+        "inline_findings",
+        "counterfactual",
+        "walkthrough",
+        "compact_review",
+    }
 )
 
 
@@ -250,6 +262,34 @@ def _file_status_icon(findings: list[InlineFinding]) -> str:
         if any(f.severity == sev for f in findings):
             return icon
     return "✅"
+
+
+def _worst_severity(findings: list[InlineFinding]) -> str | None:
+    """Name of the worst known severity present, or ``None`` when absent."""
+    worst: str | None = None
+    best_rank = 0
+    for finding in findings:
+        rank = _SEVERITY_RANK.get(finding.severity, 0)
+        if rank > best_rank:
+            worst, best_rank = finding.severity, rank
+    return worst
+
+
+def _files_by_worst_severity(
+    files: list[FileReviewResult],
+) -> dict[str, list[FileReviewResult]]:
+    """Group files by their worst finding severity in one pass.
+
+    Every ``SEVERITY_ORDER`` bucket is present (possibly empty); files
+    whose findings carry no known severity land in no bucket, matching
+    the per-file status icon's "clean" fallback.
+    """
+    groups: dict[str, list[FileReviewResult]] = {sev: [] for sev in SEVERITY_ORDER}
+    for fr in files:
+        worst = _worst_severity(fr.inline_findings)
+        if worst is not None:
+            groups[worst].append(fr)
+    return groups
 
 
 def _file_sort_key(fr: FileReviewResult) -> tuple[int, int]:

@@ -488,3 +488,164 @@ def test_reconstruct_diff_paginates(monkeypatch):
     monkeypatch.setattr(github_api, "_client", lambda _t: client)
     diff = github_api.fetch_pr_diff(_CFG)
     assert "f0.py" in diff and "f99.py" in diff and "last.py" in diff
+
+# --------------------------------------------------------------------------
+# paginate — the shared GitHub-shaped pagination generator
+# --------------------------------------------------------------------------
+
+class _PagedClient:
+    """Scripted client mapping the ``page`` param to canned batches."""
+
+    def __init__(self, pages: list[list[dict]]) -> None:
+        self._pages = pages
+        self.requests: list[dict] = []
+
+    def get(self, url: str, params: dict | None = None) -> _Resp:
+        self.requests.append({"url": url, "params": dict(params or {})})
+        page = (params or {}).get("page", 1)
+        idx = page - 1
+        payload = self._pages[idx] if idx < len(self._pages) else []
+        return _Resp(json_data=payload)
+
+
+def test_paginate_empty_first_page():
+    client = _PagedClient([[]])
+    assert list(github_api.paginate(client, "/x")) == []
+    assert len(client.requests) == 1
+
+
+def test_paginate_single_short_page_stops():
+    client = _PagedClient([[{"id": 1}, {"id": 2}]])
+    assert list(github_api.paginate(client, "/x")) == [{"id": 1}, {"id": 2}]
+    assert len(client.requests) == 1
+
+
+def test_paginate_exactly_full_page_fetches_next():
+    # A page of exactly per_page items forces one more request, which
+    # then terminates on the empty follow-up page.
+    full = [{"id": i} for i in range(100)]
+    client = _PagedClient([full, []])
+    items = list(github_api.paginate(client, "/x"))
+    assert len(items) == 100
+    assert [r["params"]["page"] for r in client.requests] == [1, 2]
+
+
+def test_paginate_walks_multiple_pages_in_order():
+    full = [{"id": i} for i in range(100)]
+    tail = [{"id": 100}]
+    client = _PagedClient([full, tail])
+    items = list(github_api.paginate(client, "/x"))
+    assert [it["id"] for it in items] == list(range(101))
+
+
+def test_paginate_merges_params_and_size_param():
+    client = _PagedClient([[{"id": 1}]])
+    list(github_api.paginate(
+        client, "/x", params={"state": "closed"}, per_page=50,
+        size_param="limit",
+    ))
+    sent = client.requests[0]["params"]
+    assert sent == {"state": "closed", "limit": 50, "page": 1}
+
+
+def test_paginate_raises_on_http_error():
+    class _ErrClient:
+        def get(self, url, params=None):
+            return _Resp(status=500)
+
+    with pytest.raises(RuntimeError, match="HTTP 500"):
+        list(github_api.paginate(_ErrClient(), "/x"))
+
+
+def test_paginate_is_lazy_early_stop_skips_next_fetch():
+    # Consuming only the first item never requests page 2.
+    full = [{"id": i} for i in range(100)]
+    client = _PagedClient([full, [{"id": 100}]])
+    gen = github_api.paginate(client, "/x")
+    assert next(gen)["id"] == 0
+    gen.close()
+    assert len(client.requests) == 1
+
+
+# --------------------------------------------------------------------------
+# format_file_diff — shared unified-diff reconstruction
+# --------------------------------------------------------------------------
+
+def test_format_file_diff_modified():
+    out = github_api.format_file_diff("a.py", "a.py", "@@ -1 +1 @@\n-a\n+b")
+    assert out == (
+        "diff --git a/a.py b/a.py\n"
+        "--- a/a.py\n"
+        "+++ b/a.py\n"
+        "@@ -1 +1 @@\n-a\n+b\n"
+    )
+
+
+def test_format_file_diff_new_file_uses_dev_null_a_side():
+    out = github_api.format_file_diff(
+        "n.py", "n.py", "@@ -0,0 +1 @@\n+x\n", is_new=True
+    )
+    assert "--- /dev/null" in out
+    assert "+++ b/n.py" in out
+
+
+def test_format_file_diff_deleted_file_uses_dev_null_b_side():
+    out = github_api.format_file_diff(
+        "d.py", "d.py", "@@ -1 +0,0 @@\n-x\n", is_deleted=True
+    )
+    assert "--- a/d.py" in out
+    assert "+++ /dev/null" in out
+
+
+def test_format_file_diff_empty_patch_marks_binary():
+    out = github_api.format_file_diff("img.png", "img.png", "")
+    assert out == (
+        "diff --git a/img.png b/img.png\n"
+        "Binary files a/img.png and b/img.png differ\n"
+    )
+
+
+def test_format_file_diff_appends_missing_trailing_newline():
+    out = github_api.format_file_diff("a.py", "a.py", "@@ -1 +1 @@\n+x")
+    assert out.endswith("+x\n")
+
+
+def test_format_file_diff_rename_keeps_both_paths():
+    out = github_api.format_file_diff("old.py", "new.py", "@@ -1 +1 @@\n-a\n+b\n")
+    assert "diff --git a/old.py b/new.py" in out
+    assert "--- a/old.py" in out
+    assert "+++ b/new.py" in out
+
+
+# --------------------------------------------------------------------------
+# submit_inline_review — caller-supplied diff_text skips the re-download
+# --------------------------------------------------------------------------
+
+def test_inline_review_uses_provided_diff_text(monkeypatch):
+    def _boom(_config):
+        raise AssertionError("fetch_pr_diff must not be called")
+
+    monkeypatch.setattr(github_api, "fetch_pr_diff", _boom)
+    client = _ScriptedClient({
+        "POST": [_Resp(json_data={"id": 999})],
+        "GET": [_reviews(999)],
+    })
+    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    review_id = github_api.submit_inline_review(
+        _CFG, [_finding(line=1)], diff_text=_DIFF
+    )
+    assert review_id == 999
+
+
+def test_inline_review_provided_diff_text_still_filters(monkeypatch):
+    def _boom(_config):
+        raise AssertionError("fetch_pr_diff must not be called")
+
+    monkeypatch.setattr(github_api, "fetch_pr_diff", _boom)
+    client = _ScriptedClient({})
+    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    # Off-hunk line filtered by the provided diff -> nothing to post.
+    assert github_api.submit_inline_review(
+        _CFG, [_finding(line=999)], diff_text=_DIFF
+    ) is None
+    assert client.requests == []

@@ -98,3 +98,27 @@ def test_graph_multi_hop_reaches_further_neighbours(tmp_path):
 # --------------------------------------------------------------------------
 # rerank refinements: snippet fallback, ranked order, multi-vote
 # --------------------------------------------------------------------------
+
+
+def test_graph_expansion_builds_graph_once_per_workdir(tmp_path, monkeypatch):
+    import prthinker.repo_graph as rg
+
+    repo = _make_repo(tmp_path, {
+        "app/handler.py": "from app.util import helper\n\ndef handle():\n    return widget\n",
+        "app/util.py": "def helper():\n    return 1\n",
+    })
+    builds = []
+    real_build = rg.build_python_import_graph
+
+    def _counting_build(files):
+        builds.append(len(files))
+        return real_build(files)
+
+    monkeypatch.setattr(rg, "build_python_import_graph", _counting_build)
+    base = LexicalRepoRetriever(top_k=1)
+    retriever = GraphExpandedRetriever(base, neighbour_budget=5)
+    first = retriever.retrieve("widget handle", repo)
+    second = retriever.retrieve("widget handle", repo)
+    assert first.files == second.files
+    assert "app/util.py" in first.files
+    assert len(builds) == 1  # graph + reverse graph memoized per workdir

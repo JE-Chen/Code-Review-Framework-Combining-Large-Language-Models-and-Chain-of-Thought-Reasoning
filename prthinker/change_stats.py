@@ -51,6 +51,17 @@ def compute_change_stats(diff_text: str) -> dict[str, ChangeStat]:
     return stats
 
 
+def total_changes(stats: dict[str, ChangeStat]) -> tuple[int, int, int]:
+    """Whole-diff totals as ``(files, added, removed)``.
+
+    Shared by the report summaries so the "N file(s) changed · +A −R"
+    arithmetic lives in exactly one place.
+    """
+    added = sum(stat.added for stat in stats.values())
+    removed = sum(stat.removed for stat in stats.values())
+    return len(stats), added, removed
+
+
 def change_badge(stat: ChangeStat | None) -> str:
     """Compact ``+12 −3 · 2 hunks`` badge, or ``""`` when unknown/empty.
 
@@ -66,4 +77,4 @@ def change_badge(stat: ChangeStat | None) -> str:
     return badge
 
 
-__all__ = ["ChangeStat", "change_badge", "compute_change_stats"]
+__all__ = ["ChangeStat", "change_badge", "compute_change_stats", "total_changes"]

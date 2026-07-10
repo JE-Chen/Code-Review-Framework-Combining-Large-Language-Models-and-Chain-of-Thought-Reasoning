@@ -130,20 +130,6 @@ def _open_aggregate_gate(args: argparse.Namespace, adapter: object) -> object | 
     return adapter.open_gate(head_sha)
 
 
-def _resolve_review_event(args: argparse.Namespace, merged: ReviewResult) -> str:
-    """Aggregate per-file judge verdicts into a GitHub review event."""
-    if not (args.judge and merged.per_file):
-        return "COMMENT"
-    from prthinker.judge import aggregate as judge_aggregate
-    from prthinker.judge import to_github_event
-    verdicts = [fr.verdict for fr in merged.per_file if fr.verdict is not None]
-    if not verdicts:
-        return "COMMENT"
-    review_event = to_github_event(judge_aggregate(verdicts))
-    log.info("Judge verdict aggregated → %s", review_event)
-    return review_event
-
-
 def _submit_aggregate_inline_review(
     args: argparse.Namespace,
     adapter: object,

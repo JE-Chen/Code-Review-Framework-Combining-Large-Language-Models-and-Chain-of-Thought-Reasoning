@@ -28,10 +28,10 @@ without the flag and comparing telemetry.
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import sqlite3
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -80,26 +80,33 @@ class ReviewCache:
     def __init__(self, path: Path) -> None:
         self._path = Path(path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as conn:
-            conn.executescript(_SCHEMA)
+        self._local = threading.local()
+        # Creating the constructor thread's connection here also creates
+        # the database file and installs the schema exactly once.
+        self._conn().executescript(_SCHEMA)
 
-    @contextlib.contextmanager
-    def _connect(self):
-        conn = sqlite3.connect(str(self._path), isolation_level=None)
-        try:
-            yield conn
-        finally:
-            conn.close()
+    def _conn(self) -> sqlite3.Connection:
+        """This thread's lazily-created autocommit connection.
+
+        ``get``/``put`` run from the per-file ``ThreadPoolExecutor`` and a
+        sqlite3 connection must stay on the thread that opened it, so each
+        thread holds its own connection for the store's lifetime instead
+        of paying an open/close per call.
+        """
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            conn = sqlite3.connect(str(self._path), isolation_level=None)
+            self._local.conn = conn
+        return conn
 
     def get(self, key: CacheKey) -> list[InlineFinding] | None:
         """Return the cached findings for ``key`` or ``None`` on miss."""
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT findings_json FROM findings_cache "
-                "WHERE pr_number = ? AND repo = ? "
-                "AND file_path = ? AND hunk_sha256 = ?",
-                (key.pr_number, key.repo, key.file_path, key.hunk_sha256),
-            ).fetchone()
+        row = self._conn().execute(
+            "SELECT findings_json FROM findings_cache "
+            "WHERE pr_number = ? AND repo = ? "
+            "AND file_path = ? AND hunk_sha256 = ?",
+            (key.pr_number, key.repo, key.file_path, key.hunk_sha256),
+        ).fetchone()
         if row is None:
             return None
         return _decode_findings(row[0])
@@ -116,17 +123,16 @@ class ReviewCache:
             [f.model_dump(exclude_none=True) for f in findings],
             ensure_ascii=False,
         )
-        with self._connect() as conn:
-            conn.execute(
-                "INSERT OR REPLACE INTO findings_cache "
-                "(pr_number, repo, file_path, hunk_sha256, "
-                " findings_json, backend, model, ts) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    key.pr_number, key.repo, key.file_path, key.hunk_sha256,
-                    payload, backend, model, time.time(),
-                ),
-            )
+        self._conn().execute(
+            "INSERT OR REPLACE INTO findings_cache "
+            "(pr_number, repo, file_path, hunk_sha256, "
+            " findings_json, backend, model, ts) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                key.pr_number, key.repo, key.file_path, key.hunk_sha256,
+                payload, backend, model, time.time(),
+            ),
+        )
 
     def evict_pr(self, pr_number: int, repo: str) -> int:
         """Drop all cached findings for one PR. Returns rows deleted.
@@ -134,13 +140,12 @@ class ReviewCache:
         Called when the PR is merged or closed — long-term cache
         retention is not the point of this store.
         """
-        with self._connect() as conn:
-            cur = conn.execute(
-                "DELETE FROM findings_cache "
-                "WHERE pr_number = ? AND repo = ?",
-                (pr_number, repo),
-            )
-            return cur.rowcount or 0
+        cur = self._conn().execute(
+            "DELETE FROM findings_cache "
+            "WHERE pr_number = ? AND repo = ?",
+            (pr_number, repo),
+        )
+        return cur.rowcount or 0
 
 
 def _decode_findings(payload: str) -> list[InlineFinding]:

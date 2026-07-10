@@ -17,13 +17,12 @@ import io
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from prthinker.signals import collect_signal_findings
+from prthinker.signals import RULE_PREFIX, collect_signal_findings
 
 if TYPE_CHECKING:
     from prthinker.pipeline import ReviewResult
 
 _HEADER = ("type", "rule", "severity", "path", "line", "message")
-_RULE_PREFIX = "prthinker"
 
 
 def _finding_rows(result: "ReviewResult") -> list[tuple]:
@@ -31,7 +30,7 @@ def _finding_rows(result: "ReviewResult") -> list[tuple]:
     return [
         (
             "finding",
-            f"{_RULE_PREFIX}/{f.severity}",
+            f"{RULE_PREFIX}/{f.severity}",
             f.severity,
             f.path,
             f.line,
@@ -50,7 +49,7 @@ def _signal_rows(result: "ReviewResult") -> list[tuple]:
         rows.append(
             (
                 "signal",
-                f"{_RULE_PREFIX}/{signal.rule_id}",
+                f"{RULE_PREFIX}/{signal.rule_id}",
                 signal.level,
                 signal.path,
                 signal.line if signal.line is not None else "",

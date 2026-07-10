@@ -66,30 +66,34 @@ def _adapter_with_pages(pages: list[list[dict]]) -> GitLabAdapter:
     return adapter
 
 
-# ----- _find_last_marker_idx ------------------------------------------------
+# ----- _find_last_marker_index (shared base template hook) -------------------
 
-def test_find_last_marker_idx_returns_last_match() -> None:
+def test_find_last_marker_index_returns_last_match() -> None:
     notes = [
         _note(1, body="hi"),
         _note(2, body=f"first {_MARKER}"),
         _note(3, body="reply"),
         _note(4, body=f"second {_MARKER}"),
     ]
-    assert GitLabAdapter._find_last_marker_idx(notes, _MARKER) == 3  # noqa: SLF001
+    assert GitLabAdapter._find_last_marker_index(notes, _MARKER) == 3  # noqa: SLF001
 
 
-def test_find_last_marker_idx_none_when_absent() -> None:
+def test_find_last_marker_index_none_when_absent() -> None:
     notes = [_note(1, body="hi"), _note(2, body="bye")]
-    assert GitLabAdapter._find_last_marker_idx(notes, _MARKER) is None  # noqa: SLF001
+    assert GitLabAdapter._find_last_marker_index(notes, _MARKER) is None  # noqa: SLF001
 
 
-def test_find_last_marker_idx_empty_list() -> None:
-    assert GitLabAdapter._find_last_marker_idx([], _MARKER) is None  # noqa: SLF001
+def test_find_last_marker_index_empty_list() -> None:
+    assert GitLabAdapter._find_last_marker_index([], _MARKER) is None  # noqa: SLF001
 
 
-# ----- _build_replies -------------------------------------------------------
+# ----- _replies_after_marker (shared base template method) --------------------
 
-def test_build_replies_excludes_marker_author_and_system() -> None:
+def _bare_adapter() -> GitLabAdapter:
+    return GitLabAdapter(project="g/p", token="t", mr_iid=7)  # nosec B106 - test fixture token, not a credential
+
+
+def test_replies_after_marker_excludes_marker_author_and_system() -> None:
     notes = [
         _note(10, body=f"{_MARKER}", username="bot"),
         _note(11, body="please fix", username="alice"),
@@ -97,7 +101,7 @@ def test_build_replies_excludes_marker_author_and_system() -> None:
         _note(13, body="system event", username="alice", system=True),
         _note(14, body="  trailing  ", username="bob"),
     ]
-    replies = GitLabAdapter._build_replies(notes, 0)  # noqa: SLF001
+    replies = _bare_adapter()._replies_after_marker(notes, _MARKER)  # noqa: SLF001
     assert replies == [
         AuthorReply(
             author="alice",
@@ -114,9 +118,9 @@ def test_build_replies_excludes_marker_author_and_system() -> None:
     ]
 
 
-def test_build_replies_empty_after_marker() -> None:
+def test_replies_after_marker_empty_after_marker() -> None:
     notes = [_note(1, body=f"{_MARKER}", username="bot")]
-    assert GitLabAdapter._build_replies(notes, 0) == []  # noqa: SLF001
+    assert _bare_adapter()._replies_after_marker(notes, _MARKER) == []  # noqa: SLF001
 
 
 # ----- fetch_author_replies (end-to-end through scripted client) ------------
@@ -542,6 +546,22 @@ def test_submit_inline_review_fail_open_when_diff_fetch_fails() -> None:
     )
     discussions = [p for p in client.posts if p[0].endswith("/discussions")]
     assert len(discussions) == 1
+
+
+def test_submit_inline_review_uses_provided_diff_text() -> None:
+    # raw_diffs would 500, but the caller-supplied diff is used instead:
+    # off-hunk findings are still filtered (no fail-open, no re-download).
+    client = _ScriptedFullClient(raw_diff="", raw_diff_status=500)
+    adapter = _full_adapter(client)
+    adapter.submit_inline_review(
+        [_finding("a.py", 2), _finding("a.py", 99)],
+        summary_body=None,
+        event="COMMENT",
+        diff_text=_HUNK_DIFF,
+    )
+    discussions = [p for p in client.posts if p[0].endswith("/discussions")]
+    assert len(discussions) == 1
+    assert discussions[0][1]["position"]["new_line"] == 2
 
 
 def test_submit_inline_review_fail_open_when_diff_has_no_hunks() -> None:

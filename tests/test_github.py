@@ -164,3 +164,106 @@ def test_short_page_stops_pagination(monkeypatch: pytest.MonkeyPatch) -> None:
     clients = _install_client(monkeypatch, pages)
     _adapter().fetch_author_replies()
     assert len(clients[0].requests) == 1
+
+
+# ----- PR-object cache (head sha / base branch / title+body) -----------------
+
+
+class _PrObjectResponse:
+    """Response stand-in returning a PR object dict."""
+
+    def __init__(self, payload: dict[str, Any]) -> None:
+        self._payload = payload
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> dict[str, Any]:
+        return self._payload
+
+
+def _install_pr_client(
+    monkeypatch: pytest.MonkeyPatch, payload: dict[str, Any]
+) -> list[str]:
+    """Route every GET through a scripted client, recording the URLs."""
+    urls: list[str] = []
+
+    class _Client:
+        def __init__(self, **_kwargs: Any) -> None:
+            return None
+
+        def __enter__(self) -> "_Client":
+            return self
+
+        def __exit__(self, *_exc: Any) -> None:
+            return None
+
+        def get(self, url: str, params: dict | None = None) -> _PrObjectResponse:
+            del params
+            urls.append(url)
+            return _PrObjectResponse(payload)
+
+    monkeypatch.setattr(httpx, "Client", lambda **kwargs: _Client(**kwargs))
+    return urls
+
+
+_PR_PAYLOAD: dict[str, Any] = {
+    "head": {"sha": "abc123"},
+    "base": {"ref": "main"},
+    "title": "Fix crash",
+    "body": "details",
+}
+
+
+def test_pr_object_fetched_once_across_meta_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    urls = _install_pr_client(monkeypatch, dict(_PR_PAYLOAD))
+    adapter = _adapter()
+    assert adapter.fetch_head_sha() == "abc123"
+    assert adapter.fetch_base_branch() == "main"
+    assert adapter.fetch_pr_meta() == ("Fix crash", "details")
+    assert urls == ["/repos/o/r/pulls/7"]  # one fetch, then cache hits
+
+
+def test_pr_object_missing_fields_default_to_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_pr_client(monkeypatch, {})
+    adapter = _adapter()
+    assert adapter.fetch_head_sha() == ""
+    assert adapter.fetch_base_branch() == ""
+    assert adapter.fetch_pr_meta() == ("", "")
+
+
+def test_update_body_section_invalidates_pr_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from prthinker.platforms import github as github_platform
+
+    urls = _install_pr_client(monkeypatch, dict(_PR_PAYLOAD))
+    monkeypatch.setattr(
+        github_platform, "upsert_pr_body_section", lambda _cfg, _s: None
+    )
+    adapter = _adapter()
+    adapter.fetch_head_sha()
+    adapter.update_body_section("new section")
+    adapter.fetch_head_sha()
+    assert urls == ["/repos/o/r/pulls/7", "/repos/o/r/pulls/7"]  # refetched
+
+
+def test_set_labels_invalidates_pr_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from prthinker.platforms import github as github_platform
+
+    urls = _install_pr_client(monkeypatch, dict(_PR_PAYLOAD))
+    monkeypatch.setattr(
+        github_platform, "set_pr_labels",
+        lambda _cfg, _labels, managed_prefix: None,
+    )
+    adapter = _adapter()
+    adapter.fetch_head_sha()
+    adapter.set_labels(["prthinker/clean"])
+    adapter.fetch_base_branch()
+    assert urls == ["/repos/o/r/pulls/7", "/repos/o/r/pulls/7"]  # refetched

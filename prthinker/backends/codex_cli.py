@@ -25,6 +25,7 @@ import json
 import logging
 
 from prthinker.backends.agent_cli import (
+    parse_cli_usage,
     raise_on_failure,
     run_print_mode_cli,
     validate_workdir,
@@ -125,7 +126,9 @@ class CodexCliBackend(InferenceBackend):
             if item.get("type") == _ANSWER_ITEM_TYPE:
                 return str(item.get("text") or "")
         elif event_type == "turn.completed":
-            self._record_usage(event.get("usage") or {})
+            usage = parse_cli_usage(event.get("usage") or {})
+            if usage is not None:
+                self._last_usage = usage
         return answer
 
     @staticmethod
@@ -139,15 +142,6 @@ class CodexCliBackend(InferenceBackend):
         except json.JSONDecodeError:
             return None
         return data if isinstance(data, dict) else None
-
-    def _record_usage(self, usage: dict) -> None:
-        input_tokens = usage.get("input_tokens")
-        output_tokens = usage.get("output_tokens")
-        if input_tokens is not None and output_tokens is not None:
-            self._last_usage = Usage(
-                prompt_tokens=int(input_tokens),
-                completion_tokens=int(output_tokens),
-            )
 
 
 __all__ = ["CodexCliBackend"]

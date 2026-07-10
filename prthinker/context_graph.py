@@ -136,21 +136,24 @@ def scan_workdir(
     return nodes
 
 
+_C_INCLUDE_RE = re.compile(r'^\s*#include\s+["<]([^">]+)', re.M)
+_IMPORT_PATTERNS = {
+    ".java": re.compile(r"^\s*import\s+(?:static\s+)?([\w.]+)", re.M),
+    ".kt": re.compile(r"^\s*import\s+([\w.]+)", re.M),
+    ".go": re.compile(r'^\s*(?:import\s+)?["`]([^"`]+)["`]', re.M),
+    ".rs": re.compile(r"^\s*use\s+([\w:]+)", re.M),
+    ".c": _C_INCLUDE_RE,
+    ".h": _C_INCLUDE_RE,
+    ".cpp": _C_INCLUDE_RE,
+    ".cs": re.compile(r"^\s*using\s+([\w.]+)", re.M),
+}
+
+
 def scan_import_edges(workdir: Path) -> list[tuple[str, str]]:
     """Extract conservative cross-file import/include targets for polyglot KG."""
-    patterns = {
-        ".java": re.compile(r"^\s*import\s+(?:static\s+)?([\w.]+)", re.M),
-        ".kt": re.compile(r"^\s*import\s+([\w.]+)", re.M),
-        ".go": re.compile(r'^\s*(?:import\s+)?["`]([^"`]+)["`]', re.M),
-        ".rs": re.compile(r"^\s*use\s+([\w:]+)", re.M),
-        ".c": re.compile(r'^\s*#include\s+["<]([^">]+)', re.M),
-        ".h": re.compile(r'^\s*#include\s+["<]([^">]+)', re.M),
-        ".cpp": re.compile(r'^\s*#include\s+["<]([^">]+)', re.M),
-        ".cs": re.compile(r"^\s*using\s+([\w.]+)", re.M),
-    }
     edges: list[tuple[str, str]] = []
     for path in workdir.rglob("*"):
-        pattern = patterns.get(path.suffix.lower())
+        pattern = _IMPORT_PATTERNS.get(path.suffix.lower())
         if pattern is None or not path.is_file():
             continue
         try:

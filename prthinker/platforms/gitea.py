@@ -27,13 +27,14 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Iterator
 
 import httpx
 
 from prthinker.checks import CheckResult
 from prthinker.conventional import format_inline_body
 from prthinker.dialogue import AuthorReply
+from prthinker.github_api import paginate
 from prthinker.platforms.base import PlatformAdapter
 from prthinker.schemas import InlineFinding
 
@@ -63,6 +64,11 @@ class GiteaAdapter(PlatformAdapter):
     comment_marker: str = "<!-- prthinker:summary -->"
     base_url: str = "https://gitea.com/api/v1"
 
+    def __post_init__(self) -> None:
+        # Cache the PR object so head SHA / base branch / title+body don't
+        # refetch it across calls (mirrors the GitLab adapter's _mr_cache).
+        self._pr_cache: dict[str, Any] | None = None
+
     def _client(self) -> httpx.Client:
         return httpx.Client(
             base_url=self.base_url.rstrip("/"),
@@ -79,10 +85,12 @@ class GiteaAdapter(PlatformAdapter):
         return f"/repos/{self.repo}/pulls/{self.pr_number}"
 
     def _pull(self, client: httpx.Client) -> dict[str, Any]:
-        """Fetch the PR object from ``GET /repos/{repo}/pulls/{n}``."""
-        response = client.get(self._pr_path())
-        response.raise_for_status()
-        return response.json()
+        """Fetch (and cache) the PR object from ``GET /repos/{repo}/pulls/{n}``."""
+        if self._pr_cache is None:
+            response = client.get(self._pr_path())
+            response.raise_for_status()
+            self._pr_cache = response.json()
+        return self._pr_cache
 
     # ----- metadata ------------------------------------------------------
 
@@ -138,22 +146,23 @@ class GiteaAdapter(PlatformAdapter):
 
     def _find_marker_comment(self, client: httpx.Client) -> int | None:
         """Return the id of the first comment carrying our marker, else None."""
-        page = 1
-        while True:
-            response = client.get(
-                f"/repos/{self.repo}/issues/{self.pr_number}/comments",
-                params={"limit": _COMMENTS_PER_PAGE, "page": page},
-            )
-            response.raise_for_status()
-            batch = response.json()
-            if not batch:
-                return None
-            for comment in batch:
-                if self.comment_marker in (comment.get("body") or ""):
-                    return int(comment["id"])
-            if len(batch) < _COMMENTS_PER_PAGE:
-                return None
-            page += 1
+        for comment in self._iter_comments(client):
+            if self.comment_marker in (comment.get("body") or ""):
+                return int(comment["id"])
+        return None
+
+    def _iter_comments(self, client: httpx.Client) -> Iterator[dict]:
+        """Page through the PR conversation comments, oldest first.
+
+        Gitea's pagination mirrors GitHub's except the page-size
+        parameter is named ``limit``; the shared generator covers that.
+        """
+        return paginate(
+            client,
+            f"/repos/{self.repo}/issues/{self.pr_number}/comments",
+            per_page=_COMMENTS_PER_PAGE,
+            size_param="limit",
+        )
 
     # ----- inline review ------------------------------------------------
 
@@ -163,8 +172,10 @@ class GiteaAdapter(PlatformAdapter):
         *,
         summary_body: str | None,
         event: str,
+        diff_text: str | None = None,
     ) -> int | None:
         """Post a single PR review carrying one inline comment per finding."""
+        del diff_text  # Gitea posts reviews without a diff pre-filter
         if not findings:
             log.info("Gitea: no findings — skipping review submission")
             return None
@@ -200,66 +211,12 @@ class GiteaAdapter(PlatformAdapter):
 
         Like the GitHub adapter, replies are positional — every non-bot
         comment after the latest prthinker summary comment counts as a
-        candidate reply.
+        candidate reply. The marker scan and reply build are the base
+        class's shared template method.
         """
         with self._client() as client:
-            comments = self._collect_all_comments(client)
-
-        marker_idx = self._find_last_marker_index(comments)
-        if marker_idx is None:
-            return []
-        return self._build_replies(comments, marker_idx)
-
-    def _collect_all_comments(self, client: httpx.Client) -> list[dict]:
-        """Page through every PR conversation comment, oldest first."""
-        comments: list[dict] = []
-        page = 1
-        while True:
-            response = client.get(
-                f"/repos/{self.repo}/issues/{self.pr_number}/comments",
-                params={"limit": _COMMENTS_PER_PAGE, "page": page},
-            )
-            response.raise_for_status()
-            batch = response.json()
-            if not batch:
-                break
-            comments.extend(batch)
-            if len(batch) < _COMMENTS_PER_PAGE:
-                break
-            page += 1
-        return comments
-
-    def _find_last_marker_index(self, comments: list[dict]) -> int | None:
-        """Index of the most recent comment carrying our marker, else None."""
-        marker_idx: int | None = None
-        for i, comment in enumerate(comments):
-            if self.comment_marker in (comment.get("body") or ""):
-                marker_idx = i  # last wins
-        return marker_idx
-
-    @staticmethod
-    def _comment_login(comment: dict) -> str:
-        """Login of the comment author, or empty string when absent."""
-        return (comment.get("user") or {}).get("login") or ""
-
-    def _build_replies(
-        self, comments: list[dict], marker_idx: int,
-    ) -> list[AuthorReply]:
-        """Author replies trailing the marker comment, dropping our own."""
-        marker_user = self._comment_login(comments[marker_idx])
-        in_reply_to_id = int(comments[marker_idx]["id"])
-        replies: list[AuthorReply] = []
-        for comment in comments[marker_idx + 1:]:
-            user = self._comment_login(comment)
-            if user == marker_user:
-                continue
-            replies.append(AuthorReply(
-                author=user,
-                body=str(comment.get("body") or "").strip(),
-                in_reply_to_id=in_reply_to_id,
-                created_at=str(comment.get("created_at") or ""),
-            ))
-        return replies
+            comments = list(self._iter_comments(client))
+        return self._replies_after_marker(comments, self.comment_marker)
 
     # ----- gate (commit status) -----------------------------------------
 

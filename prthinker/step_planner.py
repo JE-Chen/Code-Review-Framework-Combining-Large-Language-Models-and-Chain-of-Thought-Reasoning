@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 
+from prthinker.steps import CompactReviewStep
+
 if TYPE_CHECKING:
     from prthinker.diff import FileDiff
     from prthinker.steps import ReviewStep
@@ -58,13 +60,14 @@ _DEEP_MIN_RISK_SCORE = 0.7
 # the reviewer actually consumes (findings, orientation), not analysis
 # scaffolding feeding a later synthesis.
 _ALWAYS_KEEP = frozenset({"inline_findings", "walkthrough"})
-# A chain-only run (no inline findings configured) still gets one review
-# pass on a trivial file so the file is looked at, just not five times.
-_TRIVIAL_FALLBACK = frozenset({"first_code_review"})
-# Per-file PR summaries add little on mid-size changes: the total summary
-# already synthesises the first review / linter / smell outputs, and the
-# PR-level overview covers orientation.
-_STANDARD_DROP = frozenset({"first_summary"})
+# Mid-size changes also keep counterfactual exploration when configured;
+# it rides on the surviving inline findings.
+_STANDARD_KEEP = _ALWAYS_KEEP | frozenset({"counterfactual"})
+# The analysis scaffolding the CompactReviewStep substitutes for at
+# reduced depth (one model call instead of five).
+_ANALYSIS_STEPS = frozenset(
+    {"first_summary", "first_code_review", "linter", "code_smell", "total_summary"}
+)
 
 
 @dataclass(frozen=True)
@@ -113,20 +116,42 @@ def plan_steps(
     *,
     risk: float | None = None,
 ) -> StepPlan:
-    """Prune the configured step chain to what this file actually needs."""
+    """Prune the configured step chain to what this file actually needs.
+
+    Reduced tiers substitute :class:`~prthinker.steps.CompactReviewStep`
+    for the analysis chain: one model call covering review/lint/smells
+    plus a brief conclusion, instead of five. Deep tier keeps everything.
+    """
     tier = classify_depth(fd, risk=risk)
     if tier == TIER_DEEP:
         return StepPlan(tier=tier, steps=tuple(all_steps), skipped=())
-    if tier == TIER_TRIVIAL:
-        candidates = [cls for cls in all_steps if cls.name in _ALWAYS_KEEP]
-        if not candidates:
-            candidates = [cls for cls in all_steps if cls.name in _TRIVIAL_FALLBACK]
-    else:
-        candidates = [cls for cls in all_steps if cls.name not in _STANDARD_DROP]
+    keep = _ALWAYS_KEEP if tier == TIER_TRIVIAL else _STANDARD_KEEP
+    candidates = [cls for cls in all_steps if cls.name in keep]
+    if _needs_compact_substitute(all_steps, candidates, tier):
+        candidates.insert(0, CompactReviewStep)
     kept = _enforce_dependencies(candidates)
     kept_names = {cls.name for cls in kept}
     skipped = tuple(cls.name for cls in all_steps if cls.name not in kept_names)
     return StepPlan(tier=tier, steps=tuple(kept), skipped=skipped)
+
+
+def _needs_compact_substitute(
+    all_steps: tuple[type["ReviewStep"], ...],
+    candidates: list[type["ReviewStep"]],
+    tier: str,
+) -> bool:
+    """Substitute the compact single-call review for a pruned analysis chain.
+
+    Standard tier always reviews via the compact step. Trivial tier only
+    falls back to it when no output step (inline findings / walkthrough)
+    survived — the file still gets looked at, just once. A chain that
+    configured no analysis steps has nothing to substitute.
+    """
+    if not any(cls.name in _ANALYSIS_STEPS for cls in all_steps):
+        return False
+    if tier == TIER_STANDARD:
+        return True
+    return not candidates
 
 
 def _enforce_dependencies(
