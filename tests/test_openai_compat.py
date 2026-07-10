@@ -154,7 +154,6 @@ def test_usage_from_payload_partial_or_empty_is_none() -> None:
 
 
 def test_iter_sse_deltas_yields_until_done_and_records_usage() -> None:
-    from prthinker.backends.base import Usage
     from prthinker.backends.openai_compat import iter_sse_deltas
 
     recorded: list[Usage] = []

@@ -215,6 +215,6 @@ def test_reactions_absent_falls_back_to_endpoint() -> None:
         comments=[{"id": 4, "path": "a.py", "body": "wrong"}],
         reactions_by_id={4: [{"content": "-1"}]},
     )
-    store, stats = _run(client)
+    _store, stats = _run(client)
     assert stats.dismissed_found == 1
     assert len(client.reaction_urls) == 1
