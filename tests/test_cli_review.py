@@ -719,3 +719,26 @@ def test_collect_core_kwargs_uses_flags():
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))
+
+
+def test_server_review_request_carries_step_plan() -> None:
+    from prthinker.cli_review import _server_review_request
+    from prthinker.config import BackendKind, Config, RemoteBackendConfig
+
+    config = Config(
+        backend=BackendKind.REMOTE,
+        remote=RemoteBackendConfig(url="https://srv.example"),
+        step_plan="adaptive",
+    )
+    request = _server_review_request(config, "+diff", [])
+    assert request.step_plan == "adaptive"
+
+
+def test_review_request_step_plan_defaults_to_full() -> None:
+    from prthinker.schemas import ReviewRequest
+
+    # Old runners omit the field entirely — the wire default keeps the
+    # historical full-chain behaviour.
+    request = ReviewRequest.model_validate({"code_diff": "+x"})
+    assert request.step_plan == "full"
+    assert ReviewRequest(code_diff="+x", step_plan="adaptive").step_plan == "adaptive"

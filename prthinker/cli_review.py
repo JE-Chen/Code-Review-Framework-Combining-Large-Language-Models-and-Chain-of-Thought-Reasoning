@@ -84,6 +84,7 @@ from prthinker.cli_review_overall_summary import (  # noqa: F401  # pylint: disa
 )
 from prthinker.ci_signals import format_signals_block
 from prthinker.diff import parse_unified_diff
+from prthinker.step_planner import TIER_SKIP, classify_depth
 from prthinker.formatters import (
     CommentOptions,
     format_pr_comment,
@@ -157,6 +158,7 @@ def _build_config(args: argparse.Namespace) -> Config:
         rag_threshold=args.rag_threshold,
         max_new_tokens=args.max_new_tokens,
         steps=steps,
+        step_plan=getattr(args, "step_plan", "full") or "full",
         cache=cache_cfg,
         telemetry=telemetry_cfg,
     )
@@ -365,6 +367,7 @@ def _server_review_request(
         max_new_tokens=config.max_new_tokens,
         steps=list(config.steps) or None,
         extra_rules=extra_rules,
+        step_plan=config.step_plan,
     )
 
 
@@ -416,6 +419,19 @@ def _review_per_file_via_server(
     per_file: list[FileReviewResult] = []
     for fd in files:
         if fd.is_binary or fd.is_deleted:
+            continue
+        if config.step_plan == "adaptive" and classify_depth(fd) == TIER_SKIP:
+            # Generated / whitespace-only file: skip the server round-trip
+            # entirely, but keep the file visible in the summary.
+            log.info("step_plan: %s tier=skip — no server call", fd.path)
+            per_file.append(
+                FileReviewResult(
+                    path=fd.path,
+                    rag_docs=[],
+                    step_outputs={"step_plan": TIER_SKIP},
+                    inline_findings=[],
+                )
+            )
             continue
         file_result, namespaced = _review_one_file_via_server(
             client, config, fd, extra_rules

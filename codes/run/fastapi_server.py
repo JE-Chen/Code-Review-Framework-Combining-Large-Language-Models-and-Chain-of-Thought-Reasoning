@@ -270,7 +270,11 @@ def _execute_review(
     )
 
     if req.file_path is not None:
-        file_result = pipeline.run_for_file(req.file_path, code_diff)
+        file_result = pipeline.run_for_file(
+            req.file_path,
+            code_diff,
+            step_plan=req.step_plan,
+        )
         return ReviewResponse(
             code_diff=code_diff,
             rag_docs=file_result.rag_docs,

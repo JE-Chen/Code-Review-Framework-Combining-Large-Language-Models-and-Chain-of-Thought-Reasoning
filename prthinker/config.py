@@ -274,6 +274,9 @@ class Config:
     rag_threshold: float | None = None
     max_new_tokens: int = 32768
     steps: tuple[str, ...] = field(default_factory=tuple)
+    # Per-file review depth policy ("full" | "adaptive"); forwarded to the
+    # remote pipeline server so single-file shards plan depth too.
+    step_plan: str = "full"
     cache: CacheConfig = field(default_factory=CacheConfig)
     telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
 

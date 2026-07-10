@@ -201,6 +201,10 @@ class ReviewRequest(BaseModel):
     rag_threshold: float = 0.7
     max_new_tokens: int = Field(default=32768, ge=1, le=32768)
     extra_rules: list[str] = Field(default_factory=list)
+    # Per-file review depth policy ("full" | "adaptive"). Optional with a
+    # backward-compatible default so old runners keep working; the server
+    # treats any unknown value as "full".
+    step_plan: str = "full"
 
 
 JobStatus = Literal["pending", "running", "done", "error", "cancelled"]

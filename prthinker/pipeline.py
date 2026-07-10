@@ -223,10 +223,15 @@ class CoTPipeline(PipelineExecutionMixin, PipelineAggregateExtrasMixin):
         *,
         inline_review: bool = True,
         max_findings: int = 10,
+        step_plan: str = "full",
     ) -> "FileReviewResult":
         """Run all configured steps against one file's diff.
 
         Used by the FastAPI `/review` endpoint and by `run_per_file`.
+        ``step_plan="adaptive"`` applies the same depth planning as the
+        per-file loop, so remote single-file shards (the CI matrix) get
+        skip/trivial/standard pruning too; any other value runs the full
+        configured chain.
         """
         files = parse_unified_diff(diff_text)
         fd = files[0] if files else FileDiff(path=file_path, raw=diff_text)
@@ -236,12 +241,34 @@ class CoTPipeline(PipelineExecutionMixin, PipelineAggregateExtrasMixin):
         extra: tuple[type[ReviewStep], ...] = (
             (InlineFindingsStep,) if inline_review else ()
         )
-        return self._run_one_file(
+        all_steps = self._step_classes + extra
+        if step_plan != STEP_PLAN_ADAPTIVE:
+            return self._run_one_file(
+                fd,
+                all_steps,
+                max_findings_per_file=max_findings,
+                output_dir=None,
+            )
+        plan = plan_steps(fd, all_steps)
+        log.info(
+            "step_plan: %s tier=%s steps=%s (single-file mode)",
+            fd.path,
+            plan.tier,
+            [cls.name for cls in plan.steps],
+        )
+        if plan.tier == TIER_SKIP:
+            skip_result = self._stub_file_result(fd, [])
+            skip_result.step_outputs["step_plan"] = plan.tier
+            return skip_result
+        result = self._run_one_file(
             fd,
-            self._step_classes + extra,
+            plan.steps,
             max_findings_per_file=max_findings,
             output_dir=None,
+            gen_budget=TIER_TOKEN_BUDGETS.get(plan.tier),
         )
+        result.step_outputs["step_plan"] = plan.tier
+        return result
 
     # ---------- per-file mode -----------------------------------------------
 

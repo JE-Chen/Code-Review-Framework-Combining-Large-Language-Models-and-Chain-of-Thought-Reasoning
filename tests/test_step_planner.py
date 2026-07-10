@@ -368,3 +368,46 @@ def test_run_per_file_default_full_plan_is_unchanged(fake_backend):
     assert "step_plan" not in docs.step_outputs
     assert "first_summary" in docs.step_outputs
     assert "total_summary" in docs.step_outputs
+
+
+# ---------------------------------------------------------------------------
+# run_for_file (single-file / server mode) step planning
+# ---------------------------------------------------------------------------
+
+_SINGLE_FILE_DIFF = "\n".join(
+    ["diff --git a/mod.py b/mod.py", "--- a/mod.py", "+++ b/mod.py",
+     "@@ -1,60 +1,60 @@"]
+    + [f"+line {i}" for i in range(50)]
+)
+
+
+def test_run_for_file_adaptive_standard_is_one_call(fake_backend):
+    pipeline = CoTPipeline(backend=fake_backend, retriever=NoOpRetriever())
+    result = pipeline.run_for_file(
+        "mod.py", _SINGLE_FILE_DIFF, step_plan="adaptive"
+    )
+    assert len(fake_backend.calls) == 1
+    assert result.step_outputs["step_plan"] == TIER_STANDARD
+    # The tier budget caps generation on the single call.
+    assert fake_backend.calls[0][1] == 8192
+
+
+def test_run_for_file_adaptive_skip_makes_no_calls(fake_backend):
+    diff = "\n".join(
+        ["diff --git a/poetry.lock b/poetry.lock", "--- a/poetry.lock",
+         "+++ b/poetry.lock", "@@ -1,2 +1,2 @@", "+pkg = 1"]
+    )
+    pipeline = CoTPipeline(backend=fake_backend, retriever=NoOpRetriever())
+    result = pipeline.run_for_file("poetry.lock", diff, step_plan="adaptive")
+    assert fake_backend.calls == []
+    assert result.step_outputs == {"step_plan": "skip"}
+    assert result.inline_findings == []
+
+
+def test_run_for_file_default_full_chain_unchanged(fake_backend):
+    pipeline = CoTPipeline(backend=fake_backend, retriever=NoOpRetriever())
+    result = pipeline.run_for_file("mod.py", _SINGLE_FILE_DIFF)
+    # Five registered steps + inline findings, all at the full budget.
+    assert len(fake_backend.calls) == 6
+    assert all(tokens == 32768 for _, tokens in fake_backend.calls)
+    assert "step_plan" not in result.step_outputs
