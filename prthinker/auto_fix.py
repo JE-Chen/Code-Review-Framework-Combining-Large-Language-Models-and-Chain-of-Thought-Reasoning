@@ -193,13 +193,55 @@ def _commit_and_push_fixes(branch: str, files_changed: list[str], base_ref: str)
     """Stage the changed files on a fresh branch, commit, and force-push.
 
     ``base_ref`` is the platform-rendered reference of the change under
-    review (``#N`` for a GitHub PR, ``!N`` for a GitLab MR).
+    review (``#N`` for a GitHub / Gitea PR, ``!N`` for a GitLab MR).
     """
     _git("checkout", "-B", branch)
     for path_str in files_changed:
         _git("add", path_str)
     _git("commit", "-m", f"Apply prthinker suggestions for {base_ref}")
     _git("push", "--force-with-lease", "origin", branch)
+
+
+def _run_auto_fix_flow(
+    findings_by_file: dict[str, list[InlineFinding]],
+    repo_root: Path,
+    *,
+    branch: str,
+    base_ref: str,
+    error_label: str,
+    opener,
+) -> AutoFixResult | None:
+    """Shared apply → commit/push → open-change-request glue.
+
+    The disk / git layers are identical across GitHub, GitLab, and
+    Gitea; only ``opener`` — a callable taking ``(total_applied,
+    total_skipped, files_changed)`` and returning ``(number, url)`` —
+    differs. Returns ``None`` when there is nothing to apply.
+    """
+    files_changed, total_applied, total_skipped = _apply_fixes_to_disk(
+        findings_by_file, repo_root
+    )
+    if not files_changed:
+        return None
+
+    _commit_and_push_fixes(branch, files_changed, base_ref)
+
+    pr_url: str | None = None
+    pr_number: int | None = None
+    try:
+        pr_number, pr_url = opener(total_applied, total_skipped, files_changed)
+    except httpx.HTTPStatusError as exc:
+        log.error("Auto-fix %s creation failed: %d %s",
+                  error_label, exc.response.status_code, exc.response.text)
+
+    return AutoFixResult(
+        branch=branch,
+        pr_number=pr_number,
+        pr_url=pr_url,
+        files_changed=files_changed,
+        total_findings_applied=total_applied,
+        total_findings_skipped=total_skipped,
+    )
 
 
 def open_auto_fix_pr(
@@ -214,19 +256,12 @@ def open_auto_fix_pr(
     Returns ``None`` when there is nothing to apply (no surviving
     warning-severity suggestion across all files).
     """
-    files_changed, total_applied, total_skipped = _apply_fixes_to_disk(
-        findings_by_file, repo_root
-    )
-    if not files_changed:
-        return None
-
     branch = f"auto-fix/prthinker-pr-{base_pr_number}"
-    _commit_and_push_fixes(branch, files_changed, f"#{base_pr_number}")
 
-    pr_url: str | None = None
-    pr_number: int | None = None
-    try:
-        pr_number, pr_url = _open_draft_pr(
+    def _opener(
+        total_applied: int, total_skipped: int, files_changed: list[str]
+    ) -> tuple[int, str]:
+        return _open_draft_pr(
             config=config,
             base_branch=base_branch,
             head_branch=branch,
@@ -235,17 +270,11 @@ def open_auto_fix_pr(
             total_skipped=total_skipped,
             files_changed=files_changed,
         )
-    except httpx.HTTPStatusError as exc:
-        log.error("Auto-fix PR creation failed: %d %s",
-                  exc.response.status_code, exc.response.text)
 
-    return AutoFixResult(
-        branch=branch,
-        pr_number=pr_number,
-        pr_url=pr_url,
-        files_changed=files_changed,
-        total_findings_applied=total_applied,
-        total_findings_skipped=total_skipped,
+    return _run_auto_fix_flow(
+        findings_by_file, repo_root,
+        branch=branch, base_ref=f"#{base_pr_number}",
+        error_label="PR", opener=_opener,
     )
 
 
@@ -334,19 +363,12 @@ def open_auto_fix_mr(
     Returns ``None`` when there is nothing to apply. The MR is opened as
     a draft (GitLab's ``Draft:`` title prefix) targeting ``base_branch``.
     """
-    files_changed, total_applied, total_skipped = _apply_fixes_to_disk(
-        findings_by_file, repo_root
-    )
-    if not files_changed:
-        return None
-
     branch = f"auto-fix/prthinker-mr-{target.mr_iid}"
-    _commit_and_push_fixes(branch, files_changed, f"!{target.mr_iid}")
 
-    mr_url: str | None = None
-    mr_iid: int | None = None
-    try:
-        mr_iid, mr_url = _open_draft_mr(
+    def _opener(
+        total_applied: int, total_skipped: int, files_changed: list[str]
+    ) -> tuple[int, str]:
+        return _open_draft_mr(
             target=target,
             base_branch=base_branch,
             head_branch=branch,
@@ -354,17 +376,11 @@ def open_auto_fix_mr(
             total_skipped=total_skipped,
             files_changed=files_changed,
         )
-    except httpx.HTTPStatusError as exc:
-        log.error("Auto-fix MR creation failed: %d %s",
-                  exc.response.status_code, exc.response.text)
 
-    return AutoFixResult(
-        branch=branch,
-        pr_number=mr_iid,
-        pr_url=mr_url,
-        files_changed=files_changed,
-        total_findings_applied=total_applied,
-        total_findings_skipped=total_skipped,
+    return _run_auto_fix_flow(
+        findings_by_file, repo_root,
+        branch=branch, base_ref=f"!{target.mr_iid}",
+        error_label="MR", opener=_opener,
     )
 
 
@@ -404,12 +420,97 @@ def _open_draft_mr(
         return int(data["iid"]), str(data["web_url"])
 
 
+# ---------------------------------------------------------------------------
+# Gitea counterpart — same disk / git layers, WIP draft PR via Gitea's API.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class GiteaPRTarget:
+    """Where the auto-fix draft PR goes — repo, auth, and source PR."""
+
+    repo: str
+    token: str
+    pr_number: int
+    base_url: str = "https://gitea.com/api/v1"
+
+
+def open_auto_fix_gitea_pr(
+    target: GiteaPRTarget,
+    findings_by_file: dict[str, list[InlineFinding]],
+    base_branch: str,
+    repo_root: Path,
+) -> AutoFixResult | None:
+    """Gitea twin of :func:`open_auto_fix_pr`: apply, push, open a WIP PR.
+
+    Returns ``None`` when there is nothing to apply. Gitea's create-PR
+    payload has no ``draft`` flag, so the draft state is expressed as
+    the ``WIP:`` title prefix (Gitea's default draft convention).
+    """
+    branch = f"auto-fix/prthinker-pr-{target.pr_number}"
+
+    def _opener(
+        total_applied: int, total_skipped: int, files_changed: list[str]
+    ) -> tuple[int, str]:
+        return _open_draft_gitea_pr(
+            target=target,
+            base_branch=base_branch,
+            head_branch=branch,
+            total_applied=total_applied,
+            total_skipped=total_skipped,
+            files_changed=files_changed,
+        )
+
+    return _run_auto_fix_flow(
+        findings_by_file, repo_root,
+        branch=branch, base_ref=f"#{target.pr_number}",
+        error_label="PR", opener=_opener,
+    )
+
+
+def _open_draft_gitea_pr(
+    *,
+    target: GiteaPRTarget,
+    base_branch: str,
+    head_branch: str,
+    total_applied: int,
+    total_skipped: int,
+    files_changed: list[str],
+) -> tuple[int, str]:
+    ref = f"#{target.pr_number}"
+    payload = {
+        "title": f"WIP: Apply prthinker suggestions from {ref}",
+        "head": head_branch,
+        "base": base_branch,
+        "body": _draft_pr_body(
+            ref, total_applied, total_skipped, files_changed
+        ),
+    }
+    with httpx.Client(
+        base_url=target.base_url.rstrip("/"),
+        timeout=30.0,
+        headers={
+            "Authorization": f"token {target.token}",
+            "User-Agent": _USER_AGENT,
+        },
+    ) as client:
+        response = client.post(
+            f"/repos/{target.repo}/pulls",
+            json=payload,
+        )
+        response.raise_for_status()
+        data = response.json()
+        return int(data["number"]), str(data["html_url"])
+
+
 __all__ = [
     "AutoFixResult",
     "ConflictReport",
+    "GiteaPRTarget",
     "GitLabMRTarget",
     "apply_suggestions_to_text",
     "detect_conflicts",
+    "open_auto_fix_gitea_pr",
     "open_auto_fix_mr",
     "open_auto_fix_pr",
 ]

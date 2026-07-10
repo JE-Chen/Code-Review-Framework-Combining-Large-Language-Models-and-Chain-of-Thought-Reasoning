@@ -16,10 +16,11 @@ import pytest
 
 from prthinker.checks import CheckResult
 from prthinker.dialogue import AuthorReply
-from prthinker.platforms.gitea import GiteaAdapter
+from prthinker.platforms.gitea import GiteaAdapter, _INLINE_REVIEW_MARKER
 from prthinker.schemas import InlineFinding
 
 MARKER = "<!-- prthinker:summary -->"
+INLINE_MARKER = _INLINE_REVIEW_MARKER
 
 
 class _Resp:
@@ -97,6 +98,9 @@ class _ScriptedClient:
         self, url: str, json: dict[str, Any] | None = None, **_kw: Any
     ) -> _Resp:
         return self._record("PUT", url, json=json)
+
+    def delete(self, url: str, **_kw: Any) -> _Resp:
+        return self._record("DELETE", url)
 
 
 def _install(
@@ -262,6 +266,14 @@ _DIFF = (
 )
 
 
+def _posted_reviews(clients: list[_ScriptedClient]) -> list[dict[str, Any]]:
+    """Every review POST recorded across the scripted clients."""
+    return [
+        r for c in clients for r in c.requests
+        if r["method"] == "POST" and r["url"] == "/repos/o/r/pulls/7/reviews"
+    ]
+
+
 def test_submit_inline_review_posts(monkeypatch: pytest.MonkeyPatch) -> None:
     clients = _install(monkeypatch, {
         ("POST", "/repos/o/r/pulls/7/reviews"): _Resp(json_data={"id": 314}),
@@ -272,12 +284,10 @@ def test_submit_inline_review_posts(monkeypatch: pytest.MonkeyPatch) -> None:
         diff_text=_DIFF,
     )
     assert review_id == 314
-    post = clients[0].requests[0]
-    assert post["method"] == "POST"
-    assert post["url"] == "/repos/o/r/pulls/7/reviews"
-    payload = post["json"]
+    payload = _posted_reviews(clients)[0]["json"]
     assert payload["event"] == "REQUEST_CHANGES"
-    assert payload["body"] == "please look"
+    # The hidden marker rides on the body so the next run can clean up.
+    assert payload["body"] == f"please look\n\n{INLINE_MARKER}"
     assert payload["comments"] == [{
         "path": "a.py",
         "new_position": 3,
@@ -304,9 +314,9 @@ def test_submit_inline_review_default_body_and_event(
     _adapter().submit_inline_review(
         [_finding()], summary_body=None, event="WEIRD", diff_text=_DIFF,
     )
-    payload = clients[0].requests[0]["json"]
+    payload = _posted_reviews(clients)[0]["json"]
     assert payload["event"] == "COMMENT"  # unknown event maps to COMMENT
-    assert payload["body"] == "prthinker — inline findings"
+    assert payload["body"] == f"prthinker — inline findings\n\n{INLINE_MARKER}"
 
 
 def test_submit_inline_review_prefilters_off_diff(
@@ -319,7 +329,7 @@ def test_submit_inline_review_prefilters_off_diff(
         [_finding(line=3), _finding(line=99)],
         summary_body=None, event="COMMENT", diff_text=_DIFF,
     )
-    comments = clients[0].requests[0]["json"]["comments"]
+    comments = _posted_reviews(clients)[0]["json"]["comments"]
     assert [c["new_position"] for c in comments] == [3]  # 99 dropped
 
 
@@ -348,7 +358,7 @@ def test_submit_inline_review_fetches_diff_when_none(
     assert review_id == 3
     # First client fetched the diff; second posted the filtered review.
     assert clients[0].requests[0]["url"] == "/repos/o/r/pulls/7.diff"
-    comments = clients[1].requests[0]["json"]["comments"]
+    comments = _posted_reviews(clients)[0]["json"]["comments"]
     assert [c["new_position"] for c in comments] == [3]
 
 
@@ -363,7 +373,7 @@ def test_submit_inline_review_fail_open_on_diff_error(
         [_finding(line=99)], summary_body=None, event="COMMENT",
     )
     assert review_id == 4  # unfiltered submission when the diff fetch fails
-    assert len(clients[1].requests[0]["json"]["comments"]) == 1
+    assert len(_posted_reviews(clients)[0]["json"]["comments"]) == 1
 
 
 def test_submit_inline_review_fail_open_on_hunkless_diff(
@@ -377,7 +387,7 @@ def test_submit_inline_review_fail_open_on_hunkless_diff(
         [_finding(line=99)], summary_body=None, event="COMMENT",
     )
     assert review_id == 5  # a hunkless diff must not drop every finding
-    assert len(clients[1].requests[0]["json"]["comments"]) == 1
+    assert len(_posted_reviews(clients)[0]["json"]["comments"]) == 1
 
 
 def test_submit_inline_review_falls_back_per_comment(
@@ -397,12 +407,14 @@ def test_submit_inline_review_falls_back_per_comment(
         summary_body="summary", event="COMMENT", diff_text=_DIFF,
     )
     assert review_id == 77
-    posts = clients[0].requests
+    posts = _posted_reviews(clients)
     assert len(posts) == 3
     assert len(posts[0]["json"]["comments"]) == 2   # batch attempt
-    assert posts[1]["json"]["body"] == "summary"    # first single carries body
+    # First single carries body (plus the cleanup marker).
+    assert posts[1]["json"]["body"] == f"summary\n\n{INLINE_MARKER}"
     assert [c["new_position"] for c in posts[1]["json"]["comments"]] == [2]
-    assert posts[2]["json"]["body"] == ""           # follow-ups stay quiet
+    # Follow-ups carry only the marker so the next run sweeps them too.
+    assert posts[2]["json"]["body"] == INLINE_MARKER
     assert [c["new_position"] for c in posts[2]["json"]["comments"]] == [3]
 
 
@@ -418,7 +430,318 @@ def test_submit_inline_review_returns_none_when_all_fail(
     assert _adapter().submit_inline_review(
         [_finding()], summary_body=None, event="COMMENT", diff_text=_DIFF,
     ) is None
-    assert len(clients[0].requests) == 2  # batch + one per-comment retry
+    assert len(_posted_reviews(clients)) == 2  # batch + one per-comment retry
+
+
+# ----- stale inline-review cleanup ----------------------------------------
+
+
+_REVIEWS_URL = "/repos/o/r/pulls/7/reviews"
+
+
+def _review_deletes(clients: list[_ScriptedClient]) -> list[str]:
+    return [
+        r["url"] for c in clients for r in c.requests
+        if r["method"] == "DELETE"
+    ]
+
+
+def test_stale_marker_reviews_deleted_after_posting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install(monkeypatch, {
+        ("GET", _REVIEWS_URL): _Resp(json_data=[
+            {"id": 1, "body": f"old summary\n\n{INLINE_MARKER}"},
+            {"id": 2, "body": "a human review — never touched"},
+        ]),
+        ("POST", _REVIEWS_URL): _Resp(json_data={"id": 314}),
+    })
+    review_id = _adapter().submit_inline_review(
+        [_finding()], summary_body="s", event="COMMENT", diff_text=_DIFF,
+    )
+    assert review_id == 314
+    # Only the marker-tagged review is deleted; the human one survives.
+    assert _review_deletes(clients) == [f"{_REVIEWS_URL}/1"]
+    # Cleanup runs AFTER the new review posted.
+    methods = [(r["method"], r["url"]) for r in clients[0].requests]
+    assert methods.index(("POST", _REVIEWS_URL)) < methods.index(
+        ("DELETE", f"{_REVIEWS_URL}/1")
+    )
+
+
+def test_stale_cleanup_scoped_by_marker_not_author(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install(monkeypatch, {
+        ("GET", _REVIEWS_URL): _Resp(json_data=[
+            {"id": 5, "body": "LGTM", "user": {"login": "prthinker-bot"}},
+            {"id": 6, "body": f"x\n\n{INLINE_MARKER}",
+             "user": {"login": "prthinker-bot"}},
+        ]),
+        ("POST", _REVIEWS_URL): _Resp(json_data={"id": 9}),
+    })
+    _adapter().submit_inline_review(
+        [_finding()], summary_body=None, event="COMMENT", diff_text=_DIFF,
+    )
+    # Same bot author, but only the marker-carrying review is swept.
+    assert _review_deletes(clients) == [f"{_REVIEWS_URL}/6"]
+
+
+def test_stale_cleanup_skipped_when_listing_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install(monkeypatch, {
+        ("GET", _REVIEWS_URL): _Resp(json_data={}, status_code=500),
+        ("POST", _REVIEWS_URL): _Resp(json_data={"id": 11}),
+    })
+    review_id = _adapter().submit_inline_review(
+        [_finding()], summary_body=None, event="COMMENT", diff_text=_DIFF,
+    )
+    assert review_id == 11          # the review still posts
+    assert _review_deletes(clients) == []  # cleanup fails open
+
+
+def test_stale_cleanup_tolerates_a_failed_delete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install(monkeypatch, {
+        ("GET", _REVIEWS_URL): _Resp(json_data=[
+            {"id": 1, "body": INLINE_MARKER},
+            {"id": 2, "body": INLINE_MARKER},
+        ]),
+        ("POST", _REVIEWS_URL): _Resp(json_data={"id": 30}),
+        ("DELETE", f"{_REVIEWS_URL}/1"): _Resp(json_data={}, status_code=403),
+    })
+    review_id = _adapter().submit_inline_review(
+        [_finding()], summary_body=None, event="COMMENT", diff_text=_DIFF,
+    )
+    assert review_id == 30  # a 403 on one delete never aborts the review
+    # Both deletes were attempted despite the first failing.
+    assert _review_deletes(clients) == [
+        f"{_REVIEWS_URL}/1", f"{_REVIEWS_URL}/2",
+    ]
+
+
+def test_no_cleanup_when_every_post_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install(monkeypatch, {
+        ("GET", _REVIEWS_URL): _Resp(json_data=[
+            {"id": 1, "body": INLINE_MARKER},
+        ]),
+        ("POST", _REVIEWS_URL): _Resp(
+            json_data={}, text="boom", status_code=422,
+        ),
+    })
+    assert _adapter().submit_inline_review(
+        [_finding()], summary_body=None, event="COMMENT", diff_text=_DIFF,
+    ) is None
+    # A failed re-post leaves the prior run's findings intact.
+    assert _review_deletes(clients) == []
+
+
+# ----- upsert_summary_comments (multi-page reconcile) -----------------------
+
+
+_COMMENTS_URL = "/repos/o/r/issues/7/comments"
+
+
+def _page(i: int) -> str:
+    return f"{MARKER}\npage {i}"
+
+
+def test_multipage_patches_existing_and_creates_extra(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Existing marker comments arrive out of id order plus a human one.
+    clients = _install(monkeypatch, {
+        ("GET", _COMMENTS_URL): _Resp(json_data=[
+            {"id": 20, "body": f"{MARKER}\nold 2"},
+            {"id": 15, "body": "human comment"},
+            {"id": 10, "body": f"{MARKER}\nold 1"},
+        ]),
+        ("POST", _COMMENTS_URL): _Resp(json_data={"id": 99}),
+    })
+    ids = _adapter().upsert_summary_comments([_page(1), _page(2), _page(3)])
+    assert ids == [10, 20, 99]  # ascending-id mapping, then a create
+    patches = [
+        (r["url"], r["json"]["body"])
+        for c in clients for r in c.requests if r["method"] == "PATCH"
+    ]
+    assert patches == [
+        ("/repos/o/r/issues/comments/10", _page(1)),
+        ("/repos/o/r/issues/comments/20", _page(2)),
+    ]
+    post = next(
+        r for c in clients for r in c.requests
+        if r["method"] == "POST" and r["url"] == _COMMENTS_URL
+    )
+    assert post["json"] == {"body": _page(3)}
+
+
+def test_multipage_shrinking_page_count_deletes_leftovers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install(monkeypatch, {
+        ("GET", _COMMENTS_URL): _Resp(json_data=[
+            {"id": 10, "body": f"{MARKER}\nold 1"},
+            {"id": 15, "body": "human comment"},
+            {"id": 20, "body": f"{MARKER}\nold 2"},
+            {"id": 30, "body": f"{MARKER}\nold 3"},
+        ]),
+    })
+    ids = _adapter().upsert_summary_comments([_page(1)])
+    assert ids == [10]
+    deletes = [
+        r["url"] for c in clients for r in c.requests
+        if r["method"] == "DELETE"
+    ]
+    # Orphan marker pages go; the human comment is never touched.
+    assert deletes == [
+        "/repos/o/r/issues/comments/20",
+        "/repos/o/r/issues/comments/30",
+    ]
+
+
+def test_multipage_delete_failure_is_tolerated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install(monkeypatch, {
+        ("GET", _COMMENTS_URL): _Resp(json_data=[
+            {"id": 10, "body": f"{MARKER}\nold 1"},
+            {"id": 20, "body": f"{MARKER}\nold 2"},
+        ]),
+        ("DELETE", "/repos/o/r/issues/comments/20"): _Resp(
+            json_data={}, status_code=500,
+        ),
+    })
+    # A failed stale delete must not raise; the reconciled id survives.
+    assert _adapter().upsert_summary_comments([_page(1)]) == [10]
+    assert any(
+        r["method"] == "DELETE" for c in clients for r in c.requests
+    )
+
+
+def test_multipage_empty_bodies_is_a_noop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install(monkeypatch, {})
+    assert _adapter().upsert_summary_comments([]) == []
+    assert clients == []  # no client even constructed
+
+
+def test_multipage_creates_all_pages_when_none_exist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install(monkeypatch, {
+        ("GET", _COMMENTS_URL): _Resp(json_data=[]),
+        ("POST", _COMMENTS_URL): [
+            _Resp(json_data={"id": 40}), _Resp(json_data={"id": 41}),
+        ],
+    })
+    assert _adapter().upsert_summary_comments([_page(1), _page(2)]) == [40, 41]
+    assert not any(
+        r["method"] in ("PATCH", "DELETE")
+        for c in clients for r in c.requests
+    )
+
+
+# ----- fetch_ci_failure_signals ---------------------------------------------
+
+
+_RUNS_URL = "/repos/o/r/actions/runs"
+_JOBS_URL = "/repos/o/r/actions/runs/5/jobs"
+_LOGS_URL = "/repos/o/r/actions/jobs/9/logs"
+
+
+def _runs_payload() -> _Resp:
+    return _Resp(json_data={"workflow_runs": [
+        {"id": 5, "display_title": "CI", "conclusion": "failure"},
+        {"id": 6, "display_title": "green", "conclusion": "success"},
+    ]})
+
+
+def test_ci_signals_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    clients = _install(monkeypatch, {
+        ("GET", _RUNS_URL): _runs_payload(),
+        ("GET", _JOBS_URL): _Resp(json_data={"jobs": [
+            {"id": 9, "name": "pytest", "conclusion": "failure"},
+            {"id": 10, "name": "lint", "conclusion": "success"},
+        ]}),
+        ("GET", _LOGS_URL): _Resp(text="A" * 100 + "TAIL"),
+    })
+    signals = _adapter().fetch_ci_failure_signals(
+        "sha9", log_tail_chars=50,
+    )
+    assert len(signals) == 1  # green run + green job filtered out
+    signal = signals[0]
+    assert signal.workflow_name == "CI"
+    assert signal.job_name == "pytest"
+    assert signal.conclusion == "failure"
+    assert len(signal.log_tail) == 50 and signal.log_tail.endswith("TAIL")
+    runs_get = next(
+        r for c in clients for r in c.requests if r["url"] == _RUNS_URL
+    )
+    assert runs_get["params"]["head_sha"] == "sha9"
+    assert runs_get["params"]["status"] == "failure"
+
+
+def test_ci_signals_cap_at_max_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
+    _install(monkeypatch, {
+        ("GET", _RUNS_URL): _runs_payload(),
+        ("GET", _JOBS_URL): _Resp(json_data={"jobs": [
+            {"id": 9, "name": "a", "conclusion": "failure"},
+            {"id": 9, "name": "b", "conclusion": "failure"},
+        ]}),
+        ("GET", _LOGS_URL): _Resp(text="log"),
+    })
+    signals = _adapter().fetch_ci_failure_signals("sha9", max_jobs=1)
+    assert [s.job_name for s in signals] == ["a"]
+
+
+def test_ci_signals_fail_open_when_endpoint_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Older Gitea without the Actions API 404s the runs endpoint.
+    _install(monkeypatch, {
+        ("GET", _RUNS_URL): _Resp(json_data={}, status_code=404),
+    })
+    assert _adapter().fetch_ci_failure_signals("sha9") == []
+
+
+def test_ci_signals_fail_open_on_unexpected_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A failed run with no ``id`` key would KeyError mid-walk; the
+    # fail-open wrapper turns that into "no signals".
+    _install(monkeypatch, {
+        ("GET", _RUNS_URL): _Resp(
+            json_data={"workflow_runs": [{"conclusion": "failure"}]},
+        ),
+    })
+    assert _adapter().fetch_ci_failure_signals("sha9") == []
+
+
+def test_ci_signals_missing_log_yields_empty_tail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install(monkeypatch, {
+        ("GET", _RUNS_URL): _runs_payload(),
+        ("GET", _JOBS_URL): _Resp(json_data={"jobs": [
+            {"id": 9, "name": "pytest", "conclusion": "failure"},
+        ]}),
+        ("GET", _LOGS_URL): _Resp(json_data={}, status_code=404),
+    })
+    signals = _adapter().fetch_ci_failure_signals("sha9")
+    assert len(signals) == 1
+    assert signals[0].log_tail == ""
+
+
+def test_ci_signals_no_failed_runs(monkeypatch: pytest.MonkeyPatch) -> None:
+    _install(monkeypatch, {
+        ("GET", _RUNS_URL): _Resp(json_data={"workflow_runs": []}),
+    })
+    assert _adapter().fetch_ci_failure_signals("sha9") == []
 
 
 # ----- open_gate / close_gate -------------------------------------------

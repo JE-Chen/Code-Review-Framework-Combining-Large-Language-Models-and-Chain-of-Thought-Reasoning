@@ -323,6 +323,105 @@ def test_auto_fix_mr_open_error_is_swallowed(monkeypatch, caplog):
     assert any("Auto-fix failed" in r.message for r in caplog.records)
 
 
+# --- _maybe_open_auto_fix_gitea_pr (Gitea twin) --------------------------------
+
+def _stub_gitea_auto_fix_module(monkeypatch, opener):
+    from prthinker.auto_fix import GiteaPRTarget
+
+    mod = types.ModuleType("prthinker.auto_fix")
+    mod.GiteaPRTarget = GiteaPRTarget
+    mod.open_auto_fix_gitea_pr = opener
+    monkeypatch.setitem(sys.modules, "prthinker.auto_fix", mod)
+    return GiteaPRTarget
+
+
+def test_auto_fix_gitea_below_threshold_skips(monkeypatch):
+    from prthinker import cli_review_autofix
+
+    opened = []
+    _stub_gitea_auto_fix_module(monkeypatch, lambda *a: opened.append(a))
+    adapter = types.SimpleNamespace(base_url="https://tea/api/v1")
+    cli_review_autofix._maybe_open_auto_fix_gitea_pr(
+        _mr_args(auto_fix_threshold=3), _result(_finding()), adapter
+    )
+    assert opened == []
+
+
+def test_auto_fix_gitea_builds_target_from_args_and_adapter(monkeypatch):
+    from prthinker import cli_review_autofix
+
+    seen = {}
+
+    def _open(target, findings_by_file, base_branch, repo_root):
+        seen.update(
+            target=target, findings_by_file=findings_by_file,
+            base_branch=base_branch, repo_root=repo_root,
+        )
+        return None
+
+    _stub_gitea_auto_fix_module(monkeypatch, _open)
+    adapter = types.SimpleNamespace(base_url="https://tea.example/api/v1")
+    cli_review_autofix._maybe_open_auto_fix_gitea_pr(
+        _mr_args(auto_fix_base_branch="release"),
+        _result(_finding()),
+        adapter,
+    )
+    assert seen["base_branch"] == "release"
+    assert "a.py" in seen["findings_by_file"]
+    assert seen["target"].repo == "g/p"
+    assert seen["target"].pr_number == 7
+    assert seen["target"].base_url == "https://tea.example/api/v1"
+
+
+def test_auto_fix_gitea_base_branch_from_adapter(monkeypatch):
+    from prthinker import cli_review_autofix
+
+    seen = {}
+    _stub_gitea_auto_fix_module(
+        monkeypatch, lambda t, f, base_branch, r: seen.update(b=base_branch)
+    )
+    adapter = types.SimpleNamespace(
+        base_url="https://tea/api/v1",
+        fetch_base_branch=lambda: "fetched-main",
+    )
+    cli_review_autofix._maybe_open_auto_fix_gitea_pr(
+        _mr_args(auto_fix_base_branch=""), _result(_finding()), adapter
+    )
+    assert seen["b"] == "fetched-main"
+
+
+def test_auto_fix_gitea_open_error_is_swallowed(monkeypatch, caplog):
+    from prthinker import cli_review_autofix
+
+    def _raise(*a):
+        raise RuntimeError("nope")
+
+    _stub_gitea_auto_fix_module(monkeypatch, _raise)
+    adapter = types.SimpleNamespace(base_url="https://tea/api/v1")
+    with caplog.at_level("ERROR"):
+        cli_review_autofix._maybe_open_auto_fix_gitea_pr(
+            _mr_args(), _result(_finding()), adapter
+        )
+    assert any("Auto-fix failed" in r.message for r in caplog.records)
+
+
+def test_maybe_autofix_dispatches_gitea(monkeypatch):
+    from prthinker import cli_review_autofix
+    from prthinker.platforms import PlatformKind
+
+    seen = {}
+    monkeypatch.setattr(
+        cli_review_autofix, "_maybe_open_auto_fix_gitea_pr",
+        lambda args, result, adapter: seen.update(adapter=adapter),
+    )
+    adapter = types.SimpleNamespace(base_url="https://tea/api/v1")
+    args = _mr_args(dry_run=False)
+    cli_review_autofix._maybe_autofix(
+        args, _result(_finding()), PlatformKind.GITEA, adapter
+    )
+    assert seen["adapter"] is adapter
+
+
 # --- _maybe_prepend_ci_signals (adapter polymorphism) -------------------------
 
 def _ci_args(**overrides):

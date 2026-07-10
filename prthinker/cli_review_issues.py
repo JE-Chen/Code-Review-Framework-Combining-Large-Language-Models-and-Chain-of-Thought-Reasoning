@@ -5,8 +5,8 @@ Split out of :mod:`prthinker.cli_review` the same way as
 ``--auto-file-issues`` behaviour — picking which findings deserve a tracker
 issue (those falling outside the diff hunks, or all of them) and handing
 them to :mod:`prthinker.issue_autofile` through the platform's
-:class:`~prthinker.issue_tracker.IssueTracker` strategy (GitHub and GitLab
-today). Best-effort throughout: an API failure logs a warning and never
+:class:`~prthinker.issue_tracker.IssueTracker` strategy (GitHub, GitLab,
+and Gitea). Best-effort throughout: an API failure logs a warning and never
 fails the surrounding review. The dependency edge runs one way
 (``cli_review`` -> ``cli_review_issues``).
 """
@@ -47,7 +47,8 @@ def _tracker_for(args: argparse.Namespace, platform_kind: object,
     from prthinker.issue_tracker import create_issue_tracker
     from prthinker.platforms import PlatformKind
 
-    if platform_kind not in (PlatformKind.GITHUB, PlatformKind.GITLAB):
+    supported = (PlatformKind.GITHUB, PlatformKind.GITLAB, PlatformKind.GITEA)
+    if platform_kind not in supported:
         log.info("Auto-file issues not yet supported on %s — skipping",
                  getattr(platform_kind, "value", platform_kind))
         return None

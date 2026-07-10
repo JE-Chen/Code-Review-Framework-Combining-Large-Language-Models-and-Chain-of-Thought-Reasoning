@@ -201,3 +201,77 @@ def test_open_draft_mr_payload_and_result(monkeypatch) -> None:
     assert payload["title"].startswith("Draft: ")
     assert "!7" in payload["description"]
     assert client.kwargs["headers"]["PRIVATE-TOKEN"] == "t"
+
+
+# ----- Gitea draft-PR opener ----------------------------------------------
+
+def test_gitea_pr_target_default_base_url() -> None:
+    from prthinker.auto_fix import GiteaPRTarget
+
+    target = GiteaPRTarget(repo="o/r", token="t", pr_number=7)  # nosec B106 - test fixture token, not a credential
+    assert target.base_url == "https://gitea.com/api/v1"
+
+
+class _ScriptedGiteaPRClient:
+    """Stands in for httpx.Client; records the create-PR POST."""
+
+    instances: list["_ScriptedGiteaPRClient"] = []
+
+    def __init__(self, **kwargs: object) -> None:
+        self.kwargs = kwargs
+        self.posts: list[tuple[str, dict]] = []
+        _ScriptedGiteaPRClient.instances.append(self)
+
+    def __enter__(self) -> "_ScriptedGiteaPRClient":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+    def post(self, path: str, json: dict | None = None):
+        self.posts.append((path, json or {}))
+        return httpx.Response(
+            201,
+            request=httpx.Request("POST", "http://test" + path),
+            json={"number": 66, "html_url": "https://tea.example/o/r/pulls/66"},
+        )
+
+
+def test_open_draft_gitea_pr_payload_and_result(monkeypatch) -> None:
+    from prthinker import auto_fix
+    from prthinker.auto_fix import GiteaPRTarget, _open_draft_gitea_pr  # noqa: SLF001
+
+    _ScriptedGiteaPRClient.instances.clear()
+    monkeypatch.setattr(auto_fix.httpx, "Client", _ScriptedGiteaPRClient)
+
+    target = GiteaPRTarget(repo="o/r", token="t", pr_number=7)  # nosec B106 - test fixture token, not a credential
+    number, url = _open_draft_gitea_pr(
+        target=target,
+        base_branch="main",
+        head_branch="auto-fix/prthinker-pr-7",
+        total_applied=1,
+        total_skipped=0,
+        files_changed=["a.py"],
+    )
+    assert (number, url) == (66, "https://tea.example/o/r/pulls/66")
+    client = _ScriptedGiteaPRClient.instances[0]
+    path, payload = client.posts[0]
+    assert path == "/repos/o/r/pulls"
+    assert payload["head"] == "auto-fix/prthinker-pr-7"
+    assert payload["base"] == "main"
+    # Gitea has no draft flag; the WIP title prefix stands in.
+    assert payload["title"].startswith("WIP: ")
+    assert "#7" in payload["body"]
+    assert client.kwargs["headers"]["Authorization"] == "token t"
+
+
+def test_open_auto_fix_gitea_pr_none_when_nothing_applies(tmp_path) -> None:
+    # The target file is absent, so no edit lands and the flow stops
+    # before any git or network side effect.
+    from prthinker.auto_fix import GiteaPRTarget, open_auto_fix_gitea_pr
+
+    target = GiteaPRTarget(repo="o/r", token="t", pr_number=7)  # nosec B106 - test fixture token, not a credential
+    result = open_auto_fix_gitea_pr(
+        target, {"missing.py": [_f(line=1)]}, "main", tmp_path
+    )
+    assert result is None

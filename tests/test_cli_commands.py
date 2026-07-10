@@ -595,7 +595,41 @@ def test_cmd_harvest_github_stays_on_github_path(monkeypatch) -> None:
 
 def test_cmd_harvest_rejects_unsupported_platform() -> None:
     with pytest.raises(SystemExit, match="not supported"):
-        cli_commands._cmd_harvest(_harvest_args(platform="gitea"))
+        cli_commands._cmd_harvest(_harvest_args(platform="bitbucket"))
+
+
+def test_cmd_harvest_dispatches_to_gitea(monkeypatch, capsys) -> None:
+    seen = {}
+
+    def _fake(repo, token, *, store, pr_number, max_prs, base_url):
+        seen.update(repo=repo, token=token, pr_number=pr_number,
+                    max_prs=max_prs, base_url=base_url)
+        del store
+        return _fake_stats()
+
+    monkeypatch.setattr(cli_commands.gitea_harvest, "harvest", _fake)
+    rc = cli_commands._cmd_harvest(_harvest_args(platform="gitea", pr_number=9))
+    assert rc == 0
+    assert seen == {
+        "repo": "g/p", "token": "tok", "pr_number": 9, "max_prs": 50,
+        "base_url": "https://gitea.com/api/v1",
+    }
+    assert "PRs scanned: 1" in capsys.readouterr().out
+
+
+def test_cmd_harvest_accepted_gitea_honours_base_url(monkeypatch) -> None:
+    seen = {}
+
+    def _fake(repo, token, *, store, pr_number, max_prs, base_url):
+        seen.update(repo=repo, base_url=base_url)
+        del token, store, pr_number, max_prs
+        return _fake_stats()
+
+    monkeypatch.setattr(cli_commands.gitea_harvest, "harvest_accepted", _fake)
+    rc = cli_commands._cmd_harvest_accepted(_harvest_args(
+        platform="gitea", platform_base_url="https://tea.corp/api/v1"))
+    assert rc == 0
+    assert seen["base_url"] == "https://tea.corp/api/v1"
 
 
 def test_cmd_harvest_requires_repo_and_token() -> None:

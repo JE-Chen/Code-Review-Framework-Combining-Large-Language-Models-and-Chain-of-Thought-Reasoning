@@ -2,8 +2,8 @@
 
 Split out of :mod:`prthinker.cli_review` to keep that module under the
 file-length bar. These helpers group threshold-passing warning suggestions
-per file and open a draft auto-fix pull request (GitHub) or merge request
-(GitLab) for them.
+per file and open a draft auto-fix pull request (GitHub, Gitea) or merge
+request (GitLab) for them.
 
 Every step here is best-effort: a missing base branch, an unreachable API,
 or a failed apply logs and returns rather than failing the surrounding
@@ -48,6 +48,9 @@ def _maybe_autofix(
         return
     if platform_kind is PlatformKind.GITLAB:
         _maybe_open_auto_fix_mr(args, result, adapter)
+        return
+    if platform_kind is PlatformKind.GITEA:
+        _maybe_open_auto_fix_gitea_pr(args, result, adapter)
         return
     log.info("Auto-fix not yet supported on %s — skipping", platform_kind.value)
 
@@ -151,13 +154,17 @@ def _maybe_open_auto_fix_pr(
 
 
 def _resolve_mr_base_branch(args: argparse.Namespace, adapter: object) -> str | None:
-    """Return the auto-fix target branch, asking the adapter when unset."""
+    """Return the auto-fix target branch, asking the adapter when unset.
+
+    Shared by the GitLab (MR) and Gitea (PR) paths — both resolve the
+    base through the platform adapter's ``fetch_base_branch``.
+    """
     if args.auto_fix_base_branch:
         return args.auto_fix_base_branch
     try:
         return adapter.fetch_base_branch() or None
     except Exception as exc:  # noqa: BLE001 — auto-fix is best-effort
-        log.warning("Auto-fix: could not fetch MR base branch: %s", exc)
+        log.warning("Auto-fix: could not fetch base branch: %s", exc)
         return None
 
 
@@ -191,3 +198,35 @@ def _maybe_open_auto_fix_mr(
         log.error("Auto-fix failed: %s", exc)
         return
     _report_auto_fix_outcome(auto_result, "MR !")
+
+
+def _maybe_open_auto_fix_gitea_pr(
+    args: argparse.Namespace,
+    result: ReviewResult,
+    adapter: object,
+) -> None:
+    """Gitea twin of ``_maybe_open_auto_fix_pr``: open a WIP draft PR."""
+    findings_by_file = _collect_auto_fix_findings(args, result)
+    if findings_by_file is None:
+        return
+
+    base_branch = _resolve_mr_base_branch(args, adapter)
+    if base_branch is None:
+        return
+
+    from prthinker.auto_fix import GiteaPRTarget, open_auto_fix_gitea_pr
+
+    target = GiteaPRTarget(
+        repo=args.repo,
+        token=args.github_token,
+        pr_number=int(args.pr_number),
+        base_url=getattr(adapter, "base_url", "https://gitea.com/api/v1"),
+    )
+    try:
+        auto_result = open_auto_fix_gitea_pr(
+            target, findings_by_file, base_branch, Path.cwd()
+        )
+    except Exception as exc:  # noqa: BLE001 — auto-fix must never fail the review
+        log.error("Auto-fix failed: %s", exc)
+        return
+    _report_auto_fix_outcome(auto_result, "PR #")

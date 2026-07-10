@@ -17,6 +17,10 @@ close to one-to-one:
   ``POST /statuses/{sha}`` play the role. ``pending`` for open,
   ``success`` / ``failure`` for closed. We map our
   :class:`prthinker.checks.CheckResult.conclusion` onto these.
+* **CI signals** — Gitea Actions mirrors GitHub's runs / jobs / logs
+  endpoints (``GET /actions/runs`` etc.); failure signals are collected
+  fail-open so an older Gitea without those endpoints degrades to a
+  review without CI context.
 
 The constructor signature mirrors :class:`prthinker.platforms.github.GitHubAdapter`
 (``repo`` / ``token`` / ``pr_number`` / ``comment_marker`` / ``base_url``)
@@ -32,6 +36,7 @@ from typing import Any, Iterator
 import httpx
 
 from prthinker.checks import CheckResult
+from prthinker.ci_signals import FailureSignal
 from prthinker.conventional import format_inline_body
 from prthinker.dialogue import AuthorReply
 from prthinker.github_api import (
@@ -51,6 +56,16 @@ _COMMENTS_PER_PAGE = 50
 _STATUS_DESCRIPTION_MAX = 255
 _DEFAULT_LABEL_COLOR = "ededed"
 _LABEL_CREATED = 201
+_CI_RUNS_PER_PAGE = 20
+_CI_JOBS_PER_PAGE = 50
+
+# Hidden marker embedded in every prthinker inline review's body so the
+# NEXT run can identify and delete its own predecessors — same value and
+# purpose as the GitHub / GitLab adapters'. Distinct from the
+# summary-comment marker so the two never collide. Identification is by
+# marker, never by author: a bot-user filter would also sweep up reviews
+# posted by other workflows sharing the same token.
+_INLINE_REVIEW_MARKER = "<!-- prthinker:inline -->"
 
 # Gitea review verbs differ from GitHub's; map our platform-neutral
 # vocabulary onto Gitea's ``type`` field for ``POST .../reviews``.
@@ -103,7 +118,15 @@ class GiteaAdapter(PlatformAdapter):
     # ----- metadata ------------------------------------------------------
 
     def fetch_diff(self) -> str:
-        """Return the unified diff via ``GET /pulls/{n}.diff``."""
+        """Return the unified diff via ``GET /pulls/{n}.diff``.
+
+        Unlike GitHub (whose diff media type 406s past a size cap and
+        needs the files-API reconstruction fallback), Gitea streams the
+        raw ``git diff`` output with no documented size rejection — and
+        its files API (``ChangedFile``) carries no per-file ``patch``
+        text, so no per-file fallback is even possible. An oversized
+        diff therefore either streams fully or fails the review outright.
+        """
         with self._client() as client:
             response = client.get(f"{self._pr_path()}.diff")
             response.raise_for_status()
@@ -210,37 +233,78 @@ class GiteaAdapter(PlatformAdapter):
         """Create-or-update a secondary PR comment keyed by ``marker``."""
         return self._upsert_by_marker(body, marker)
 
+    def upsert_summary_comments(self, bodies: list[str]) -> list[int]:
+        """Create / update / reconcile the paginated summary comments.
+
+        Mirrors the GitHub / GitLab reconcile semantics: existing marker
+        comments (ascending id) are patched in page order, extra pages
+        are created, and leftover comments from a previous longer run
+        are deleted so stale parts never linger.
+        """
+        if not bodies:
+            return []
+        with self._client() as client:
+            existing = self._find_marker_comments(client, self.comment_marker)
+            ids: list[int] = []
+            for index, body in enumerate(bodies):
+                if index < len(existing):
+                    ids.append(self._patch_comment(client, existing[index], body))
+                else:
+                    ids.append(self._post_comment(client, body))
+            for stale_id in existing[len(bodies):]:
+                self._delete_comment(client, stale_id)
+        return ids
+
     def _upsert_by_marker(self, body: str, marker: str) -> int:
         """Update the first comment carrying ``marker``, or create one."""
         if marker not in body:
             raise ValueError("body must contain the configured comment marker")
 
         with self._client() as client:
-            existing = self._find_marker_comment(client, marker)
-            if existing is not None:
-                log.info("Gitea: updating existing comment %d", existing)
-                response = client.patch(
-                    f"/repos/{self.repo}/issues/comments/{existing}",
-                    json={"body": body},
-                )
-                response.raise_for_status()
-                return existing
+            existing = self._find_marker_comments(client, marker)
+            if existing:
+                log.info("Gitea: updating existing comment %d", existing[0])
+                return self._patch_comment(client, existing[0], body)
             log.info("Gitea: creating new comment")
-            response = client.post(
-                f"/repos/{self.repo}/issues/{self.pr_number}/comments",
-                json={"body": body},
-            )
-            response.raise_for_status()
-            return int(response.json()["id"])
+            return self._post_comment(client, body)
 
-    def _find_marker_comment(
+    def _find_marker_comments(
         self, client: httpx.Client, marker: str
-    ) -> int | None:
-        """Return the id of the first comment carrying ``marker``, else None."""
-        for comment in self._iter_comments(client):
-            if marker in (comment.get("body") or ""):
-                return int(comment["id"])
-        return None
+    ) -> list[int]:
+        """Ids of every PR comment carrying ``marker``, ascending."""
+        return sorted(
+            int(comment["id"])
+            for comment in self._iter_comments(client)
+            if marker in (comment.get("body") or "")
+        )
+
+    def _patch_comment(
+        self, client: httpx.Client, comment_id: int, body: str
+    ) -> int:
+        response = client.patch(
+            f"/repos/{self.repo}/issues/comments/{comment_id}",
+            json={"body": body},
+        )
+        response.raise_for_status()
+        return comment_id
+
+    def _post_comment(self, client: httpx.Client, body: str) -> int:
+        response = client.post(
+            f"/repos/{self.repo}/issues/{self.pr_number}/comments",
+            json={"body": body},
+        )
+        response.raise_for_status()
+        return int(response.json()["id"])
+
+    def _delete_comment(self, client: httpx.Client, comment_id: int) -> None:
+        response = client.delete(
+            f"/repos/{self.repo}/issues/comments/{comment_id}",
+        )
+        if response.status_code >= 400:
+            log.warning(
+                "Gitea: could not delete stale summary comment %d (%d)",
+                comment_id, response.status_code,
+            )
 
     def _iter_comments(self, client: httpx.Client) -> Iterator[dict]:
         """Page through the PR conversation comments, oldest first.
@@ -271,7 +335,10 @@ class GiteaAdapter(PlatformAdapter):
         that already holds the diff passes ``diff_text`` to skip the
         re-download). If the batched review is still rejected, each
         comment is retried in its own review so one bad line skips only
-        that comment instead of aborting the whole review.
+        that comment instead of aborting the whole review. Once the new
+        review has landed, the previous prthinker reviews (identified by
+        the hidden body marker — human reviews are never touched) are
+        deleted so stale inline findings don't pile up run after run.
         """
         if not findings:
             log.info("Gitea: no findings — skipping review submission")
@@ -283,18 +350,73 @@ class GiteaAdapter(PlatformAdapter):
 
         payload: dict[str, Any] = {
             "event": _EVENT_TO_GITEA.get(event, "COMMENT"),
-            "body": summary_body or "prthinker — inline findings",
+            "body": _marked_review_body(summary_body),
             "comments": [_build_inline_comment(f) for f in items],
         }
         with self._client() as client:
+            stale_ids = self._collect_stale_review_ids(client)
             review_id = self._post_review(client, payload)
             if review_id is not None:
                 log.info(
                     "Gitea: submitted review %d with %d inline comments",
                     review_id, len(items),
                 )
-                return review_id
-            return self._post_single_comment_reviews(client, items, payload)
+            else:
+                review_id = self._post_single_comment_reviews(
+                    client, items, payload,
+                )
+            if review_id is not None:
+                self._cleanup_stale_reviews(client, stale_ids)
+            return review_id
+
+    def _collect_stale_review_ids(self, client: httpx.Client) -> list[int]:
+        """Ids of previous prthinker reviews on the PR (best-effort).
+
+        Collected BEFORE the new review is posted so the fresh review can
+        never be swept up (mirrors the GitLab adapter). Identification is
+        strictly by ``_INLINE_REVIEW_MARKER`` in the review body — never
+        by author — so human reviews and other bots' reviews survive. A
+        listing failure degrades to "clean up nothing": stale reviews
+        linger but the new review still posts.
+        """
+        try:
+            return sorted(
+                int(review["id"])
+                for review in paginate(
+                    client, f"{self._pr_path()}/reviews",
+                    per_page=_COMMENTS_PER_PAGE, size_param="limit",
+                )
+                if _INLINE_REVIEW_MARKER in (review.get("body") or "")
+            )
+        except httpx.HTTPError as exc:
+            log.warning(
+                "Gitea: could not list prior reviews (%s); skipping cleanup",
+                exc,
+            )
+            return []
+
+    def _cleanup_stale_reviews(
+        self, client: httpx.Client, review_ids: list[int]
+    ) -> None:
+        """Delete the reviews left by previous prthinker runs (best-effort).
+
+        Runs AFTER the new review landed (mirroring GitHub / GitLab) so a
+        failed re-post leaves the prior run's findings intact instead of
+        wiping them first. Gitea — unlike GitHub — exposes
+        ``DELETE /pulls/{index}/reviews/{id}``, which removes the review
+        together with its inline comments in one call.
+        """
+        if not review_ids:
+            log.info("Gitea: no prior inline reviews to clean up")
+            return
+        for review_id in review_ids:
+            response = client.delete(f"{self._pr_path()}/reviews/{review_id}")
+            if response.status_code >= 400:
+                log.warning(
+                    "Gitea: could not delete stale review %d (%d)",
+                    review_id, response.status_code,
+                )
+        log.info("Gitea: cleaned up %d stale review(s)", len(review_ids))
 
     def _prefilter_findings(
         self,
@@ -354,9 +476,14 @@ class GiteaAdapter(PlatformAdapter):
         """
         first_id: int | None = None
         for finding in items:
+            # Every fallback review carries the hidden marker (followers
+            # carry only it) so the next run's cleanup catches them all.
             single = {
                 "event": payload["event"],
-                "body": payload["body"] if first_id is None else "",
+                "body": (
+                    payload["body"] if first_id is None
+                    else _INLINE_REVIEW_MARKER
+                ),
                 "comments": [_build_inline_comment(finding)],
             }
             review_id = self._post_review(client, single)
@@ -382,6 +509,98 @@ class GiteaAdapter(PlatformAdapter):
         with self._client() as client:
             comments = list(self._iter_comments(client))
         return self._replies_after_marker(comments, self.comment_marker)
+
+    # ----- CI failure signals ---------------------------------------------
+
+    def fetch_ci_failure_signals(
+        self,
+        head_sha: str,
+        *,
+        max_jobs: int = 5,
+        log_tail_chars: int = 4000,
+    ) -> list[FailureSignal]:
+        """Failed Gitea Actions jobs' log tails for the commit (fail-open).
+
+        Gitea's Actions API mirrors GitHub's: ``GET /actions/runs``
+        (filterable by ``head_sha`` / ``status``), ``GET
+        /actions/runs/{run}/jobs``, and ``GET /actions/jobs/{id}/logs``.
+        Older Gitea versions lack these endpoints, so ANY failure —
+        HTTP error, missing endpoint, unexpected payload — degrades to
+        an empty list with a debug log rather than failing the review.
+        """
+        try:
+            with self._client() as client:
+                return self._collect_failure_signals(
+                    client, head_sha, max_jobs, log_tail_chars,
+                )
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+            log.debug(
+                "Gitea: CI failure signals unavailable for %s (%s); "
+                "continuing without them", head_sha[:8], exc,
+            )
+            return []
+
+    def _collect_failure_signals(
+        self,
+        client: httpx.Client,
+        head_sha: str,
+        max_jobs: int,
+        log_tail_chars: int,
+    ) -> list[FailureSignal]:
+        """Walk failed runs → failed jobs → log tails, capped at max_jobs."""
+        signals: list[FailureSignal] = []
+        for run in self._list_failed_runs(client, head_sha):
+            if len(signals) >= max_jobs:
+                break
+            for job in self._list_failed_jobs(client, int(run["id"])):
+                if len(signals) >= max_jobs:
+                    break
+                tail = self._fetch_job_log_tail(
+                    client, int(job["id"]), log_tail_chars,
+                )
+                signals.append(_build_ci_signal(run, job, tail))
+        log.info(
+            "Gitea: collected %d failure signal(s) for %s",
+            len(signals), head_sha[:8],
+        )
+        return signals
+
+    def _list_failed_runs(
+        self, client: httpx.Client, head_sha: str
+    ) -> list[dict]:
+        response = client.get(
+            f"/repos/{self.repo}/actions/runs",
+            params={
+                "head_sha": head_sha,
+                "status": "failure",
+                "limit": _CI_RUNS_PER_PAGE,
+            },
+        )
+        response.raise_for_status()
+        runs = (response.json() or {}).get("workflow_runs") or []
+        return [r for r in runs if r.get("conclusion") == "failure"]
+
+    def _list_failed_jobs(
+        self, client: httpx.Client, run_id: int
+    ) -> list[dict]:
+        response = client.get(
+            f"/repos/{self.repo}/actions/runs/{run_id}/jobs",
+            params={"status": "failure", "limit": _CI_JOBS_PER_PAGE},
+        )
+        response.raise_for_status()
+        jobs = (response.json() or {}).get("jobs") or []
+        return [j for j in jobs if j.get("conclusion") == "failure"]
+
+    def _fetch_job_log_tail(
+        self, client: httpx.Client, job_id: int, tail_chars: int
+    ) -> str:
+        """One job's plain-text log, truncated to the tail. 404 → empty."""
+        response = client.get(f"/repos/{self.repo}/actions/jobs/{job_id}/logs")
+        if response.status_code == 404:
+            return ""
+        response.raise_for_status()
+        text = response.text
+        return text[-tail_chars:] if len(text) > tail_chars else text
 
     # ----- gate (commit status) -----------------------------------------
 
@@ -410,6 +629,24 @@ class GiteaAdapter(PlatformAdapter):
                 },
             )
             response.raise_for_status()
+
+
+def _marked_review_body(summary_body: str | None) -> str:
+    """Review body with the hidden cleanup marker appended (GitHub-style)."""
+    base = summary_body or "prthinker — inline findings"
+    return f"{base}\n\n{_INLINE_REVIEW_MARKER}"
+
+
+def _build_ci_signal(run: dict, job: dict, log_tail: str) -> FailureSignal:
+    """Assemble a FailureSignal, falling back through the run name fields."""
+    return FailureSignal(
+        workflow_name=str(
+            run.get("name") or run.get("display_title") or run.get("path") or ""
+        ),
+        job_name=str(job.get("name") or ""),
+        conclusion=str(job.get("conclusion") or "failure"),
+        log_tail=log_tail,
+    )
 
 
 def _reconcile_labels(current: list[str], labels: list[str]) -> list[str]:
