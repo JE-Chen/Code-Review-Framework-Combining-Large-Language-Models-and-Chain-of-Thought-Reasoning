@@ -22,7 +22,7 @@ from prthinker.ci_signals import (
 from prthinker.config import GitHubConfig
 from prthinker.dialogue import AuthorReply
 from prthinker.github_api import (
-    _client,
+    client_for,
     fetch_pr_commit_messages,
     fetch_pr_diff,
     fetch_pr_file_paths,
@@ -53,18 +53,19 @@ class GitHubAdapter(PlatformAdapter):
         # refetch it across calls (mirrors the GitLab adapter's _mr_cache).
         self._pr_cache: dict[str, Any] | None = None
 
-    def _gh(self) -> GitHubConfig:
+    def _gh(self, marker: str | None = None) -> GitHubConfig:
         return GitHubConfig(
             repo=self.repo,
             pr_number=self.pr_number,
             token=self.token,
-            comment_marker=self.comment_marker,
+            comment_marker=marker or self.comment_marker,
+            base_url=self.base_url,
         )
 
     def _pull(self) -> dict[str, Any]:
         """Fetch (and cache) the PR object from ``GET /repos/{repo}/pulls/{n}``."""
         if self._pr_cache is None:
-            with _client(self.token, self.base_url) as client:
+            with client_for(self._gh()) as client:
                 response = client.get(
                     f"/repos/{self.repo}/pulls/{self.pr_number}"
                 )
@@ -113,13 +114,7 @@ class GitHubAdapter(PlatformAdapter):
     def upsert_marked_comment(self, body: str, *, marker: str) -> int:
         # A distinct marker means a distinct comment: upsert keys off the
         # config's comment_marker, so swap it in for this one call.
-        cfg = GitHubConfig(
-            repo=self.repo,
-            pr_number=self.pr_number,
-            token=self.token,
-            comment_marker=marker,
-        )
-        return upsert_pr_comment(cfg, body)
+        return upsert_pr_comment(self._gh(marker), body)
 
     def submit_inline_review(
         self,
@@ -146,6 +141,7 @@ class GitHubAdapter(PlatformAdapter):
         return fetch_ci_failure_signals(
             self.repo, head_sha, self.token,
             max_jobs=max_jobs, log_tail_chars=log_tail_chars,
+            base_url=self.base_url,
         )
 
     # ----- gate ----------------------------------------------------------
@@ -169,7 +165,7 @@ class GitHubAdapter(PlatformAdapter):
         feed, ordered by ``created_at``. The marker scan and reply build
         are the base class's shared template method.
         """
-        with _client(self.token, self.base_url) as client:
+        with client_for(self._gh()) as client:
             comments = list(paginate(
                 client,
                 f"/repos/{self.repo}/issues/{self.pr_number}/comments",

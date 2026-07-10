@@ -32,10 +32,11 @@ def _install_router(
     """Patch ``_client`` to return an httpx.Client backed by a MockTransport."""
     transport = httpx.MockTransport(handler)
 
-    def fake_client(token: str) -> httpx.Client:  # noqa: ARG001 - signature parity
-        return httpx.Client(
-            base_url="https://api.github.com", transport=transport
-        )
+    def fake_client(
+        token: str,  # noqa: ARG001 - signature parity
+        base_url: str = "https://api.github.com",
+    ) -> httpx.Client:
+        return httpx.Client(base_url=base_url, transport=transport)
 
     monkeypatch.setattr(ci_signals, "_client", fake_client)
 

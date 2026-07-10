@@ -243,7 +243,7 @@ def test_upsert_comments_patches_and_deletes_orphans(monkeypatch):
         "PATCH": [_Resp(), _Resp()],
         "DELETE": [_Resp(status=204)],
     })
-    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    monkeypatch.setattr(github_api, "client_for", lambda _cfg: client)
     ids = github_api.upsert_pr_comments(_CFG, [f"{_M}\nP1", f"{_M}\nP2"])
     assert ids == [10, 11]
     assert _methods(client) == ["GET", "PATCH", "PATCH", "DELETE"]
@@ -257,7 +257,7 @@ def test_upsert_comments_creates_extra_pages(monkeypatch):
         "PATCH": [_Resp()],
         "POST": [_Resp(json_data={"id": 20}), _Resp(json_data={"id": 21})],
     })
-    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    monkeypatch.setattr(github_api, "client_for", lambda _cfg: client)
     ids = github_api.upsert_pr_comments(
         _CFG, [f"{_M}\nP1", f"{_M}\nP2", f"{_M}\nP3"]
     )
@@ -270,7 +270,7 @@ def test_upsert_comment_singular_creates_when_none(monkeypatch):
         "GET": [_Resp(json_data=[])],
         "POST": [_Resp(json_data={"id": 99})],
     })
-    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    monkeypatch.setattr(github_api, "client_for", lambda _cfg: client)
     assert github_api.upsert_pr_comment(_CFG, f"{_M}\nbody") == 99
 
 
@@ -305,7 +305,7 @@ def test_inline_review_posts_then_dismisses_excluding_new(monkeypatch):
         "GET": [_reviews(999, 888), pr_comments],
         "DELETE": [_Resp(status=204)],
     })
-    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    monkeypatch.setattr(github_api, "client_for", lambda _cfg: client)
     review_id = github_api.submit_inline_review(_CFG, [_finding(line=1)])
     assert review_id == 999
     methods = _methods(client)
@@ -319,7 +319,7 @@ def test_inline_review_posts_then_dismisses_excluding_new(monkeypatch):
 def test_inline_review_422_leaves_prior_comments_intact(monkeypatch):
     monkeypatch.setattr(github_api, "fetch_pr_diff", lambda _c: _DIFF)
     client = _ScriptedClient({"POST": [_Resp(status=422)]})
-    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    monkeypatch.setattr(github_api, "client_for", lambda _cfg: client)
     with pytest.raises(RuntimeError, match="422"):
         github_api.submit_inline_review(_CFG, [_finding(line=1)])
     # The failed post never reached the dismissal step — nothing deleted.
@@ -329,7 +329,7 @@ def test_inline_review_422_leaves_prior_comments_intact(monkeypatch):
 def test_inline_review_skips_when_all_off_diff(monkeypatch):
     monkeypatch.setattr(github_api, "fetch_pr_diff", lambda _c: _DIFF)
     client = _ScriptedClient({})
-    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    monkeypatch.setattr(github_api, "client_for", lambda _cfg: client)
     # line 999 is off every hunk → filtered out → no POST at all.
     assert github_api.submit_inline_review(_CFG, [_finding(line=999)]) is None
     assert client.requests == []
@@ -341,7 +341,7 @@ def test_inline_review_skips_when_all_off_diff(monkeypatch):
 
 def test_fetch_pr_diff_returns_text_on_200(monkeypatch):
     client = _ScriptedClient({"GET": [_Resp(text="diff --git a/x b/x\n")]})
-    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    monkeypatch.setattr(github_api, "client_for", lambda _cfg: client)
     assert github_api.fetch_pr_diff(_CFG) == "diff --git a/x b/x\n"
 
 
@@ -353,7 +353,7 @@ def test_fetch_pr_diff_406_reconstructs_from_files(monkeypatch):
         {"filename": "img.png", "status": "added"},  # binary: no patch
     ]
     client = _ScriptedClient({"GET": [_Resp(status=406), _Resp(json_data=files)]})
-    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    monkeypatch.setattr(github_api, "client_for", lambda _cfg: client)
     diff = github_api.fetch_pr_diff(_CFG)
     # Reconstructed diff is parseable by the inline diff-hunk filter.
     valid = github_api._new_side_lines(diff)
@@ -401,7 +401,7 @@ def test_fetch_pr_commit_messages_paginates(monkeypatch):
     page1 = [{"commit": {"message": f"feat: c{i}"}} for i in range(100)]
     page2 = [{"commit": {"message": "fix: last"}}]
     client = _ScriptedClient({"GET": [_Resp(json_data=page1), _Resp(json_data=page2)]})
-    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    monkeypatch.setattr(github_api, "client_for", lambda _cfg: client)
     msgs = github_api.fetch_pr_commit_messages(_CFG)
     assert len(msgs) == 101
     assert msgs[0] == "feat: c0"
@@ -419,7 +419,7 @@ def test_set_pr_labels_reconciles_keeping_human_labels(monkeypatch):
         "POST": [_Resp(status=201), _Resp(status=422)],  # ensure-label create / exists
         "PUT": [_Resp(json_data=[])],
     })
-    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    monkeypatch.setattr(github_api, "client_for", lambda _cfg: client)
     github_api.set_pr_labels(
         _CFG, ["prthinker/size-s", "prthinker/clean"],
         managed_prefix="prthinker/",
@@ -454,7 +454,7 @@ def test_upsert_pr_body_section_patches(monkeypatch):
         "GET": [_Resp(json_data={"body": "desc"})],
         "PATCH": [_Resp(json_data={})],
     })
-    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    monkeypatch.setattr(github_api, "client_for", lambda _cfg: client)
     github_api.upsert_pr_body_section(_CFG, "DIGEST")
     assert _methods(client) == ["GET", "PATCH"]
     assert "DIGEST" in client.json_by_method["PATCH"]["body"]
@@ -466,14 +466,14 @@ def test_upsert_pr_body_section_skips_when_unchanged(monkeypatch):
         "desc", "DIGEST", github_api._BODY_START, github_api._BODY_END
     )
     client = _ScriptedClient({"GET": [_Resp(json_data={"body": existing})]})
-    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    monkeypatch.setattr(github_api, "client_for", lambda _cfg: client)
     github_api.upsert_pr_body_section(_CFG, "DIGEST")
     assert "PATCH" not in _methods(client)
 
 
 def test_fetch_pr_commit_messages_empty(monkeypatch):
     client = _ScriptedClient({"GET": [_Resp(json_data=[])]})
-    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    monkeypatch.setattr(github_api, "client_for", lambda _cfg: client)
     assert github_api.fetch_pr_commit_messages(_CFG) == []
 
 
@@ -485,7 +485,7 @@ def test_reconstruct_diff_paginates(monkeypatch):
     client = _ScriptedClient({
         "GET": [_Resp(status=406), _Resp(json_data=page1), _Resp(json_data=page2)],
     })
-    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    monkeypatch.setattr(github_api, "client_for", lambda _cfg: client)
     diff = github_api.fetch_pr_diff(_CFG)
     assert "f0.py" in diff and "f99.py" in diff and "last.py" in diff
 
@@ -630,7 +630,7 @@ def test_inline_review_uses_provided_diff_text(monkeypatch):
         "POST": [_Resp(json_data={"id": 999})],
         "GET": [_reviews(999)],
     })
-    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    monkeypatch.setattr(github_api, "client_for", lambda _cfg: client)
     review_id = github_api.submit_inline_review(
         _CFG, [_finding(line=1)], diff_text=_DIFF
     )
@@ -643,7 +643,7 @@ def test_inline_review_provided_diff_text_still_filters(monkeypatch):
 
     monkeypatch.setattr(github_api, "fetch_pr_diff", _boom)
     client = _ScriptedClient({})
-    monkeypatch.setattr(github_api, "_client", lambda _t: client)
+    monkeypatch.setattr(github_api, "client_for", lambda _cfg: client)
     # Off-hunk line filtered by the provided diff -> nothing to post.
     assert github_api.submit_inline_review(
         _CFG, [_finding(line=999)], diff_text=_DIFF

@@ -249,6 +249,19 @@ def _finding(**kw: Any) -> InlineFinding:
     return InlineFinding(**base)
 
 
+# ``a.py`` has new-side lines 1-4 inside one hunk — line 3 is postable.
+_DIFF = (
+    "diff --git a/a.py b/a.py\n"
+    "--- a/a.py\n"
+    "+++ b/a.py\n"
+    "@@ -1,2 +1,4 @@\n"
+    " one\n"
+    "+two\n"
+    "+three\n"
+    " four\n"
+)
+
+
 def test_submit_inline_review_posts(monkeypatch: pytest.MonkeyPatch) -> None:
     clients = _install(monkeypatch, {
         ("POST", "/repos/o/r/pulls/7/reviews"): _Resp(json_data={"id": 314}),
@@ -256,6 +269,7 @@ def test_submit_inline_review_posts(monkeypatch: pytest.MonkeyPatch) -> None:
     findings = [_finding(comment="bug here", suggestion="fixed")]
     review_id = _adapter().submit_inline_review(
         findings, summary_body="please look", event="REQUEST_CHANGES",
+        diff_text=_DIFF,
     )
     assert review_id == 314
     post = clients[0].requests[0]
@@ -288,25 +302,123 @@ def test_submit_inline_review_default_body_and_event(
         ("POST", "/repos/o/r/pulls/7/reviews"): _Resp(json_data={"id": 1}),
     })
     _adapter().submit_inline_review(
-        [_finding()], summary_body=None, event="WEIRD",
+        [_finding()], summary_body=None, event="WEIRD", diff_text=_DIFF,
     )
     payload = clients[0].requests[0]["json"]
     assert payload["event"] == "COMMENT"  # unknown event maps to COMMENT
     assert payload["body"] == "prthinker — inline findings"
 
 
-def test_submit_inline_review_raises_on_error(
+def test_submit_inline_review_prefilters_off_diff(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install(monkeypatch, {
+    clients = _install(monkeypatch, {
+        ("POST", "/repos/o/r/pulls/7/reviews"): _Resp(json_data={"id": 2}),
+    })
+    _adapter().submit_inline_review(
+        [_finding(line=3), _finding(line=99)],
+        summary_body=None, event="COMMENT", diff_text=_DIFF,
+    )
+    comments = clients[0].requests[0]["json"]["comments"]
+    assert [c["new_position"] for c in comments] == [3]  # 99 dropped
+
+
+def test_submit_inline_review_all_off_diff_skips_post(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install(monkeypatch, {})
+    assert _adapter().submit_inline_review(
+        [_finding(line=99)], summary_body=None, event="COMMENT",
+        diff_text=_DIFF,
+    ) is None
+    assert clients == []  # filtered to nothing before any POST
+
+
+def test_submit_inline_review_fetches_diff_when_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install(monkeypatch, {
+        ("GET", "/repos/o/r/pulls/7.diff"): _Resp(text=_DIFF),
+        ("POST", "/repos/o/r/pulls/7/reviews"): _Resp(json_data={"id": 3}),
+    })
+    review_id = _adapter().submit_inline_review(
+        [_finding(line=3), _finding(line=99)],
+        summary_body=None, event="COMMENT",
+    )
+    assert review_id == 3
+    # First client fetched the diff; second posted the filtered review.
+    assert clients[0].requests[0]["url"] == "/repos/o/r/pulls/7.diff"
+    comments = clients[1].requests[0]["json"]["comments"]
+    assert [c["new_position"] for c in comments] == [3]
+
+
+def test_submit_inline_review_fail_open_on_diff_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install(monkeypatch, {
+        ("GET", "/repos/o/r/pulls/7.diff"): _Resp(text="", status_code=500),
+        ("POST", "/repos/o/r/pulls/7/reviews"): _Resp(json_data={"id": 4}),
+    })
+    review_id = _adapter().submit_inline_review(
+        [_finding(line=99)], summary_body=None, event="COMMENT",
+    )
+    assert review_id == 4  # unfiltered submission when the diff fetch fails
+    assert len(clients[1].requests[0]["json"]["comments"]) == 1
+
+
+def test_submit_inline_review_fail_open_on_hunkless_diff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install(monkeypatch, {
+        ("GET", "/repos/o/r/pulls/7.diff"): _Resp(text=""),
+        ("POST", "/repos/o/r/pulls/7/reviews"): _Resp(json_data={"id": 5}),
+    })
+    review_id = _adapter().submit_inline_review(
+        [_finding(line=99)], summary_body=None, event="COMMENT",
+    )
+    assert review_id == 5  # a hunkless diff must not drop every finding
+    assert len(clients[1].requests[0]["json"]["comments"]) == 1
+
+
+def test_submit_inline_review_falls_back_per_comment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Batch 422s; the fallback posts one review per comment: the first
+    # succeeds (carrying the summary body), the second is skipped.
+    clients = _install(monkeypatch, {
+        ("POST", "/repos/o/r/pulls/7/reviews"): [
+            _Resp(json_data={}, text="boom", status_code=422),
+            _Resp(json_data={"id": 77}),
+            _Resp(json_data={}, text="bad line", status_code=422),
+        ],
+    })
+    review_id = _adapter().submit_inline_review(
+        [_finding(line=2), _finding(line=3)],
+        summary_body="summary", event="COMMENT", diff_text=_DIFF,
+    )
+    assert review_id == 77
+    posts = clients[0].requests
+    assert len(posts) == 3
+    assert len(posts[0]["json"]["comments"]) == 2   # batch attempt
+    assert posts[1]["json"]["body"] == "summary"    # first single carries body
+    assert [c["new_position"] for c in posts[1]["json"]["comments"]] == [2]
+    assert posts[2]["json"]["body"] == ""           # follow-ups stay quiet
+    assert [c["new_position"] for c in posts[2]["json"]["comments"]] == [3]
+
+
+def test_submit_inline_review_returns_none_when_all_fail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install(monkeypatch, {
         ("POST", "/repos/o/r/pulls/7/reviews"): _Resp(
             json_data={}, text="boom", status_code=422,
         ),
     })
-    with pytest.raises(httpx.HTTPStatusError):
-        _adapter().submit_inline_review(
-            [_finding()], summary_body=None, event="COMMENT",
-        )
+    # No raise: a 4xx on every attempt degrades to "no inline review".
+    assert _adapter().submit_inline_review(
+        [_finding()], summary_body=None, event="COMMENT", diff_text=_DIFF,
+    ) is None
+    assert len(clients[0].requests) == 2  # batch + one per-comment retry
 
 
 # ----- open_gate / close_gate -------------------------------------------
@@ -418,3 +530,195 @@ def test_pr_object_fetched_once_across_meta_calls(
         1 for c in clients for r in c.requests if r["method"] == "GET"
     )
     assert total_gets == 1  # PR object cached after the first fetch
+
+
+# ----- fetch_commit_messages / fetch_changed_paths -------------------------
+
+
+def test_fetch_commit_messages_paginates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    page1 = [{"commit": {"message": f"feat: c{i}"}} for i in range(50)]
+    page2 = [{"commit": {"message": "fix: last"}}, {"sha": "no-commit-key"}]
+    clients = _install(monkeypatch, {
+        ("GET", "/repos/o/r/pulls/7/commits"): [
+            _Resp(json_data=page1), _Resp(json_data=page2),
+        ],
+    })
+    msgs = _adapter().fetch_commit_messages()
+    assert len(msgs) == 52
+    assert msgs[0] == "feat: c0"
+    assert msgs[50] == "fix: last"
+    assert msgs[51] == ""  # missing commit key degrades to empty message
+    params = [r["params"] for r in clients[0].requests]
+    assert params[0] == {"limit": 50, "page": 1}
+    assert params[1] == {"limit": 50, "page": 2}
+
+
+def test_fetch_commit_messages_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    _install(monkeypatch, {
+        ("GET", "/repos/o/r/pulls/7/commits"): _Resp(json_data=[]),
+    })
+    assert _adapter().fetch_commit_messages() == []
+
+
+def test_fetch_changed_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    _install(monkeypatch, {
+        ("GET", "/repos/o/r/pulls/7/files"): _Resp(json_data=[
+            {"filename": "a.py"}, {"filename": "b.md"}, {"status": "weird"},
+        ]),
+    })
+    # Entries without a filename are skipped rather than crashing.
+    assert _adapter().fetch_changed_paths() == ["a.py", "b.md"]
+
+
+def test_fetch_changed_paths_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    _install(monkeypatch, {
+        ("GET", "/repos/o/r/pulls/7/files"): _Resp(json_data=[]),
+    })
+    assert _adapter().fetch_changed_paths() == []
+
+
+# ----- set_labels ----------------------------------------------------------
+
+
+def test_set_labels_reconciles_keeping_human_labels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install(monkeypatch, {
+        ("GET", "/repos/o/r/issues/7/labels"): _Resp(json_data=[
+            {"name": "needs-qa"}, {"name": "prthinker/size-xl"},
+        ]),
+        ("POST", "/repos/o/r/labels"): _Resp(json_data={}, status_code=201),
+        ("PUT", "/repos/o/r/issues/7/labels"): _Resp(json_data=[]),
+    })
+    _adapter().set_labels(["prthinker/size-s", "prthinker/clean"])
+    put = next(r for r in clients[0].requests if r["method"] == "PUT")
+    applied = put["json"]["labels"]
+    assert "needs-qa" in applied                # human label preserved
+    assert "prthinker/size-s" in applied        # new managed labels
+    assert "prthinker/clean" in applied
+    assert "prthinker/size-xl" not in applied   # stale managed label dropped
+
+
+def test_set_labels_tolerates_existing_label_conflict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install(monkeypatch, {
+        ("GET", "/repos/o/r/issues/7/labels"): _Resp(json_data=[]),
+        ("POST", "/repos/o/r/labels"): _Resp(json_data={}, status_code=409),
+        ("PUT", "/repos/o/r/issues/7/labels"): _Resp(json_data=[]),
+    })
+    _adapter().set_labels(["prthinker/clean"])  # 409 create must not raise
+    assert any(r["method"] == "PUT" for r in clients[0].requests)
+
+
+def test_set_labels_invalidates_pr_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install(monkeypatch, {
+        ("GET", "/repos/o/r/pulls/7"): _Resp(json_data={"head": {"sha": "s1"}}),
+        ("GET", "/repos/o/r/issues/7/labels"): _Resp(json_data=[]),
+        ("POST", "/repos/o/r/labels"): _Resp(json_data={}, status_code=201),
+        ("PUT", "/repos/o/r/issues/7/labels"): _Resp(json_data=[]),
+    })
+    adapter = _adapter()
+    adapter.fetch_head_sha()
+    adapter.set_labels(["prthinker/clean"])
+    adapter.fetch_head_sha()
+    pr_gets = [
+        r for c in clients for r in c.requests
+        if r["method"] == "GET" and r["url"] == "/repos/o/r/pulls/7"
+    ]
+    assert len(pr_gets) == 2  # cache invalidated by the label write
+
+
+# ----- update_body_section -------------------------------------------------
+
+
+def test_update_body_section_patches_pr_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install(monkeypatch, {
+        ("GET", "/repos/o/r/pulls/7"): _Resp(json_data={"body": "desc"}),
+        ("PATCH", "/repos/o/r/pulls/7"): _Resp(json_data={}),
+    })
+    _adapter().update_body_section("DIGEST")
+    patch = next(r for r in clients[0].requests if r["method"] == "PATCH")
+    assert patch["url"] == "/repos/o/r/pulls/7"
+    assert "DIGEST" in patch["json"]["body"]
+    assert patch["json"]["body"].startswith("desc")
+
+
+def test_update_body_section_skips_when_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from prthinker.github_api import replace_marked_section
+
+    existing = replace_marked_section("desc", "DIGEST")
+    clients = _install(monkeypatch, {
+        ("GET", "/repos/o/r/pulls/7"): _Resp(json_data={"body": existing}),
+    })
+    _adapter().update_body_section("DIGEST")
+    assert all(r["method"] != "PATCH" for c in clients for r in c.requests)
+
+
+def test_update_body_section_invalidates_pr_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clients = _install(monkeypatch, {
+        ("GET", "/repos/o/r/pulls/7"): _Resp(json_data={"body": "d"}),
+        ("PATCH", "/repos/o/r/pulls/7"): _Resp(json_data={}),
+    })
+    adapter = _adapter()
+    adapter.fetch_pr_meta()
+    adapter.update_body_section("DIGEST")
+    adapter.fetch_pr_meta()
+    pr_gets = [
+        r for c in clients for r in c.requests
+        if r["method"] == "GET" and r["url"] == "/repos/o/r/pulls/7"
+    ]
+    # First meta fetch fills the cache (the body edit reuses it); the
+    # write invalidates it, so the second meta call refetches.
+    assert len(pr_gets) == 2
+
+
+# ----- upsert_marked_comment ------------------------------------------------
+
+
+def test_upsert_marked_comment_creates(monkeypatch: pytest.MonkeyPatch) -> None:
+    marker = "<!-- prthinker:aux -->"
+    clients = _install(monkeypatch, {
+        ("GET", "/repos/o/r/issues/7/comments"): _Resp(
+            json_data=[{"id": 1, "body": f"{MARKER} summary"}],
+        ),
+        ("POST", "/repos/o/r/issues/7/comments"): _Resp(json_data={"id": 55}),
+    })
+    body = f"{marker}\naux content"
+    assert _adapter().upsert_marked_comment(body, marker=marker) == 55
+    post = next(r for r in clients[0].requests if r["method"] == "POST")
+    assert post["json"] == {"body": body}
+
+
+def test_upsert_marked_comment_updates_by_its_own_marker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    marker = "<!-- prthinker:aux -->"
+    clients = _install(monkeypatch, {
+        ("GET", "/repos/o/r/issues/7/comments"): _Resp(json_data=[
+            {"id": 1, "body": f"{MARKER} summary"},   # summary must not match
+            {"id": 9, "body": f"{marker} old aux"},
+        ]),
+    })
+    body = f"{marker}\nnew aux"
+    assert _adapter().upsert_marked_comment(body, marker=marker) == 9
+    patch = next(r for r in clients[0].requests if r["method"] == "PATCH")
+    assert patch["url"] == "/repos/o/r/issues/comments/9"
+
+
+def test_upsert_marked_comment_rejects_missing_marker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install(monkeypatch, {})
+    with pytest.raises(ValueError, match="marker"):
+        _adapter().upsert_marked_comment("nope", marker="<!-- aux -->")
