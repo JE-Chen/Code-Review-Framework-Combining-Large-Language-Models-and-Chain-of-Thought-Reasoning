@@ -35,7 +35,19 @@ from prthinker.schemas import (
     InlineFinding,
     JudgeVerdict,
 )
-from prthinker.step_planner import STEP_PLAN_ADAPTIVE, TIER_SKIP, plan_steps
+from prthinker.batch_review import (
+    build_batch_prompt,
+    chunk_batchable,
+    parse_batch_findings,
+)
+from prthinker.step_planner import (
+    STEP_PLAN_ADAPTIVE,
+    TIER_SKIP,
+    TIER_STANDARD,
+    TIER_TOKEN_BUDGETS,
+    TIER_TRIVIAL,
+    plan_steps,
+)
 from prthinker.steps import (
     CounterfactualStep,
     InlineFindingsStep,
@@ -350,13 +362,18 @@ class CoTPipeline(PipelineExecutionMixin, PipelineAggregateExtrasMixin):
     ) -> _AggregatedFiles:
         """Review every file in the diff and accumulate the aggregated state."""
         agg = _AggregatedFiles()
+        batched = self._review_trivial_batches(file_diffs, opts)
+        loop_fds = [fd for fd in file_diffs if fd.path not in batched]
         if opts.parallelism > 1:
             with ThreadPoolExecutor(max_workers=opts.parallelism) as pool:
-                reviewed = list(
-                    pool.map(lambda fd: self._review_single_file(fd, opts), file_diffs)
+                loop_results = list(
+                    pool.map(lambda fd: self._review_single_file(fd, opts), loop_fds)
                 )
         else:
-            reviewed = [self._review_single_file(fd, opts) for fd in file_diffs]
+            loop_results = [self._review_single_file(fd, opts) for fd in loop_fds]
+        by_path = dict(batched)
+        by_path.update({fd.path: fr for fd, fr in zip(loop_fds, loop_results)})
+        reviewed = [by_path[fd.path] for fd in file_diffs]
         for fd, fr in zip(file_diffs, reviewed):
             agg.per_file_results.append(fr)
             agg.inline_findings.extend(fr.inline_findings)
@@ -509,6 +526,7 @@ class CoTPipeline(PipelineExecutionMixin, PipelineAggregateExtrasMixin):
                 provenance=opts.provenance,
                 reproducibility_check=opts.reproducibility_check,
             ),
+            gen_budget=TIER_TOKEN_BUDGETS.get(plan_tier),
         )
         if plan_tier:
             file_result.step_outputs["step_plan"] = plan_tier
@@ -543,6 +561,93 @@ class CoTPipeline(PipelineExecutionMixin, PipelineAggregateExtrasMixin):
             list(plan.skipped),
         )
         return plan.steps, plan.tier
+
+    def _is_batchable(self, fd: FileDiff, opts: _PerFileOptions) -> bool:
+        """Trivial-tier files whose whole plan is one findings pass batch
+        together; anything with extra steps or special handling stays in
+        the per-file loop."""
+        if fd.is_binary or fd.is_deleted:
+            return False
+        steps, tier = self._planned_steps(fd, opts)
+        return tier == TIER_TRIVIAL and [cls.name for cls in steps] == [
+            InlineFindingsStep.name
+        ]
+
+    def _review_trivial_batches(
+        self,
+        file_diffs: list[FileDiff],
+        opts: _PerFileOptions,
+    ) -> dict[str, FileReviewResult]:
+        """Review all batchable trivial files in a few merged model calls.
+
+        Returns results keyed by path; files not in the mapping go through
+        the normal per-file loop. Cache hits are honoured per file before
+        batching, and each batched file's findings are cached individually
+        so a later force-push still gets per-file differential reuse.
+        """
+        if opts.step_plan != STEP_PLAN_ADAPTIVE:
+            return {}
+        results: dict[str, FileReviewResult] = {}
+        pending: list[FileDiff] = []
+        for fd in file_diffs:
+            if not self._is_batchable(fd, opts):
+                continue
+            cache_key = self._cache_key_for(fd, opts)
+            cached = (
+                self._cached_file_result(fd, cache_key, opts)
+                if cache_key is not None
+                else None
+            )
+            if cached is not None:
+                results[fd.path] = cached
+                continue
+            pending.append(fd)
+        for chunk in chunk_batchable(pending):
+            results.update(self._run_batch_chunk(chunk, opts))
+        return results
+
+    def _run_batch_chunk(
+        self,
+        chunk: list[FileDiff],
+        opts: _PerFileOptions,
+    ) -> dict[str, FileReviewResult]:
+        """One model call reviews a chunk of trivial files."""
+        self._check_cancel()
+        log.info(
+            "step_plan: batching %d trivial file(s) into one call: %s",
+            len(chunk),
+            [fd.path for fd in chunk],
+        )
+        prompt = build_batch_prompt(chunk, opts.max_findings_per_file)
+        raw = self._backend.generate(
+            prompt,
+            max_new_tokens=min(
+                self._max_new_tokens, TIER_TOKEN_BUDGETS[TIER_STANDARD]
+            ),
+            cancel_event=self._cancel_event,
+        )
+        findings_by_path = parse_batch_findings(raw, chunk)
+        results: dict[str, FileReviewResult] = {}
+        for fd in chunk:
+            findings = suppress_phantom_undefined(
+                findings_by_path.get(fd.path, []),
+                diff_text=fd.raw,
+                path=fd.path,
+            )
+            if self._dismissed_filter is not None and findings:
+                findings = self._dismissed_filter.filter(findings)
+            file_result = self._stub_file_result(fd, findings)
+            file_result.step_outputs["step_plan"] = TIER_TRIVIAL
+            cache_key = self._cache_key_for(fd, opts)
+            if cache_key is not None:
+                opts.review_cache.put(
+                    cache_key,
+                    findings,
+                    backend=self._backend.backend_kind(),
+                    model=self._backend.model_name(),
+                )
+            results[fd.path] = file_result
+        return results
 
     def _maybe_verify(
         self,
@@ -691,6 +796,7 @@ class CoTPipeline(PipelineExecutionMixin, PipelineAggregateExtrasMixin):
         max_findings_per_file: int,
         output_dir: Path | None,
         flags: "_FileRunFlags | None" = None,
+        gen_budget: int | None = None,
     ) -> FileReviewResult:
         flags = flags or _FileRunFlags()
         with operation_span("retrieve", {"prthinker.file.path": fd.path}):
@@ -703,6 +809,7 @@ class CoTPipeline(PipelineExecutionMixin, PipelineAggregateExtrasMixin):
             fd, rag_docs, max_findings_per_file,
             positive_examples_block, flags, n_accepted_examples,
         )
+        ctx.gen_budget = gen_budget
         self._run_steps(ctx, step_classes, output_dir)
         self._split_unified_result(ctx)
 

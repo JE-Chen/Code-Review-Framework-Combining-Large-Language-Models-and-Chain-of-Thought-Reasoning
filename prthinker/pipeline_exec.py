@@ -124,7 +124,12 @@ class PipelineExecutionMixin:
         return kept
 
     def _generate_streaming(
-        self, step_name: str, prompt: str, file_path: str | None
+        self,
+        step_name: str,
+        prompt: str,
+        file_path: str | None,
+        *,
+        max_new_tokens: int | None = None,
     ) -> str:
         """Drive ``backend.stream_generate`` and mirror chunks to the sink.
 
@@ -136,7 +141,7 @@ class PipelineExecutionMixin:
         sink.write(header)
         chunks: list[str] = []
         for chunk in self._backend.stream_generate(
-            prompt, max_new_tokens=self._max_new_tokens
+            prompt, max_new_tokens=max_new_tokens or self._max_new_tokens
         ):
             chunks.append(chunk)
             sink.write(chunk)
@@ -166,6 +171,10 @@ class PipelineExecutionMixin:
         """
         step: ReviewStep = step_cls()
         prompt = step.build_prompt(ctx)
+        # Reduced review depths cap generation so a runaway decode on a
+        # small file cannot burn minutes of GPU time; None keeps the
+        # pipeline-wide budget.
+        budget = min(self._max_new_tokens, ctx.gen_budget or self._max_new_tokens)
         started = time.perf_counter()
         with operation_span(
             "invoke_agent",
@@ -173,11 +182,13 @@ class PipelineExecutionMixin:
              "prthinker.file.path": ctx.file_path or ""},
         ):
             if stream:
-                output = self._generate_streaming(step.name, prompt, ctx.file_path)
+                output = self._generate_streaming(
+                    step.name, prompt, ctx.file_path, max_new_tokens=budget
+                )
             else:
                 output = self._backend.generate(
                     prompt,
-                    max_new_tokens=self._max_new_tokens,
+                    max_new_tokens=budget,
                     cancel_event=self._cancel_event,
                 )
         if record_trajectory and self._trajectory:

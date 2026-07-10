@@ -299,9 +299,9 @@ def test_run_per_file_adaptive_scales_steps_per_file(fake_backend):
     )
     docs = _result_for(result, "README.md")
     code = _result_for(result, "mod.py")
-    assert docs.step_outputs["step_plan"] == TIER_TRIVIAL
-    assert "first_summary" not in docs.step_outputs
-    assert "inline_findings" in docs.step_outputs
+    # The trivial docs file is reviewed through the batched single-call
+    # path: parsed findings only, no per-step raw outputs.
+    assert docs.step_outputs == {"step_plan": TIER_TRIVIAL}
     assert code.step_outputs["step_plan"] == TIER_STANDARD
     assert "first_summary" not in code.step_outputs
     # Standard + inline runs the merged single-call step; its payload is

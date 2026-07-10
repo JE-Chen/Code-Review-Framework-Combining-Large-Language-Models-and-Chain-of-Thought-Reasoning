@@ -58,6 +58,14 @@ _TRIVIAL_MAX_CHANGED_LINES = 5
 _DEEP_MIN_CHANGED_LINES = 200
 _DEEP_MIN_RISK_SCORE = 0.7
 
+# Generation cap by tier: a findings array on a tiny diff never needs the
+# pipeline-wide 32K budget, and on a ~14 tok/s GPU a runaway decode is
+# minutes of wasted wall-clock. Deep tier keeps the full budget.
+TIER_TOKEN_BUDGETS: dict[str, int] = {
+    TIER_TRIVIAL: 4096,
+    TIER_STANDARD: 8192,
+}
+
 # Machine-written files nobody hand-reviews: lockfiles, minified bundles,
 # generated protobuf/snapshot artifacts, vendored trees. Reviewing them
 # wastes model calls and the findings are unactionable — the change is
@@ -254,6 +262,7 @@ __all__ = [
     "STEP_PLAN_CHOICES",
     "STEP_PLAN_FULL",
     "StepPlan",
+    "TIER_TOKEN_BUDGETS",
     "TIER_DEEP",
     "TIER_SKIP",
     "TIER_STANDARD",

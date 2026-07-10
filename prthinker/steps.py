@@ -44,6 +44,9 @@ class ReviewContext:
     # Cross-file context retrieved from the repository (empty unless the
     # pipeline was given a repo retriever); prepended to step prompts.
     repo_context_block: str = ""
+    # Per-file generation cap chosen by the step planner tier; None keeps
+    # the pipeline-wide max_new_tokens.
+    gen_budget: int | None = None
 
 
 class ReviewStep(ABC):
