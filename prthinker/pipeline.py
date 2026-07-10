@@ -249,6 +249,15 @@ class CoTPipeline(PipelineExecutionMixin, PipelineAggregateExtrasMixin):
                 max_findings_per_file=max_findings,
                 output_dir=None,
             )
+        return self._run_single_file_planned(fd, all_steps, max_findings)
+
+    def _run_single_file_planned(
+        self,
+        fd: FileDiff,
+        all_steps: tuple[type[ReviewStep], ...],
+        max_findings: int,
+    ) -> "FileReviewResult":
+        """Adaptive-depth single-file review (the remote /review path)."""
         plan = plan_steps(fd, all_steps)
         log.info(
             "step_plan: %s tier=%s steps=%s (single-file mode)",
@@ -400,16 +409,25 @@ class CoTPipeline(PipelineExecutionMixin, PipelineAggregateExtrasMixin):
             loop_results = [self._review_single_file(fd, opts) for fd in loop_fds]
         by_path = dict(batched)
         by_path.update({fd.path: fr for fd, fr in zip(loop_fds, loop_results)})
-        reviewed = [by_path[fd.path] for fd in file_diffs]
-        for fd, fr in zip(file_diffs, reviewed):
-            agg.per_file_results.append(fr)
-            agg.inline_findings.extend(fr.inline_findings)
-            agg.counterfactuals.extend(fr.counterfactuals)
-            for name, output in fr.step_outputs.items():
-                # Namespace each per-file output for the consolidated comment.
-                agg.step_outputs[f"{fd.path}::{name}"] = output
-            _invoke_on_file_done(on_file_done, fr)
+        for fd in file_diffs:
+            self._accumulate_file(agg, fd, by_path[fd.path], on_file_done)
         return agg
+
+    @staticmethod
+    def _accumulate_file(
+        agg: _AggregatedFiles,
+        fd: FileDiff,
+        fr: FileReviewResult,
+        on_file_done: "object | None",
+    ) -> None:
+        """Fold one file's result into the aggregate and fire the done hook."""
+        agg.per_file_results.append(fr)
+        agg.inline_findings.extend(fr.inline_findings)
+        agg.counterfactuals.extend(fr.counterfactuals)
+        for name, output in fr.step_outputs.items():
+            # Namespace each per-file output for the consolidated comment.
+            agg.step_outputs[f"{fd.path}::{name}"] = output
+        _invoke_on_file_done(on_file_done, fr)
 
     def _build_step_sequence(
         self,

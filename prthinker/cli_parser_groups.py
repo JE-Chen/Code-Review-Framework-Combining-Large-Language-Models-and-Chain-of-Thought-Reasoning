@@ -120,6 +120,11 @@ def add_rag_args(common: argparse.ArgumentParser) -> None:
         "--steps",
         default="",
     )
+    _add_repo_context_args(common)
+
+
+def _add_repo_context_args(common: argparse.ArgumentParser) -> None:
+    """Add the cross-file repository-context retrieval arguments."""
     common.add_argument(
         "--repo-context-strategy",
         choices=_REPO_CONTEXT_STRATEGIES,
@@ -152,6 +157,11 @@ def add_rag_args(common: argparse.ArgumentParser) -> None:
             "fixed top-k tail."
         ),
     )
+    _add_repo_context_tuning_args(common)
+
+
+def _add_repo_context_tuning_args(common: argparse.ArgumentParser) -> None:
+    """Add the block / vote / round / focus tuning knobs for repo context."""
     common.add_argument(
         "--repo-context-block-candidates",
         type=int,
@@ -234,6 +244,11 @@ def _add_per_file_toggle_args(common: argparse.ArgumentParser) -> None:
             "files keep the full sweep."
         ),
     )
+    _add_summary_display_args(common)
+
+
+def _add_summary_display_args(common: argparse.ArgumentParser) -> None:
+    """Add the summary display-filtering flags."""
     common.add_argument(
         "--findings-only",
         action="store_true",
@@ -569,6 +584,11 @@ def add_diff_cache_args(common: argparse.ArgumentParser) -> None:
         default=env_str("PRTHINKER_DIFF_CACHE_PATH", ".prthinker/diff-cache.sqlite"),
         help="SQLite file for the differential-review cache.",
     )
+    _add_verify_args(common)
+
+
+def _add_verify_args(common: argparse.ArgumentParser) -> None:
+    """Add the sandboxed suggestion-verification arguments."""
     common.add_argument(
         "--verify-suggestions",
         action="store_true",
@@ -621,6 +641,12 @@ def add_analysis_args(common: argparse.ArgumentParser) -> None:
 
 def _add_classification_args(common: argparse.ArgumentParser) -> None:
     """Add API-consistency / classification / reproducibility / dependency flags."""
+    _add_pr_classification_args(common)
+    _add_change_audit_args(common)
+
+
+def _add_pr_classification_args(common: argparse.ArgumentParser) -> None:
+    """Add the API-consistency and PR-classification flags."""
     common.add_argument(
         "--api-consistency",
         action="store_true",
@@ -647,6 +673,10 @@ def _add_classification_args(common: argparse.ArgumentParser) -> None:
             "bugfix PRs use a focused prompt with smaller budget."
         ),
     )
+
+
+def _add_change_audit_args(common: argparse.ArgumentParser) -> None:
+    """Add the reproducibility and dependency-upgrade audit flags."""
     common.add_argument(
         "--reproducibility-check",
         action="store_true",
@@ -679,6 +709,12 @@ def _add_classification_args(common: argparse.ArgumentParser) -> None:
 
 def _add_risk_args(common: argparse.ArgumentParser) -> None:
     """Add persona / risk-weighting / diff-entropy / rules-dir flags."""
+    _add_persona_risk_args(common)
+    _add_diff_signal_args(common)
+
+
+def _add_persona_risk_args(common: argparse.ArgumentParser) -> None:
+    """Add the persona and risk-weighted budget flags."""
     common.add_argument(
         "--personas",
         default=_env_str_compat("PRTHINKER_PERSONAS", "REVIEWMIND_PERSONAS", ""),
@@ -712,6 +748,10 @@ def _add_risk_args(common: argparse.ArgumentParser) -> None:
         ),
         help="Git working directory used to compute risk scores (default: cwd).",
     )
+
+
+def _add_diff_signal_args(common: argparse.ArgumentParser) -> None:
+    """Add the diff-entropy and per-repo rules-dir flags."""
     common.add_argument(
         "--diff-entropy",
         action="store_true",
@@ -887,6 +927,13 @@ def _add_report_extra_format_args(common: argparse.ArgumentParser) -> None:
 
 def _add_report_filter_args(common: argparse.ArgumentParser) -> None:
     """Add ignore-file / dedupe / confidence / review-mode flags."""
+    _add_finding_filter_args(common)
+    _add_calibration_args(common)
+    _add_review_mode_args(common)
+
+
+def _add_finding_filter_args(common: argparse.ArgumentParser) -> None:
+    """Add the ignore-file / dedupe / impact / confidence filter flags."""
     common.add_argument(
         "--ignore-file",
         default=env_str("PRTHINKER_IGNORE_FILE", ".prthinkerignore"),
@@ -915,6 +962,10 @@ def _add_report_filter_args(common: argparse.ArgumentParser) -> None:
         "threshold (0 keeps all; findings without a confidence are "
         "always kept). Use with --provenance.",
     )
+
+
+def _add_calibration_args(common: argparse.ArgumentParser) -> None:
+    """Add the confidence-calibration store flags."""
     common.add_argument("--calibration-store", default="", help="SQLite feedback calibration store")
     common.add_argument("--calibration-author", default="", help="Author key for confidence calibration")
     common.add_argument("--calibration-category", default="", help="Finding category key for calibration")
@@ -930,6 +981,10 @@ def _add_report_filter_args(common: argparse.ArgumentParser) -> None:
             "do not block the gate."
         ),
     )
+
+
+def _add_review_mode_args(common: argparse.ArgumentParser) -> None:
+    """Add the review-preset and focused review-mode flags."""
     common.add_argument(
         "--review-preset",
         choices=["none", "backend", "frontend", "security", "release"],

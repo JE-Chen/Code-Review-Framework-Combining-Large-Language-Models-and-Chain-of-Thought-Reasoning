@@ -31,6 +31,36 @@ def _read_events(path: Path) -> list[dict[str, Any]]:
     return events
 
 
+def _event_path(event: dict[str, Any]) -> str:
+    return str(event.get("path", "") or "<diff>")
+
+
+def _tally_retrievals(
+    by_path: dict[str, dict[str, int]], retrievals: list[dict[str, Any]]
+) -> None:
+    for event in retrievals:
+        metadata = event.get("metadata") or {}
+        by_path[_event_path(event)]["retrieved"] += len(metadata.get("retrieved", []))
+
+
+def _tally_uses(
+    by_path: dict[str, dict[str, int]], uses: list[dict[str, Any]]
+) -> None:
+    for event in uses:
+        metadata = event.get("metadata") or {}
+        row = by_path[_event_path(event)]
+        row["used"] += len(metadata.get("used", []))
+        row["citations"] += len(metadata.get("cited_indices", []))
+
+
+def _totals(by_path: dict[str, dict[str, int]]) -> tuple[int, int, float]:
+    """Retrieved/used totals plus the derived utilization ratio."""
+    retrieved_total = sum(row["retrieved"] for row in by_path.values())
+    used_total = sum(row["used"] for row in by_path.values())
+    utilization = used_total / retrieved_total if retrieved_total else 0.0
+    return retrieved_total, used_total, utilization
+
+
 def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
     """Aggregate trajectory events without exposing prompt/code content."""
     by_event = Counter(str(event.get("event", "")) for event in events)
@@ -39,18 +69,9 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
     by_path: dict[str, dict[str, int]] = defaultdict(
         lambda: {"retrieved": 0, "used": 0, "citations": 0}
     )
-    for event in retrievals:
-        path = str(event.get("path", "") or "<diff>")
-        metadata = event.get("metadata") or {}
-        by_path[path]["retrieved"] += len(metadata.get("retrieved", []))
-    for event in uses:
-        path = str(event.get("path", "") or "<diff>")
-        metadata = event.get("metadata") or {}
-        by_path[path]["used"] += len(metadata.get("used", []))
-        by_path[path]["citations"] += len(metadata.get("cited_indices", []))
-    retrieved_total = sum(row["retrieved"] for row in by_path.values())
-    used_total = sum(row["used"] for row in by_path.values())
-    utilization = used_total / retrieved_total if retrieved_total else 0.0
+    _tally_retrievals(by_path, retrievals)
+    _tally_uses(by_path, uses)
+    retrieved_total, used_total, utilization = _totals(by_path)
     return {
         "events": len(events),
         "by_event": dict(by_event),

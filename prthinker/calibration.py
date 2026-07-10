@@ -34,6 +34,26 @@ def _f1_at(threshold, scored_labels):
     return 2 * tp / denom if denom else 0
 
 
+def _f1(true_pos, false_pos, false_neg):
+    """F1 from confusion counts; 0 when there is nothing to score."""
+    denom = 2 * true_pos + false_pos + false_neg
+    return 2 * true_pos / denom if denom else 0
+
+
+def _consume_tied_scores(pairs, index, true_pos, false_pos):
+    """Fold every pair tied at ``pairs[index]``'s score into tp/fp.
+
+    Returns ``(threshold, next_index, true_pos, false_pos)`` so the sweep
+    in :func:`select_threshold` can evaluate F1 once per unique score.
+    """
+    threshold = pairs[index][0]
+    while index < len(pairs) and pairs[index][0] == threshold:
+        true_pos += 1 if pairs[index][1] else 0
+        false_pos += 0 if pairs[index][1] else 1
+        index += 1
+    return threshold, index, true_pos, false_pos
+
+
 def select_threshold(scored_labels):
     """Score threshold maximising F1, smallest such threshold on ties.
 
@@ -50,13 +70,10 @@ def select_threshold(scored_labels):
     best_threshold, best_f1 = 0.0, -1.0
     true_pos = false_pos = index = 0
     while index < len(pairs):
-        threshold = pairs[index][0]
-        while index < len(pairs) and pairs[index][0] == threshold:
-            true_pos += 1 if pairs[index][1] else 0
-            false_pos += 0 if pairs[index][1] else 1
-            index += 1
-        denom = 2 * true_pos + false_pos + (total_positive - true_pos)
-        f1 = 2 * true_pos / denom if denom else 0
+        threshold, index, true_pos, false_pos = _consume_tied_scores(
+            pairs, index, true_pos, false_pos
+        )
+        f1 = _f1(true_pos, false_pos, total_positive - true_pos)
         if f1 >= best_f1:
             best_threshold, best_f1 = threshold, f1
     return best_threshold

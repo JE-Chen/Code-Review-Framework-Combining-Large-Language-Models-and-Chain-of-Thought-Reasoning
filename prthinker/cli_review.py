@@ -191,45 +191,79 @@ def _build_retriever(args: argparse.Namespace, config: Config) -> RAGRetriever:
     return FaissRAGRetriever(threshold=config.rag_threshold)
 
 
+_KEEP_RATIO_STRATEGIES = frozenset({"lexical", "structural", "graph", "query_rewrite"})
+
+
 def _repo_context_options(args: argparse.Namespace, backend: object) -> dict:
     """Translate repo-context CLI flags into factory kwargs for one strategy."""
     strategy = getattr(args, "repo_context_strategy", "none") or "none"
-    top_k = max(1, int(getattr(args, "repo_context_top_k", 10) or 10))
+    builders = {
+        "semantic": _semantic_context_options,
+        "rerank": _rerank_context_options,
+        "block_rerank": _block_rerank_context_options,
+        "iterative": _iterative_context_options,
+    }
+    builder = builders.get(strategy, _default_context_options)
+    return builder(args, backend)
+
+
+def _context_top_k(args: argparse.Namespace) -> int:
+    """Clamp the repo-context top-k flag to a positive int."""
+    return max(1, int(getattr(args, "repo_context_top_k", 10) or 10))
+
+
+def _context_votes(args: argparse.Namespace) -> int:
+    """Clamp the repo-context self-consistency vote count to a positive int."""
+    return max(1, int(getattr(args, "repo_context_votes", 1) or 1))
+
+
+def _context_block_candidates(args: argparse.Namespace) -> int:
+    """Clamp the repo-context block-candidate count to a positive int."""
+    return max(1, int(getattr(args, "repo_context_block_candidates", 6) or 6))
+
+
+def _default_context_options(args: argparse.Namespace, _backend: object) -> dict:
+    """Build top-k kwargs, with keep-ratio for the lexical-family strategies."""
+    strategy = getattr(args, "repo_context_strategy", "none") or "none"
     keep_ratio = float(getattr(args, "repo_context_keep_ratio", 0) or 0)
-    common = {"top_k": top_k}
-    if strategy in {"lexical", "structural", "graph", "query_rewrite"}:
-        if keep_ratio > 0:
-            common["keep_ratio"] = keep_ratio
-    if strategy in {"semantic"}:
-        return {"top_k": top_k}
-    if strategy in {"rerank"}:
-        return {
-            "backend": backend,
-            "votes": max(1, int(getattr(args, "repo_context_votes", 1) or 1)),
-        }
-    if strategy in {"block_rerank"}:
-        return {
-            "backend": backend,
-            "block_candidates": max(
-                1, int(getattr(args, "repo_context_block_candidates", 6) or 6)
-            ),
-            "focus_lines": _positive_or_none(
-                getattr(args, "repo_context_focus_lines", 0)
-            ),
-            "votes": max(1, int(getattr(args, "repo_context_votes", 1) or 1)),
-        }
-    if strategy in {"iterative"}:
-        return {
-            "backend": backend,
-            "rounds": max(1, int(getattr(args, "repo_context_rounds", 3) or 3)),
-            "block_candidates": max(
-                1, int(getattr(args, "repo_context_block_candidates", 6) or 6)
-            ),
-            "focus_lines": _positive_or_none(
-                getattr(args, "repo_context_focus_lines", 0)
-            ),
-        }
-    return common
+    options: dict = {"top_k": _context_top_k(args)}
+    if strategy in _KEEP_RATIO_STRATEGIES and keep_ratio > 0:
+        options["keep_ratio"] = keep_ratio
+    return options
+
+
+def _semantic_context_options(args: argparse.Namespace, _backend: object) -> dict:
+    """Build factory kwargs for the semantic strategy."""
+    return {"top_k": _context_top_k(args)}
+
+
+def _rerank_context_options(args: argparse.Namespace, backend: object) -> dict:
+    """Build factory kwargs for the model-in-the-loop rerank strategy."""
+    return {"backend": backend, "votes": _context_votes(args)}
+
+
+def _block_rerank_context_options(args: argparse.Namespace, backend: object) -> dict:
+    """Build factory kwargs for the block-level rerank strategy."""
+    return {
+        "backend": backend,
+        "block_candidates": _context_block_candidates(args),
+        "focus_lines": _positive_or_none(
+            getattr(args, "repo_context_focus_lines", 0)
+        ),
+        "votes": _context_votes(args),
+    }
+
+
+def _iterative_context_options(args: argparse.Namespace, backend: object) -> dict:
+    """Build factory kwargs for the iterative repo-context strategy."""
+    return {
+        "backend": backend,
+        "rounds": max(1, int(getattr(args, "repo_context_rounds", 3) or 3)),
+        "block_candidates": _context_block_candidates(args),
+        "focus_lines": _positive_or_none(
+            getattr(args, "repo_context_focus_lines", 0)
+        ),
+    }
 
 
 def _positive_or_none(value: object) -> int | None:

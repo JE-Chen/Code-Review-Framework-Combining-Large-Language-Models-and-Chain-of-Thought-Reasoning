@@ -150,26 +150,9 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
     job to do the GitHub-side posting exactly once.
     """
     input_dir = _validate_aggregate_args(args)
-
-    # Walk the dir recursively so artifact-download layouts (which often
-    # nest one folder per matrix iteration) are handled without extra
-    # wiring on the workflow side.
-    json_paths = sorted(input_dir.rglob("*.json"))
-    if not json_paths:
-        log.warning("No *.json found under %s — nothing to aggregate", input_dir)
+    merged = _load_merged_partials(input_dir)
+    if merged is None:
         return 0
-
-    merged = merge_partial_reviews(json_paths)
-    log.info(
-        "Aggregated %d partial(s): files=%d findings=%d",
-        len(json_paths),
-        len(merged.per_file),
-        len(merged.inline_findings),
-    )
-
-    overall = _synthesize_overall_summary(merged.per_file)
-    if overall:
-        merged.step_outputs["total_summary"] = overall
 
     adapter = build_platform_adapter(args)
 
@@ -193,6 +176,32 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
     _maybe_update_pr_body(args, adapter, merged)
 
     return 0
+
+
+def _load_merged_partials(input_dir: Path) -> ReviewResult | None:
+    """Merge the partial review JSONs under ``input_dir``; None when empty.
+
+    Walks the dir recursively so artifact-download layouts (which often
+    nest one folder per matrix iteration) are handled without extra
+    wiring on the workflow side.
+    """
+    json_paths = sorted(input_dir.rglob("*.json"))
+    if not json_paths:
+        log.warning("No *.json found under %s — nothing to aggregate", input_dir)
+        return None
+
+    merged = merge_partial_reviews(json_paths)
+    log.info(
+        "Aggregated %d partial(s): files=%d findings=%d",
+        len(json_paths),
+        len(merged.per_file),
+        len(merged.inline_findings),
+    )
+
+    overall = _synthesize_overall_summary(merged.per_file)
+    if overall:
+        merged.step_outputs["total_summary"] = overall
+    return merged
 
 
 def _aggregate_comment_pages(

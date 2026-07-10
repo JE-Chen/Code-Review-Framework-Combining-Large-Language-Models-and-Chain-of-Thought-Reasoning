@@ -36,7 +36,9 @@ log = logging.getLogger(__name__)
 class JsonlRow(Protocol):
     """A corpus row that serialises itself to one JSONL line."""
 
-    def to_jsonl(self) -> str: ...
+    def to_jsonl(self) -> str:
+        """Serialise this row to a single JSONL line."""
+        ...
 
 
 class CommentRow(Protocol):

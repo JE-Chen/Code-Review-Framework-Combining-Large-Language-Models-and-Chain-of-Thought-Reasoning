@@ -68,37 +68,59 @@ def _count_docs(result: "ReviewResult") -> int:
     return len(docs)
 
 
+@dataclass
+class _RollupCounters:
+    """Mutable accumulators threaded through the per-finding tally loop."""
+
+    verification: Counter = field(
+        default_factory=lambda: Counter({status: 0 for status in _VERIFICATION_STATUSES})
+    )
+    evidence: Counter = field(
+        default_factory=lambda: Counter({status: 0 for status in _EVIDENCE_STATUSES})
+    )
+    evidence_kinds: Counter = field(default_factory=Counter)
+    suggestions: int = 0
+    provenance_backed: int = 0
+    confidence_scored: int = 0
+    rag_cited: int = 0
+
+
+def _tally_provenance(counters: _RollupCounters, provenance) -> None:
+    if provenance.citations:
+        counters.provenance_backed += 1
+    if provenance.confidence is not None:
+        counters.confidence_scored += 1
+    if any(citation.kind == "rag_rule" for citation in provenance.citations):
+        counters.rag_cited += 1
+
+
+def _tally_finding(counters: _RollupCounters, finding: "InlineFinding") -> None:
+    if finding.suggestion:
+        counters.suggestions += 1
+    if finding.verification is not None:
+        counters.verification[finding.verification.status] += 1
+    if finding.provenance is not None:
+        _tally_provenance(counters, finding.provenance)
+    for item in finding.evidence:
+        counters.evidence[item.status] += 1
+        counters.evidence_kinds[item.kind] += 1
+
+
 def rollup_review(result: "ReviewResult") -> ReviewRollup:
     """Return a compact audit-signal rollup for reports and PR summaries."""
     findings = all_findings(result)
-    verification = Counter({status: 0 for status in _VERIFICATION_STATUSES})
-    evidence = Counter({status: 0 for status in _EVIDENCE_STATUSES})
-    evidence_kinds: Counter[str] = Counter()
-    suggestions = provenance_backed = confidence_scored = rag_cited = 0
+    counters = _RollupCounters()
     for finding in findings:
-        if finding.suggestion:
-            suggestions += 1
-        if finding.verification is not None:
-            verification[finding.verification.status] += 1
-        if finding.provenance is not None:
-            if finding.provenance.citations:
-                provenance_backed += 1
-            if finding.provenance.confidence is not None:
-                confidence_scored += 1
-            if any(citation.kind == "rag_rule" for citation in finding.provenance.citations):
-                rag_cited += 1
-        for item in finding.evidence:
-            evidence[item.status] += 1
-            evidence_kinds[item.kind] += 1
+        _tally_finding(counters, finding)
     return ReviewRollup(
         findings=len(findings),
-        suggestions=suggestions,
-        verification=dict(verification),
-        evidence=dict(evidence),
-        evidence_kinds=dict(evidence_kinds),
-        provenance_backed=provenance_backed,
-        confidence_scored=confidence_scored,
-        rag_cited=rag_cited,
+        suggestions=counters.suggestions,
+        verification=dict(counters.verification),
+        evidence=dict(counters.evidence),
+        evidence_kinds=dict(counters.evidence_kinds),
+        provenance_backed=counters.provenance_backed,
+        confidence_scored=counters.confidence_scored,
+        rag_cited=counters.rag_cited,
         retrieved_docs=_count_docs(result),
     )
 

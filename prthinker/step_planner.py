@@ -113,18 +113,24 @@ def changed_line_count(fd: "FileDiff") -> int:
     return count
 
 
-def is_whitespace_only_change(fd: "FileDiff") -> bool:
-    """True when every added line differs from some removed line only in
-    whitespace — reformatting with no content change."""
+def _normalized_change_sides(raw: str) -> tuple[list[str], set[str]]:
+    """Whitespace-stripped added lines and the set of removed lines."""
     added: list[str] = []
     removed: set[str] = set()
-    for line in fd.raw.splitlines():
+    for line in raw.splitlines():
         if line.startswith("+++") or line.startswith("---"):
             continue
         if line.startswith("+"):
             added.append("".join(line[1:].split()))
         elif line.startswith("-"):
             removed.add("".join(line[1:].split()))
+    return added, removed
+
+
+def is_whitespace_only_change(fd: "FileDiff") -> bool:
+    """True when every added line differs from some removed line only in
+    whitespace — reformatting with no content change."""
+    added, removed = _normalized_change_sides(fd.raw)
     if not added and not removed:
         return False
     return all(content in removed for content in added)
@@ -172,12 +178,19 @@ def plan_steps(
     if tier == TIER_DEEP:
         return StepPlan(tier=tier, steps=tuple(all_steps), skipped=())
     if tier == TIER_SKIP:
-        skipped = tuple(cls.name for cls in all_steps)
-        return StepPlan(tier=tier, steps=(), skipped=skipped)
+        return _finalize_plan(tier, all_steps, [])
     keep = _ALWAYS_KEEP if tier == TIER_TRIVIAL else _STANDARD_KEEP
     candidates = [cls for cls in all_steps if cls.name in keep]
     candidates = _substitute_reduced_review(all_steps, candidates, tier)
-    kept = _enforce_dependencies(candidates)
+    return _finalize_plan(tier, all_steps, _enforce_dependencies(candidates))
+
+
+def _finalize_plan(
+    tier: str,
+    all_steps: tuple[type["ReviewStep"], ...],
+    kept: list[type["ReviewStep"]],
+) -> StepPlan:
+    """Assemble the plan, deriving the skipped list from what was kept."""
     kept_names = {cls.name for cls in kept}
     skipped = tuple(cls.name for cls in all_steps if cls.name not in kept_names)
     return StepPlan(tier=tier, steps=tuple(kept), skipped=skipped)

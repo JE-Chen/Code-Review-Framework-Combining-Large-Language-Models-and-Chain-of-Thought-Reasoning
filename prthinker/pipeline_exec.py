@@ -191,20 +191,32 @@ class PipelineExecutionMixin:
                     max_new_tokens=budget,
                     cancel_event=self._cancel_event,
                 )
-        if record_trajectory and self._trajectory:
-            self._trajectory.record(
-                "step",
-                content=prompt,
-                path=ctx.file_path,
-                tool=step.name,
-                status="ok",
-                duration_ms=(time.perf_counter() - started) * 1000,
-            )
+        if record_trajectory:
+            self._record_step_trajectory(step.name, prompt, ctx, started)
         if output_dir is not None:
             (output_dir / f"{step.name}_result.md").write_text(
                 output, encoding="utf-8"
             )
         return self._cap_step_result(output)
+
+    def _record_step_trajectory(
+        self,
+        step_name: str,
+        prompt: str,
+        ctx: ReviewContext,
+        started: float,
+    ) -> None:
+        """Append the step's trajectory event when a sink is attached."""
+        if not self._trajectory:
+            return
+        self._trajectory.record(
+            "step",
+            content=prompt,
+            path=ctx.file_path,
+            tool=step_name,
+            status="ok",
+            duration_ms=(time.perf_counter() - started) * 1000,
+        )
 
     def _run_steps(
         self,

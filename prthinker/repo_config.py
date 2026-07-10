@@ -183,13 +183,9 @@ def load_repo_config(path: Path) -> RepoConfig:
     return RepoConfig.model_validate(data)
 
 
-def to_argparse_defaults(cfg: RepoConfig) -> dict[str, Any]:
-    """Map a ``RepoConfig`` to the dict of argparse ``--flag`` defaults.
-
-    Keys match argparse ``dest`` (``--max-new-tokens`` → ``max_new_tokens``).
-    The CLI calls ``set_defaults(**values)`` so user args still win.
-    """
-    flat: dict[str, Any] = {
+def _review_defaults(cfg: RepoConfig) -> dict[str, Any]:
+    """Build the review-behaviour + RAG + repo-context argparse defaults."""
+    return {
         "backend": cfg.backend,
         "max_new_tokens": cfg.max_new_tokens,
         "per_file": cfg.per_file,
@@ -211,6 +207,13 @@ def to_argparse_defaults(cfg: RepoConfig) -> dict[str, Any]:
         "include_ci_signals": cfg.ci_signals.enabled,
         "ci_signal_max_jobs": cfg.ci_signals.max_jobs,
         "ci_signal_tail_chars": cfg.ci_signals.tail_chars,
+        "review_preset": cfg.review_preset,
+    }
+
+
+def _bookkeeping_defaults(cfg: RepoConfig) -> dict[str, Any]:
+    """Build the cache / telemetry / calibration argparse defaults."""
+    return {
         "cache_enabled": cfg.cache.enabled,
         "cache_path": cfg.cache.path,
         "cache_ttl_days": cfg.cache.ttl_days,
@@ -222,7 +225,12 @@ def to_argparse_defaults(cfg: RepoConfig) -> dict[str, Any]:
         "calibration_min_samples": cfg.calibration.minimum_samples,
         "calibration_half_life_days": cfg.calibration.half_life_days,
         "calibration_gate": cfg.calibration.gate,
-        "review_preset": cfg.review_preset,
+    }
+
+
+def _backend_defaults(cfg: RepoConfig) -> dict[str, Any]:
+    """Build the per-provider backend argparse defaults."""
+    return {
         "model_name": cfg.local.model,
         "lora_path": cfg.local.lora_path,
         "openai_model": cfg.openai.model,
@@ -234,6 +242,19 @@ def to_argparse_defaults(cfg: RepoConfig) -> dict[str, Any]:
         "remote_url": cfg.remote.url,
         "remote_timeout": cfg.remote.timeout_seconds,
         "use_remote_pipeline": cfg.remote.use_pipeline_endpoint,
+    }
+
+
+def to_argparse_defaults(cfg: RepoConfig) -> dict[str, Any]:
+    """Map a ``RepoConfig`` to the dict of argparse ``--flag`` defaults.
+
+    Keys match argparse ``dest`` (``--max-new-tokens`` → ``max_new_tokens``).
+    The CLI calls ``set_defaults(**values)`` so user args still win.
+    """
+    flat: dict[str, Any] = {
+        **_review_defaults(cfg),
+        **_bookkeeping_defaults(cfg),
+        **_backend_defaults(cfg),
     }
     if cfg.rag.rules_dir is not None:
         flat["rules_dir"] = Path(cfg.rag.rules_dir)

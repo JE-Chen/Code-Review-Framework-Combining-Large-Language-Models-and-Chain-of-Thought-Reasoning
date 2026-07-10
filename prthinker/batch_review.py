@@ -65,6 +65,21 @@ def build_batch_prompt(fds: list["FileDiff"], max_findings: int) -> str:
     )
 
 
+def _group_items_by_path(items: list, by_path: dict[str, list[dict]]) -> None:
+    """Route raw findings into ``by_path`` buckets, logging unknown paths."""
+    dropped = 0
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        path = item.get("path")
+        if path not in by_path:
+            dropped += 1
+            continue
+        by_path[path].append(item)
+    if dropped:
+        log.warning("Batched findings: dropped %d finding(s) with unknown path", dropped)
+
+
 def parse_batch_findings(
     raw: str,
     fds: list["FileDiff"],
@@ -82,17 +97,7 @@ def parse_batch_findings(
     items = parsed.data if isinstance(parsed.data, list) else []
     if not items and parsed.data is None:
         log.warning("Batched findings payload did not parse; treating as empty")
-    dropped = 0
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        path = item.get("path")
-        if path not in by_path:
-            dropped += 1
-            continue
-        by_path[path].append(item)
-    if dropped:
-        log.warning("Batched findings: dropped %d finding(s) with unknown path", dropped)
+    _group_items_by_path(items, by_path)
     return {
         fd.path: parse_inline_findings(
             json.dumps(by_path[fd.path], ensure_ascii=False),

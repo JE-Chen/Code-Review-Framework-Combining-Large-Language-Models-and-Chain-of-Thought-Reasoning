@@ -115,24 +115,38 @@ def _effort_estimate_minutes(result: ReviewResult) -> int:
     return minutes
 
 
+def _suggestions_line(rollup: ReviewRollup) -> str | None:
+    """The suggestion-aggregate digest line, or ``None`` when empty."""
+    if not rollup.suggestions:
+        return None
+    extra = f" · {rollup.verified_pass} sandbox-verified" if rollup.verified_pass else ""
+    return f"- **Suggestions:** {rollup.suggestions} one-click fix(es){extra}"
+
+
+def _audit_signals_line(rollup: ReviewRollup) -> str | None:
+    """The audit-signals digest line, or ``None`` when there are none."""
+    if not (rollup.evidence_backed or rollup.provenance_backed or rollup.rag_cited):
+        return None
+    return (
+        "- **Audit signals:** "
+        f"{rollup.evidence_backed} evidence-confirmed · "
+        f"{rollup.provenance_backed} provenance-backed · "
+        f"{rollup.rag_cited} RAG-cited"
+    )
+
+
 def _overview_extra_lines(
     result: ReviewResult,
     with_findings: int,
     rollup: ReviewRollup | None = None,
 ) -> list[str]:
     """Suggestion-aggregate and review-effort digest lines."""
-    lines: list[str] = []
     rollup = rollup if rollup is not None else rollup_review(result)
-    if rollup.suggestions:
-        extra = f" · {rollup.verified_pass} sandbox-verified" if rollup.verified_pass else ""
-        lines.append(f"- **Suggestions:** {rollup.suggestions} one-click fix(es){extra}")
-    if rollup.evidence_backed or rollup.provenance_backed or rollup.rag_cited:
-        lines.append(
-            "- **Audit signals:** "
-            f"{rollup.evidence_backed} evidence-confirmed · "
-            f"{rollup.provenance_backed} provenance-backed · "
-            f"{rollup.rag_cited} RAG-cited"
-        )
+    lines = [
+        line
+        for line in (_suggestions_line(rollup), _audit_signals_line(rollup))
+        if line is not None
+    ]
     if rollup.verification and any(rollup.verification.values()):
         # Same wording as every other renderer — formatted from the shared
         # rollup rows so the digest can never drift from the reports.
