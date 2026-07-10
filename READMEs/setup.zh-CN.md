@@ -438,6 +438,12 @@ on:
 `enumerate` job 与 CLI 的 per-file loop 都读同一份，避免 generated
 data、IDE state、大段 markdown 变更白白吃 GPU 时间。可按项目调整。
 
+**自适应 review 深度。** Workflow 的 `review` job env 设
+`PRTHINKER_STEP_PLAN: "adaptive"`\ ，每个 matrix shard 会要求 server
+依其负责的文件缩放 CoT 链（skip / trivial / standard / deep），而不是
+永远跑完整五步 sweep。\ `step_plan` 字段在 wire format 中为可选：较旧
+的已部署 server 会无害地忽略它并保持完整链。
+
 **Backend timeout 防护。** Matrix runner 用
 `POST /review/submit` + `GET /review/result/{id}`\ （5 秒 poll）
 跟 backend 通讯──每个 HTTP call 都远低于 1 秒，所以
@@ -564,6 +570,24 @@ prthinker stats --since-days 7
 | `--personas`               | `PRTHINKER_PERSONAS`                | 空   | 每 PR 多 N× backend + 1 conflict step |
 | `--risk-weighted`          | `PRTHINKER_RISK_WEIGHTED`           | 关闭 | 少量 `git log` 调用            |
 | `--diff-entropy`           | `PRTHINKER_DIFF_ENTROPY`            | 关闭 | 纯 CPU，无 backend 调用        |
+
+上表未列到的较新 flag 与其 env var：
+
+| 环境变量 | CLI flag | 值 / 默认 |
+|---|---|---|
+| `PRTHINKER_STEP_PLAN` | `--step-plan` | `full`\ （默认）\| `adaptive`\ ──per-file review 深度 |
+| `PRTHINKER_REPO_CONTEXT_STRATEGY` | `--repo-context-strategy` | `none`\ （默认）或八种检索 strategy 之一（\ `lexical` / `semantic` / `structural` / `graph` / `rerank` / `block_rerank` / `iterative` / `query_rewrite`\ ） |
+| `PRTHINKER_REPO_CONTEXT_WORKDIR` / `_TOP_K` / `_KEEP_RATIO` / `_BLOCK_CANDIDATES` / `_VOTES` / `_ROUNDS` / `_FOCUS_LINES` | `--repo-context-*` 调优旋钮 | `.` / 10 / 0.0 / 6 / 1 / 3 / 0 |
+| `PRTHINKER_VERIFY_CMD` | `--verify-cmd` | `pytest -x` |
+| `PRTHINKER_VERIFY_TIMEOUT` | `--verify-timeout` | 60（秒） |
+| `PRTHINKER_VERIFY_WORKDIR` | `--verify-workdir` | `.`\ （cwd） |
+| `PRTHINKER_CALIBRATION_GATE` | `--calibration-gate` | 关闭──合并 gate 的校准弃权 |
+
+`PRTHINKER_*` 名称优先于旧版 `REVIEWMIND_*` 写法；两者对 verify 变量
+（\ `VERIFY_SUGGESTIONS` / `VERIFY_CMD` / `VERIFY_TIMEOUT` /
+`VERIFY_WORKDIR`\ ）以及 `API_CONSISTENCY`\ 、\ `PR_CLASSIFY`\ 、
+`REPRODUCIBILITY_CHECK`\ 、\ `DEP_UPGRADE_CHECK`\ 、\ `PERSONAS`\ 、
+`RISK_WEIGHTED`\ 、\ `RISK_WORKDIR`\ 、\ `DIFF_ENTROPY` 都仍然接受。
 
 ### 闭环多轮对话──`--reply-to-author`
 

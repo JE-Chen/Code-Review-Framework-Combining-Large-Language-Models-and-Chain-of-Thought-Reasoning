@@ -30,6 +30,9 @@ review-pr
        [--no-rag] [--remote-rag] [--rag-threshold 0.7]
        [--rules-dir PATH]
        [--per-file] [--inline-review] [--max-findings-per-file 10]
+       [--step-plan {full,adaptive}]
+       [--review-preset {none,backend,frontend,security,release}]
+       [--repo-context-strategy STRATEGY] [--calibration-gate]
        [--reply-to-author] [--counterfactual] [--provenance]
        [--diff-since-last] [--diff-cache-path PATH]
        [--verify-suggestions] [--verify-cmd CMD] [--verify-timeout 60] [--verify-workdir PATH]
@@ -203,6 +206,81 @@ review-pr
    自动开的 issue 要套的标签\ ，逗号分隔（默认 ``prthinker``）\ 。
    环境变量：``PRTHINKER_ISSUE_LABELS``\ 。
 
+.. option:: --step-plan {full,adaptive}
+
+   逐文件审查深度\ 。\ ``full``\ （默认）对每个文件跑完所有已配置的
+   step\ ；\ ``adaptive`` 让链的深度随文件缩放：
+
+   * **skip** —— lockfile\ 、生成／vendored／minified 产物与纯空白
+     重排版：零模型调用\ 。
+   * **trivial** —— 文档／配置文件（``.md``\ 、\ ``.rst``\ 、
+     ``.json``\ 、\ ``.yaml`` ……）或变更 ≤ 5 行之 diff：批次
+     findings-only pass\ ，一次模型调用最多合并 6 个文件或 24K
+     字符之 diff\ 。
+   * **standard** —— 其余文件跑单一 ``unified_review`` 调用\ ，一次
+     返回 findings\ 、简短 summary 与 verdict\ 。
+   * **deep** —— 变更 ≥ 200 行\ 、或 ``--risk-weighted`` 启用时
+     risk 分数 ≥ 0.7 之文件\ ，保留完整已配置之链\ 。
+
+   缩减 tier 同时封顶生成预算（trivial 4096／standard 8192
+   tokens）\ ；deep 保留完整 ``--max-new-tokens`` 预算\ 。环境变量：
+   ``PRTHINKER_STEP_PLAN``\ 。
+
+.. option:: --review-preset {none,backend,frontend,security,release}
+
+   展开一组精选的 review mode 与安全检查 —— 只是既有 flag 之薄
+   包装\ ，不是新的审查路径\ 。\ ``backend`` 启用 ``security``\ 、
+   ``performance``\ 、\ ``test-coverage`` 三个 mode\ ，外加
+   ``--api-consistency`` 与 ``--dep-upgrade-check``\ ；\ ``frontend``
+   启用 ``accessibility``\ 、\ ``performance``\ 、\ ``pii``\ 、
+   ``test-coverage``\ ；\ ``security`` 启用 ``security``\ 、
+   ``secret-scan``\ 、\ ``pii``\ ，外加 ``--redact-secrets``\ ，且
+   ``--gate-on`` 仍为 ``none`` 时提高为 ``warning``\ ；\ ``release``
+   启用 ``security`` 与 ``test-coverage``\ ，外加
+   ``--api-consistency``\ 、\ ``--dep-upgrade-check``\ 、
+   ``--diff-entropy``\ 、\ ``--reproducibility-check``\ 、
+   ``--judge``\ 。preset 之 mode 会与明确给的 ``--review-modes``
+   列表合并\ 。环境变量：``PRTHINKER_REVIEW_PRESET``\ 。
+
+.. option:: --repo-context-strategy {none,lexical,semantic,structural,graph,rerank,block_rerank,iterative,query_rewrite}
+
+   本机逐文件审查之跨文件 repository context\ 。\ ``none``\ （默认）
+   维持既有 prompt\ ；其它策略会从 work tree 检索相关文件并注入每个
+   文件之 prompt\ 。调校 flag（各有对应之
+   ``PRTHINKER_REPO_CONTEXT_*`` 环境变量）：
+
+   * ``--repo-context-workdir PATH`` —— 检索与 import-graph context
+     所用之 work tree（默认 ``.``\ ）\ 。
+   * ``--repo-context-top-k N`` —— 文件级检索最多考虑之文件数
+     （默认 10）\ 。
+   * ``--repo-context-keep-ratio FLOAT`` —— lexical keep-ratio
+     截断\ ；\ ``0``\ （默认）保留固定 top-k 尾端\ 。
+   * ``--repo-context-block-candidates N`` —— ``block_rerank`` /
+     ``iterative`` 策略每文件之候选 block 数（默认 6）\ 。
+   * ``--repo-context-votes N`` —— model-in-the-loop 检索之
+     self-consistency 票数（默认 1）\ 。
+   * ``--repo-context-rounds N`` —— ``iterative`` 策略之最大轮数
+     （默认 3）\ 。
+   * ``--repo-context-focus-lines N`` —— block context 之可选行窗
+     focus\ ；\ ``0``\ （默认）停用\ 。
+
+   环境变量：``PRTHINKER_REPO_CONTEXT_STRATEGY``\ 。
+
+.. option:: --calibration-gate
+
+   让 merge gate 尊重校准后的弃权（calibrated abstention）\ 。每条
+   finding 对 feedback 校准存储体（``--calibration-store``\ ）评分\ ；
+   provenance confidence 低于该 repo／author／category 校准阈值之
+   finding 视为\ *弃权*\ ：它仍出现在 summary 与各报告中\ ，但不再挡
+   gate\ ，gate line 并附上 ``calibration abstained N from
+   blocking``\ 。同组旋钮 —— ``--calibration-store``\ （SQLite 存储
+   路径）\ 、\ ``--calibration-author``\ 、
+   ``--calibration-category``\ 、
+   ``--calibration-min-samples``\ （默认 10）\ 、
+   ``--calibration-half-life-days``\ （默认 90）——
+   决定 posterior 由哪段 feedback 历史算得\ 。环境变量：
+   ``PRTHINKER_CALIBRATION_GATE``\ 。
+
 review-file
 -----------
 
@@ -217,6 +295,9 @@ review-file
        [--no-rag] [--remote-rag] [--rag-threshold 0.7]
        [--rules-dir PATH]
        [--per-file] [--inline-review] [--max-findings-per-file 10]
+       [--step-plan {full,adaptive}]
+       [--review-preset {none,backend,frontend,security,release}]
+       [--repo-context-strategy STRATEGY]
        [--counterfactual] [--provenance] [--judge] [--self-correct]
        [--diff-since-last] [--verify-suggestions]
        [--api-consistency] [--pr-classify] [--reproducibility-check]
@@ -260,6 +341,25 @@ triage
 
 此信号集即 PR 评论摘要下方所呈现者;各区块检测内容见
 :doc:`../concepts/research-extensions`\ 。
+
+retrieval-report
+----------------
+
+把 content-safe 的检索轨迹（review 运行时 ``--trajectory-out`` 追加
+的 JSONL）渲染成 Markdown 或 JSON 审计报告：各事件计数\ 、retrieve
+与 retrieval-use 统计\ 、retrieved／used／cited 文档总数\ 、导出之
+utilization 比率\ ，以及逐 path 之拆解\ 。纯本机聚合 —— 不加载任何
+backend\ ，也不暴露 prompt 或代码内容\ ，报告可安全附成 CI
+artifact\ 。
+
+.. code-block:: text
+
+   prthinker retrieval-report INPUT
+       [--format {markdown,json}]
+       [--out PATH]
+
+``INPUT`` 为轨迹 JSONL 文件\ 。\ ``--format`` 默认 ``markdown``\ ；
+``--out`` 把报告写入文件而非 stdout\ 。
 
 aggregate
 ---------

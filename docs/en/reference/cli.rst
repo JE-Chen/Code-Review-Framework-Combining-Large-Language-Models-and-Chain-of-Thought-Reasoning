@@ -30,6 +30,9 @@ Fetch a PR diff, run the pipeline, post comment + review + gate.
        [--no-rag] [--remote-rag] [--rag-threshold 0.7]
        [--rules-dir PATH]
        [--per-file] [--inline-review] [--max-findings-per-file 10]
+       [--step-plan {full,adaptive}]
+       [--review-preset {none,backend,frontend,security,release}]
+       [--repo-context-strategy STRATEGY] [--calibration-gate]
        [--reply-to-author] [--counterfactual] [--provenance]
        [--diff-since-last] [--diff-cache-path PATH]
        [--verify-suggestions] [--verify-cmd CMD] [--verify-timeout 60] [--verify-workdir PATH]
@@ -223,6 +226,85 @@ Research-grade flags (opt-in, ``--inline-review`` required):
    Comma-separated labels applied to auto-filed issues (default
    ``prthinker``). Env: ``PRTHINKER_ISSUE_LABELS``.
 
+.. option:: --step-plan {full,adaptive}
+
+   Per-file review depth. ``full`` (the default) runs every configured
+   step on every file. ``adaptive`` scales the chain to each file:
+
+   * **skip** — lockfiles, generated / vendored / minified artifacts,
+     and whitespace-only reformatting run zero model calls.
+   * **trivial** — docs / config files (``.md``, ``.rst``, ``.json``,
+     ``.yaml``, …) or diffs with ≤ 5 changed lines get a batched
+     findings-only pass: up to 6 files or 24K characters of diff are
+     folded into one model call.
+   * **standard** — everything in between runs one ``unified_review``
+     call that returns findings, a brief summary, and a verdict in a
+     single response.
+   * **deep** — files with ≥ 200 changed lines, or a risk score
+     ≥ 0.7 when ``--risk-weighted`` is active, keep the full
+     configured chain.
+
+   Reduced tiers also cap generation (trivial 4096 / standard 8192
+   tokens); deep keeps the full ``--max-new-tokens`` budget. Env:
+   ``PRTHINKER_STEP_PLAN``.
+
+.. option:: --review-preset {none,backend,frontend,security,release}
+
+   Expand a curated bundle of review modes and safety checks — a thin
+   layer over existing flags, not a new review path. ``backend``
+   enables the ``security``, ``performance``, and ``test-coverage``
+   modes plus ``--api-consistency`` and ``--dep-upgrade-check``;
+   ``frontend`` enables ``accessibility``, ``performance``, ``pii``,
+   and ``test-coverage``; ``security`` enables ``security``,
+   ``secret-scan``, and ``pii`` plus ``--redact-secrets`` and raises
+   ``--gate-on`` to ``warning`` when it is still ``none``; ``release``
+   enables ``security`` and ``test-coverage`` plus
+   ``--api-consistency``, ``--dep-upgrade-check``, ``--diff-entropy``,
+   ``--reproducibility-check``, and ``--judge``. Preset modes merge
+   with any explicit ``--review-modes`` list. Env:
+   ``PRTHINKER_REVIEW_PRESET``.
+
+.. option:: --repo-context-strategy {none,lexical,semantic,structural,graph,rerank,block_rerank,iterative,query_rewrite}
+
+   Cross-file repository context for local per-file review. ``none``
+   (the default) preserves the existing prompt; every other strategy
+   retrieves related files from the work tree and injects them into
+   each file's prompt. Tuning flags (each with a
+   ``PRTHINKER_REPO_CONTEXT_*`` env equivalent):
+
+   * ``--repo-context-workdir PATH`` — work tree used by the retrieval
+     and import-graph context (default ``.``).
+   * ``--repo-context-top-k N`` — maximum files considered by
+     file-level retrieval (default 10).
+   * ``--repo-context-keep-ratio FLOAT`` — lexical keep-ratio cutoff;
+     ``0`` (the default) keeps the fixed top-k tail.
+   * ``--repo-context-block-candidates N`` — candidate blocks per file
+     for the ``block_rerank`` / ``iterative`` strategies (default 6).
+   * ``--repo-context-votes N`` — self-consistency votes for
+     model-in-the-loop retrieval (default 1).
+   * ``--repo-context-rounds N`` — maximum rounds for the
+     ``iterative`` strategy (default 3).
+   * ``--repo-context-focus-lines N`` — optional line-window focus for
+     block context; ``0`` (the default) disables.
+
+   Env: ``PRTHINKER_REPO_CONTEXT_STRATEGY``.
+
+.. option:: --calibration-gate
+
+   Make the merge gate honour calibrated abstention. Each finding is
+   scored against the feedback-calibration store
+   (``--calibration-store``); a finding whose provenance confidence
+   falls below the calibrated threshold for its repo / author /
+   category becomes an *abstention* — it stays visible in the summary
+   and reports but stops blocking the gate, and the gate line appends
+   ``calibration abstained N from blocking``. The sibling knobs —
+   ``--calibration-store`` (SQLite store path),
+   ``--calibration-author``, ``--calibration-category``,
+   ``--calibration-min-samples`` (default 10), and
+   ``--calibration-half-life-days`` (default 90) — select and shape
+   the feedback history the posterior is computed from. Env:
+   ``PRTHINKER_CALIBRATION_GATE``.
+
 review-file
 -----------
 
@@ -237,6 +319,9 @@ Run the pipeline against a local file or stdin.
        [--no-rag] [--remote-rag] [--rag-threshold 0.7]
        [--rules-dir PATH]
        [--per-file] [--inline-review] [--max-findings-per-file 10]
+       [--step-plan {full,adaptive}]
+       [--review-preset {none,backend,frontend,security,release}]
+       [--repo-context-strategy STRATEGY]
        [--counterfactual] [--provenance] [--judge] [--self-correct]
        [--diff-since-last] [--verify-suggestions]
        [--api-consistency] [--pr-classify] [--reproducibility-check]
@@ -285,6 +370,26 @@ so it can gate a CI step; otherwise it always exits 0 (advisory).
 The signal set is the same one the live PR comment renders below its
 digest; see :doc:`../concepts/research-extensions` for what each block
 detects.
+
+retrieval-report
+----------------
+
+Render a content-safe retrieval trajectory (the JSONL appended by
+``--trajectory-out`` during a review run) into a Markdown or JSON
+audit report: per-event counts, retrieval and retrieval-use tallies,
+retrieved / used / cited document totals, the derived utilization
+ratio, and a per-path breakdown. Pure local aggregation — no backend
+is loaded and no prompt or code content is exposed, so the report is
+safe to attach to a CI artifact.
+
+.. code-block:: text
+
+   prthinker retrieval-report INPUT
+       [--format {markdown,json}]
+       [--out PATH]
+
+``INPUT`` is the trajectory JSONL file. ``--format`` defaults to
+``markdown``; ``--out`` writes the report to a file instead of stdout.
 
 aggregate
 ---------

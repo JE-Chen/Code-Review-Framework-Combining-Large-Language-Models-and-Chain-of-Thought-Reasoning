@@ -5,8 +5,10 @@ prthinker（繁體中文）
 （Chain-of-Thought）程式碼審查框架，底層由微調後的 Qwen3-Coder 模型加上
 檢索增強（RAG）提示驅動。
 
-``prthinker`` 會讀取 PR diff、執行五步思維鏈審查、把結構化的總結與
-一鍵套用的 ``suggestion`` 區塊回貼到 PR。它會從每個 repo 的歷史中學習──
+``prthinker`` 會讀取 PR diff、執行可設定的思維鏈審查鏈（加上
+``--step-plan adaptive`` 時會逐檔調整審查深度：skip / trivial /
+standard / deep），把結構化的總結與一鍵套用的 ``suggestion``
+區塊回貼到 PR。它會從每個 repo 的歷史中學習──
 被 PR 作者拒絕的留言下次會被過濾掉，被採納的建議會以前例的形式注入下一輪
 prompt──並且可以充當合併前的必要狀態檢查。
 

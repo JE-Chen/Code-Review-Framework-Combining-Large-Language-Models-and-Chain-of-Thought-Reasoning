@@ -438,6 +438,12 @@ on:
 `enumerate` job 與 CLI 的 per-file loop 都讀同一份，避免 generated
 data、IDE state、大段 markdown 變更白白吃 GPU 時間。可依專案調整。
 
+**自適應 review 深度。** Workflow 的 `review` job env 設
+`PRTHINKER_STEP_PLAN: "adaptive"`\ ，每個 matrix shard 會要求 server
+依其負責的檔案縮放 CoT 鏈（skip / trivial / standard / deep），而不是
+永遠跑完整五步 sweep。\ `step_plan` 欄位在 wire format 中為可選：較舊
+的已部署 server 會無害地忽略它並保持完整鏈。
+
 **Backend timeout 防護。** Matrix runner 用
 `POST /review/submit` + `GET /review/result/{id}`\ （5 秒 poll）
 跟 backend 通訊──每個 HTTP call 都遠低於 1 秒，反正
@@ -564,6 +570,24 @@ prthinker stats --since-days 7
 | `--personas`               | `PRTHINKER_PERSONAS`                | 空   | 每 PR 多 N× backend + 1 conflict step |
 | `--risk-weighted`          | `PRTHINKER_RISK_WEIGHTED`           | 關閉 | 少量 `git log` 呼叫            |
 | `--diff-entropy`           | `PRTHINKER_DIFF_ENTROPY`            | 關閉 | 純 CPU，無 backend 呼叫        |
+
+上表未列到的較新 flag 與其 env var：
+
+| 環境變數 | CLI flag | 值 / 預設 |
+|---|---|---|
+| `PRTHINKER_STEP_PLAN` | `--step-plan` | `full`\ （預設）\| `adaptive`\ ──per-file review 深度 |
+| `PRTHINKER_REPO_CONTEXT_STRATEGY` | `--repo-context-strategy` | `none`\ （預設）或八種檢索 strategy 之一（\ `lexical` / `semantic` / `structural` / `graph` / `rerank` / `block_rerank` / `iterative` / `query_rewrite`\ ） |
+| `PRTHINKER_REPO_CONTEXT_WORKDIR` / `_TOP_K` / `_KEEP_RATIO` / `_BLOCK_CANDIDATES` / `_VOTES` / `_ROUNDS` / `_FOCUS_LINES` | `--repo-context-*` 調校旋鈕 | `.` / 10 / 0.0 / 6 / 1 / 3 / 0 |
+| `PRTHINKER_VERIFY_CMD` | `--verify-cmd` | `pytest -x` |
+| `PRTHINKER_VERIFY_TIMEOUT` | `--verify-timeout` | 60（秒） |
+| `PRTHINKER_VERIFY_WORKDIR` | `--verify-workdir` | `.`\ （cwd） |
+| `PRTHINKER_CALIBRATION_GATE` | `--calibration-gate` | 關閉──合併 gate 的校準棄權 |
+
+`PRTHINKER_*` 名稱優先於舊版 `REVIEWMIND_*` 寫法；兩者對 verify 變數
+（\ `VERIFY_SUGGESTIONS` / `VERIFY_CMD` / `VERIFY_TIMEOUT` /
+`VERIFY_WORKDIR`\ ）以及 `API_CONSISTENCY`\ 、\ `PR_CLASSIFY`\ 、
+`REPRODUCIBILITY_CHECK`\ 、\ `DEP_UPGRADE_CHECK`\ 、\ `PERSONAS`\ 、
+`RISK_WEIGHTED`\ 、\ `RISK_WORKDIR`\ 、\ `DIFF_ENTROPY` 都仍然接受。
 
 ### 閉環多輪對話──`--reply-to-author`
 

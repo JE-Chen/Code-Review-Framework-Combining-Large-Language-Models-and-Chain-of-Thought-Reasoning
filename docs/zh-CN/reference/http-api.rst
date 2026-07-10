@@ -131,17 +131,23 @@ POST /review
      "rag_enabled": true,
      "rag_threshold": 0.7,
      "max_new_tokens": 32768,
-     "extra_rules": ["Always use Path.resolve", "..."]
+     "extra_rules": ["Always use Path.resolve", "..."],
+     "step_plan": "full"
    }
 
 字段语义：
 
 * ``file_path``\ ──设值时表示这是单个文件的 diff，服务器会追加
   ``InlineFindingsStep``\ ，响应中会带 parsed ``inline_findings``\ 。
-  ``null`` 时对整份 diff blob 跑五步 pipeline，\ ``inline_findings`` 为 ``[]``\ 。
+  ``null`` 时对整份 diff blob 跑已配置的 step 链，\ ``inline_findings`` 为 ``[]``\ 。
 * ``steps``\ ──可选的明确 step 列表。\ ``null`` 代表用 declaration order 跑全部
   已注册的 step。
 * ``extra_rules``\ ──per-repo 团队规则，接在 RAG 检索规则之后。
+* ``step_plan``\ ──逐文件审查深度策略，于 ``file_path`` 设值时生效：
+  ``"full"``\ （默认）跑完所有已配置的 step；\ ``"adaptive"`` 对该
+  文件做深度规划（见 CLI 的 ``--step-plan``\ ），选定的 tier 会以
+  ``steps`` 中一条 ``step_plan`` 条目回报。可选且向后兼容：早于此
+  字段的服务器会忽略它，服务器把任何未知值视同 ``"full"``\ 。
 
 **Response 200**\ （\ ``ReviewResponse``\ ）：
 

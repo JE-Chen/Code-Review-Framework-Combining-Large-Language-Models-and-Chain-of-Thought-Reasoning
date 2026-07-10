@@ -141,7 +141,8 @@ Run the full CoT pipeline server-side. This is the endpoint used by
      "rag_enabled": true,
      "rag_threshold": 0.7,
      "max_new_tokens": 32768,
-     "extra_rules": ["Always use Path.resolve", "..."]
+     "extra_rules": ["Always use Path.resolve", "..."],
+     "step_plan": "full"
    }
 
 Field semantics:
@@ -149,11 +150,18 @@ Field semantics:
 * ``file_path`` — when set, the request is treated as a single-file diff
   and the server appends ``InlineFindingsStep`` to the run. The response
   will include parsed ``inline_findings``. When ``null``, the server
-  runs the five-step pipeline over the entire diff blob and
+  runs the configured step chain over the entire diff blob and
   ``inline_findings`` is ``[]``.
 * ``steps`` — optional explicit step list. ``null`` runs every registered
   step in declaration order.
 * ``extra_rules`` — per-repo team rules appended after RAG-retrieved rules.
+* ``step_plan`` — per-file review depth policy, effective when
+  ``file_path`` is set: ``"full"`` (the default) runs every configured
+  step; ``"adaptive"`` depth-plans the chain for the file (see the
+  CLI's ``--step-plan``), and the chosen tier is reported back as a
+  ``step_plan`` entry in ``steps``. Optional and backward compatible:
+  servers that predate the field ignore it, and the server treats any
+  unknown value as ``"full"``.
 
 **Response 200** (``ReviewResponse``):
 

@@ -117,3 +117,35 @@ Per-repo 规则包
 
 Pipeline 对 retriever 的唯一契约就是 ``retrieve(str) -> list[str]`` 这个
 方法──没有 global side effect、不要求 setup 顺序。
+
+Repository-context 检索策略
+---------------------------
+
+在规则槽之外，逐文件审查 prompt 还可以前置从本地 work-tree
+（``--repo-context-workdir``）检索出的跨文件\ *repository context*\ 。
+``--repo-context-strategy``\ （环境变量
+``PRTHINKER_REPO_CONTEXT_STRATEGY``\ ，默认 ``none``\ ）选择策略；所有
+策略都经由 ``create_repo_retriever`` factory 构建：
+
+* ``lexical``\ ──对 work-tree 的代码文件做 BM25，加上 issue-aware
+  的 query expansion。不需模型。
+* ``semantic``\ ──以注入的 sentence-transformers embedder，按 query 的
+  embedding 相似度排序文件。
+* ``structural``\ ──两轮 lexical：第一轮命中文件所定义的 symbol 与
+  import 的模块会回馈进 query，让 repo 自身的结构锐化第二轮。不需
+  模型。
+* ``graph``\ ──用 import graph 的邻居扩展 lexical recall（top 命中
+  import 的文件，以及 import 它们的文件）。不需模型、确定性。
+* ``rerank``\ ──先取 lexical 候选，再由 review backend 读其片段并
+  返回排序后的相关子集。
+* ``block_rerank``\ ──在文件级 rerank 之上，backend 从逐文件候选中
+  挑出相关的 ``def`` / ``class`` 区块，保持行与 symbol 的高精确度。
+* ``iterative``\ ──agentic 多轮检索：每轮 backend 从候选池挑出相关
+  区块\ *并*\ 提出下一轮搜索词；选取结果持续累积，直到它表示已足够
+  或轮数预算用完。
+* ``query_rewrite``\ ──一次便宜的 backend 调用把冗长的 issue 浓缩成
+  聚焦的搜索词，附加到 query 后再交给 lexical base。
+
+work-tree 每个 retriever 实例只读取并建索引一次（按 work-tree
+memoize），不是每次查询都重建──多轮策略是对已建好的索引重复查询，
+而非重读整个 repository。

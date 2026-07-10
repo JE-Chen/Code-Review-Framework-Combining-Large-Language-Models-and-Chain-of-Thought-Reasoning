@@ -5,9 +5,10 @@ A Chain-of-Thought code review framework for GitHub, GitLab, and Gitea
 pull / merge requests, backed by a fine-tuned Qwen3-Coder model with
 retrieval-augmented prompting.
 
-``prthinker`` reads a PR diff, runs a five-step Chain-of-Thought review,
-and posts a structured summary plus one-click ``suggestion`` blocks back
-to the PR. It learns from each repo's history — dismissed comments are
+``prthinker`` reads a PR diff, runs a configurable Chain-of-Thought
+review chain — with ``--step-plan adaptive`` it scales review depth per
+file (skip / trivial / standard / deep) — and posts a structured summary
+plus one-click ``suggestion`` blocks back to the PR. It learns from each repo's history — dismissed comments are
 filtered out next time, accepted suggestions are surfaced as in-context
 exemplars — and can act as a required status check before merges.
 

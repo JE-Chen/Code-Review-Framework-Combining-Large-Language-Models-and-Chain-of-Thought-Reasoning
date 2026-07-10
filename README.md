@@ -4,12 +4,14 @@
 
 📖 **Documentation:** <https://code-review-framework.readthedocs.io/en/latest/>
 
-> A Chain-of-Thought code review framework for GitHub PRs, backed by a
-> fine-tuned Qwen3-Coder model with retrieval-augmented prompting.
+> A Chain-of-Thought code review framework for GitHub / GitLab / Gitea
+> PRs, backed by a fine-tuned Qwen3-Coder model with retrieval-augmented
+> prompting.
 
-`prthinker` reads a Pull Request diff, runs a five-step Chain-of-Thought
-review, and posts a structured summary plus one-click `suggestion` blocks
-back to the PR. It learns from each repo's history — dismissed comments
+`prthinker` reads a Pull Request diff, runs a Chain-of-Thought review —
+the five-step full chain by default, with review depth that adapts per
+file when `--step-plan adaptive` is on — and posts a structured summary
+plus one-click `suggestion` blocks back to the PR. It learns from each repo's history — dismissed comments
 are filtered out next time, accepted suggestions are surfaced as in-context
 exemplars — and can act as a required status check before merges.
 
@@ -28,8 +30,8 @@ Never touched the code? Here is the whole idea in a few sentences:
   next time.
 - **It can guard the merge button** — You can require it as a check, so
   a Pull Request can't be merged while serious problems remain.
-- **Two halves** — A lightweight **runner** does the talking to GitHub
-  and needs no special hardware; a heavier **AI "brain"** (the language
+- **Two halves** — A lightweight **runner** does the talking to the code
+  host (GitHub / GitLab / Gitea) and needs no special hardware; a heavier **AI "brain"** (the language
   model) runs separately on a GPU server, or via a paid API such as
   OpenAI / Anthropic. The [Project structure](#project-structure)
   diagram below shows how the pieces fit.
@@ -39,9 +41,24 @@ remembers past feedback, and explains its reasoning step by step.
 
 ## What you get
 
-- **Five-step CoT pipeline** — first_summary → first_code_review → linter →
-  code_smell → total_summary, plus an optional per-file inline-findings
-  step that emits structured JSON.
+- **Five-step CoT pipeline** — the default full chain: first_summary →
+  first_code_review → linter → code_smell → total_summary, plus an
+  optional per-file inline-findings step that emits structured JSON.
+- **Adaptive review depth (`--step-plan adaptive`)** — a skip tier
+  (lockfiles / generated files / whitespace-only churn: zero model
+  calls), a trivial tier (batched findings, up to 6 files per call), a
+  standard tier (one unified call: findings + summary + verdict), and a
+  deep tier (the full chain for ≥ 200-line or high-risk files), each
+  with its own generation budget.
+- **Review presets** — `--review-preset backend|frontend|security|release`
+  bundles the focused review modes and safety checks a caller would
+  otherwise spell out flag by flag.
+- **Repo-context retrieval on the CLI** — `--repo-context-strategy`
+  injects related files into each file's prompt via one of eight
+  strategies (lexical / semantic / structural / graph / rerank /
+  block_rerank / iterative / query_rewrite), and the companion
+  `retrieval-report` subcommand renders the content-safe retrieval
+  trajectory into an audit report.
 - **Per-file inline review** with GitHub `suggestion` blocks that PR
   authors can apply with one click.
 - **Copilot-style PR summary** — a pre-review `prthinker pr-summary`
@@ -59,6 +76,10 @@ remembers past feedback, and explains its reasoning step by step.
   the reviewer can correlate findings with observed test failures.
 - **Pre-merge Check Run gate** — block merges when error-severity findings
   exist, wire into branch protection.
+- **Calibrated gate abstention (`--calibration-gate`)** — findings with a
+  low calibrated posterior stay visible in reports but stop blocking the
+  merge gate; the gate line reports "calibration abstained N from
+  blocking".
 - **Issue automation (GitHub & GitLab)** — `review-pr --auto-file-issues`
   files the findings that fall outside the diff hunks (unpostable inline)
   as fingerprint-deduplicated tracker issues, and `prthinker issue-autofix`
@@ -237,6 +258,11 @@ prthinker review-pr \
     --backend remote --remote-url http://my-host:9000 \
     --gate-on error --include-ci-signals
 
+# …or scale review depth per file (lockfiles/docs skip, large files keep the full chain)
+prthinker review-pr --repo o/r --pr-number 42 \
+    --backend remote --remote-url http://my-host:9000 \
+    --per-file --inline-review --step-plan adaptive
+
 # …or use OpenAI / Azure / vLLM / Ollama via the OpenAI-compat backend
 prthinker review-pr --repo o/r --pr-number 42 \
     --backend openai \
@@ -357,7 +383,8 @@ See [`docs/en/guide/gitlab-ci.rst`](docs/en/guide/gitlab-ci.rst).
 ## Documentation
 
 - **[`setup.md`](READMEs/setup.md)** — comprehensive setup walkthrough (six
-  scenarios, every env var, troubleshooting).
+  scenarios, every env var, troubleshooting). `PRTHINKER_*` variables
+  take precedence over their legacy `REVIEWMIND_*` spellings.
 - **[`features.md`](READMEs/features.md)** — full feature catalog.
 - **[`docs/`](docs/)** — Read-the-Docs-style deep-dives (English +
   Traditional + Simplified Chinese).

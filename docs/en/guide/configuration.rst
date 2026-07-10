@@ -6,6 +6,11 @@ over env vars, env vars win over package defaults. Configuration is
 validated at startup — invalid combinations raise immediately, no silent
 fallbacks.
 
+A few variables also accept a legacy ``REVIEWMIND_*`` spelling (for
+example ``REVIEWMIND_VERIFY_SUGGESTIONS``). When both spellings are
+set, the ``PRTHINKER_*`` variable takes precedence; the legacy one is
+read only as a fallback.
+
 Backend selection
 -----------------
 
@@ -295,6 +300,101 @@ edits that would otherwise spend GPU minutes for no value.
 Combined with ``--output-json`` it lets a CI matrix shard own one
 file's review (see :doc:`github-actions` for the matrix workflow).
 
+Adaptive review depth
+---------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 35 30
+
+   * - CLI flag
+     - Env var
+     - Default
+   * - ``--step-plan {full,adaptive}``
+     - ``PRTHINKER_STEP_PLAN``
+     - ``full``
+
+``adaptive`` classifies every file into a depth tier before any model
+call: **skip** (lockfiles, generated / vendored artifacts,
+whitespace-only reformatting — zero model calls), **trivial**
+(docs / config files or ≤ 5 changed lines — a batched findings-only
+call covering up to 6 files or 24K characters of diff), **standard**
+(one ``unified_review`` call returning findings + summary + verdict),
+and **deep** (≥ 200 changed lines, or risk ≥ 0.7 with
+``--risk-weighted`` — the full configured chain). Reduced tiers also
+cap the generation budget — trivial 4096 tokens, standard 8192 —
+while deep keeps the full ``--max-new-tokens`` budget.
+
+Repository context retrieval
+----------------------------
+
+Cross-file repository context for local per-file review: a strategy
+other than ``none`` retrieves related files from the work tree and
+injects them into each file's prompt.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 35 25
+
+   * - CLI flag
+     - Env var
+     - Default
+   * - ``--repo-context-strategy {none,lexical,semantic,structural,graph,rerank,block_rerank,iterative,query_rewrite}``
+     - ``PRTHINKER_REPO_CONTEXT_STRATEGY``
+     - ``none``
+   * - ``--repo-context-workdir PATH``
+     - ``PRTHINKER_REPO_CONTEXT_WORKDIR``
+     - ``.``
+   * - ``--repo-context-top-k N``
+     - ``PRTHINKER_REPO_CONTEXT_TOP_K``
+     - ``10``
+   * - ``--repo-context-keep-ratio FLOAT``
+     - ``PRTHINKER_REPO_CONTEXT_KEEP_RATIO``
+     - ``0.0``
+   * - ``--repo-context-block-candidates N``
+     - ``PRTHINKER_REPO_CONTEXT_BLOCK_CANDIDATES``
+     - ``6``
+   * - ``--repo-context-votes N``
+     - ``PRTHINKER_REPO_CONTEXT_VOTES``
+     - ``1``
+   * - ``--repo-context-rounds N``
+     - ``PRTHINKER_REPO_CONTEXT_ROUNDS``
+     - ``3``
+   * - ``--repo-context-focus-lines N``
+     - ``PRTHINKER_REPO_CONTEXT_FOCUS_LINES``
+     - ``0``
+
+``--repo-context-block-candidates``, ``--repo-context-votes``,
+``--repo-context-rounds``, and ``--repo-context-focus-lines`` tune the
+model-in-the-loop strategies (``block_rerank`` / ``iterative``);
+``--repo-context-keep-ratio`` ``0`` keeps the fixed top-k tail, and
+``--repo-context-focus-lines`` ``0`` disables the line-window focus.
+
+Review presets
+--------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 35 20
+
+   * - CLI flag
+     - Env var
+     - Default
+   * - ``--review-preset {none,backend,frontend,security,release}``
+     - ``PRTHINKER_REVIEW_PRESET``
+     - ``none``
+
+A preset expands into a bundle of review modes and safety-check flags
+(merged with any explicit ``--review-modes`` list): ``backend`` →
+modes ``security,performance,test-coverage`` plus
+``--api-consistency`` / ``--dep-upgrade-check``; ``frontend`` → modes
+``accessibility,performance,pii,test-coverage``; ``security`` → modes
+``security,secret-scan,pii`` plus ``--redact-secrets`` and a
+``--gate-on warning`` floor when the gate is still ``none``;
+``release`` → modes ``security,test-coverage`` plus
+``--api-consistency`` / ``--dep-upgrade-check`` / ``--diff-entropy``
+/ ``--reproducibility-check`` / ``--judge``.
+
 Matrix sharding and aggregation
 -------------------------------
 
@@ -337,9 +437,22 @@ Pre-merge gate
    * - ``--gate-on {none,warning,error}``
      - ``PRTHINKER_GATE_ON``
      - ``none``
+   * - ``--calibration-gate``
+     - ``PRTHINKER_CALIBRATION_GATE``
+     - ``false``
 
 See :doc:`../concepts/ci-and-gate`. Set to ``none`` for advisory mode,
 ``error`` to fail the Check Run when any error-severity finding exists.
+
+With ``--calibration-gate``, the merge gate honours calibrated
+abstention: a finding whose confidence falls below the calibrated
+threshold from the feedback store stays visible in the summary and
+reports but stops blocking the gate, and the gate line appends
+``calibration abstained N from blocking``. The sibling
+``--calibration-store`` / ``--calibration-author`` /
+``--calibration-category`` / ``--calibration-min-samples`` /
+``--calibration-half-life-days`` flags configure the store and the
+posterior; they have no env-var equivalents.
 
 CI signals
 ----------

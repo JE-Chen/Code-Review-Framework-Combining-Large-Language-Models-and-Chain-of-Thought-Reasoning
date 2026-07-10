@@ -4,6 +4,10 @@
 每個 CLI flag 都有對應的環境變數。CLI 參數優先於環境變數，環境變數優先於
 套件預設。組態在啟動時就會驗證──不合法的組合直接拋例外，不會偷偷退化。
 
+少數變數另接受舊式 ``REVIEWMIND_*`` 拼法（例如
+``REVIEWMIND_VERIFY_SUGGESTIONS``\ ）。兩種拼法都設時，
+``PRTHINKER_*`` 變數優先；舊拼法只作為 fallback 讀取。
+
 Backend 選擇
 ------------
 
@@ -281,6 +285,99 @@ pattern 之 path 在 per-file loop 前就被丟掉──IDE state、生成
 ``--output-json`` 讓 CI matrix shard 各自接管一個 file 之 review
 （matrix workflow 見 :doc:`github-actions`\ ）。
 
+自適應審查深度
+--------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 35 30
+
+   * - CLI flag
+     - 環境變數
+     - 預設
+   * - ``--step-plan {full,adaptive}``
+     - ``PRTHINKER_STEP_PLAN``
+     - ``full``
+
+``adaptive`` 在任何模型呼叫之前先把每個檔案分到一個深度 tier：
+**skip**\ （lockfile、生成／vendored 產物、純空白重排版──零模型
+呼叫）、\ **trivial**\ （文件／設定檔或變更 ≤ 5 行──批次
+findings-only 呼叫，一次最多合併 6 個檔案或 24K 字元之 diff）、
+**standard**\ （單一 ``unified_review`` 呼叫，回 findings + summary
++ verdict）、\ **deep**\ （變更 ≥ 200 行、或 ``--risk-weighted``
+啟用時 risk ≥ 0.7──完整已設定之鏈）。縮減 tier 同時封頂生成預算
+──trivial 4096 tokens、standard 8192──deep 保留完整
+``--max-new-tokens`` 預算。
+
+Repository context 檢索
+-----------------------
+
+本機逐檔審查之跨檔 repository context：策略非 ``none`` 時會從
+work tree 檢索相關檔案並注入每個檔案之 prompt。
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 35 25
+
+   * - CLI flag
+     - 環境變數
+     - 預設
+   * - ``--repo-context-strategy {none,lexical,semantic,structural,graph,rerank,block_rerank,iterative,query_rewrite}``
+     - ``PRTHINKER_REPO_CONTEXT_STRATEGY``
+     - ``none``
+   * - ``--repo-context-workdir PATH``
+     - ``PRTHINKER_REPO_CONTEXT_WORKDIR``
+     - ``.``
+   * - ``--repo-context-top-k N``
+     - ``PRTHINKER_REPO_CONTEXT_TOP_K``
+     - ``10``
+   * - ``--repo-context-keep-ratio FLOAT``
+     - ``PRTHINKER_REPO_CONTEXT_KEEP_RATIO``
+     - ``0.0``
+   * - ``--repo-context-block-candidates N``
+     - ``PRTHINKER_REPO_CONTEXT_BLOCK_CANDIDATES``
+     - ``6``
+   * - ``--repo-context-votes N``
+     - ``PRTHINKER_REPO_CONTEXT_VOTES``
+     - ``1``
+   * - ``--repo-context-rounds N``
+     - ``PRTHINKER_REPO_CONTEXT_ROUNDS``
+     - ``3``
+   * - ``--repo-context-focus-lines N``
+     - ``PRTHINKER_REPO_CONTEXT_FOCUS_LINES``
+     - ``0``
+
+``--repo-context-block-candidates``\ 、\ ``--repo-context-votes``\ 、
+``--repo-context-rounds`` 與 ``--repo-context-focus-lines`` 調校
+model-in-the-loop 策略（``block_rerank`` / ``iterative``\ ）；
+``--repo-context-keep-ratio`` 設 ``0`` 保留固定 top-k 尾端，
+``--repo-context-focus-lines`` 設 ``0`` 停用行窗 focus。
+
+Review preset
+-------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 35 20
+
+   * - CLI flag
+     - 環境變數
+     - 預設
+   * - ``--review-preset {none,backend,frontend,security,release}``
+     - ``PRTHINKER_REVIEW_PRESET``
+     - ``none``
+
+preset 會展開成一組 review mode 與安全檢查 flag（與明確給的
+``--review-modes`` 清單合併）：``backend`` → mode
+``security,performance,test-coverage`` 外加 ``--api-consistency`` /
+``--dep-upgrade-check``\ ；\ ``frontend`` → mode
+``accessibility,performance,pii,test-coverage``\ ；\ ``security`` →
+mode ``security,secret-scan,pii`` 外加 ``--redact-secrets``\ ，且
+gate 仍為 ``none`` 時把 ``--gate-on`` 提高為 ``warning``\ ；
+``release`` → mode ``security,test-coverage`` 外加
+``--api-consistency`` / ``--dep-upgrade-check`` / ``--diff-entropy``
+/ ``--reproducibility-check`` / ``--judge``\ 。
+
 Matrix 分片與 aggregation
 -------------------------
 
@@ -322,9 +419,20 @@ open，這些交給 ``aggregate`` 子指令──它讀 ``--aggregate-from``
    * - ``--gate-on {none,warning,error}``
      - ``PRTHINKER_GATE_ON``
      - ``none``
+   * - ``--calibration-gate``
+     - ``PRTHINKER_CALIBRATION_GATE``
+     - ``false``
 
 詳見 :doc:`../concepts/ci-and-gate`。設成 ``none`` 為純建議模式，設成
 ``error`` 則只要有 error 嚴重度的 finding 就讓 Check Run failure。
+
+開 ``--calibration-gate`` 後，merge gate 尊重校準後的棄權：confidence
+低於 feedback 儲存體校準閾值之 finding 仍出現在 summary 與各報告
+中，但不再擋 gate，gate line 並附上 ``calibration abstained N from
+blocking``\ 。同組的 ``--calibration-store`` /
+``--calibration-author`` / ``--calibration-category`` /
+``--calibration-min-samples`` / ``--calibration-half-life-days``
+設定儲存體與 posterior；它們沒有環境變數對應。
 
 CI 訊號
 -------
