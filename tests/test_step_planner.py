@@ -8,10 +8,12 @@ from prthinker.diff import FileDiff
 from prthinker.pipeline import CoTPipeline, PerFileReviewOptions
 from prthinker.step_planner import (
     TIER_DEEP,
+    TIER_SKIP,
     TIER_STANDARD,
     TIER_TRIVIAL,
     changed_line_count,
     classify_depth,
+    is_whitespace_only_change,
     plan_steps,
 )
 from prthinker.steps import (
@@ -88,6 +90,60 @@ def test_high_risk_overrides_docs_suffix():
     assert classify_depth(_diff("README.md", added=2), risk=0.9) == TIER_DEEP
 
 
+def test_lockfiles_and_generated_paths_skip_review():
+    assert classify_depth(_diff("package-lock.json", added=500)) == TIER_SKIP
+    assert classify_depth(_diff("poetry.lock", added=3)) == TIER_SKIP
+    assert classify_depth(_diff("vendor/lib/mod.py", added=50)) == TIER_SKIP
+    assert classify_depth(_diff("assets/app.min.js", added=1)) == TIER_SKIP
+    assert classify_depth(_diff("proto/gen_pb2.py", added=9)) == TIER_SKIP
+
+
+def test_lookalike_paths_are_not_skipped():
+    # Suffix must match exactly; "unlocked.py" or "distX/" are real code.
+    assert classify_depth(_diff("distribution/mod.py", added=50)) == TIER_STANDARD
+    assert classify_depth(_diff("src/lockfile_parser.py", added=50)) == TIER_STANDARD
+
+
+def test_high_risk_overrides_generated_skip():
+    assert classify_depth(_diff("vendor/lib/mod.py", added=3), risk=0.9) == TIER_DEEP
+
+
+def test_whitespace_only_change_is_skip():
+    raw = "\n".join(
+        [
+            "--- a/mod.py",
+            "+++ b/mod.py",
+            "@@ -1,2 +1,2 @@",
+            "-def f(x):  return x",
+            "+def f(x):",
+            "+    return x",
+        ]
+    )
+    fd = FileDiff(path="mod.py", raw=raw)
+    assert is_whitespace_only_change(fd) is False  # split line ≠ same content
+    reformat = "\n".join(
+        [
+            "--- a/mod.py",
+            "+++ b/mod.py",
+            "@@ -1,1 +1,1 @@",
+            "-x=1",
+            "+x = 1",
+        ]
+    )
+    fd2 = FileDiff(path="mod.py", raw=reformat)
+    assert is_whitespace_only_change(fd2) is True
+    assert classify_depth(fd2) == TIER_SKIP
+
+
+def test_content_change_is_not_whitespace_only():
+    fd = _diff("mod.py", added=2, removed=1)
+    assert is_whitespace_only_change(fd) is False
+
+
+def test_empty_diff_is_not_whitespace_only():
+    assert is_whitespace_only_change(FileDiff(path="a.py", raw="")) is False
+
+
 # ---------------------------------------------------------------------------
 # plan_steps
 # ---------------------------------------------------------------------------
@@ -135,17 +191,32 @@ def test_standard_keeps_counterfactual_with_inline_present():
     assert "counterfactual" in [cls.name for cls in plan.steps]
 
 
-def test_standard_substitutes_compact_review_for_analysis_chain():
+def test_skip_tier_plans_zero_steps():
+    plan = plan_steps(_diff("poetry.lock", added=100), _full_chain())
+    assert plan.tier == TIER_SKIP
+    assert plan.steps == ()
+    assert set(plan.skipped) == {cls.name for cls in _full_chain()}
+
+
+def test_standard_with_inline_merges_into_one_unified_call():
     plan = plan_steps(_diff("a.py", added=50), _full_chain())
     assert plan.tier == TIER_STANDARD
-    assert [cls.name for cls in plan.steps] == ["compact_review", "inline_findings"]
-    assert set(plan.skipped) == {
-        "first_summary",
-        "first_code_review",
-        "linter",
-        "code_smell",
-        "total_summary",
-    }
+    assert [cls.name for cls in plan.steps] == ["unified_review"]
+    assert "inline_findings" in plan.skipped
+    assert "total_summary" in plan.skipped
+
+
+def test_standard_without_inline_uses_compact_review():
+    plan = plan_steps(_diff("a.py", added=50), registered_steps())
+    assert plan.tier == TIER_STANDARD
+    assert [cls.name for cls in plan.steps] == ["compact_review"]
+
+
+def test_standard_with_counterfactual_keeps_two_call_shape():
+    steps = registered_steps() + (InlineFindingsStep, CounterfactualStep)
+    plan = plan_steps(_diff("a.py", added=50), steps)
+    names = [cls.name for cls in plan.steps]
+    assert names == ["compact_review", "inline_findings", "counterfactual"]
 
 
 def test_standard_drops_judge_with_total_summary_pruned():
@@ -233,9 +304,58 @@ def test_run_per_file_adaptive_scales_steps_per_file(fake_backend):
     assert "inline_findings" in docs.step_outputs
     assert code.step_outputs["step_plan"] == TIER_STANDARD
     assert "first_summary" not in code.step_outputs
+    # Standard + inline runs the merged single-call step; its payload is
+    # fanned back out to the historical keys.
+    assert "unified_review" in code.step_outputs
     assert "compact_review" in code.step_outputs
+    assert "inline_findings" in code.step_outputs
     # Renderers read the compact output through the same property.
     assert code.total_summary == code.step_outputs["compact_review"]
+
+
+_UNIFIED_PAYLOAD = (
+    '{"summary": "One risky rename.", "verdict": "comment", "findings": '
+    '[{"line": 3, "severity": "warning", "comment": "Possible bug."}]}'
+)
+
+
+def test_unified_review_payload_parses_into_findings(fake_backend):
+    from tests.conftest import FakeBackend
+
+    backend = FakeBackend([_UNIFIED_PAYLOAD])
+    pipeline = CoTPipeline(backend=backend, retriever=NoOpRetriever())
+    diff = "\n".join(
+        ["diff --git a/mod.py b/mod.py", "--- a/mod.py", "+++ b/mod.py",
+         "@@ -1,60 +1,60 @@"]
+        + [f"+line {i}" for i in range(50)]
+    )
+    result = pipeline.run_per_file(
+        diff,
+        PerFileReviewOptions(inline_review=True, step_plan="adaptive"),
+    )
+    assert len(backend.calls) == 1  # ONE model call for the whole file
+    fr = result.per_file[0]
+    assert [f.comment for f in fr.inline_findings] == ["Possible bug."]
+    assert fr.inline_findings[0].severity == "warning"
+    assert "One risky rename." in fr.total_summary
+    assert "Verdict: comment" in fr.total_summary
+
+
+def test_skip_tier_makes_zero_model_calls(fake_backend):
+    pipeline = CoTPipeline(backend=fake_backend, retriever=NoOpRetriever())
+    diff = "\n".join(
+        ["diff --git a/poetry.lock b/poetry.lock", "--- a/poetry.lock",
+         "+++ b/poetry.lock", "@@ -1,9 +1,9 @@"]
+        + [f"+pkg{i} = 1.0" for i in range(9)]
+    )
+    result = pipeline.run_per_file(
+        diff,
+        PerFileReviewOptions(inline_review=True, step_plan="adaptive"),
+    )
+    assert fake_backend.calls == []  # not a single generate
+    fr = result.per_file[0]
+    assert fr.step_outputs == {"step_plan": "skip"}
+    assert fr.inline_findings == []
 
 
 def test_run_per_file_default_full_plan_is_unchanged(fake_backend):

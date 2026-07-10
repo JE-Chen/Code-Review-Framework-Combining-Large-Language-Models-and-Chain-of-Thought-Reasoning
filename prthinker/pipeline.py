@@ -21,7 +21,11 @@ from prthinker.backends.base import InferenceBackend
 from prthinker.counterfactual import parse_counterfactuals
 from prthinker.diff import FileDiff, parse_unified_diff
 from prthinker.dismissed import DismissedFilter
-from prthinker.findings import build_provenance_block, parse_inline_findings
+from prthinker.findings import (
+    build_provenance_block,
+    parse_inline_findings,
+    split_unified_review,
+)
 from prthinker.judge import parse_verdict
 from prthinker.rag import RAGRetriever
 from prthinker.review_cache import CacheKey
@@ -31,13 +35,14 @@ from prthinker.schemas import (
     InlineFinding,
     JudgeVerdict,
 )
-from prthinker.step_planner import STEP_PLAN_ADAPTIVE, plan_steps
+from prthinker.step_planner import STEP_PLAN_ADAPTIVE, TIER_SKIP, plan_steps
 from prthinker.steps import (
     CounterfactualStep,
     InlineFindingsStep,
     JudgeStep,
     ReviewContext,
     ReviewStep,
+    UnifiedReviewStep,
     WalkthroughStep,
     resolve_steps,
 )
@@ -485,6 +490,14 @@ class CoTPipeline(PipelineExecutionMixin, PipelineAggregateExtrasMixin):
         """Run the steps for a file, persist to cache, then verify suggestions."""
         file_out_dir = opts.output_dir / _sanitize(fd.path) if opts.output_dir else None
         steps, plan_tier = self._planned_steps(fd, opts)
+        if plan_tier == TIER_SKIP:
+            # Generated / lockfile / whitespace-only change: zero model
+            # calls, zero retrieval. The file still appears in the summary
+            # so "skipped by policy" is visible rather than silent.
+            log.info("step_plan: %s tier=skip — no review steps run", fd.path)
+            skip_result = self._stub_file_result(fd, [])
+            skip_result.step_outputs["step_plan"] = plan_tier
+            return skip_result
         file_result = self._run_one_file(
             fd,
             steps,
@@ -691,6 +704,7 @@ class CoTPipeline(PipelineExecutionMixin, PipelineAggregateExtrasMixin):
             positive_examples_block, flags, n_accepted_examples,
         )
         self._run_steps(ctx, step_classes, output_dir)
+        self._split_unified_result(ctx)
 
         findings = self._collect_findings(
             fd,
@@ -715,6 +729,22 @@ class CoTPipeline(PipelineExecutionMixin, PipelineAggregateExtrasMixin):
             is_deleted=fd.is_deleted,
             counterfactuals=counterfactuals,
         )
+
+    @staticmethod
+    def _split_unified_result(ctx: ReviewContext) -> None:
+        """Fan the unified single-call payload out to its historical keys.
+
+        The unified step merges analysis + findings into one model call;
+        splitting its JSON into the ``compact_review`` / ``inline_findings``
+        result keys keeps findings parsing, reports, and gates unchanged.
+        Explicitly-run inline/compact steps are never overwritten.
+        """
+        raw = ctx.results.get(UnifiedReviewStep.name)
+        if raw is None:
+            return
+        summary, findings_json = split_unified_review(raw)
+        ctx.results.setdefault("compact_review", summary)
+        ctx.results.setdefault(InlineFindingsStep.name, findings_json)
 
     def _make_review_context(
         self, fd, rag_docs, max_findings, positive_examples_block,

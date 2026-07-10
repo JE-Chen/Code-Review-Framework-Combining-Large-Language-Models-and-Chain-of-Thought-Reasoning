@@ -70,6 +70,33 @@ def extract_lenient_json(raw: str, *, pattern: re.Pattern[str]) -> LenientJson:
         return LenientJson(matched=True, decode_error=str(exc))
 
 
+_JSON_OBJECT_RE = re.compile(r"\{[\s\S]*\}")
+
+
+def split_unified_review(raw: str) -> tuple[str, str]:
+    """Split a unified-review payload into (summary text, findings JSON).
+
+    The unified step returns one JSON object carrying ``summary``,
+    ``verdict`` and ``findings``; the pipeline stores the pieces under the
+    historical ``compact_review`` / ``inline_findings`` result keys so
+    every downstream consumer stays unchanged. Malformed payloads degrade
+    to (raw text, "[]"): the reviewer still sees the model's output in the
+    summary block and the findings parse safely to nothing.
+    """
+    parsed = extract_lenient_json(raw, pattern=_JSON_OBJECT_RE)
+    if not isinstance(parsed.data, dict):
+        log.warning("Unified review payload was not a JSON object; degrading")
+        return raw.strip(), "[]"
+    summary = str(parsed.data.get("summary", "") or "").strip()
+    verdict = str(parsed.data.get("verdict", "") or "").strip()
+    if verdict:
+        summary = f"{summary}\n\nVerdict: {verdict}".strip()
+    findings = parsed.data.get("findings", [])
+    if not isinstance(findings, list):
+        findings = []
+    return summary, json.dumps(findings, ensure_ascii=False)
+
+
 def build_provenance_block(
     *,
     rag_docs: list[str],

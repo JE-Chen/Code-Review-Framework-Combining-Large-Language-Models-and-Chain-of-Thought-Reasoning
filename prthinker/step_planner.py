@@ -15,11 +15,12 @@ historical behaviour.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 
-from prthinker.steps import CompactReviewStep
+from prthinker.steps import CompactReviewStep, UnifiedReviewStep
 
 if TYPE_CHECKING:
     from prthinker.diff import FileDiff
@@ -29,6 +30,7 @@ STEP_PLAN_FULL = "full"
 STEP_PLAN_ADAPTIVE = "adaptive"
 STEP_PLAN_CHOICES = (STEP_PLAN_FULL, STEP_PLAN_ADAPTIVE)
 
+TIER_SKIP = "skip"
 TIER_TRIVIAL = "trivial"
 TIER_STANDARD = "standard"
 TIER_DEEP = "deep"
@@ -55,6 +57,19 @@ _LOW_RISK_SUFFIXES = frozenset(
 _TRIVIAL_MAX_CHANGED_LINES = 5
 _DEEP_MIN_CHANGED_LINES = 200
 _DEEP_MIN_RISK_SCORE = 0.7
+
+# Machine-written files nobody hand-reviews: lockfiles, minified bundles,
+# generated protobuf/snapshot artifacts, vendored trees. Reviewing them
+# wastes model calls and the findings are unactionable — the change is
+# regenerated, not edited. Matched against the full repo-relative path.
+_GENERATED_PATH_RE = re.compile(
+    r"(?:^|/)("
+    r"package-lock\.json|yarn\.lock|pnpm-lock\.yaml|poetry\.lock|uv\.lock|"
+    r"Cargo\.lock|composer\.lock|Gemfile\.lock|go\.sum"
+    r")$"
+    r"|(?:\.(?:min\.js|min\.css|map|pb\.go|snap)|_pb2\.py)$"
+    r"|(?:^|/)(?:vendor|node_modules|dist|build|__snapshots__)/"
+)
 
 # Output-producing per-file steps that stay at every depth: they are what
 # the reviewer actually consumes (findings, orientation), not analysis
@@ -90,17 +105,40 @@ def changed_line_count(fd: "FileDiff") -> int:
     return count
 
 
+def is_whitespace_only_change(fd: "FileDiff") -> bool:
+    """True when every added line differs from some removed line only in
+    whitespace — reformatting with no content change."""
+    added: list[str] = []
+    removed: set[str] = set()
+    for line in fd.raw.splitlines():
+        if line.startswith("+++") or line.startswith("---"):
+            continue
+        if line.startswith("+"):
+            added.append("".join(line[1:].split()))
+        elif line.startswith("-"):
+            removed.add("".join(line[1:].split()))
+    if not added and not removed:
+        return False
+    return all(content in removed for content in added)
+
+
 def classify_depth(fd: "FileDiff", *, risk: float | None = None) -> str:
     """Assign a review-depth tier to one file diff.
 
     Risk wins over size: a three-line change to a historically risky file
-    is not trivial. Documentation / config files are trivial regardless of
-    size — a large prose rewrite does not need a code-smell pass.
+    is not trivial. Machine-generated files and whitespace-only
+    reformatting skip review entirely; documentation / config files are
+    trivial regardless of size — a large prose rewrite does not need a
+    code-smell pass.
     """
     if risk is not None and risk >= _DEEP_MIN_RISK_SCORE:
         return TIER_DEEP
-    suffix = PurePosixPath(fd.path).suffix.lower()
-    if suffix in _LOW_RISK_SUFFIXES:
+    path = PurePosixPath(fd.path).as_posix()
+    if _GENERATED_PATH_RE.search(path):
+        return TIER_SKIP
+    if is_whitespace_only_change(fd):
+        return TIER_SKIP
+    if PurePosixPath(path).suffix.lower() in _LOW_RISK_SUFFIXES:
         return TIER_TRIVIAL
     lines = changed_line_count(fd)
     if lines <= _TRIVIAL_MAX_CHANGED_LINES:
@@ -125,14 +163,44 @@ def plan_steps(
     tier = classify_depth(fd, risk=risk)
     if tier == TIER_DEEP:
         return StepPlan(tier=tier, steps=tuple(all_steps), skipped=())
+    if tier == TIER_SKIP:
+        skipped = tuple(cls.name for cls in all_steps)
+        return StepPlan(tier=tier, steps=(), skipped=skipped)
     keep = _ALWAYS_KEEP if tier == TIER_TRIVIAL else _STANDARD_KEEP
     candidates = [cls for cls in all_steps if cls.name in keep]
-    if _needs_compact_substitute(all_steps, candidates, tier):
-        candidates.insert(0, CompactReviewStep)
+    candidates = _substitute_reduced_review(all_steps, candidates, tier)
     kept = _enforce_dependencies(candidates)
     kept_names = {cls.name for cls in kept}
     skipped = tuple(cls.name for cls in all_steps if cls.name not in kept_names)
     return StepPlan(tier=tier, steps=tuple(kept), skipped=skipped)
+
+
+def _substitute_reduced_review(
+    all_steps: tuple[type["ReviewStep"], ...],
+    candidates: list[type["ReviewStep"]],
+    tier: str,
+) -> list[type["ReviewStep"]]:
+    """Swap the pruned analysis chain for its single-call replacement.
+
+    Standard tier with inline findings configured merges analysis and
+    findings into ONE :class:`~prthinker.steps.UnifiedReviewStep` call —
+    unless counterfactual is kept, which needs the ``inline_findings``
+    step result before it runs, so that combination keeps the two-call
+    compact + inline shape.
+    """
+    if not _needs_compact_substitute(all_steps, candidates, tier):
+        return candidates
+    names = {cls.name for cls in candidates}
+    if (
+        tier == TIER_STANDARD
+        and "inline_findings" in names
+        and "counterfactual" not in names
+    ):
+        return [
+            UnifiedReviewStep if cls.name == "inline_findings" else cls
+            for cls in candidates
+        ]
+    return [CompactReviewStep, *candidates]
 
 
 def _needs_compact_substitute(
@@ -187,9 +255,11 @@ __all__ = [
     "STEP_PLAN_FULL",
     "StepPlan",
     "TIER_DEEP",
+    "TIER_SKIP",
     "TIER_STANDARD",
     "TIER_TRIVIAL",
     "changed_line_count",
     "classify_depth",
+    "is_whitespace_only_change",
     "plan_steps",
 ]

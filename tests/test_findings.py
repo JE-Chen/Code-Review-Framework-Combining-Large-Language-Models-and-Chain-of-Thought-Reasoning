@@ -224,3 +224,53 @@ def test_extract_lenient_json_decode_error_is_reported() -> None:
     assert result.matched is True
     assert result.data is None
     assert result.decode_error is not None
+
+
+def test_split_unified_review_happy_path() -> None:
+    from prthinker.findings import split_unified_review
+
+    raw = (
+        '{"summary": "Looks fine.", "verdict": "approve", '
+        '"findings": [{"line": 2, "severity": "info", "comment": "nit"}]}'
+    )
+    summary, findings_json = split_unified_review(raw)
+    assert "Looks fine." in summary
+    assert "Verdict: approve" in summary
+    assert json.loads(findings_json) == [
+        {"line": 2, "severity": "info", "comment": "nit"}
+    ]
+
+
+def test_split_unified_review_fenced_payload() -> None:
+    from prthinker.findings import split_unified_review
+
+    raw = '```json\n{"summary": "ok", "findings": []}\n```'
+    summary, findings_json = split_unified_review(raw)
+    assert summary == "ok"
+    assert findings_json == "[]"
+
+
+def test_split_unified_review_malformed_degrades_to_raw() -> None:
+    from prthinker.findings import split_unified_review
+
+    summary, findings_json = split_unified_review("no json here at all")
+    assert summary == "no json here at all"
+    assert findings_json == "[]"
+
+
+def test_split_unified_review_non_list_findings_dropped() -> None:
+    from prthinker.findings import split_unified_review
+
+    summary, findings_json = split_unified_review(
+        '{"summary": "s", "findings": "oops"}'
+    )
+    assert summary == "s"
+    assert findings_json == "[]"
+
+
+def test_split_unified_review_missing_fields() -> None:
+    from prthinker.findings import split_unified_review
+
+    summary, findings_json = split_unified_review("{}")
+    assert summary == ""
+    assert findings_json == "[]"

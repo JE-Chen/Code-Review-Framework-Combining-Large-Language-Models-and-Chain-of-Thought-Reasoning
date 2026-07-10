@@ -27,6 +27,7 @@ from prthinker.prompts.inline_findings import INLINE_FINDINGS_TEMPLATE
 from prthinker.prompts.judge_step import JUDGE_STEP_TEMPLATE
 from prthinker.prompts.linter import LINTER_TEMPLATE
 from prthinker.prompts.total_summary import TOTAL_SUMMARY_TEMPLATE
+from prthinker.prompts.unified_review import UNIFIED_REVIEW_TEMPLATE
 from prthinker.prompts.walkthrough import WALKTHROUGH_TEMPLATE
 
 
@@ -258,6 +259,34 @@ class CompactReviewStep(ReviewStep):
         )
 
 
+class UnifiedReviewStep(ReviewStep):
+    """Per-file step: findings JSON plus a brief summary in ONE model call.
+
+    The single-call replacement for ``compact_review`` + ``inline_findings``
+    at standard review depth: one JSON object carrying the findings array,
+    a short analysis summary, and a verdict. The pipeline splits the payload
+    back into the ``inline_findings`` / ``compact_review`` result keys, so
+    every downstream consumer (findings parsing, reports, gates) is
+    unchanged. Not auto-registered: the adaptive step planner opts in.
+    """
+
+    name = "unified_review"
+
+    def build_prompt(self, ctx: ReviewContext) -> str:
+        if not ctx.file_path:
+            raise ValueError("UnifiedReviewStep requires ctx.file_path")
+        # Skip the global-rule wrap so the output is more likely to be raw JSON.
+        prompt = UNIFIED_REVIEW_TEMPLATE.format(
+            file_path=ctx.file_path,
+            code_diff=ctx.code_diff,
+            max_findings=ctx.max_findings,
+            positive_examples=ctx.positive_examples_block,
+            dialogue_block=ctx.dialogue_block,
+            provenance_block=ctx.provenance_block,
+        )
+        return _prepend_repo_context(ctx, prompt)
+
+
 class CounterfactualStep(ReviewStep):
     """Per-file step: surface competing alternative implementations for
     findings that look like design choices.
@@ -321,6 +350,7 @@ __all__ = [
     "ReviewStep",
     "CompactReviewStep",
     "InlineFindingsStep",
+    "UnifiedReviewStep",
     "CounterfactualStep",
     "JudgeStep",
     "WalkthroughStep",
