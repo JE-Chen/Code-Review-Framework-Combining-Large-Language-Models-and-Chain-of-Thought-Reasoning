@@ -16,6 +16,11 @@ if TYPE_CHECKING:
 _VERIFICATION_STATUSES = ("pass", "fail", "skip", "error")
 _EVIDENCE_STATUSES = ("confirmed", "rejected", "inconclusive", "unsupported", "error")
 
+# Display order for review-depth tiers: shallow to deep, then the
+# no-planner default. Unknown tiers sort last, alphabetically.
+_TIER_DISPLAY_ORDER = ("skip", "trivial", "standard", "deep", "full")
+_STEP_PLAN_KEY = "step_plan"
+
 
 @dataclass(frozen=True)
 class ReviewRollup:
@@ -28,6 +33,9 @@ class ReviewRollup:
     confidence_scored: int = 0
     rag_cited: int = 0
     retrieved_docs: int = 0
+    # Per-file review-depth tier counts. Empty (row hidden) when no file
+    # carried a step_plan key — i.e. the adaptive planner never ran.
+    tier_distribution: dict[str, int] = field(default_factory=dict)
 
     @property
     def verified_pass(self) -> int:
@@ -59,6 +67,40 @@ def severity_counts(findings: "list[InlineFinding]") -> dict[str, int]:
         # honest.
         counts[finding.severity if finding.severity in counts else "info"] += 1
     return counts
+
+
+def tier_distribution(result: "ReviewResult") -> dict[str, int]:
+    """Per-file review-depth tier counts for a review result.
+
+    Files whose ``step_outputs`` carry no ``step_plan`` key ran the full
+    chain and are counted under ``"full"``.
+    """
+    counts = Counter(
+        fr.step_outputs.get(_STEP_PLAN_KEY, "full") for fr in result.per_file
+    )
+    return dict(counts)
+
+
+def ordered_tiers(counts: dict[str, int]) -> list[str]:
+    """Tier names sorted shallow-to-deep; unknown tiers last, alphabetically."""
+
+    def sort_key(tier: str) -> tuple[int, str]:
+        if tier in _TIER_DISPLAY_ORDER:
+            return _TIER_DISPLAY_ORDER.index(tier), tier
+        return len(_TIER_DISPLAY_ORDER), tier
+
+    return sorted(counts, key=sort_key)
+
+
+def _planned_tier_distribution(result: "ReviewResult") -> dict[str, int]:
+    """Tier counts when the planner ran on at least one file, else empty.
+
+    The empty dict keeps the "Review depth" rollup row (and therefore every
+    renderer's output) byte-identical for full-plan reviews.
+    """
+    if any(_STEP_PLAN_KEY in fr.step_outputs for fr in result.per_file):
+        return tier_distribution(result)
+    return {}
 
 
 def _count_docs(result: "ReviewResult") -> int:
@@ -122,6 +164,7 @@ def rollup_review(result: "ReviewResult") -> ReviewRollup:
         confidence_scored=counters.confidence_scored,
         rag_cited=counters.rag_cited,
         retrieved_docs=_count_docs(result),
+        tier_distribution=_planned_tier_distribution(result),
     )
 
 
@@ -166,6 +209,19 @@ def rollup_rows(rollup: ReviewRollup) -> list[tuple[str, str]]:
             f"{rollup.rag_cited} RAG-cited",
         ),
     ]
+    rows.extend(_optional_rollup_rows(rollup))
+    return rows
+
+
+def _optional_rollup_rows(rollup: ReviewRollup) -> list[tuple[str, str]]:
+    """Rows that only appear when their signal is present at all."""
+    rows: list[tuple[str, str]] = []
+    if rollup.tier_distribution:
+        depth = " · ".join(
+            f"{tier}: {rollup.tier_distribution[tier]}"
+            for tier in ordered_tiers(rollup.tier_distribution)
+        )
+        rows.append(("Review depth", depth))
     if rollup.evidence_kinds:
         kinds = " · ".join(
             f"{kind}: {count}"
@@ -193,7 +249,9 @@ __all__ = [
     "ReviewRollup",
     "all_findings",
     "format_markdown_rollup",
+    "ordered_tiers",
     "rollup_review",
     "rollup_rows",
     "severity_counts",
+    "tier_distribution",
 ]
