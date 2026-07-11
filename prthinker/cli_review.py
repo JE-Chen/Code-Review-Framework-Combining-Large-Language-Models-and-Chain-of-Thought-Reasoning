@@ -202,9 +202,18 @@ def _repo_context_options(args: argparse.Namespace, backend: object) -> dict:
         "rerank": _rerank_context_options,
         "block_rerank": _block_rerank_context_options,
         "iterative": _iterative_context_options,
+        "hypothesis": _hypothesis_context_options,
     }
     builder = builders.get(strategy, _default_context_options)
     return builder(args, backend)
+
+
+def _hypothesis_context_options(args: argparse.Namespace, backend: object) -> dict:
+    """Build factory kwargs for the propose-verify localization strategy."""
+    return {
+        "backend": backend,
+        "max_rounds": max(1, int(getattr(args, "repo_context_rounds", 3) or 3)),
+    }
 
 
 def _context_top_k(args: argparse.Namespace) -> int:

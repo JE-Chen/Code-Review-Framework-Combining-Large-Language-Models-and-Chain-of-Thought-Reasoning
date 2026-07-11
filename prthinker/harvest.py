@@ -74,6 +74,30 @@ def _extract_suggestion_block(body: str) -> str | None:
     return match.group("body").rstrip("\n") if match else None
 
 
+def _reply_dismissal_reason(replies: Iterable[dict]) -> str | None:
+    """Reason string when any reply body matches the dismissal keywords.
+
+    Shared with the GitLab / Gitea harvesters so every platform reads
+    the same reviewer signals.
+    """
+    for reply in replies:
+        text = reply.get("body") or ""
+        match = _DISMISS_RE.search(text)
+        if match:
+            return f"reply matched: {match.group(0)!r}"
+    return None
+
+
+def _accepted_comment_text(body: str) -> str:
+    """Advisory text with the ```suggestion block stripped out.
+
+    The embedding should reflect the reviewer's advice, not the patch;
+    a suggestion-only comment gets a placeholder. Shared across the
+    platform harvesters.
+    """
+    return _SUGGESTION_RE.sub("", body).strip() or "(suggestion only)"
+
+
 def harvest(
     repo: str,
     token: str,
@@ -189,14 +213,7 @@ def _dismissal_reason(
     """Return a short reason string if this comment is dismissed, else None."""
     if _has_thumbs_down(client, repo, comment):
         return "thumbs-down reaction"
-
-    for reply in replies:
-        text = reply.get("body") or ""
-        match = _DISMISS_RE.search(text)
-        if match:
-            return f"reply matched: {match.group(0)!r}"
-
-    return None
+    return _reply_dismissal_reason(replies)
 
 
 def _has_thumbs_down(
@@ -280,11 +297,7 @@ def _harvest_accepted_one_pr(
         if not suggestion:
             continue
 
-        # Strip the suggestion block from the comment so the embedding
-        # reflects the advisory text, not the patch.
-        comment_text = _SUGGESTION_RE.sub("", body).strip()
-        if not comment_text:
-            comment_text = "(suggestion only)"
+        comment_text = _accepted_comment_text(body)
 
         store.append(
             AcceptedExample(

@@ -19,7 +19,7 @@ from prthinker.checks import (
 from prthinker.dismissed import DismissedExamplesStore
 from prthinker.formatters import CommentOptions, format_pr_comment_pages
 from prthinker.harvest import harvest, harvest_accepted
-from prthinker import gitlab_harvest
+from prthinker import gitea_harvest, gitlab_harvest
 from prthinker.kg_visualize import build_graph_data, render_html
 from prthinker.repo_kg import (
     KnowledgeGraphStore,
@@ -258,7 +258,7 @@ def _cmd_post_status(args: argparse.Namespace) -> int:
 
 def _require_harvest_args(args: argparse.Namespace) -> None:
     """Validate the platform / repo / token arguments both harvesters share."""
-    if args.platform not in ("github", "gitlab"):
+    if args.platform not in ("github", "gitlab", "gitea"):
         raise SystemExit(f"harvesting is not supported on {args.platform!r}")
     if not args.repo:
         raise SystemExit("--repo or $GITHUB_REPOSITORY / $CI_PROJECT_PATH is required")
@@ -275,16 +275,13 @@ def _gitlab_harvest_base_url(args: argparse.Namespace) -> str:
     )
 
 
-def _run_harvest(args: argparse.Namespace, *, accepted: bool) -> int:
-    """Shared harvest driver: pick the store + harvester by outcome kind."""
-    _require_harvest_args(args)
-
-    store = (
-        AcceptedExamplesStore(args.out) if accepted else DismissedExamplesStore(args.out)
-    )
+def _harvest_platform_stats(
+    args: argparse.Namespace, store: object, *, accepted: bool
+):
+    """Dispatch to the platform's harvester and return its stats."""
     if args.platform == "gitlab":
         harvester = gitlab_harvest.harvest_accepted if accepted else gitlab_harvest.harvest
-        stats = harvester(
+        return harvester(
             project=args.repo,
             token=args.github_token,
             store=store,
@@ -292,15 +289,34 @@ def _run_harvest(args: argparse.Namespace, *, accepted: bool) -> int:
             max_mrs=args.max_prs,
             base_url=_gitlab_harvest_base_url(args),
         )
-    else:
-        harvester = harvest_accepted if accepted else harvest
-        stats = harvester(
+    if args.platform == "gitea":
+        harvester = gitea_harvest.harvest_accepted if accepted else gitea_harvest.harvest
+        return harvester(
             repo=args.repo,
             token=args.github_token,
             store=store,
             pr_number=args.pr_number,
             max_prs=args.max_prs,
+            base_url=args.platform_base_url or gitea_harvest.DEFAULT_BASE_URL,
         )
+    harvester = harvest_accepted if accepted else harvest
+    return harvester(
+        repo=args.repo,
+        token=args.github_token,
+        store=store,
+        pr_number=args.pr_number,
+        max_prs=args.max_prs,
+    )
+
+
+def _run_harvest(args: argparse.Namespace, *, accepted: bool) -> int:
+    """Shared harvest driver: pick the store + harvester by outcome kind."""
+    _require_harvest_args(args)
+
+    store = (
+        AcceptedExamplesStore(args.out) if accepted else DismissedExamplesStore(args.out)
+    )
+    stats = _harvest_platform_stats(args, store, accepted=accepted)
     count = stats.accepted_found if accepted else stats.dismissed_found
     _record_harvest_calibration(args, count, accepted=accepted)
     label = "Accepted" if accepted else "Dismissed"

@@ -47,11 +47,14 @@
   有自己的生成预算。
 - **审查 preset**──`--review-preset backend|frontend|security|release`
   一次打包对应的聚焦审查模式与安全检查，免得逐一手动开 flag。
-- **CLI 上的 repo-context 检索**──`--repo-context-strategy` 以八种
+- **CLI 上的 repo-context 检索**──`--repo-context-strategy` 以十种
   策略之一（lexical / semantic / structural / graph / rerank /
-  block_rerank / iterative / query_rewrite）把相关文件注入每个文件的
-  prompt；配套的 `retrieval-report` 子命令把内容安全的检索轨迹
-  汇整成审计报告。
+  block_rerank / iterative / query_rewrite / hypothesis / execution）
+  把相关文件注入每个文件的 prompt，包括 model-in-the-loop 的
+  propose-verify 定位（`hypothesis`）与融合 stack-trace 及
+  spectrum-based fault localization 信号的执行接地重排序
+  （`execution`）；配套的 `retrieval-report` 子命令把内容安全的
+  检索轨迹汇整成审计报告。
 - **逐文件 inline review**，配合 GitHub `suggestion` 区块，PR 作者点一下
   即可应用。
 - **Copilot 式 PR 摘要**──审查前的 `prthinker pr-summary` 阶段读取 PR
@@ -93,6 +96,14 @@
 反馈校准、可选的 Tree-sitter 多语言上下文，以及 OTLP 追踪
 （`--otel-endpoint`）。外部验证工具在缺席时报告 `unsupported`，绝不
 伪造成功的检查。
+
+`prthinker retrieval-eval` 对每笔记录平均 recall／precision／
+utilization／citation-correctness；带有 `pred_spans` / `gold_spans`
+的记录另有三个可选的宽容定位指标──`line_hit_at_k`（k=10：前 10 条
+预测行任一命中 gold 行集合即为 1.0）、`window_recall`（gold 行中，
+同文件 ±3 行（含）内存在预测行的比例）、`block_f1`（以 Python AST 的
+function／class 区间为粒度的 F1，其余退回 20 行 bucket）。gold 行
+集合为空的 case 不列入该指标的平均；旧格式记录的输出不变。
 
 十七个多数 LLM code review 系统未实作的机制。大多需搭配 `--inline-review`；
 依本项目不臆造原则，我们只交付框架，量化 benchmark 数字属于未来工作。

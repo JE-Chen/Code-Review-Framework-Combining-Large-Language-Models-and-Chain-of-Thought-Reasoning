@@ -38,6 +38,8 @@ _REPO_CONTEXT_STRATEGIES = (
     "block_rerank",
     "iterative",
     "query_rewrite",
+    "hypothesis",
+    "execution",
 )
 
 
@@ -133,7 +135,9 @@ def _add_repo_context_args(common: argparse.ArgumentParser) -> None:
             "Cross-file repository context strategy for local per-file review. "
             "'none' preserves the existing prompt; lexical/semantic/structural/"
             "graph/rerank/block_rerank/iterative/query_rewrite inject related "
-            "files into each file prompt."
+            "files into each file prompt; 'hypothesis' runs a propose-verify "
+            "localization loop; 'execution' re-ranks with stack-trace and "
+            "fault-localization signals mined from the change text."
         ),
     )
     common.add_argument(

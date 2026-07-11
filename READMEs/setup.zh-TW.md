@@ -576,7 +576,7 @@ prthinker stats --since-days 7
 | 環境變數 | CLI flag | 值 / 預設 |
 |---|---|---|
 | `PRTHINKER_STEP_PLAN` | `--step-plan` | `full`\ （預設）\| `adaptive`\ ──per-file review 深度 |
-| `PRTHINKER_REPO_CONTEXT_STRATEGY` | `--repo-context-strategy` | `none`\ （預設）或八種檢索 strategy 之一（\ `lexical` / `semantic` / `structural` / `graph` / `rerank` / `block_rerank` / `iterative` / `query_rewrite`\ ） |
+| `PRTHINKER_REPO_CONTEXT_STRATEGY` | `--repo-context-strategy` | `none`\ （預設）或十種檢索 strategy 之一（\ `lexical` / `semantic` / `structural` / `graph` / `rerank` / `block_rerank` / `iterative` / `query_rewrite` / `hypothesis` / `execution`\ ） |
 | `PRTHINKER_REPO_CONTEXT_WORKDIR` / `_TOP_K` / `_KEEP_RATIO` / `_BLOCK_CANDIDATES` / `_VOTES` / `_ROUNDS` / `_FOCUS_LINES` | `--repo-context-*` 調校旋鈕 | `.` / 10 / 0.0 / 6 / 1 / 3 / 0 |
 | `PRTHINKER_VERIFY_CMD` | `--verify-cmd` | `pytest -x` |
 | `PRTHINKER_VERIFY_TIMEOUT` | `--verify-timeout` | 60（秒） |

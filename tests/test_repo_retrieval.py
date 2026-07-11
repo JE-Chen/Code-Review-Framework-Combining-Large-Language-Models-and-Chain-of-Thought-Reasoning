@@ -594,3 +594,14 @@ def test_enrich_context_spans_does_not_walk_worktree(tmp_path, monkeypatch):
     monkeypatch.setattr(rr, "_iter_code_files", _forbidden)
     enriched = enrich_context_spans(RepoContext(files=("m.py",)), "widget", repo)
     assert enriched.spans["m.py"]
+
+
+def test_factory_builds_hypothesis_and_execution_strategies():
+    from prthinker.execution_retriever import ExecutionGroundedRetriever
+    from prthinker.hypothesis_retriever import HypothesisRetriever
+    from tests.conftest import FakeBackend
+
+    hypothesis = create_repo_retriever("hypothesis", backend=FakeBackend())
+    assert isinstance(hypothesis, HypothesisRetriever)
+    execution = create_repo_retriever("execution", top_k=5)
+    assert isinstance(execution, ExecutionGroundedRetriever)

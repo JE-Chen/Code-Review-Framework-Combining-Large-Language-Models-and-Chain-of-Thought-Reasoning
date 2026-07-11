@@ -47,6 +47,34 @@ class _ScriptedClient:
         return None
 
 
+class _ScriptedPostResponse:
+    """Stand-in for a non-streaming ``httpx.Response``."""
+
+    def __init__(self, body: dict) -> None:
+        self._body = body
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> dict:
+        return self._body
+
+
+class _ScriptedPostClient:
+    """Captures the posted payload and replays a scripted JSON body."""
+
+    def __init__(self, body: dict) -> None:
+        self._body = body
+        self.calls: list[dict] = []
+
+    def post(self, url: str, *, json: dict) -> _ScriptedPostResponse:
+        self.calls.append({"url": url, "json": json})
+        return _ScriptedPostResponse(self._body)
+
+    def close(self) -> None:
+        return None
+
+
 def _make_backend(lines: list[str]) -> AnthropicBackend:
     config = AnthropicConfig(model="claude-opus-4-7", api_key="sk-test")
     backend = AnthropicBackend(config)
@@ -54,6 +82,19 @@ def _make_backend(lines: list[str]) -> AnthropicBackend:
         backend._client.close()
     backend._client = _ScriptedClient(lines)
     return backend
+
+
+def _make_post_backend(body: dict) -> AnthropicBackend:
+    config = AnthropicConfig(model="claude-opus-4-7", api_key="sk-test")
+    backend = AnthropicBackend(config)
+    with contextlib.suppress(Exception):
+        backend._client.close()
+    backend._client = _ScriptedPostClient(body)
+    return backend
+
+
+_LONG_PROMPT = "x" * 4096
+_OK_BODY: dict = {"content": [{"type": "text", "text": "ok"}], "usage": {}}
 
 
 def test_stream_yields_text_deltas_and_usage() -> None:
@@ -161,3 +202,99 @@ def test_backend_kind_and_model_name() -> None:
     backend = _make_backend([])
     assert backend.backend_kind() == "anthropic"
     assert backend.model_name() == "claude-opus-4-7"
+
+
+def test_generate_short_prompt_keeps_plain_string_content() -> None:
+    backend = _make_post_backend(_OK_BODY)
+    backend.generate("short prompt", 64)
+    body = backend._client.calls[0]["json"]
+    assert body["messages"] == [{"role": "user", "content": "short prompt"}]
+
+
+def test_generate_long_prompt_gets_cache_control_block() -> None:
+    backend = _make_post_backend(_OK_BODY)
+    backend.generate(_LONG_PROMPT, 64)
+    content = backend._client.calls[0]["json"]["messages"][0]["content"]
+    assert isinstance(content, list) and len(content) == 1
+    block = content[0]
+    assert block["type"] == "text"
+    assert block["text"] == _LONG_PROMPT
+    assert block["cache_control"] == {"type": "ephemeral"}
+
+
+def test_cache_control_threshold_boundary() -> None:
+    just_below = "y" * 4095
+    backend = _make_post_backend(_OK_BODY)
+    backend.generate(just_below, 64)
+    body = backend._client.calls[0]["json"]
+    assert body["messages"][0]["content"] == just_below
+
+    backend = _make_post_backend(_OK_BODY)
+    backend.generate("y" * 4096, 64)
+    content = backend._client.calls[0]["json"]["messages"][0]["content"]
+    assert content[0]["cache_control"] == {"type": "ephemeral"}
+
+
+def test_stream_long_prompt_gets_cache_control_block() -> None:
+    backend = _make_backend([_sse({"type": "message_stop"})])
+    list(backend.stream_generate(_LONG_PROMPT, 8))
+    content = backend._client.calls[0]["json"]["messages"][0]["content"]
+    assert content[0]["cache_control"] == {"type": "ephemeral"}
+
+
+def test_generate_usage_without_cache_fields_unchanged() -> None:
+    body = {
+        "content": [{"type": "text", "text": "ok"}],
+        "usage": {"input_tokens": 10, "output_tokens": 5},
+    }
+    backend = _make_post_backend(body)
+    backend.generate("p", 8)
+    usage = backend.last_usage()
+    assert usage is not None
+    assert usage.prompt_tokens == 10
+    assert usage.completion_tokens == 5
+
+
+def test_generate_usage_folds_cache_tokens_into_prompt_tokens() -> None:
+    body = {
+        "content": [{"type": "text", "text": "ok"}],
+        "usage": {
+            "input_tokens": 10,
+            "output_tokens": 5,
+            "cache_creation_input_tokens": 100,
+            "cache_read_input_tokens": 200,
+        },
+    }
+    backend = _make_post_backend(body)
+    backend.generate("p", 8)
+    usage = backend.last_usage()
+    assert usage is not None
+    assert usage.prompt_tokens == 310
+    assert usage.completion_tokens == 5
+
+
+def test_generate_usage_none_when_input_tokens_missing() -> None:
+    body = {
+        "content": [{"type": "text", "text": "ok"}],
+        "usage": {"output_tokens": 5, "cache_read_input_tokens": 200},
+    }
+    backend = _make_post_backend(body)
+    backend.generate("p", 8)
+    assert backend.last_usage() is None
+
+
+def test_stream_usage_folds_cache_tokens_into_prompt_tokens() -> None:
+    lines = [
+        _sse({"type": "message_start",
+              "message": {"usage": {"input_tokens": 3,
+                                    "cache_creation_input_tokens": 4,
+                                    "cache_read_input_tokens": 5}}}),
+        _sse({"type": "message_delta", "usage": {"output_tokens": 2}}),
+        _sse({"type": "message_stop"}),
+    ]
+    backend = _make_backend(lines)
+    list(backend.stream_generate("p", 8))
+    usage = backend.last_usage()
+    assert usage is not None
+    assert usage.prompt_tokens == 12
+    assert usage.completion_tokens == 2

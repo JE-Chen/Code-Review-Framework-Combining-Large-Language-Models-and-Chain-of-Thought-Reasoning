@@ -339,7 +339,7 @@ injects them into each file's prompt.
    * - CLI flag
      - Env var
      - Default
-   * - ``--repo-context-strategy {none,lexical,semantic,structural,graph,rerank,block_rerank,iterative,query_rewrite}``
+   * - ``--repo-context-strategy {none,lexical,semantic,structural,graph,rerank,block_rerank,iterative,query_rewrite,hypothesis,execution}``
      - ``PRTHINKER_REPO_CONTEXT_STRATEGY``
      - ``none``
    * - ``--repo-context-workdir PATH``
@@ -366,7 +366,9 @@ injects them into each file's prompt.
 
 ``--repo-context-block-candidates``, ``--repo-context-votes``,
 ``--repo-context-rounds``, and ``--repo-context-focus-lines`` tune the
-model-in-the-loop strategies (``block_rerank`` / ``iterative``);
+model-in-the-loop strategies (``block_rerank`` / ``iterative`` /
+``hypothesis``); ``--repo-context-rounds`` bounds both the
+``iterative`` and ``hypothesis`` loops,
 ``--repo-context-keep-ratio`` ``0`` keeps the fixed top-k tail, and
 ``--repo-context-focus-lines`` ``0`` disables the line-window focus.
 

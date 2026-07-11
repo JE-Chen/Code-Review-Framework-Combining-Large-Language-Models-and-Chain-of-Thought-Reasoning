@@ -8,7 +8,11 @@ import httpx
 
 from prthinker import issue_autofile
 from prthinker.cli_review_issues import _issue_labels, _maybe_file_issues
-from prthinker.issue_tracker import GitHubIssueTracker, GitLabIssueTracker
+from prthinker.issue_tracker import (
+    GiteaIssueTracker,
+    GitHubIssueTracker,
+    GitLabIssueTracker,
+)
 from prthinker.pipeline import ReviewResult
 from prthinker.platforms import PlatformKind
 from prthinker.schemas import InlineFinding
@@ -84,11 +88,30 @@ def test_dry_run_files_nothing(monkeypatch):
     assert calls == []
 
 
-def test_gitea_platform_skips(monkeypatch):
+def test_unknown_platform_skips(monkeypatch):
     calls = _capture_filing(monkeypatch)
     _maybe_file_issues(
-        _args(), _result([_off_diff()]), PlatformKind.GITEA, _Adapter())
+        _args(), _result([_off_diff()]), "bitbucket", _Adapter())
     assert calls == []
+
+
+def test_gitea_platform_builds_gitea_tracker(monkeypatch):
+    calls = _capture_filing(monkeypatch)
+    _maybe_file_issues(
+        _args(repo="tea/proj"), _result([_off_diff()]),
+        PlatformKind.GITEA, _Adapter("https://tea.corp/api/v1"))
+    tracker = calls[0]["tracker"]
+    assert isinstance(tracker, GiteaIssueTracker)
+    assert tracker.repo == "tea/proj"
+    assert tracker.base_url == "https://tea.corp/api/v1"
+
+
+def test_gitea_without_adapter_url_uses_default(monkeypatch):
+    calls = _capture_filing(monkeypatch)
+    _maybe_file_issues(
+        _args(repo="tea/proj"), _result([_off_diff()]),
+        PlatformKind.GITEA, _Adapter())
+    assert calls[0]["tracker"].base_url == "https://gitea.com/api/v1"
 
 
 def test_off_diff_mode_selects_only_off_diff_findings(monkeypatch):

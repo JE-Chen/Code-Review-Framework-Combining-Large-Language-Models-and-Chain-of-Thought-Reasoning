@@ -40,6 +40,7 @@ from prthinker.repo_config import (
     to_argparse_defaults,
 )
 from prthinker.benchmark_cli import add_benchmark_parser
+from prthinker.depth_eval_cli import add_parser as add_depth_eval_parser
 from prthinker.verify_cli import add_verify_parser
 from prthinker.retrieval_eval_cli import add_parser as add_retrieval_eval_parser
 from prthinker.retrieval_report_cli import add_parser as add_retrieval_report_parser
@@ -148,6 +149,7 @@ def _register_subcommands(sub, common: argparse.ArgumentParser) -> None:
     add_hook_parser(sub, common)
     add_triage_parser(sub)
     add_benchmark_parser(sub, common)
+    add_depth_eval_parser(sub, common)
     add_verify_parser(sub)
     add_retrieval_eval_parser(sub)
     add_retrieval_report_parser(sub)

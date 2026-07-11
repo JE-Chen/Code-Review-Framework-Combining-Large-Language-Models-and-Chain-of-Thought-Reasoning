@@ -218,3 +218,37 @@ def test_reactions_absent_falls_back_to_endpoint() -> None:
     _store, stats = _run(client)
     assert stats.dismissed_found == 1
     assert len(client.reaction_urls) == 1
+
+
+# ----- shared cross-platform helpers ----------------------------------------
+
+
+def test_reply_dismissal_reason_matches_keyword() -> None:
+    from prthinker.harvest import _reply_dismissal_reason
+
+    replies = [{"body": "thanks"}, {"body": "this is a FALSE POSITIVE"}]
+    reason = _reply_dismissal_reason(replies)
+    assert reason is not None
+    assert reason.startswith("reply matched:")
+
+
+def test_reply_dismissal_reason_none_cases() -> None:
+    from prthinker.harvest import _reply_dismissal_reason
+
+    assert _reply_dismissal_reason([]) is None
+    assert _reply_dismissal_reason([{"body": None}]) is None
+    assert _reply_dismissal_reason([{"body": "looks good"}]) is None
+
+
+def test_accepted_comment_text_strips_suggestion_block() -> None:
+    from prthinker.harvest import _accepted_comment_text
+
+    body = "use a constant\n\n```suggestion\nX = 1\n```"
+    assert _accepted_comment_text(body) == "use a constant"
+
+
+def test_accepted_comment_text_placeholder_when_suggestion_only() -> None:
+    from prthinker.harvest import _accepted_comment_text
+
+    assert _accepted_comment_text("```suggestion\nX = 1\n```") == "(suggestion only)"
+    assert _accepted_comment_text("") == "(suggestion only)"

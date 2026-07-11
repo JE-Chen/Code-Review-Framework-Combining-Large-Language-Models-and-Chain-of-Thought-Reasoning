@@ -23,6 +23,16 @@ import httpx
 from prthinker.backends.base import InferenceBackend, Usage, ThreadLocalUsage
 from prthinker.config import AnthropicConfig
 
+# Prompts shorter than this are sent as a plain string with no
+# cache_control: the API's minimum cacheable prefix is ~1K-4K tokens
+# (model-dependent), so marking a short prompt only pays the cache-write
+# premium without ever producing a cache read.
+_CACHE_MIN_CHARS = 4096
+
+# With prompt caching active, ``input_tokens`` is only the *uncached*
+# remainder; the cached share arrives in these two sibling counters.
+_CACHE_USAGE_KEYS = ("cache_creation_input_tokens", "cache_read_input_tokens")
+
 
 class AnthropicBackend(InferenceBackend):
     concurrency_limit = 4
@@ -63,7 +73,7 @@ class AnthropicBackend(InferenceBackend):
             "model": self._config.model,
             "max_tokens": max_new_tokens,
             "temperature": self._config.temperature,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": self._build_messages(prompt),
         }
         response = self._client.post("/v1/messages", json=payload)
         response.raise_for_status()
@@ -78,11 +88,11 @@ class AnthropicBackend(InferenceBackend):
             ) from exc
 
         usage = body.get("usage") or {}
-        input_tokens = usage.get("input_tokens")
+        prompt_tokens = self._prompt_tokens_with_cache(usage)
         output_tokens = usage.get("output_tokens")
-        if input_tokens is not None and output_tokens is not None:
+        if prompt_tokens is not None and output_tokens is not None:
             self._usage.set(Usage(
-                prompt_tokens=int(input_tokens),
+                prompt_tokens=prompt_tokens,
                 completion_tokens=int(output_tokens),
             ))
 
@@ -123,9 +133,49 @@ class AnthropicBackend(InferenceBackend):
             "model": self._config.model,
             "max_tokens": max_new_tokens,
             "temperature": self._config.temperature,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": self._build_messages(prompt),
             "stream": True,
         }
+
+    @staticmethod
+    def _build_messages(prompt: str) -> list[dict]:
+        """The single-user-message ``messages`` array for one prompt.
+
+        Long prompts are wrapped in one text content block carrying an
+        ephemeral ``cache_control`` marker (the Messages API accepts
+        ``cache_control`` on user content blocks), so repeated per-file
+        review prompts that share a stable prefix are served from the
+        prompt cache. Short prompts keep the plain string shape — below
+        the API's minimum cacheable prefix the marker is pointless.
+        """
+        if len(prompt) < _CACHE_MIN_CHARS:
+            return [{"role": "user", "content": prompt}]
+        block = {
+            "type": "text",
+            "text": prompt,
+            "cache_control": {"type": "ephemeral"},
+        }
+        return [{"role": "user", "content": [block]}]
+
+    @staticmethod
+    def _prompt_tokens_with_cache(usage: dict) -> int | None:
+        """Total prompt tokens from an Anthropic ``usage`` block, or None.
+
+        Folds ``cache_creation_input_tokens`` / ``cache_read_input_tokens``
+        into the ``input_tokens`` remainder so telemetry keeps seeing the
+        full prompt size, without changing the ``Usage`` wire shape.
+        Absent cache fields (older API responses) leave the plain
+        ``input_tokens`` accounting unchanged.
+        """
+        tokens = usage.get("input_tokens")
+        if tokens is None:
+            return None
+        total = int(tokens)
+        for key in _CACHE_USAGE_KEYS:
+            value = usage.get(key)
+            if value is not None:
+                total += int(value)
+        return total
 
     @staticmethod
     def _parse_sse_event(line: str) -> dict | None:
@@ -139,10 +189,9 @@ class AnthropicBackend(InferenceBackend):
 
     @staticmethod
     def _prompt_tokens_from_start(event: dict) -> int | None:
-        """Read ``input_tokens`` from a ``message_start`` event."""
+        """Read prompt tokens (cache counters folded in) from ``message_start``."""
         msg = event.get("message", {}) or {}
-        tokens = (msg.get("usage") or {}).get("input_tokens")
-        return int(tokens) if tokens is not None else None
+        return AnthropicBackend._prompt_tokens_with_cache(msg.get("usage") or {})
 
     @staticmethod
     def _text_from_delta(event: dict) -> str | None:

@@ -54,11 +54,14 @@ remembers past feedback, and explains its reasoning step by step.
   bundles the focused review modes and safety checks a caller would
   otherwise spell out flag by flag.
 - **Repo-context retrieval on the CLI** — `--repo-context-strategy`
-  injects related files into each file's prompt via one of eight
+  injects related files into each file's prompt via one of ten
   strategies (lexical / semantic / structural / graph / rerank /
-  block_rerank / iterative / query_rewrite), and the companion
-  `retrieval-report` subcommand renders the content-safe retrieval
-  trajectory into an audit report.
+  block_rerank / iterative / query_rewrite / hypothesis / execution) —
+  including model-in-the-loop propose-verify localization
+  (`hypothesis`) and execution-grounded re-ranking that fuses
+  stack-trace and spectrum-based fault-localization signals
+  (`execution`) — and the companion `retrieval-report` subcommand
+  renders the content-safe retrieval trajectory into an audit report.
 - **Per-file inline review** with GitHub `suggestion` blocks that PR
   authors can apply with one click.
 - **Copilot-style PR summary** — a pre-review `prthinker pr-summary`
@@ -137,6 +140,17 @@ prthinker verify --workdir . --base-ref origin/main --head-ref HEAD --command py
 prthinker verify --workdir . --tiers static,dynamic,bounded --output evidence.json
 prthinker retrieval-eval retrieval-records.jsonl --output retrieval-score.json
 ```
+
+`retrieval-eval` averages recall / precision / utilization /
+citation-correctness across the records; records that also carry
+`pred_spans` / `gold_spans` gain three optional tolerant localization
+metrics — `line_hit_at_k` (k=10: 1.0 when any of the top-10 predicted
+lines hits the gold line set), `window_recall` (fraction of gold lines
+with a predicted line within ±3 lines, inclusive, in the same file),
+and `block_f1` (F1 at function/class-span granularity via the Python
+AST, with a 20-line bucket fallback elsewhere). A case with an empty
+gold line set is excluded from that metric's mean, and legacy records
+without span data produce unchanged output.
 
 ### Evidence, sandboxing, and attestations
 

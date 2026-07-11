@@ -162,7 +162,7 @@ Prompt 的规则槽合并两个来源：
 
 本地 per-file review 也可以把\ **跨文件 repository context**\ ──work
 tree 内的相关文件──注入每个文件的 prompt。\ `none`\ （默认）保留原本的
-prompt；八种 strategy 收在同一个 factory
+prompt；十种 strategy 收在同一个 factory
 （\ `prthinker.repo_retrieval_factory.create_repo_retriever`\ ）之后：
 
 - `lexical`\ ──BM25 词汇检索，带 issue-aware query 扩展；不用模型。
@@ -173,6 +173,8 @@ prompt；八种 strategy 收在同一个 factory
 - `block_rerank`\ ──文件层 rerank 之后，由 backend 挑出相关的 `def` / `class` block。
 - `iterative`\ ──agentic 多轮 explore-and-select：每轮 backend 挑 block 并提出下一个搜索 query。
 - `query_rewrite`\ ──先用一次便宜的 backend 调用把 issue 蒸馏成聚焦的搜索词，再做词汇检索。
+- `hypothesis`\ ──model-in-the-loop 的 propose-verify 定位：每轮由模型提出可疑的（path、symbol、行号）假设，经静态验证（路径／symbol 存在、AST 行区间、import-graph caller）；被驳回的假设反馈为修正，确认的位置排最前（轮数由 `--repo-context-rounds` 限制）。
+- `execution`\ ──execution-grounded 重排序：从变更／issue 文本挖出的 stack-trace frame，与 spectrum-based fault localization（Ochiai／Tarantula，对逐测试 coverage 计算；failing test 以程序方式提供时经 subprocess 收集）及词汇基础排名做 reciprocal-rank fusion；没有任何信号时退化为基础 retriever。
 
 调优 flag（每个都有对应的 `PRTHINKER_REPO_CONTEXT_*` env var）：
 `--repo-context-workdir`\ （work tree，默认 `.`\ ）、
@@ -181,7 +183,7 @@ prompt；八种 strategy 收在同一个 factory
 top-k 尾巴）、\ `--repo-context-block-candidates`\ （\ `block_rerank`
 / `iterative` 每文件候选 block 数，默认 6）、\ `--repo-context-votes`
 （model-in-the-loop 检索的 self-consistency 票数，默认 1）、
-`--repo-context-rounds`\ （\ `iterative` 最大轮数，默认 3）、
+`--repo-context-rounds`\ （\ `iterative` / `hypothesis` 最大轮数，默认 3）、
 `--repo-context-focus-lines`\ （block context 的可选行窗聚焦；0 关闭）。
 
 ---

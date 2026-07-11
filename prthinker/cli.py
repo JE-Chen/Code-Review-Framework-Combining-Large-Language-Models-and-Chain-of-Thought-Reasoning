@@ -53,6 +53,7 @@ from prthinker.cli_review import (
 )
 from prthinker.cli_triage import _cmd_triage
 from prthinker.benchmark_cli import command as _cmd_benchmark
+from prthinker.depth_eval_cli import command as _cmd_depth_eval
 from prthinker.verify_cli import command as _cmd_verify
 from prthinker.otel import configure as configure_otel
 from prthinker.retrieval_eval_cli import command as _cmd_retrieval_eval
@@ -84,6 +85,7 @@ _COMMAND_HANDLERS: dict[str, Callable[[argparse.Namespace], int]] = {
     "harvest-accepted": _cmd_harvest_accepted,
     "triage": _cmd_triage,
     "benchmark": _cmd_benchmark,
+    "depth-eval": _cmd_depth_eval,
     "verify": _cmd_verify,
     "retrieval-eval": _cmd_retrieval_eval,
     "retrieval-report": _cmd_retrieval_report,

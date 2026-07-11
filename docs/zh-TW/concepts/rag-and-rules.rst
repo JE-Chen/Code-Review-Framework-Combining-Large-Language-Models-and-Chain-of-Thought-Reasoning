@@ -145,6 +145,15 @@ Repository-context 檢索策略
   或輪數預算用完。
 * ``query_rewrite``\ ──一次便宜的 backend 呼叫把冗長的 issue 濃縮成
   聚焦的搜尋詞，附加到 query 後再交給 lexical base。
+* ``hypothesis``\ ──model-in-the-loop 的 propose-verify 定位：每輪由
+  模型提出可疑的（path、symbol、行號）假設，經靜態驗證（路徑／symbol
+  是否存在、AST 行區間、import-graph caller）；被駁回的假設回饋為
+  修正，確認的位置排最前。輪數由 ``--repo-context-rounds`` 限制。
+* ``execution``\ ──execution-grounded 重排序：從變更／issue 文字挖出
+  的 stack-trace frame，與 spectrum-based fault localization
+  （Ochiai／Tarantula，對逐測試 coverage 計算；failing test 以程式
+  方式提供時經 subprocess 收集）及 lexical 基礎排名做
+  reciprocal-rank fusion；沒有任何訊號時退化為基礎 retriever。
 
 work-tree 每個 retriever 實例只讀取並建索引一次（依 work-tree
 memoize），不是每次查詢都重建──多輪策略是對已建好的索引重複查詢，
