@@ -290,7 +290,7 @@ def _innermost_block(blocks: list[tuple[int, int, str]], line: int) -> tuple[int
     best: tuple[int, int] | None = None
     best_start = -1
     for start, end, _name in blocks:
-        if start <= line <= end and start >= best_start:
+        if best_start <= start <= line <= end:
             best = (start, end)
             best_start = start
     return best
