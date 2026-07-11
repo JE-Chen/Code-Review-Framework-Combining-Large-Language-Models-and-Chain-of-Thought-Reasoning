@@ -288,9 +288,11 @@ def _bucket_span(line: int) -> tuple[int, int]:
 def _innermost_block(blocks: list[tuple[int, int, str]], line: int) -> tuple[int, int] | None:
     """Smallest (latest-starting) def/class span containing ``line``, if any."""
     best: tuple[int, int] | None = None
+    best_start = -1
     for start, end, _name in blocks:
-        if start <= line <= end and (best is None or start >= best[0]):
+        if start <= line <= end and start >= best_start:
             best = (start, end)
+            best_start = start
     return best
 
 

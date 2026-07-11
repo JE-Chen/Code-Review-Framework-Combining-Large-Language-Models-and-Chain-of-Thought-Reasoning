@@ -599,7 +599,6 @@ def test_enrich_context_spans_does_not_walk_worktree(tmp_path, monkeypatch):
 def test_factory_builds_hypothesis_and_execution_strategies():
     from prthinker.execution_retriever import ExecutionGroundedRetriever
     from prthinker.hypothesis_retriever import HypothesisRetriever
-    from prthinker.repo_retrieval_factory import create_repo_retriever
     from tests.conftest import FakeBackend
 
     hypothesis = create_repo_retriever("hypothesis", backend=FakeBackend())
