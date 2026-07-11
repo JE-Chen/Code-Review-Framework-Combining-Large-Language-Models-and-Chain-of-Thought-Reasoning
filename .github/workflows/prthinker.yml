@@ -164,9 +164,14 @@ jobs:
           # hashing — whether the file actually changed since then.
           # `patch` (the per-file unified diff; null for binary/huge
           # files) feeds the step-plan skip prefilter.
-          ALL=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/files?per_page=100" \
-            --jq '[.[] | {path: .filename, sha: .sha, status: .status, patch: .patch}]')
-          ALL="$ALL" RUNNER_TEMP="$RUNNER_TEMP" python3 <<'PY'
+          # The per-file `patch` payloads make this JSON far larger than
+          # the execve argument/environment limit on a big PR, so it goes
+          # through a temp file instead of an env var (E2BIG otherwise).
+          ALL_FILE="$RUNNER_TEMP/pr_files.json"
+          gh api "repos/${REPO}/pulls/${PR_NUMBER}/files?per_page=100" \
+            --jq '[.[] | {path: .filename, sha: .sha, status: .status, patch: .patch}]' \
+            > "$ALL_FILE"
+          ALL_FILE="$ALL_FILE" RUNNER_TEMP="$RUNNER_TEMP" python3 <<'PY'
           import fnmatch, hashlib, json, os, shutil
           from pathlib import Path
 
@@ -176,7 +181,9 @@ jobs:
               def should_skip_shard(path, patch, step_plan):
                   return False
 
-          raw = json.loads(os.environ["ALL"])
+          raw = json.loads(
+              Path(os.environ["ALL_FILE"]).read_text(encoding="utf-8")
+          )
           step_plan = os.environ.get("PRTHINKER_STEP_PLAN", "")
           patterns = [
               p.strip()
