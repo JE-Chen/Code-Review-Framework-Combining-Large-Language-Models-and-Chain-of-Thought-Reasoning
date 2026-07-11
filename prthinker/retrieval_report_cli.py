@@ -10,6 +10,13 @@ from typing import Any
 
 from prthinker.cli_io import emit_text
 
+_METRIC_KEYS = ("line_hit_at_k", "window_recall", "block_f1")
+_METRIC_LABELS = {
+    "line_hit_at_k": "Line hit@k",
+    "window_recall": "Window recall",
+    "block_f1": "Block F1",
+}
+
 
 def add_parser(sub) -> None:
     """Register the ``retrieval-report`` subcommand."""
@@ -61,6 +68,23 @@ def _totals(by_path: dict[str, dict[str, int]]) -> tuple[int, int, float]:
     return retrieved_total, used_total, utilization
 
 
+def _collect_metrics(events: list[dict[str, Any]]) -> dict[str, float]:
+    """Mean of each tolerant localization metric found in event metadata.
+
+    Events may carry per-case ``line_hit_at_k`` / ``window_recall`` /
+    ``block_f1`` values in their ``metadata``; each reported value is the mean
+    over the events that carry it. Empty when no event does.
+    """
+    values: dict[str, list[float]] = defaultdict(list)
+    for event in events:
+        metadata = event.get("metadata") or {}
+        for key in _METRIC_KEYS:
+            value = metadata.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                values[key].append(float(value))
+    return {key: sum(series) / len(series) for key, series in values.items()}
+
+
 def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
     """Aggregate trajectory events without exposing prompt/code content."""
     by_event = Counter(str(event.get("event", "")) for event in events)
@@ -72,7 +96,7 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
     _tally_retrievals(by_path, retrievals)
     _tally_uses(by_path, uses)
     retrieved_total, used_total, utilization = _totals(by_path)
-    return {
+    summary = {
         "events": len(events),
         "by_event": dict(by_event),
         "retrievals": len(retrievals),
@@ -82,6 +106,11 @@ def summarize(events: list[dict[str, Any]]) -> dict[str, Any]:
         "utilization": utilization,
         "by_path": dict(sorted(by_path.items())),
     }
+    metrics = _collect_metrics(events)
+    if metrics:
+        # Key added only when present so pre-existing outputs stay identical.
+        summary["retrieval_metrics"] = metrics
+    return summary
 
 
 def render_markdown(summary: dict[str, Any]) -> str:
@@ -108,7 +137,20 @@ def render_markdown(summary: dict[str, Any]) -> str:
                 f"- `{path}`: {row['retrieved']} retrieved · "
                 f"{row['used']} used · {row['citations']} citation(s)"
             )
+    metric_lines = _metrics_lines(summary)
+    if metric_lines:
+        lines += ["", "## Retrieval quality", ""] + metric_lines
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _metrics_lines(summary: dict[str, Any]) -> list[str]:
+    """Markdown bullets for the tolerant metrics, empty when absent."""
+    metrics = summary.get("retrieval_metrics") or {}
+    return [
+        f"- {_METRIC_LABELS[key]}: {metrics[key]:.2f}"
+        for key in _METRIC_KEYS
+        if key in metrics
+    ]
 
 
 def command(args: argparse.Namespace) -> int:

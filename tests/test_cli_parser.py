@@ -143,3 +143,11 @@ def test_step_plan_env_and_flag(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_step_plan_rejects_unknown_value() -> None:
     with pytest.raises(SystemExit):
         _build_parser().parse_args(["review-file", "-", "--step-plan", "bogus"])
+
+
+def test_repo_context_accepts_localization_strategies() -> None:
+    for strategy in ("hypothesis", "execution"):
+        args = _build_parser().parse_args(
+            ["review-file", "-", "--repo-context-strategy", strategy]
+        )
+        assert args.repo_context_strategy == strategy

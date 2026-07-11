@@ -19,6 +19,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from prthinker.execution_retriever import create_execution_retriever
+from prthinker.hypothesis_retriever import HypothesisRetriever
 from prthinker.repo_graph import GraphExpandedRetriever
 from prthinker.repo_retrieval import (
     _DEFAULT_CANDIDATE_K,
@@ -340,6 +342,22 @@ def _build_iterative(**options) -> RepoContextRetriever:
     return IterativeRetriever(base, backend, **options)
 
 
+def _build_hypothesis(**options) -> RepoContextRetriever:
+    """Factory helper: propose-verify localization loop over a lexical base."""
+    backend = options.pop("backend")
+    base = options.pop("base", None) or LexicalRepoRetriever(top_k=_DEFAULT_CANDIDATE_K)
+    return HypothesisRetriever(backend, base, **options)
+
+
+def _build_execution(**options) -> RepoContextRetriever:
+    """Factory helper: execution-grounded re-ranking over a lexical base."""
+    top_k = options.pop("top_k", None)
+    base = options.pop("base", None) or LexicalRepoRetriever(
+        top_k=top_k or _DEFAULT_CANDIDATE_K
+    )
+    return create_execution_retriever(base, **options)
+
+
 def create_repo_retriever(kind: str = "lexical", **options) -> RepoContextRetriever:
     """Factory: build a repository context retriever by strategy name."""
     builders = {
@@ -351,6 +369,8 @@ def create_repo_retriever(kind: str = "lexical", **options) -> RepoContextRetrie
         "block_rerank": _build_block_rerank,
         "iterative": _build_iterative,
         "query_rewrite": _build_query_rewrite,
+        "hypothesis": _build_hypothesis,
+        "execution": _build_execution,
     }
     if kind not in builders:
         raise ValueError(f"unknown repo retriever kind: {kind!r}")
