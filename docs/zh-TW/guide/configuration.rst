@@ -322,7 +322,7 @@ work tree 檢索相關檔案並注入每個檔案之 prompt。
    * - CLI flag
      - 環境變數
      - 預設
-   * - ``--repo-context-strategy {none,lexical,semantic,structural,graph,rerank,block_rerank,iterative,query_rewrite}``
+   * - ``--repo-context-strategy {none,lexical,semantic,structural,graph,rerank,block_rerank,iterative,query_rewrite,hypothesis,execution}``
      - ``PRTHINKER_REPO_CONTEXT_STRATEGY``
      - ``none``
    * - ``--repo-context-workdir PATH``
@@ -349,7 +349,9 @@ work tree 檢索相關檔案並注入每個檔案之 prompt。
 
 ``--repo-context-block-candidates``\ 、\ ``--repo-context-votes``\ 、
 ``--repo-context-rounds`` 與 ``--repo-context-focus-lines`` 調校
-model-in-the-loop 策略（``block_rerank`` / ``iterative``\ ）；
+model-in-the-loop 策略（``block_rerank`` / ``iterative`` /
+``hypothesis``\ ）；\ ``--repo-context-rounds`` 同時限制
+``iterative`` 與 ``hypothesis`` 的輪數，
 ``--repo-context-keep-ratio`` 設 ``0`` 保留固定 top-k 尾端，
 ``--repo-context-focus-lines`` 設 ``0`` 停用行窗 focus。
 

@@ -162,7 +162,7 @@ Prompt 的規則槽合併兩個來源：
 
 本機 per-file review 也可以把\ **跨檔 repository context**\ ──work
 tree 內的相關檔案──注入每個檔的 prompt。\ `none`\ （預設）保留原本的
-prompt；八種 strategy 收在同一個 factory
+prompt；十種 strategy 收在同一個 factory
 （\ `prthinker.repo_retrieval_factory.create_repo_retriever`\ ）之後：
 
 - `lexical`\ ──BM25 詞彙檢索，帶 issue-aware query 擴展；不用模型。
@@ -173,6 +173,8 @@ prompt；八種 strategy 收在同一個 factory
 - `block_rerank`\ ──檔案層 rerank 之後，由 backend 挑出相關的 `def` / `class` block。
 - `iterative`\ ──agentic 多輪 explore-and-select：每輪 backend 挑 block 並提出下一個搜尋 query。
 - `query_rewrite`\ ──先用一次便宜的 backend 呼叫把 issue 蒸餾成聚焦的搜尋詞，再做詞彙檢索。
+- `hypothesis`\ ──model-in-the-loop 的 propose-verify 定位：每輪由模型提出可疑的（path、symbol、行號）假設，經靜態驗證（路徑／symbol 存在、AST 行區間、import-graph caller）；被駁回的假設回饋為修正，確認的位置排最前（輪數由 `--repo-context-rounds` 限制）。
+- `execution`\ ──execution-grounded 重排序：從變更／issue 文字挖出的 stack-trace frame，與 spectrum-based fault localization（Ochiai／Tarantula，對逐測試 coverage 計算；failing test 以程式方式提供時經 subprocess 收集）及詞彙基礎排名做 reciprocal-rank fusion；沒有任何訊號時退化為基礎 retriever。
 
 調校 flag（每個都有對應的 `PRTHINKER_REPO_CONTEXT_*` env var）：
 `--repo-context-workdir`\ （work tree，預設 `.`\ ）、
@@ -181,7 +183,7 @@ prompt；八種 strategy 收在同一個 factory
 top-k 尾巴）、\ `--repo-context-block-candidates`\ （\ `block_rerank`
 / `iterative` 每檔候選 block 數，預設 6）、\ `--repo-context-votes`
 （model-in-the-loop 檢索的 self-consistency 票數，預設 1）、
-`--repo-context-rounds`\ （\ `iterative` 最大輪數，預設 3）、
+`--repo-context-rounds`\ （\ `iterative` / `hypothesis` 最大輪數，預設 3）、
 `--repo-context-focus-lines`\ （block context 的可選行窗聚焦；0 關閉）。
 
 ---

@@ -264,12 +264,23 @@ Research-grade flags (opt-in, ``--inline-review`` required):
    with any explicit ``--review-modes`` list. Env:
    ``PRTHINKER_REVIEW_PRESET``.
 
-.. option:: --repo-context-strategy {none,lexical,semantic,structural,graph,rerank,block_rerank,iterative,query_rewrite}
+.. option:: --repo-context-strategy {none,lexical,semantic,structural,graph,rerank,block_rerank,iterative,query_rewrite,hypothesis,execution}
 
    Cross-file repository context for local per-file review. ``none``
    (the default) preserves the existing prompt; every other strategy
    retrieves related files from the work tree and injects them into
-   each file's prompt. Tuning flags (each with a
+   each file's prompt. ``hypothesis`` runs a model-in-the-loop
+   propose-verify localization loop: each round the model proposes
+   suspect (path, symbol, line) hypotheses which are statically
+   verified (path/symbol existence, AST line spans, import-graph
+   callers), refuted hypotheses feed back as corrections, and
+   confirmed locations rank first. ``execution`` re-ranks with
+   execution evidence: stack-trace frames mined from the change/issue
+   text are fused (reciprocal-rank fusion) with spectrum-based fault
+   localization (Ochiai/Tarantula over per-test coverage, collected
+   via subprocess when failing tests are supplied programmatically)
+   and the lexical base ranking, degrading to the base retriever when
+   no signals exist. Tuning flags (each with a
    ``PRTHINKER_REPO_CONTEXT_*`` env equivalent):
 
    * ``--repo-context-workdir PATH`` — work tree used by the retrieval
@@ -283,7 +294,7 @@ Research-grade flags (opt-in, ``--inline-review`` required):
    * ``--repo-context-votes N`` — self-consistency votes for
      model-in-the-loop retrieval (default 1).
    * ``--repo-context-rounds N`` — maximum rounds for the
-     ``iterative`` strategy (default 3).
+     ``iterative`` and ``hypothesis`` strategies (default 3).
    * ``--repo-context-focus-lines N`` — optional line-window focus for
      block context; ``0`` (the default) disables.
 

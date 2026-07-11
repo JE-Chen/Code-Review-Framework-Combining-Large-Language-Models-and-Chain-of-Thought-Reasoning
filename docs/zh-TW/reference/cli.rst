@@ -242,11 +242,20 @@ review-pr
    ``--judge``\ 。preset 之 mode 會與明確給的 ``--review-modes``
    清單合併\ 。環境變數：``PRTHINKER_REVIEW_PRESET``\ 。
 
-.. option:: --repo-context-strategy {none,lexical,semantic,structural,graph,rerank,block_rerank,iterative,query_rewrite}
+.. option:: --repo-context-strategy {none,lexical,semantic,structural,graph,rerank,block_rerank,iterative,query_rewrite,hypothesis,execution}
 
    本機逐檔審查之跨檔 repository context\ 。\ ``none``\ （預設）維持
    既有 prompt\ ；其它策略會從 work tree 檢索相關檔案並注入每個檔案
-   之 prompt\ 。調校 flag（各有對應之 ``PRTHINKER_REPO_CONTEXT_*``
+   之 prompt\ 。\ ``hypothesis`` 跑 model-in-the-loop 之
+   propose-verify 定位迴圈：每輪由模型提出可疑之（path\ 、symbol\ 、
+   行號）假設\ ，經靜態驗證（路徑／symbol 存在\ 、AST 行區間\ 、
+   import-graph caller）\ ，被駁回之假設回饋為修正\ ，確認之位置
+   排最前\ 。\ ``execution`` 以執行證據重排序：從變更／issue 文字
+   挖出之 stack-trace frame\ ，與 spectrum-based fault localization
+   （Ochiai／Tarantula\ ，對逐測試 coverage 計算\ ；failing test 以
+   程式方式提供時經 subprocess 收集）及 lexical 基礎排名做
+   reciprocal-rank fusion\ ，無任何訊號時退化為基礎 retriever\ 。
+   調校 flag（各有對應之 ``PRTHINKER_REPO_CONTEXT_*``
    環境變數）：
 
    * ``--repo-context-workdir PATH`` —— 檢索與 import-graph context
@@ -259,8 +268,8 @@ review-pr
      ``iterative`` 策略每檔之候選 block 數（預設 6）\ 。
    * ``--repo-context-votes N`` —— model-in-the-loop 檢索之
      self-consistency 票數（預設 1）\ 。
-   * ``--repo-context-rounds N`` —— ``iterative`` 策略之最大輪數
-     （預設 3）\ 。
+   * ``--repo-context-rounds N`` —— ``iterative`` 與 ``hypothesis``
+     策略之最大輪數（預設 3）\ 。
    * ``--repo-context-focus-lines N`` —— block context 之可選行窗
      focus\ ；\ ``0``\ （預設）停用\ 。
 

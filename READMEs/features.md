@@ -175,7 +175,7 @@ Three retriever implementations behind a single interface
 
 Local per-file review can also inject **cross-file repository
 context** — related files from the work tree — into each file's
-prompt. `none` (the default) preserves the existing prompt; eight
+prompt. `none` (the default) preserves the existing prompt; ten
 strategies sit behind one factory
 (`prthinker.repo_retrieval_factory.create_repo_retriever`):
 
@@ -187,6 +187,8 @@ strategies sit behind one factory
 - `block_rerank` — file-level rerank, then the backend selects the relevant `def` / `class` blocks.
 - `iterative` — agentic multi-round explore-and-select: each round the backend picks blocks and proposes the next search query.
 - `query_rewrite` — one cheap backend call distils the issue into focused search terms before a lexical pass.
+- `hypothesis` — model-in-the-loop propose-verify localization: each round the model proposes suspect (path, symbol, line) hypotheses which are statically verified (path/symbol existence, AST line spans, import-graph callers); refuted hypotheses feed back as corrections and confirmed locations rank first (bounded by `--repo-context-rounds`).
+- `execution` — execution-grounded re-ranking: stack-trace frames mined from the change/issue text are fused (reciprocal-rank fusion) with spectrum-based fault localization (Ochiai/Tarantula over per-test coverage, collected via subprocess when failing tests are supplied programmatically) and the lexical base ranking; degrades to the base retriever when no signals exist.
 
 Tuning flags (each with a matching `PRTHINKER_REPO_CONTEXT_*` env
 var): `--repo-context-workdir` (work tree, default `.`),
@@ -196,7 +198,7 @@ fixed top-k tail), `--repo-context-block-candidates` (candidate
 blocks per file for `block_rerank` / `iterative`, default 6),
 `--repo-context-votes` (self-consistency votes for model-in-the-loop
 retrieval, default 1), `--repo-context-rounds` (max rounds for
-`iterative`, default 3), `--repo-context-focus-lines` (optional
+`iterative` / `hypothesis`, default 3), `--repo-context-focus-lines` (optional
 line-window focus for block context; 0 disables).
 
 ---

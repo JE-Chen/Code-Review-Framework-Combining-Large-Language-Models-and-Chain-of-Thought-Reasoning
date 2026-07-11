@@ -603,7 +603,7 @@ Newer flags with env vars not in the table above:
 | Env var | CLI flag | Values / default |
 |---|---|---|
 | `PRTHINKER_STEP_PLAN` | `--step-plan` | `full` (default) \| `adaptive` — per-file review depth |
-| `PRTHINKER_REPO_CONTEXT_STRATEGY` | `--repo-context-strategy` | `none` (default) or one of the eight retrieval strategies (`lexical` / `semantic` / `structural` / `graph` / `rerank` / `block_rerank` / `iterative` / `query_rewrite`) |
+| `PRTHINKER_REPO_CONTEXT_STRATEGY` | `--repo-context-strategy` | `none` (default) or one of the ten retrieval strategies (`lexical` / `semantic` / `structural` / `graph` / `rerank` / `block_rerank` / `iterative` / `query_rewrite` / `hypothesis` / `execution`) |
 | `PRTHINKER_REPO_CONTEXT_WORKDIR` / `_TOP_K` / `_KEEP_RATIO` / `_BLOCK_CANDIDATES` / `_VOTES` / `_ROUNDS` / `_FOCUS_LINES` | the `--repo-context-*` tuning knobs | `.` / 10 / 0.0 / 6 / 1 / 3 / 0 |
 | `PRTHINKER_VERIFY_CMD` | `--verify-cmd` | `pytest -x` |
 | `PRTHINKER_VERIFY_TIMEOUT` | `--verify-timeout` | 60 (seconds) |

@@ -160,6 +160,18 @@ factory:
 * ``query_rewrite`` — one cheap backend call distils a verbose issue
   into focused search terms, appended to the query before delegating to
   the lexical base.
+* ``hypothesis`` — model-in-the-loop propose-verify localization: each
+  round the model proposes suspect (path, symbol, line) hypotheses
+  which are statically verified (path/symbol existence, AST line
+  spans, import-graph callers); refuted hypotheses feed back as
+  corrections and confirmed locations rank first.
+  ``--repo-context-rounds`` bounds the loop.
+* ``execution`` — execution-grounded re-ranking: stack-trace frames
+  mined from the change/issue text are fused (reciprocal-rank fusion)
+  with spectrum-based fault localization (Ochiai/Tarantula over
+  per-test coverage, collected via subprocess when failing tests are
+  supplied programmatically) and the lexical base ranking; with no
+  signals it degrades to the base retriever.
 
 The work-tree is read and indexed once per retriever instance (memoized
 per work-tree), not once per query — multi-round strategies re-query
