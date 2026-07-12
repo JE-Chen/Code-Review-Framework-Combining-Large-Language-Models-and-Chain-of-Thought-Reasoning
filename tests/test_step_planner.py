@@ -459,7 +459,7 @@ def test_run_for_file_default_full_chain_unchanged(fake_backend):
 
 
 def test_review_critic_prompt_lists_prior_findings():
-    from prthinker.steps import ReviewContext, ReviewCriticStep
+    from prthinker.steps import ReviewCriticStep
 
     ctx = ReviewContext(
         code_diff="+risky = int(x)",
@@ -479,7 +479,7 @@ def test_review_critic_prompt_lists_prior_findings():
 
 
 def test_review_critic_prompt_handles_no_prior_findings():
-    from prthinker.steps import ReviewContext, ReviewCriticStep
+    from prthinker.steps import ReviewCriticStep
 
     ctx = ReviewContext(
         code_diff="+x = 1", rag_docs=[], file_path="m.py",
