@@ -402,6 +402,52 @@ safe to attach to a CI artifact.
 ``INPUT`` is the trajectory JSONL file. ``--format`` defaults to
 ``markdown``; ``--out`` writes the report to a file instead of stdout.
 
+depth-eval
+----------
+
+Compare the full and adaptive review plans over a local corpus of diffs
+and report the finding-quality delta next to the model-call and token
+savings. Each diff is run twice — once under the ``full`` step plan and
+once under ``adaptive`` — through two independently built pipelines, so
+no backend, retriever, or cache state leaks between the two runs.
+
+.. code-block:: text
+
+   prthinker depth-eval
+       (--diffs-dir DIR | --diffs-jsonl PATH)
+       [--out PATH]
+       [--max-diffs N]
+       [--backend {local,remote,openai,anthropic,gemini,cohere,mistral,claude-cli,codex-cli}]
+       [--remote-url URL] [--remote-api-key TOKEN]
+
+The corpus source is a mutually-exclusive, required pair:
+
+* ``--diffs-dir`` — a directory of ``*.diff`` / ``*.patch`` files, one
+  unified diff each, read in filename order.
+* ``--diffs-jsonl`` — a JSONL corpus with one ``{"diff": ...}`` object
+  per line; a row without a non-empty ``diff`` string is rejected.
+
+``--max-diffs N`` caps how many diffs are compared (``0``, the default,
+is uncapped). ``--out`` writes the Markdown report to a file; omitted, it
+prints to stdout. Backend and review flags come from the shared common
+parser, exactly like the review subcommands.
+
+The report pairs every finding across the two runs and records:
+
+* **Finding overlap** — matched, missing (present under ``full`` but
+  dropped by ``adaptive``), and extra (only under ``adaptive``) counts.
+* **Gate-severity recall** — the share of the full run's error /
+  warning findings the adaptive run kept; this is the metric that says
+  whether depth pruning ever drops a gating finding.
+* **Adaptive tier distribution** — how many files each depth tier
+  (skip / trivial / standard / deep) claimed.
+* **Per-mode usage** — model calls and tokens for each plan, plus a
+  per-diff breakdown of finding counts and call counts.
+
+Each plan gets its own freshly built pipeline with review caching
+disabled, so cached findings from one plan can never cross-contaminate
+the other.
+
 aggregate
 ---------
 

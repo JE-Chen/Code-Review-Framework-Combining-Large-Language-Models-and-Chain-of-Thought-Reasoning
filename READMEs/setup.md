@@ -609,6 +609,7 @@ Newer flags with env vars not in the table above:
 | `PRTHINKER_VERIFY_TIMEOUT` | `--verify-timeout` | 60 (seconds) |
 | `PRTHINKER_VERIFY_WORKDIR` | `--verify-workdir` | `.` (cwd) |
 | `PRTHINKER_CALIBRATION_GATE` | `--calibration-gate` | off — calibrated abstention on the merge gate |
+| `PRTHINKER_SAMPLING` | — (server-side, no CLI flag) | unset / `0` = greedy, deterministic decoding (default) so the same diff yields the same review findings — reproducible and auditable; `1` re-enables the checkpoint's sampling. Read by the inference server at model load, so it takes effect on an inference-image rebuild. |
 
 `PRTHINKER_*` names take precedence over the legacy `REVIEWMIND_*`
 spellings; both are still accepted for the verify vars

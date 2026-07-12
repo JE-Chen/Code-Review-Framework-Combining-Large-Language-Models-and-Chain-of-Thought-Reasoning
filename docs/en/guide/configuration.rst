@@ -515,6 +515,31 @@ the runner CLI.
        schemas clamp ``max_new_tokens`` to the same range. Default
        ``32768``.
 
+Decoding determinism
+~~~~~~~~~~~~~~~~~~~~~
+
+The inference server decodes review generations **greedily by default**.
+Greedy decoding is deterministic: the same diff yields the same findings
+on every run, which makes reviews reproducible and audit-friendly and
+lets an A/B comparison between two configurations be attributed to the
+change rather than to sampling noise.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
+
+   * - Env var
+     - Effect
+   * - ``PRTHINKER_SAMPLING``
+     - Set to ``1`` to opt back into the checkpoint's own sampling
+       behaviour (its generation-config ``do_sample`` / temperature /
+       top-p / top-k). Any other value — including unset — keeps greedy
+       decoding. Default greedy.
+
+This is a **server-side** setting read by the inference image, so it
+takes effect when that image is (re)built or restarted — not from the
+runner CLI.
+
 Output and logging
 ------------------
 

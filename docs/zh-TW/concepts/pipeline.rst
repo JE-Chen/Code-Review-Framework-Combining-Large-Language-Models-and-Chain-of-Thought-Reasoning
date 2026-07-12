@@ -35,7 +35,7 @@ Step 順序
 可能輸出純 JSON。所有 prompt 模板隨套件內附於 ``prthinker/prompts/``\ ，
 逐位元組鏡射自正典的 ``codes/run/CoT_Prompts/`` 語料。
 
-另有三個只在降階審查深度時使用的 prompt-backed step（見下一節）：
+另有四個只在降階審查深度時使用的 prompt-backed step（見下一節）：
 
 .. list-table::
    :header-rows: 1
@@ -50,6 +50,11 @@ Step 順序
      - **一次**\ 模型呼叫同時產出 findings JSON、簡短分析摘要與判定；
        pipeline 會把 payload 拆回歷史沿用的 ``inline_findings`` /
        ``compact_review`` result key。
+   * - ``review_critic``
+     - standard 深度時在 ``unified_review`` 之後跑的完整性第二輪：拿到
+       diff 與第一輪的 findings，獨立地搜尋第一輪漏掉的真實問題，並被
+       要求不得重述已回報過的內容。Pipeline 會把它額外找到的 finding
+       併入 inline-findings 清單。
    * - ``batch_findings``
      - trivial 檔案的多檔合批 prompt：多個小 diff 併成一次呼叫審查，
        回傳的扁平 findings 陣列依 ``path`` 標籤拆回逐檔 finding。
@@ -81,12 +86,13 @@ trivial
    findings 各自獨立快取，differential review 仍逐檔生效。
 
 standard
-   介於兩者之間的一切。一次 ``unified_review`` 呼叫回傳 findings
-   JSON 加簡短摘要與判定，拆回歷史沿用的 ``inline_findings`` /
-   ``compact_review`` result key，因此 findings 解析、報告、gate
-   全部不變。加上 ``--counterfactual``\ （它消費解析後的 findings）
-   時，standard 層改為保留兩次呼叫的 ``compact_review`` +
-   ``inline_findings`` 形態。
+   介於兩者之間的一切。兩次模型呼叫：一次 ``unified_review`` 呼叫回傳
+   findings JSON 加簡短摘要與判定──拆回歷史沿用的 ``inline_findings`` /
+   ``compact_review`` result key，因此 findings 解析、報告、gate 全部
+   不變──接著再跑一次 ``review_critic`` 完整性檢查（見下文）。加上
+   ``--counterfactual``\ （它消費解析後的 findings）時，standard 層改為
+   保留兩次呼叫的 ``compact_review`` + ``inline_findings`` 形態，critic
+   不會執行。
 
 deep
    變更 200 行以上，或風險分 ≥ 0.7──風險覆寫不論大小或檔案種類都
@@ -96,6 +102,20 @@ deep
 為 8192；deep 維持 pipeline 全域預算。所選層級會記錄在每個檔案的
 ``step_outputs`` 之 ``step_plan`` key，隨審查結果進入序列化輸出與
 報告，深度決策全程可稽核。
+
+standard 層為何跑兩次呼叫而非一次：單一 ``unified_review`` 呼叫只對
+diff 推理一次就停下，失去完整鏈靠獨立的 ``linter``\ 、\ ``code_smell``
+與 review step 累積起來的多角度覆蓋。\ ``review_critic`` 這一輪把覆蓋
+補回來。它拿到 diff 與第一輪的 findings，以獨立的第二次閱讀搜尋單一
+輪會漏掉的真實問題──特定輸入下的正確性、邊界情況、例外路徑、資源／
+狀態處理、契約不符──並被要求不得重述任何已回報的內容。Pipeline 會把
+critic 額外找到的 finding 併入 inline-findings 清單，依
+``(line, normalized comment)`` 去重，讓被覆述的 finding 不會重複計入；
+critic 輸出格式錯誤時，退回第一輪的 findings 原封不動。這讓 standard
+層的成本維持在兩次模型呼叫，對比完整鏈的六次。critic 只在 standard
+深度執行──trivial（合批、一次呼叫）、deep（完整鏈）與 skip（零次
+呼叫）都不變。它的 prompt 隨套件內附，正典位於
+``codes/run/CoT_Prompts/``\ ，並如其他模板鏡射到 ``prthinker/prompts/``\ 。
 
 兩種執行模式
 ------------

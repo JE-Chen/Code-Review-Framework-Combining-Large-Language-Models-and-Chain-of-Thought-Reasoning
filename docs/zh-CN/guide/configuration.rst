@@ -493,6 +493,27 @@ CLI 在读。
      - 服务器端生成长度上限；wire schema 会把 ``max_new_tokens``
        clamp 到相同范围。默认 ``32768``\ 。
 
+解码确定性
+~~~~~~~~~~~~
+
+推理服务器对审查生成\ **默认采用贪婪解码**\ 。贪婪解码是确定性的：同一
+份 diff 每次运行都得到同一组 finding\ ，使审查可复现、利于审计\ ，也
+让两种配置之间的 A／B 比较能归因于变更本身而非采样噪声\ 。
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
+
+   * - 环境变量
+     - 效果
+   * - ``PRTHINKER_SAMPLING``
+     - 设为 ``1`` 可退回 checkpoint 自身的采样行为（其 generation-config
+       之 ``do_sample`` / temperature / top-p / top-k）\ 。其它值──含
+       未设──皆维持贪婪解码\ 。默认为贪婪\ 。
+
+这是\ **服务器端**\ 设置\ ，由推理镜像读取\ ，因此在该镜像（重新）构建
+或重启时生效──不是由 runner CLI 读取\ 。
+
 输出与 logging
 --------------
 

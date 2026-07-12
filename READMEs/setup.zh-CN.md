@@ -582,6 +582,7 @@ prthinker stats --since-days 7
 | `PRTHINKER_VERIFY_TIMEOUT` | `--verify-timeout` | 60（秒） |
 | `PRTHINKER_VERIFY_WORKDIR` | `--verify-workdir` | `.`\ （cwd） |
 | `PRTHINKER_CALIBRATION_GATE` | `--calibration-gate` | 关闭──合并 gate 的校准弃权 |
+| `PRTHINKER_SAMPLING` | ──（服务器端，无对应 CLI flag） | 未设 / `0` = greedy、确定性解码（默认），让同一份 diff 产出相同的审查 findings，可复现、可审计；设为 `1` 则重新启用 checkpoint 的 sampling。由推理服务器在加载模型时读取，因此于推理镜像重建时生效。 |
 
 `PRTHINKER_*` 名称优先于旧版 `REVIEWMIND_*` 写法；两者对 verify 变量
 （\ `VERIFY_SUGGESTIONS` / `VERIFY_CMD` / `VERIFY_TIMEOUT` /

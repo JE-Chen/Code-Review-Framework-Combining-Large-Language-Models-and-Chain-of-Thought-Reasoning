@@ -39,7 +39,7 @@ skips that wrap so the model is more likely to emit raw JSON. All prompt
 templates ship with the package at ``prthinker/prompts/``, mirrored
 byte-for-byte from the canonical ``codes/run/CoT_Prompts/`` corpus.
 
-Three further prompt-backed steps exist only for reduced review depth
+Four further prompt-backed steps exist only for reduced review depth
 (see the next section):
 
 .. list-table::
@@ -56,6 +56,12 @@ Three further prompt-backed steps exist only for reduced review depth
      - Findings JSON plus a short analysis summary and verdict in ONE
        model call; the pipeline splits the payload back into the
        historical ``inline_findings`` / ``compact_review`` result keys.
+   * - ``review_critic``
+     - A completeness second pass run after ``unified_review`` at
+       standard depth: given the diff and the first pass's findings, it
+       independently hunts genuine issues the first pass missed and is
+       told not to repeat what was already reported. The pipeline merges
+       its additional findings into the inline-findings list.
    * - ``batch_findings``
      - The multi-file batch prompt for trivial files: several small
        diffs are reviewed in one call and the flat findings array,
@@ -91,13 +97,14 @@ trivial
    differential review still works per file.
 
 standard
-   Everything in between. One ``unified_review`` call returns the
-   findings JSON plus a brief summary and verdict, split back into the
-   historical ``inline_findings`` / ``compact_review`` result keys so
-   findings parsing, reports, and gates are unchanged. With
+   Everything in between. Two model calls: a ``unified_review`` call
+   returns the findings JSON plus a brief summary and verdict — split
+   back into the historical ``inline_findings`` / ``compact_review``
+   result keys so findings parsing, reports, and gates are unchanged —
+   followed by a ``review_critic`` completeness pass (see below). With
    ``--counterfactual`` (which consumes the parsed findings) the
    standard tier keeps the two-call ``compact_review`` +
-   ``inline_findings`` shape instead.
+   ``inline_findings`` shape instead, and the critic does not run.
 
 deep
    200 or more changed lines, or risk score ≥ 0.7 — the risk override
@@ -109,6 +116,24 @@ for standard; deep keeps the pipeline-wide budget. The chosen tier is
 recorded in each file's ``step_outputs`` under the ``step_plan`` key,
 so it travels with the review result into the serialized outputs and
 reports and the depth decision stays auditable.
+
+Why the standard tier makes two calls, not one: a single
+``unified_review`` call reasons over the diff once and stops, losing the
+multi-angle coverage the full chain builds up across its separate
+``linter``, ``code_smell``, and review steps. The ``review_critic`` pass
+restores that coverage. It receives the diff and the first pass's
+findings and, as an independent second reading, hunts the genuine issues
+a single pass overlooks — input-specific correctness, edge cases,
+exception paths, resource / state handling, and contract mismatches —
+and is instructed not to repeat anything already reported. The pipeline
+merges the critic's additional findings into the inline-findings list,
+deduping on ``(line, normalized comment)`` so an echoed finding is not
+doubled; malformed critic output degrades to the first pass's findings
+unchanged. This keeps standard-tier cost at two model calls against the
+full chain's six. The critic runs only at standard depth — trivial
+(batched, one call), deep (full chain), and skip (zero calls) are
+unchanged. Its prompt ships canonical at ``codes/run/CoT_Prompts/`` and
+mirrored to ``prthinker/prompts/`` like every other template.
 
 Two execution modes
 -------------------

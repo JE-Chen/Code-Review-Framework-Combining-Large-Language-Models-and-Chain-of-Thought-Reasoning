@@ -370,6 +370,50 @@ artifact\ 。
 ``INPUT`` 为轨迹 JSONL 文件\ 。\ ``--format`` 默认 ``markdown``\ ；
 ``--out`` 把报告写入文件而非 stdout\ 。
 
+depth-eval
+----------
+
+比较 ``full`` 与 ``adaptive`` 两种审查方案在本机 diff 语料上的差异\ ，
+把发现质量的落差与模型调用、token 节省并列报告\ 。每份 diff 都跑两次
+—— 一次走 ``full`` step plan\ ，一次走 ``adaptive`` —— 经两条独立构建
+的 pipeline\ ，故 backend、retriever 与 cache 之状态不会在两次运行间
+泄漏\ 。
+
+.. code-block:: text
+
+   prthinker depth-eval
+       (--diffs-dir DIR | --diffs-jsonl PATH)
+       [--out PATH]
+       [--max-diffs N]
+       [--backend {local,remote,openai,anthropic,gemini,cohere,mistral,claude-cli,codex-cli}]
+       [--remote-url URL] [--remote-api-key TOKEN]
+
+语料来源为互斥且必填的一组：
+
+* ``--diffs-dir`` —— 一个放 ``*.diff`` / ``*.patch`` 文件的目录\ ，每个
+  文件一份 unified diff\ ，按文件名顺序读取\ 。
+* ``--diffs-jsonl`` —— 一份 JSONL 语料\ ，每行一个 ``{"diff": ...}``
+  对象\ ；没有非空 ``diff`` 字符串的行会被拒绝\ 。
+
+``--max-diffs N`` 封顶比较的 diff 数（``0`` 为默认\ ，即不设限）\ 。
+``--out`` 把 Markdown 报告写入文件\ ；省略时打印至 stdout\ 。Backend 与
+审查 flag 沿用共用的 common parser\ ，与各 review 子命令相同\ 。
+
+报告会把两次运行的每条 finding 配对\ ，并记录：
+
+* **finding 重叠** —— matched、missing（``full`` 有但 ``adaptive``
+  丢掉）与 extra（只有 ``adaptive``）之计数\ 。
+* **gate 严重度召回率** —— adaptive 保留了 full 运行中多少比例的
+  error／warning finding\ ；此为判断深度裁剪是否曾丢掉会挡 gate 的
+  finding 的指标\ 。
+* **adaptive tier 分布** —— 各深度 tier（skip／trivial／standard／
+  deep）各认领了几个文件\ 。
+* **各方案用量** —— 每个方案的模型调用数与 token 数\ ，外加逐 diff
+  的 finding 数与调用数拆解\ 。
+
+每个方案各拿一条全新构建的 pipeline 且停用 review 缓存\ ，故一个方案
+的缓存 finding 绝不会污染另一个\ 。
+
 aggregate
 ---------
 

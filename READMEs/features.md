@@ -116,15 +116,16 @@ across four tiers:
 |---|---|---|
 | `skip` | Machine-generated files — lockfiles (`package-lock.json` / `yarn.lock` / `pnpm-lock.yaml` / `poetry.lock` / `uv.lock` / `Cargo.lock` / `composer.lock` / `Gemfile.lock` / `go.sum`), minified bundles and `.map` files, generated `_pb2.py` / `.pb.go` / `.snap`, anything under `vendor/` / `node_modules/` / `dist/` / `build/` / `__snapshots__/` — and whitespace-only reformatting | **Zero model calls.** The file still appears in the result marked as skipped, so "skipped by policy" is visible rather than silent. A risk score ≥ 0.7 overrides the skip. |
 | `trivial` | Docs / config suffixes (`.md` `.rst` `.txt` `.json` `.yml` `.yaml` `.toml` `.ini` `.cfg` `.lock` `.svg`) or ≤ 5 changed lines | Findings pass only. Batchable trivial files are folded into **batched findings calls** — up to 6 files / 24 K chars of diff per model call — and split back through the same validating parser a single-file review uses. The per-file differential cache (`--diff-since-last`) is still honoured per file, before and after batching. |
-| `standard` | 6–199 changed lines | **One** `unified_review` call producing the findings JSON, a brief summary, and a verdict in a single payload. With `--counterfactual` configured it keeps the two-call `compact_review` + `inline_findings` shape instead (counterfactual consumes the findings step result). |
+| `standard` | 6–199 changed lines | A `unified_review` call (findings JSON + a brief summary + a verdict in one payload) followed by an independent `review_critic` completeness pass — a fresh second reading of the same diff and the first pass's findings that proposes **only** the genuine issues the first pass missed, which the pipeline merges into the inline findings (deduped on line + normalised comment). Two calls, still a third of the full chain's six. With `--counterfactual` configured it keeps the two-call `compact_review` + `inline_findings` shape instead (counterfactual consumes the findings step result). |
 | `deep` | ≥ 200 changed lines **or** risk score ≥ 0.7 | The full five-step chain, unchanged. |
 
 Reduced tiers also cap generation: 4096 tokens on `trivial`, 8192 on
-`standard` (batched calls use the 8192 cap; deep keeps the
-pipeline-wide budget). The tier substitution uses three new prompt
-templates — `compact_review`, `unified_review`, `batch_findings` —
-bundled under `prthinker/prompts/` (mirroring
-`codes/run/CoT_Prompts/`).
+`standard` (the standard cap covers both the `unified_review` and the
+`review_critic` call; batched calls use the 8192 cap; deep keeps the
+pipeline-wide budget). The tier substitution uses four new prompt
+templates — `compact_review`, `unified_review`, `batch_findings`, and
+the standard-tier completeness pass `review_critic` — bundled under
+`prthinker/prompts/` (mirroring `codes/run/CoT_Prompts/`).
 
 ---
 
@@ -660,6 +661,7 @@ subprocess); use `PRTHINKER_BACKEND=remote` if RAG matters.
 | `prthinker issue-fix` | Localise an issue, propose validated find/replace edits as JSON |
 | `prthinker issue-autofix` | Fetch tracker issues (GitHub / GitLab), propose fixes, open draft fix PRs / MRs |
 | `prthinker retrieval-report IN.jsonl` | Render a content-safe retrieval trajectory JSONL (from `--trajectory-out`) into a markdown / JSON audit report (`--format`, `--out`) |
+| `prthinker depth-eval` | Replay a diff corpus (`--diffs-dir` / `--diffs-jsonl`) through both the full and adaptive step plans and report finding overlap, gate-severity recall, the adaptive per-tier distribution, and per-mode call / token usage (`--out`, `--max-diffs`) |
 | `prthinker mcp` | Run the MCP stdio server |
 
 Every flag has a corresponding `PRTHINKER_*` env var; the
