@@ -202,7 +202,7 @@ _FULL_FINDINGS_JSON = (
     ' {"line": 10, "severity": "error", "comment": "Null deref."}]'
 )
 
-# Standard tier merges analysis + findings into one unified-review call.
+# Standard tier is a unified-review call plus a completeness-critic call.
 _ADAPTIVE_UNIFIED_JSON = (
     '{"summary": "One risky change.", "verdict": "comment", "findings":'
     ' [{"line": 4, "severity": "warning", "comment": "Possible bug nearby."}]}'
@@ -214,7 +214,8 @@ def _scripted_factory(record: dict):
     responses = {
         # Five default analysis steps, then the inline-findings pass.
         "full": ["s1", "s2", "s3", "s4", "s5", _FULL_FINDINGS_JSON],
-        "adaptive": [_ADAPTIVE_UNIFIED_JSON],
+        # unified_review, then the critic (adds nothing in this fixture).
+        "adaptive": [_ADAPTIVE_UNIFIED_JSON, "[]"],
     }
 
     def build(mode: str) -> PipelineProbe:
@@ -254,12 +255,12 @@ def test_end_to_end_report_numbers():
 def test_end_to_end_call_and_token_accounting():
     report = _run_scripted_comparison({})
     assert report.full_usage.calls == 6
-    assert report.adaptive_usage.calls == 1
+    assert report.adaptive_usage.calls == 2
     assert report.adaptive_usage.calls < report.full_usage.calls
     assert report.full_usage.tokens > 0
     assert report.adaptive_usage.tokens > 0
     (diff,) = report.diffs
-    assert diff.full_usage.calls == 6 and diff.adaptive_usage.calls == 1
+    assert diff.full_usage.calls == 6 and diff.adaptive_usage.calls == 2
 
 
 def test_end_to_end_builds_one_pipeline_per_mode_and_closes_both():
@@ -274,7 +275,7 @@ def test_end_to_end_markdown_renders():
     assert text.startswith("# Review depth evaluation")
     assert "Diffs compared: 1" in text
     assert "| Findings | 2 | 1 |" in text
-    assert "| Model calls | 6 | 1 |" in text
+    assert "| Model calls | 6 | 2 |" in text
     assert "Gate-severity recall (error/warning): 0.50 (1/2)" in text
     assert "| standard | 1 |" in text
 

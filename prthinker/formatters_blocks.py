@@ -53,6 +53,7 @@ _FILE_RESERVED_STEPS: frozenset[str] = frozenset(
         "walkthrough",
         "compact_review",
         "unified_review",
+        "review_critic",
         "step_plan",
     }
 )

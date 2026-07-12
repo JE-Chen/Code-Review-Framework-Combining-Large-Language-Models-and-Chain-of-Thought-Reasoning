@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 
-from prthinker.steps import CompactReviewStep, UnifiedReviewStep
+from prthinker.steps import CompactReviewStep, ReviewCriticStep, UnifiedReviewStep
 
 if TYPE_CHECKING:
     from prthinker.diff import FileDiff
@@ -217,10 +217,18 @@ def _substitute_reduced_review(
         and "inline_findings" in names
         and "counterfactual" not in names
     ):
-        return [
-            UnifiedReviewStep if cls.name == "inline_findings" else cls
-            for cls in candidates
-        ]
+        # Replace the inline-findings step with unified_review (findings +
+        # summary in one call) followed by a completeness critic that
+        # recovers issues the first pass missed — two calls restore the
+        # multi-pass coverage a single call loses, still far under the full
+        # chain's six.
+        result: list[type["ReviewStep"]] = []
+        for cls in candidates:
+            if cls.name == "inline_findings":
+                result.extend((UnifiedReviewStep, ReviewCriticStep))
+            else:
+                result.append(cls)
+        return result
     return [CompactReviewStep, *candidates]
 
 

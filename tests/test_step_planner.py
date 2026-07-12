@@ -198,10 +198,10 @@ def test_skip_tier_plans_zero_steps():
     assert set(plan.skipped) == {cls.name for cls in _full_chain()}
 
 
-def test_standard_with_inline_merges_into_one_unified_call():
+def test_standard_uses_unified_review_plus_critic():
     plan = plan_steps(_diff("a.py", added=50), _full_chain())
     assert plan.tier == TIER_STANDARD
-    assert [cls.name for cls in plan.steps] == ["unified_review"]
+    assert [cls.name for cls in plan.steps] == ["unified_review", "review_critic"]
     assert "inline_findings" in plan.skipped
     assert "total_summary" in plan.skipped
 
@@ -319,26 +319,70 @@ _UNIFIED_PAYLOAD = (
 )
 
 
-def test_unified_review_payload_parses_into_findings(fake_backend):
-    from tests.conftest import FakeBackend
-
-    backend = FakeBackend([_UNIFIED_PAYLOAD])
-    pipeline = CoTPipeline(backend=backend, retriever=NoOpRetriever())
-    diff = "\n".join(
+def _standard_diff() -> str:
+    return "\n".join(
         ["diff --git a/mod.py b/mod.py", "--- a/mod.py", "+++ b/mod.py",
          "@@ -1,60 +1,60 @@"]
         + [f"+line {i}" for i in range(50)]
     )
+
+
+def test_unified_review_payload_parses_into_findings(fake_backend):
+    from tests.conftest import FakeBackend
+
+    # unified call, then the critic call (which adds nothing here).
+    backend = FakeBackend([_UNIFIED_PAYLOAD, "[]"])
+    pipeline = CoTPipeline(backend=backend, retriever=NoOpRetriever())
     result = pipeline.run_per_file(
-        diff,
+        _standard_diff(),
         PerFileReviewOptions(inline_review=True, step_plan="adaptive"),
     )
-    assert len(backend.calls) == 1  # ONE model call for the whole file
+    assert len(backend.calls) == 2  # unified_review + review_critic
     fr = result.per_file[0]
     assert [f.comment for f in fr.inline_findings] == ["Possible bug."]
     assert fr.inline_findings[0].severity == "warning"
     assert "One risky rename." in fr.total_summary
     assert "Verdict: comment" in fr.total_summary
+
+
+def test_critic_recovers_a_missed_finding(fake_backend):
+    from tests.conftest import FakeBackend
+
+    critic_extra = '[{"line": 7, "severity": "error", "comment": "Missed bug."}]'
+    backend = FakeBackend([_UNIFIED_PAYLOAD, critic_extra])
+    pipeline = CoTPipeline(backend=backend, retriever=NoOpRetriever())
+    result = pipeline.run_per_file(
+        _standard_diff(),
+        PerFileReviewOptions(inline_review=True, step_plan="adaptive"),
+    )
+    comments = sorted(f.comment for f in result.per_file[0].inline_findings)
+    assert comments == ["Missed bug.", "Possible bug."]  # both survive the merge
+
+
+def test_critic_duplicate_is_deduped(fake_backend):
+    from tests.conftest import FakeBackend
+
+    # Critic echoes the unified finding verbatim (same line + comment).
+    dup = '[{"line": 3, "severity": "warning", "comment": "Possible bug."}]'
+    backend = FakeBackend([_UNIFIED_PAYLOAD, dup])
+    pipeline = CoTPipeline(backend=backend, retriever=NoOpRetriever())
+    result = pipeline.run_per_file(
+        _standard_diff(),
+        PerFileReviewOptions(inline_review=True, step_plan="adaptive"),
+    )
+    assert len(result.per_file[0].inline_findings) == 1  # not doubled
+
+
+def test_critic_malformed_output_keeps_base_findings(fake_backend):
+    from tests.conftest import FakeBackend
+
+    backend = FakeBackend([_UNIFIED_PAYLOAD, "not json at all"])
+    pipeline = CoTPipeline(backend=backend, retriever=NoOpRetriever())
+    result = pipeline.run_per_file(
+        _standard_diff(),
+        PerFileReviewOptions(inline_review=True, step_plan="adaptive"),
+    )
+    assert [f.comment for f in result.per_file[0].inline_findings] == ["Possible bug."]
 
 
 def test_skip_tier_makes_zero_model_calls(fake_backend):
@@ -381,15 +425,16 @@ _SINGLE_FILE_DIFF = "\n".join(
 )
 
 
-def test_run_for_file_adaptive_standard_is_one_call(fake_backend):
+def test_run_for_file_adaptive_standard_is_two_calls(fake_backend):
     pipeline = CoTPipeline(backend=fake_backend, retriever=NoOpRetriever())
     result = pipeline.run_for_file(
         "mod.py", _SINGLE_FILE_DIFF, step_plan="adaptive"
     )
-    assert len(fake_backend.calls) == 1
+    # unified_review + review_critic — still far under the full chain's six.
+    assert len(fake_backend.calls) == 2
     assert result.step_outputs["step_plan"] == TIER_STANDARD
-    # The tier budget caps generation on the single call.
-    assert fake_backend.calls[0][1] == 8192
+    # The tier budget caps generation on both calls.
+    assert all(tokens == 8192 for _, tokens in fake_backend.calls)
 
 
 def test_run_for_file_adaptive_skip_makes_no_calls(fake_backend):
@@ -411,3 +456,53 @@ def test_run_for_file_default_full_chain_unchanged(fake_backend):
     assert len(fake_backend.calls) == 6
     assert all(tokens == 32768 for _, tokens in fake_backend.calls)
     assert "step_plan" not in result.step_outputs
+
+
+def test_review_critic_prompt_lists_prior_findings():
+    from prthinker.steps import ReviewContext, ReviewCriticStep
+
+    ctx = ReviewContext(
+        code_diff="+risky = int(x)",
+        rag_docs=[],
+        file_path="m.py",
+        results={
+            "unified_review": (
+                '{"summary": "s", "findings": '
+                '[{"line": 1, "severity": "warning", "comment": "check cast"}]}'
+            )
+        },
+    )
+    prompt = ReviewCriticStep().build_prompt(ctx)
+    assert "check cast" in prompt          # prior finding shown to the critic
+    assert "+risky = int(x)" in prompt     # diff present
+    assert "second pass" in prompt.lower()
+
+
+def test_review_critic_prompt_handles_no_prior_findings():
+    from prthinker.steps import ReviewContext, ReviewCriticStep
+
+    ctx = ReviewContext(
+        code_diff="+x = 1", rag_docs=[], file_path="m.py",
+        results={"unified_review": '{"summary": "s", "findings": []}'},
+    )
+    prompt = ReviewCriticStep().build_prompt(ctx)
+    assert "(none)" in prompt
+
+
+def test_merge_findings_json_unions_and_dedupes():
+    from prthinker.pipeline import _merge_findings_json
+
+    base = '[{"line": 1, "severity": "warning", "comment": "A"}]'
+    critic = '[{"line": 2, "severity": "error", "comment": "B"}, ' \
+             '{"line": 1, "severity": "warning", "comment": "a"}]'
+    merged = _merge_findings_json(base, critic)
+    import json as _json
+    items = _json.loads(merged)
+    assert {(i["line"], i["comment"]) for i in items} == {(1, "A"), (2, "B")}
+
+
+def test_merge_findings_json_tolerates_garbage_critic():
+    from prthinker.pipeline import _merge_findings_json
+
+    base = '[{"line": 1, "severity": "warning", "comment": "A"}]'
+    assert _merge_findings_json(base, "garbage") == base
