@@ -51,6 +51,14 @@ Rules:
   one, and do not suppress a real issue because the change looks small.
 - Every finding must trace to something concrete and visible in the diff. Do
   not invent issues that the code shown does not support.
+- The diff shows only changed and nearby lines. Imports, functions, classes,
+  constants, and variables defined ELSEWHERE in the file are still present
+  even though they are not shown here. NEVER report something as undefined,
+  not imported, missing, or unused because its definition is not visible in
+  the diff — flag it only if the diff itself removes or breaks the definition.
+- Report only defects you can demonstrate from the code shown. Do not raise
+  speculative "this could / might / may be a problem if ..." concerns that
+  name no concrete trigger in the visible code.
 - Only when the checklist pass genuinely turns up nothing, output
   "findings": [] and say the change is clean in the summary.
 - Keep at most {max_findings} findings — when there are more, keep the

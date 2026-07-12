@@ -38,6 +38,12 @@ Rules:
 - Every finding must trace to something concrete and visible in that file's
   diff. Do not invent issues the code does not support; when a file genuinely
   has no issues, simply emit nothing for it.
+- Each diff shows only changed and nearby lines. Imports and definitions
+  elsewhere in the file are still present even when not shown. NEVER report
+  something as undefined, not imported, or missing because its definition is
+  not visible — flag it only if the diff itself removes the definition. Do
+  not raise speculative "could / might / may" concerns with no concrete
+  trigger in the visible code.
 - Keep at most {max_findings} findings per file — pick the highest-signal
   ones.
 

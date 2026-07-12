@@ -16,6 +16,10 @@ A finding is noise if any of the following is true:
 * **Speculative** — it asserts a problem that the diff does not contain
   enough evidence to confirm (e.g. "this might cause a memory leak if X")
   without identifying a concrete trigger.
+* **Diff-context false positive** — it claims something is undefined, not
+  imported, missing, or unused when that is only true within the shown lines;
+  the diff shows just the change, and definitions elsewhere in the file are
+  still present. Drop it unless the diff itself removes the definition.
 * **Tautological** — it restates what the code obviously does without
   proposing improvement.
 * **Out of scope** — it asks the author to refactor code that was not

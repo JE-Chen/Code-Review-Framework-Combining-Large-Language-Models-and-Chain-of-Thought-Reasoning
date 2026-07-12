@@ -23,6 +23,14 @@ Rules:
 - If there is nothing worth commenting on, output exactly `[]`.
 - Do not invent issues. Every finding must trace to something visible in
   the diff.
+- The diff shows only changed and nearby lines. Imports, functions, classes,
+  constants, and variables defined ELSEWHERE in the file are still present
+  even though they are not shown here. NEVER report something as undefined,
+  not imported, missing, or unused because its definition is not visible in
+  the diff — flag it only if the diff itself removes or breaks the definition.
+- Report only defects you can demonstrate from the code shown. Do not raise
+  speculative "this could / might / may be a problem if ..." concerns that
+  name no concrete trigger in the visible code.
 - Keep at most {max_findings} findings — pick the highest-signal ones.
 
 Severity guide:

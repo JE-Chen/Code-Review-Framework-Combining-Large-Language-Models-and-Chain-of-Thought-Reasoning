@@ -40,6 +40,13 @@ Rules:
   on the new side of the diff. Never reference a removed line.
 - Every finding must trace to something concrete and visible in the diff. Do
   not invent issues the code does not support, and do not pad the list.
+- The diff shows only changed and nearby lines. Imports and definitions
+  elsewhere in the file are still present even when not shown. NEVER report
+  something as undefined, not imported, or missing because its definition is
+  not visible — flag it only if the diff itself removes the definition. Do
+  not add speculative "could / might / may" concerns with no concrete trigger
+  in the visible code; a second pass hunting for issues must not become a
+  source of false positives.
 - If the first pass genuinely left nothing worth adding, output exactly `[]`.
 - Keep at most {max_findings} additional findings — the highest-signal ones.
 
