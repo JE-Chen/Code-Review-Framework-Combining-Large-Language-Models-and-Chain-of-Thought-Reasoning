@@ -10,6 +10,7 @@ Two modes:
 
 from __future__ import annotations
 
+import json
 import logging
 import hashlib
 from concurrent.futures import ThreadPoolExecutor
@@ -106,6 +107,46 @@ def _invoke_on_file_done(
 # prompt + RAG docs + final generation. Tune via the
 # ``PRTHINKER_MAX_STEP_RESULT_CHARS`` env var (server side).
 _DEFAULT_MAX_STEP_RESULT_CHARS = 6000
+
+
+def _merge_findings_json(base_json: str, critic_raw: str) -> str:
+    """Union the critic's additional findings into the base findings array.
+
+    Both are lenient-parsed; the critic emits a bare array while the base is
+    already a normalized array. Findings are deduped on (line, normalized
+    comment) so a critic that echoes a first-pass finding does not double it.
+    Malformed critic output degrades to the base array unchanged.
+    """
+    base = _load_findings_array(base_json)
+    _, critic_json = split_unified_review(critic_raw)
+    extra = _load_findings_array(critic_json)
+    if not extra:
+        extra = _load_findings_array(critic_raw)
+    seen = {_finding_key(item) for item in base}
+    merged = list(base)
+    for item in extra:
+        key = _finding_key(item)
+        if key not in seen:
+            seen.add(key)
+            merged.append(item)
+    return json.dumps(merged, ensure_ascii=False)
+
+
+def _load_findings_array(raw: str) -> list:
+    """Parse a findings JSON array, tolerating garbage; else []."""
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return []
+    if not isinstance(data, list):
+        return []
+    return [item for item in data if isinstance(item, dict)]
+
+
+def _finding_key(item: dict) -> tuple:
+    """Dedup key: line plus whitespace-normalized comment."""
+    comment = " ".join(str(item.get("comment", "")).lower().split())
+    return item.get("line"), comment
 
 
 class CoTPipeline(PipelineExecutionMixin, PipelineAggregateExtrasMixin):
@@ -889,14 +930,19 @@ class CoTPipeline(PipelineExecutionMixin, PipelineAggregateExtrasMixin):
         The unified step merges analysis + findings into one model call;
         splitting its JSON into the ``compact_review`` / ``inline_findings``
         result keys keeps findings parsing, reports, and gates unchanged.
-        Explicitly-run inline/compact steps are never overwritten.
+        Explicitly-run inline/compact steps are never overwritten. When a
+        completeness-critic pass ran, its additional findings are merged
+        into the inline-findings array.
         """
         raw = ctx.results.get(UnifiedReviewStep.name)
-        if raw is None:
-            return
-        summary, findings_json = split_unified_review(raw)
-        ctx.results.setdefault("compact_review", summary)
-        ctx.results.setdefault(InlineFindingsStep.name, findings_json)
+        if raw is not None:
+            summary, findings_json = split_unified_review(raw)
+            ctx.results.setdefault("compact_review", summary)
+            ctx.results.setdefault(InlineFindingsStep.name, findings_json)
+        critic = ctx.results.get("review_critic")
+        if critic is not None:
+            base = ctx.results.get(InlineFindingsStep.name, "[]")
+            ctx.results[InlineFindingsStep.name] = _merge_findings_json(base, critic)
 
     def _make_review_context(
         self, fd, rag_docs, max_findings, positive_examples_block,

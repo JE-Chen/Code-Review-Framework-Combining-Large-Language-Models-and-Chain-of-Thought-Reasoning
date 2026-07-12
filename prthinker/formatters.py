@@ -338,7 +338,13 @@ def format_pr_comment(
 # "compact_review" feeds total_summary via its fallback; rendering it again
 # as a generic per-step detail block would duplicate the summary.
 _SINGLE_RESERVED_STEPS: frozenset[str] = frozenset(
-    {"total_summary", "inline_findings", "compact_review", "unified_review"}
+    {
+        "total_summary",
+        "inline_findings",
+        "compact_review",
+        "unified_review",
+        "review_critic",
+    }
 )
 
 

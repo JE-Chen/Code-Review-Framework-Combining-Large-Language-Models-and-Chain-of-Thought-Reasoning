@@ -47,9 +47,10 @@ remembers past feedback, and explains its reasoning step by step.
 - **Adaptive review depth (`--step-plan adaptive`)** — a skip tier
   (lockfiles / generated files / whitespace-only churn: zero model
   calls), a trivial tier (batched findings, up to 6 files per call), a
-  standard tier (one unified call: findings + summary + verdict), and a
-  deep tier (the full chain for ≥ 200-line or high-risk files), each
-  with its own generation budget.
+  standard tier (a unified findings + summary + verdict call plus an
+  independent `review_critic` completeness pass that recovers missed
+  issues — two calls), and a deep tier (the full chain for ≥ 200-line
+  or high-risk files), each with its own generation budget.
 - **Review presets** — `--review-preset backend|frontend|security|release`
   bundles the focused review modes and safety checks a caller would
   otherwise spell out flag by flag.

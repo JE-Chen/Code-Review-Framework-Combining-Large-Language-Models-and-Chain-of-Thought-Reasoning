@@ -437,6 +437,20 @@ def _validate_generation_budget(input_tokens: int, max_new_tokens: int) -> None:
         )
 
 
+def _sampling_enabled() -> bool:
+    """Whether review generation may sample (default: greedy, deterministic).
+
+    Chat checkpoints ship generation configs with ``do_sample=True`` and a
+    non-zero temperature, which made the same review prompt return a
+    different finding set on every run — a measured 0.40 same-config
+    reproduction rate for gate-severity findings. Reviews are audits, not
+    creative writing: greedy decoding makes them reproducible and makes
+    A/B measurements meaningful. Opt back into sampling only with
+    ``PRTHINKER_SAMPLING=1``.
+    """
+    return os.environ.get("PRTHINKER_SAMPLING", "") == "1"
+
+
 def hf_generate(prompt: str, model, tokenizer, max_new_tokens: int = 16784, cancel_event=None):
     if cancel_event is not None and cancel_event.is_set():
         raise ReviewCancelledError("Generation cancelled before tokenization")
@@ -462,12 +476,26 @@ def hf_generate(prompt: str, model, tokenizer, max_new_tokens: int = 16784, canc
         )
 
     try:
+        # Explicit sampling knobs: greedy by default (see _sampling_enabled).
+        # The Nones unset the checkpoint generation-config's temperature /
+        # top_p / top_k so transformers does not warn about ignored values.
+        sampling_kwargs = (
+            {}
+            if _sampling_enabled()
+            else {
+                "do_sample": False,
+                "temperature": None,
+                "top_p": None,
+                "top_k": None,
+            }
+        )
         with torch.inference_mode():
             with _force_efficient_sdpa():
                 generated_ids = model.generate(
                     **model_inputs,
                     max_new_tokens=max_new_tokens,
                     stopping_criteria=stopping_criteria,
+                    **sampling_kwargs,
                 )
     except torch.cuda.OutOfMemoryError as exc:
         impl = getattr(model.config, "_attn_implementation", "unknown")

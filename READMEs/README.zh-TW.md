@@ -42,8 +42,9 @@
   步驟，輸出結構化 JSON。
 - **自適應審查深度（`--step-plan adaptive`）**──skip 層（lockfile／
   機器生成檔／純空白變更：零次模型呼叫）、trivial 層（findings 批次
-  處理，單次呼叫最多 6 檔）、standard 層（單一整合呼叫：findings +
-  摘要 + verdict）、deep 層（≥ 200 行或高風險檔案保留完整鏈），各層
+  處理，單次呼叫最多 6 檔）、standard 層（一次整合的 findings + 摘要 +
+  verdict 呼叫，再加一次獨立的 `review_critic` 完整性複審以撿回漏掉的
+  問題──共兩次呼叫）、deep 層（≥ 200 行或高風險檔案保留完整鏈），各層
   有自己的生成預算。
 - **審查 preset**──`--review-preset backend|frontend|security|release`
   一次打包對應的聚焦審查模式與安全檢查，免得逐一手動開 flag。

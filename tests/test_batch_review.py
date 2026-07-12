@@ -149,14 +149,14 @@ def test_mixed_diff_batches_docs_and_loops_code():
         ["diff --git a/mod.py b/mod.py", "--- a/mod.py", "+++ b/mod.py",
          "@@ -1,60 +1,60 @@"] + code_lines
     )
-    backend = FakeBackend(["[]", '{"summary": "ok", "findings": []}'])
+    backend = FakeBackend(["[]", '{"summary": "ok", "findings": []}', "[]"])
     pipeline = CoTPipeline(backend=backend, retriever=NoOpRetriever())
     result = pipeline.run_per_file(
         diff,
         PerFileReviewOptions(inline_review=True, step_plan="adaptive"),
     )
-    # One batch call for the two docs files + one unified call for mod.py.
-    assert len(backend.calls) == 2
+    # One batch call for the two docs files + unified + critic for mod.py.
+    assert len(backend.calls) == 3
     assert [fr.path for fr in result.per_file] == ["a.md", "b.md", "mod.py"]
 
 
@@ -172,7 +172,7 @@ def test_full_plan_never_batches():
 
 
 def test_tier_budgets_cap_generation():
-    backend = FakeBackend(["[]", '{"summary": "ok", "findings": []}'])
+    backend = FakeBackend(["[]", '{"summary": "ok", "findings": []}', "[]"])
     pipeline = CoTPipeline(backend=backend, retriever=NoOpRetriever())
     code_lines = [f"+line {i}" for i in range(50)]
     diff = _docs_diff(["a.md"]) + "\n" + "\n".join(
@@ -184,5 +184,5 @@ def test_tier_budgets_cap_generation():
         PerFileReviewOptions(inline_review=True, step_plan="adaptive"),
     )
     budgets = sorted(tokens for _, tokens in backend.calls)
-    # Batch call capped at the standard budget; unified standard call too.
-    assert budgets == [8192, 8192]
+    # Trivial batch call + unified standard call + critic, all at 8192.
+    assert budgets == [8192, 8192, 8192]

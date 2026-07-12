@@ -42,8 +42,9 @@
   步骤，输出结构化 JSON。
 - **自适应审查深度（`--step-plan adaptive`）**──skip 层（lockfile／
   机器生成文件／纯空白变更：零次模型调用）、trivial 层（findings 批量
-  处理，单次调用最多 6 个文件）、standard 层（单一整合调用：findings +
-  摘要 + verdict）、deep 层（≥ 200 行或高风险文件保留完整链），各层
+  处理，单次调用最多 6 个文件）、standard 层（一次整合的 findings + 摘要 +
+  verdict 调用，再加一次独立的 `review_critic` 完整性复审以捡回漏掉的
+  问题──共两次调用）、deep 层（≥ 200 行或高风险文件保留完整链），各层
   有自己的生成预算。
 - **审查 preset**──`--review-preset backend|frontend|security|release`
   一次打包对应的聚焦审查模式与安全检查，免得逐一手动开 flag。

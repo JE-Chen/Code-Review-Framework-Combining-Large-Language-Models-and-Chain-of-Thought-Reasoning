@@ -151,6 +151,7 @@ jobs:
           # adaptive, files whose diff classifies as the skip tier
           # (lockfiles / generated / whitespace-only) are excluded from
           # the matrix here so no shard is spawned for them at all.
+          # With "full" the prefilter no-ops (exclude-globs still apply).
           PRTHINKER_STEP_PLAN: "adaptive"
         run: |
           set -euo pipefail
@@ -388,11 +389,13 @@ jobs:
           PRTHINKER_PER_FILE: "true"
           PRTHINKER_INLINE_REVIEW: "true"
           PRTHINKER_MAX_FINDINGS_PER_FILE: "10"
-          # Adaptive depth: the server prunes the CoT chain per file
-          # (skip/trivial/standard/deep) instead of always running the
-          # full five-step sweep. Requires a server built from a commit
-          # that carries ReviewRequest.step_plan; older servers ignore
-          # the field harmlessly and keep the full chain.
+          # Review depth: adaptive per-file pruning (skip / trivial /
+          # standard-with-critic / deep). Under deterministic decoding an
+          # independent blind judge (GPT via codex) scored adaptive and the
+          # full chain at parity on a 6-diff sample — both 2 real findings of
+          # 5, precision 0.40 after the false-positive prompt hardening —
+          # while adaptive spends about a quarter of the model calls (14 vs
+          # 54). Set to "full" to force the whole five-step chain per file.
           PRTHINKER_STEP_PLAN: "adaptive"
           # The CLI loops over the PR diff but skips every path except
           # this one — so the matrix iteration only spends GPU time on

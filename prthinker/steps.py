@@ -13,10 +13,12 @@ sync (see CLAUDE.md "Prompt Templates Are the Source of Truth").
 
 from __future__ import annotations
 
+import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import ClassVar
 
+from prthinker.findings import split_unified_review
 from prthinker.prompts.code_smell_detector import CODE_SMELL_DETECTOR_TEMPLATE
 from prthinker.prompts.compact_review import COMPACT_REVIEW_TEMPLATE
 from prthinker.prompts.counterfactual_review import COUNTERFACTUAL_REVIEW_TEMPLATE
@@ -26,6 +28,7 @@ from prthinker.prompts.global_rule import build_global_rule_template
 from prthinker.prompts.inline_findings import INLINE_FINDINGS_TEMPLATE
 from prthinker.prompts.judge_step import JUDGE_STEP_TEMPLATE
 from prthinker.prompts.linter import LINTER_TEMPLATE
+from prthinker.prompts.review_critic import REVIEW_CRITIC_TEMPLATE
 from prthinker.prompts.total_summary import TOTAL_SUMMARY_TEMPLATE
 from prthinker.prompts.unified_review import UNIFIED_REVIEW_TEMPLATE
 from prthinker.prompts.walkthrough import WALKTHROUGH_TEMPLATE
@@ -290,6 +293,53 @@ class UnifiedReviewStep(ReviewStep):
         return _prepend_repo_context(ctx, prompt)
 
 
+def _render_existing_findings(findings_json: str) -> str:
+    """One line per already-reported finding, so the critic avoids repeats."""
+    try:
+        items = json.loads(findings_json)
+    except (json.JSONDecodeError, TypeError):
+        items = []
+    lines = []
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, dict):
+            continue
+        line = item.get("line", "?")
+        severity = item.get("severity", "?")
+        comment = str(item.get("comment", "")).strip()
+        lines.append(f"- L{line} [{severity}] {comment}")
+    return "\n".join(lines) if lines else "(none)"
+
+
+class ReviewCriticStep(ReviewStep):
+    """Per-file second pass: recover genuine issues the first pass missed.
+
+    A single review call reliably overlooks problems a differently-focused
+    second reading catches. Given the diff and the first pass's findings,
+    this step proposes only *additional* issues; the pipeline merges them
+    into the inline findings. Not auto-registered — the adaptive planner
+    appends it after ``unified_review`` at standard depth, keeping the
+    reduced-depth cost at two calls instead of the full chain's six.
+    """
+
+    name = "review_critic"
+
+    def build_prompt(self, ctx: ReviewContext) -> str:
+        if not ctx.file_path:
+            raise ValueError("ReviewCriticStep requires ctx.file_path")
+        unified = ctx.results.get(UnifiedReviewStep.name)
+        if unified is not None:
+            _, findings_json = split_unified_review(unified)
+        else:
+            findings_json = ctx.results.get(InlineFindingsStep.name, "[]")
+        prompt = REVIEW_CRITIC_TEMPLATE.format(
+            file_path=ctx.file_path,
+            code_diff=ctx.code_diff,
+            existing_findings=_render_existing_findings(findings_json),
+            max_findings=ctx.max_findings,
+        )
+        return _prepend_repo_context(ctx, prompt)
+
+
 class CounterfactualStep(ReviewStep):
     """Per-file step: surface competing alternative implementations for
     findings that look like design choices.
@@ -354,6 +404,7 @@ __all__ = [
     "CompactReviewStep",
     "InlineFindingsStep",
     "UnifiedReviewStep",
+    "ReviewCriticStep",
     "CounterfactualStep",
     "JudgeStep",
     "WalkthroughStep",

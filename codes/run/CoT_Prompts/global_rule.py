@@ -16,6 +16,12 @@ Please conduct a code review according to the following global rules:
 4. Logic & Correctness
    - Verify correctness of program logic and identify potential bugs.
    - Check boundary conditions and exception handling.
+   - A diff shows only changed and nearby lines; imports, functions, and
+     variables defined elsewhere in the file are still present. Do not treat
+     something as undefined, not imported, or missing just because its
+     definition is not in the shown lines.
+   - Raise a concern only when the visible code supports it; avoid speculative
+     "could/might/may be a problem if ..." remarks with no concrete trigger.
 
 5. Performance & Security
    - Assess for unnecessary performance bottlenecks.
