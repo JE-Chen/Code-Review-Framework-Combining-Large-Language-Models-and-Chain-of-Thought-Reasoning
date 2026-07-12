@@ -91,6 +91,7 @@ from prthinker.formatters import (
     format_pr_comment_pages,
 )
 from prthinker import pr_summary
+from prthinker.cli_io import write_stdout
 from prthinker.incremental_save import (
     IncrementalReviewWriter,
     ReviewMeta,
@@ -717,9 +718,9 @@ def _cmd_review_file(args: argparse.Namespace) -> int:
     config = _build_config(args)
     code = _read_stdin_or_file(args.path)
     result = _run_review(args, config, code, output_dir=args.output_dir)
-    sys.stdout.write(format_pr_comment(result, marker=SUMMARY_MARKER))
+    write_stdout(format_pr_comment(result, marker=SUMMARY_MARKER))
     if result.inline_findings:
-        sys.stdout.write(f"\n[{len(result.inline_findings)} inline findings parsed]\n")
+        write_stdout(f"\n[{len(result.inline_findings)} inline findings parsed]\n")
     return 0
 
 
