@@ -22,14 +22,13 @@ detection precision / recall. The mechanism is what's shipped.
 
 from __future__ import annotations
 
-import json
 import logging
-import re
 from pathlib import PurePosixPath
 
 from pydantic import ValidationError
 
 from prthinker.diff import FileDiff
+from prthinker.lenient_json import extract_json_array
 from prthinker.schemas import ApiDriftFinding
 
 log = logging.getLogger(__name__)
@@ -37,10 +36,6 @@ log = logging.getLogger(__name__)
 
 _PY_EXT = {".py"}
 _JS_EXT = {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"}
-
-_FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
-_ARRAY_RE = re.compile(r"\[[\s\S]*\]")
-
 
 def _ext(path: str) -> str:
     return PurePosixPath(path).suffix.lower()
@@ -151,26 +146,6 @@ def build_prompt(file_diffs: list[FileDiff]) -> str:
     )
 
 
-def _parse_drift_payload(raw_output: str) -> list | None:
-    """Best-effort JSON-array extraction; ``None`` on any failure."""
-    body = raw_output.strip()
-    fence = _FENCE_RE.search(body)
-    if fence:
-        body = fence.group(1).strip()
-    if not body or body == "[]":
-        return []
-    match = _ARRAY_RE.search(body)
-    if match is None:
-        log.warning("api_consistency parser: no JSON array found")
-        return None
-    try:
-        data = json.loads(match.group(0))
-    except json.JSONDecodeError as exc:
-        log.warning("api_consistency parser: JSON decode failed (%s)", exc)
-        return None
-    return data if isinstance(data, list) else None
-
-
 def _coerce_drift_entry(
     entry, allowed_paths: set[str],
 ) -> ApiDriftFinding | None:
@@ -201,7 +176,7 @@ def parse_drift_findings(
     diff). Out-of-set paths are silently dropped — same safe-failure
     posture as :mod:`prthinker.findings`.
     """
-    data = _parse_drift_payload(raw_output)
+    data = extract_json_array(raw_output, parser_name="api_consistency parser")
     if not data:
         return []
     out: list[ApiDriftFinding] = []

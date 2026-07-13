@@ -26,11 +26,11 @@ about classification accuracy — only the mechanism is shipped.
 
 from __future__ import annotations
 
-import json
 import logging
-import re
 from dataclasses import dataclass
 from enum import Enum
+
+from prthinker.lenient_json import extract_json_object
 
 log = logging.getLogger(__name__)
 
@@ -182,10 +182,6 @@ def build_prompt(
     )
 
 
-_FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
-_OBJECT_RE = re.compile(r"\{[\s\S]*?\}")
-
-
 @dataclass(frozen=True)
 class Classification:
     pr_type: PRType
@@ -198,20 +194,8 @@ def parse_classification(raw_output: str) -> Classification:
     Returns ``Classification(PRType.UNKNOWN, ...)`` on any failure —
     same safe-failure posture as the inline-findings parser.
     """
-    body = raw_output.strip()
-    fence = _FENCE_RE.search(body)
-    if fence:
-        body = fence.group(1).strip()
-    match = _OBJECT_RE.search(body)
-    if match is None:
-        log.warning("pr_classifier parser: no JSON object found")
-        return Classification(pr_type=PRType.UNKNOWN)
-    try:
-        data = json.loads(match.group(0))
-    except json.JSONDecodeError as exc:
-        log.warning("pr_classifier parser: JSON decode failed (%s)", exc)
-        return Classification(pr_type=PRType.UNKNOWN)
-    if not isinstance(data, dict):
+    data = extract_json_object(raw_output, parser_name="pr_classifier parser")
+    if data is None:
         return Classification(pr_type=PRType.UNKNOWN)
     raw_kind = str(data.get("type", "")).strip().lower()
     try:

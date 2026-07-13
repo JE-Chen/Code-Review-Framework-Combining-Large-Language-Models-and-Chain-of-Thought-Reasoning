@@ -17,15 +17,12 @@ future work and is not measured here.
 
 from __future__ import annotations
 
-import json
 import logging
-import re
 from dataclasses import dataclass
 
-log = logging.getLogger(__name__)
+from prthinker.lenient_json import extract_json_array
 
-_FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
-_ARRAY_RE = re.compile(r"\[[\s\S]*\]")
+log = logging.getLogger(__name__)
 
 _KEY_MESSAGE_INDEX = "message_index"
 _KEY_ISSUE = "issue"
@@ -91,24 +88,6 @@ def build_prompt(commit_messages: list[str]) -> str:
     )
 
 
-def _extract_json_array(raw: str) -> list | None:
-    """Pull the JSON array out of a model reply; ``None`` on parse failure."""
-    body = raw.strip()
-    fence = _FENCE_RE.search(body)
-    if fence:
-        body = fence.group(1).strip()
-    if not body or body == "[]":
-        return []
-    match = _ARRAY_RE.search(body)
-    if match is None:
-        log.warning("commit_review parser: no JSON array found")
-        return None
-    try:
-        data = json.loads(match.group(0))
-    except json.JSONDecodeError as exc:
-        log.warning("commit_review parser: JSON decode failed (%s)", exc)
-        return None
-    return data if isinstance(data, list) else None
 
 
 def _note_from_entry(entry: object) -> CommitMessageNote | None:
@@ -135,7 +114,7 @@ def parse_review(raw: str) -> list[CommitMessageNote]:
     Tolerates fenced JSON; returns ``[]`` for empty / no-JSON input and
     skips malformed entries rather than crashing the pipeline.
     """
-    data = _extract_json_array(raw)
+    data = extract_json_array(raw, parser_name="commit_review parser")
     if not data:
         return []
     notes: list[CommitMessageNote] = []

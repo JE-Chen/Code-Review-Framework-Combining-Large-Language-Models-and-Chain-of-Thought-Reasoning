@@ -22,14 +22,13 @@ Design constraints:
 
 from __future__ import annotations
 
-import json
 import logging
-import re
 from dataclasses import dataclass
 from enum import Enum
 
 from pydantic import ValidationError
 
+from prthinker.lenient_json import extract_json_array
 from prthinker.schemas import PersonaConflict
 
 log = logging.getLogger(__name__)
@@ -156,30 +155,6 @@ def build_conflict_prompt(
     )
 
 
-_FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
-_ARRAY_RE = re.compile(r"\[[\s\S]*\]")
-
-
-def _extract_json_array(raw_output: str) -> list | None:
-    """Pull the JSON array out of a model reply; ``None`` on parse failure."""
-    body = raw_output.strip()
-    fence = _FENCE_RE.search(body)
-    if fence:
-        body = fence.group(1).strip()
-    if not body or body == "[]":
-        return []
-    match = _ARRAY_RE.search(body)
-    if match is None:
-        log.warning("personas parser: no JSON array found")
-        return None
-    try:
-        data = json.loads(match.group(0))
-    except json.JSONDecodeError as exc:
-        log.warning("personas parser: JSON decode failed (%s)", exc)
-        return None
-    return data if isinstance(data, list) else None
-
-
 _MIN_CONFLICT_PERSONAS = 2
 
 
@@ -225,7 +200,7 @@ def parse_conflicts(
     Out-of-set persona names and entries citing only one persona are
     dropped — same safe-failure posture as the rest of the parsers.
     """
-    data = _extract_json_array(raw_output)
+    data = extract_json_array(raw_output, parser_name="personas parser")
     if not data:
         return []
     valid_names = {p.value for p in valid_personas}

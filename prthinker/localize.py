@@ -16,14 +16,11 @@ future work and is not measured here.
 
 from __future__ import annotations
 
-import json
 import logging
-import re
+
+from prthinker.lenient_json import extract_json_array
 
 log = logging.getLogger(__name__)
-
-_FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
-_ARRAY_RE = re.compile(r"\[[\s\S]*\]")
 
 PROMPT_TEMPLATE = """\
 # Localize Review Comments
@@ -64,26 +61,6 @@ def build_localization_prompt(comments: list[str], target_language: str) -> str:
     )
 
 
-def _extract_json_array(raw: str) -> list | None:
-    """Pull the JSON array out of a model reply; ``None`` on parse failure."""
-    body = raw.strip()
-    fence = _FENCE_RE.search(body)
-    if fence:
-        body = fence.group(1).strip()
-    if not body or body == "[]":
-        return []
-    match = _ARRAY_RE.search(body)
-    if match is None:
-        log.warning("localize parser: no JSON array found")
-        return None
-    try:
-        data = json.loads(match.group(0))
-    except json.JSONDecodeError as exc:
-        log.warning("localize parser: JSON decode failed (%s)", exc)
-        return None
-    return data if isinstance(data, list) else None
-
-
 def parse_localized(raw: str, *, expected: int) -> list[str]:
     """Best-effort parse of the localization reply into translated strings.
 
@@ -91,7 +68,7 @@ def parse_localized(raw: str, *, expected: int) -> list[str]:
     element, or on any length mismatch against ``expected`` so the caller
     keeps the original comments unchanged.
     """
-    data = _extract_json_array(raw)
+    data = extract_json_array(raw, parser_name="localize parser")
     if data is None:
         return []
     if len(data) != expected:

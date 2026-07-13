@@ -25,7 +25,6 @@ model says, not a calibrated "definitely affects you" verdict.
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 from dataclasses import dataclass
@@ -34,6 +33,7 @@ from pathlib import PurePosixPath
 from pydantic import ValidationError
 
 from prthinker.diff import FileDiff
+from prthinker.lenient_json import extract_json_array
 from prthinker.schemas import DependencyUpgradeFinding
 
 log = logging.getLogger(__name__)
@@ -304,30 +304,6 @@ def build_prompt(
     )
 
 
-_FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
-_ARRAY_RE = re.compile(r"\[[\s\S]*\]")
-
-
-def _extract_json_array(raw_output: str, *, parser_name: str) -> list | None:
-    """Shared JSON-array extractor; ``None`` on any parse failure."""
-    body = raw_output.strip()
-    fence = _FENCE_RE.search(body)
-    if fence:
-        body = fence.group(1).strip()
-    if not body or body == "[]":
-        return []
-    match = _ARRAY_RE.search(body)
-    if match is None:
-        log.warning("%s: no JSON array found", parser_name)
-        return None
-    try:
-        data = json.loads(match.group(0))
-    except json.JSONDecodeError as exc:
-        log.warning("%s: JSON decode failed (%s)", parser_name, exc)
-        return None
-    return data if isinstance(data, list) else None
-
-
 def _coerce_impact_entry(
     entry, upgrade: PackageUpgrade,
 ) -> DependencyUpgradeFinding | None:
@@ -351,7 +327,7 @@ def parse_impact(
     raw_output: str, *, upgrade: PackageUpgrade,
 ) -> list[DependencyUpgradeFinding]:
     """Parse the model's JSON-array reply into structured findings."""
-    data = _extract_json_array(raw_output, parser_name="dep_upgrade parser")
+    data = extract_json_array(raw_output, parser_name="dep_upgrade parser")
     if not data:
         return []
     out: list[DependencyUpgradeFinding] = []
