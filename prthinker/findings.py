@@ -3,11 +3,11 @@
 The model is *asked* to emit a JSON array, but realistically may add a
 preamble, wrap in fenced code blocks, or trail off. We:
 
-1. Strip code fences.
-2. Find the outermost ``[ ... ]`` block.
-3. Parse with ``json.loads``; if that fails, fall back to per-object regex.
-4. Validate against the Pydantic schema (drops malformed entries).
-5. Filter against ``allowed_lines`` so we never post a comment on a line
+1. Scan for bracket-balanced ``[ ... ]`` spans (:mod:`prthinker.lenient_json`),
+   tolerant of reasoning prose, non-JSON code fences, and trailing text.
+2. Parse with ``json.loads``; if that fails, fall back to per-object regex.
+3. Validate against the Pydantic schema (drops malformed entries).
+4. Filter against ``allowed_lines`` so we never post a comment on a line
    GitHub will reject.
 """
 
@@ -21,6 +21,7 @@ from typing import Iterable
 
 from pydantic import ValidationError
 
+from prthinker.lenient_json import iter_json_arrays, iter_json_objects
 from prthinker.schemas import InlineFinding, ProvenanceCitation
 
 log = logging.getLogger(__name__)
@@ -53,21 +54,45 @@ def strip_json_fences(raw: str) -> str:
     return raw.strip()
 
 
-def extract_lenient_json(raw: str, *, pattern: re.Pattern[str]) -> LenientJson:
-    """Fence-strip ``raw``, locate ``pattern``'s match, and JSON-parse it.
+def _lenient_from_spans(spans: Iterable[str], expected: type) -> LenientJson:
+    """Fold balanced JSON spans into a :class:`LenientJson`.
 
-    Shared by the findings / judge / lessons parsers; each caller keeps
-    its own logging and fallback so failure behaviour stays
-    caller-specific.
+    ``matched`` is set once any span is seen; the last span decoding to
+    ``expected`` wins (a valid span clears an earlier decode error), and a
+    decode error is reported only when no span parsed to the wanted type.
     """
-    body = strip_json_fences(raw)
-    match = pattern.search(body)
-    if match is None:
+    data = None
+    matched = False
+    decode_error: str | None = None
+    for span in spans:
+        matched = True
+        try:
+            parsed = json.loads(span)
+        except json.JSONDecodeError as exc:
+            decode_error = str(exc)
+            continue
+        if isinstance(parsed, expected):
+            data, decode_error = parsed, None
+    if not matched:
         return LenientJson()
-    try:
-        return LenientJson(data=json.loads(match.group(0)), matched=True)
-    except json.JSONDecodeError as exc:
-        return LenientJson(matched=True, decode_error=str(exc))
+    if data is not None:
+        return LenientJson(data=data, matched=True)
+    return LenientJson(matched=True, decode_error=decode_error)
+
+
+def extract_lenient_json(raw: str, *, pattern: re.Pattern[str]) -> LenientJson:
+    """Scan ``raw`` for the container ``pattern`` targets and JSON-parse it.
+
+    Shared by the findings / judge / lessons parsers. The balanced scanner
+    (:mod:`prthinker.lenient_json`) tolerates reasoning prose, non-JSON code
+    fences, and trailing text around the payload; ``pattern`` only selects
+    array (``\\[``) vs object, so every caller keeps its existing call. Each
+    caller still keeps its own logging and fallback via ``matched`` /
+    ``decode_error``.
+    """
+    if pattern.pattern.startswith("\\["):
+        return _lenient_from_spans(iter_json_arrays(raw), list)
+    return _lenient_from_spans(iter_json_objects(raw), dict)
 
 
 _JSON_OBJECT_RE = re.compile(r"\{[\s\S]*\}")

@@ -23,18 +23,15 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 from prthinker.backends.base import InferenceBackend
+from prthinker.lenient_json import iter_json_arrays
 from prthinker.schemas import InlineFinding
 
 log = logging.getLogger(__name__)
-
-_FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
-_ARRAY_RE = re.compile(r"\[[\s\S]*\]")
 
 _VERDICT_CONFIRM = "confirm"
 _VERDICT_REJECT = "reject"
@@ -66,7 +63,8 @@ def build_arbitration_prompt(
         "For EACH finding, judge whether it is a real, actionable issue "
         "in this diff (confirm) or noise / incorrect / not supported by "
         "the diff (reject).\n\n"
-        "Respond with ONLY a JSON array, one object per finding:\n"
+        "End your reply with ONLY a JSON array, one object per finding, "
+        "and nothing after it:\n"
         '[{"id": 1, "verdict": "confirm"}, {"id": 2, "verdict": "reject"}]\n\n'
         "Findings:\n"
         f"{rows}\n\n"
@@ -91,26 +89,12 @@ def _vote_from_item(item: object, count: int) -> tuple[int, bool] | None:
     return raw_id, verdict == _VERDICT_CONFIRM
 
 
-def parse_votes(raw: str, count: int) -> dict[int, bool]:
-    """Best-effort parse of one arbiter's votes; ``{}`` means abstain.
-
-    Same lenient posture as :func:`prthinker.judge.parse_verdict`: strip
-    an optional code fence, locate the outermost JSON array, and keep
-    only well-formed votes whose id is within ``1..count``. Duplicate
-    ids keep the last vote.
-    """
-    body = raw.strip()
-    fence = _FENCE_RE.search(body)
-    if fence:
-        body = fence.group(1).strip()
-    match = _ARRAY_RE.search(body)
-    if match is None:
-        log.warning("Arbiter output had no JSON array: %r", raw[:200])
-        return {}
+def _votes_from_array(candidate: str, count: int) -> dict[int, bool]:
+    """Parse one ``[...]`` candidate into votes; ``{}`` if it is not a JSON
+    list of well-formed vote objects. Duplicate ids keep the last vote."""
     try:
-        data = json.loads(match.group(0))
-    except json.JSONDecodeError as exc:
-        log.warning("Arbiter JSON decode failed: %s", exc)
+        data = json.loads(candidate)
+    except json.JSONDecodeError:
         return {}
     if not isinstance(data, list):
         return {}
@@ -119,6 +103,28 @@ def parse_votes(raw: str, count: int) -> dict[int, bool]:
         vote = _vote_from_item(item, count)
         if vote is not None:
             votes[vote[0]] = vote[1]
+    return votes
+
+
+def parse_votes(raw: str, count: int) -> dict[int, bool]:
+    """Best-effort parse of one arbiter's votes; ``{}`` means abstain.
+
+    Scans every bracket-balanced ``[...]`` span in the reply and keeps the
+    votes from the **last** span that yields at least one well-formed vote
+    — the model's final answer, even when preceded by chain-of-thought
+    prose or a non-JSON code fence and followed by trailing text (all of
+    which used to make the old fenced/greedy-regex parser abstain, so the
+    fail-open path then wrongly *kept* the noise the arbiter had rejected).
+    Only vote objects whose id is within ``1..count`` count; duplicate ids
+    keep the last vote.
+    """
+    votes: dict[int, bool] = {}
+    for candidate in iter_json_arrays(raw):
+        parsed = _votes_from_array(candidate, count)
+        if parsed:
+            votes = parsed
+    if not votes:
+        log.debug("Arbiter output yielded no countable votes: %r", raw[:200])
     return votes
 
 
