@@ -13,40 +13,16 @@ useful is future work and is not measured here.
 
 from __future__ import annotations
 
-import json
 import logging
-import re
 
 from pydantic import ValidationError
 
+from prthinker.lenient_json import extract_json_array
 from prthinker.schemas import CounterfactualBlock
 
 log = logging.getLogger(__name__)
 
-_FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
-_ARRAY_RE = re.compile(r"\[[\s\S]*\]")
-
-
 _MIN_OPTIONS = 2
-
-
-def _strip_fences(text: str) -> str:
-    match = _FENCE_RE.search(text)
-    return match.group(1) if match else text
-
-
-def _extract_json_array(body: str) -> list | None:
-    """Extract the outermost JSON array from ``body``; ``None`` if absent."""
-    match = _ARRAY_RE.search(body)
-    if match is None:
-        log.warning("counterfactual parser: no JSON array found in output")
-        return None
-    try:
-        data = json.loads(match.group(0))
-    except json.JSONDecodeError as exc:
-        log.warning("counterfactual parser: JSON decode failed (%s)", exc)
-        return None
-    return data if isinstance(data, list) else None
 
 
 def _block_from_entry(entry: object) -> CounterfactualBlock | None:
@@ -86,12 +62,8 @@ def parse_counterfactuals(
     if total_findings <= 0:
         return []
 
-    body = _strip_fences(raw_output).strip()
-    if not body or body == "[]":
-        return []
-
-    data = _extract_json_array(body)
-    if data is None:
+    data = extract_json_array(raw_output, parser_name="counterfactual parser")
+    if not data:
         return []
 
     blocks: list[CounterfactualBlock] = []

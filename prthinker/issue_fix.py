@@ -17,14 +17,13 @@ from __future__ import annotations
 
 import ast
 import difflib
-import json
-import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
 from prthinker.execution_sandbox import Executor
+from prthinker.lenient_json import extract_json_array
 from prthinker.repo_retrieval import (
     RepoContext,
     RepoContextRetriever,
@@ -37,7 +36,6 @@ _CONTEXT_FILE_CHARS = 4000
 _SPAN_WINDOW_MARGIN = 40
 _VALIDATION_OUTPUT_CAP = 4000
 _DEFAULT_TEST_TIMEOUT = 600.0
-_JSON_ARRAY_RE = re.compile(r"\[.*\]", re.DOTALL)
 
 
 def _distinct(paths: Iterable[str]) -> tuple[str, ...]:
@@ -84,12 +82,8 @@ class IssueFixProposal:
 
 def _extract_edits(raw: str) -> list[FixEdit]:
     """Parse the model's JSON edit array into FixEdit records (lenient)."""
-    match = _JSON_ARRAY_RE.search(raw)
-    if not match:
-        return []
-    try:
-        rows = json.loads(match.group(0))
-    except json.JSONDecodeError:
+    rows = extract_json_array(raw, parser_name="issue_fix parser")
+    if not rows:
         return []
     edits = []
     for row in rows:

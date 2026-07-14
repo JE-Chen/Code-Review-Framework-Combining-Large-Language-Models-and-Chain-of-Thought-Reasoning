@@ -139,6 +139,57 @@ def test_parse_votes_duplicate_id_keeps_last() -> None:
     assert parse_votes(raw, 1) == {1: False}
 
 
+def test_parse_votes_reasoning_then_array() -> None:
+    # Chain-of-thought prose before the answer must not defeat the parse:
+    # the old fenced/greedy parser abstained here → fail-open kept noise.
+    raw = (
+        "Looking at the diff, finding 1 is grounded but finding 2 is "
+        "speculative.\nFinal verdicts:\n" + _votes("confirm", "reject")
+    )
+    assert parse_votes(raw, 2) == {1: True, 2: False}
+
+
+def test_parse_votes_ignores_non_json_code_fence() -> None:
+    # A ```python fence full of code (with its own brackets) is skipped;
+    # the real vote array afterwards wins.
+    raw = (
+        "```python\nreturn RepoContext(tuple(spans), spans, symbols)\n```\n"
+        + _votes("reject")
+    )
+    assert parse_votes(raw, 1) == {1: False}
+
+
+def test_parse_votes_trailing_text_after_array() -> None:
+    # "Extra data" after the array used to raise JSONDecodeError → abstain.
+    raw = _votes("confirm") + "\n\nHope this helps!"
+    assert parse_votes(raw, 1) == {1: True}
+
+
+def test_parse_votes_last_valid_array_wins() -> None:
+    # An echoed example array followed by the real answer → the last one
+    # that yields votes is the model's final answer.
+    raw = (
+        "For example: " + _votes("confirm", "confirm") + "\n"
+        "My actual answer: " + _votes("reject", "reject")
+    )
+    assert parse_votes(raw, 2) == {1: False, 2: False}
+
+
+def test_parse_votes_bracket_inside_string_value() -> None:
+    # A ] inside a JSON string must not close the array early.
+    raw = json.dumps([{"id": 1, "verdict": "confirm", "note": "a]b[c"}])
+    assert parse_votes(raw, 1) == {1: True}
+
+
+def test_parse_votes_unclosed_bracket_abstains() -> None:
+    assert parse_votes('[{"id": 1, "verdict": "confirm"}', 1) == {}
+
+
+def test_prompt_demands_trailing_json_array() -> None:
+    prompt = build_arbitration_prompt("diff", [_finding()])
+    assert "nothing after it" in prompt
+
+
 # ----- FindingArbitrator -------------------------------------------------------
 
 

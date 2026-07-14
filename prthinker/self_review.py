@@ -10,35 +10,13 @@ everything (better to post a noisy finding than to lose a real bug).
 
 from __future__ import annotations
 
-import json
 import logging
-import re
 from typing import Iterable
 
+from prthinker.lenient_json import extract_json_object
 from prthinker.schemas import InlineFinding
 
 log = logging.getLogger(__name__)
-
-_FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
-_OBJ_RE = re.compile(r"\{[\s\S]*\}")
-
-
-def _extract_json_payload(raw: str) -> object | None:
-    """Return the parsed JSON object from raw model output, or None."""
-    body = raw.strip()
-    fence = _FENCE_RE.search(body)
-    if fence:
-        body = fence.group(1).strip()
-    obj_match = _OBJ_RE.search(body)
-    if obj_match is None:
-        log.warning("self-review output had no JSON object: %r", raw[:200])
-        return None
-    try:
-        return json.loads(obj_match.group(0))
-    except json.JSONDecodeError as exc:
-        log.warning("self-review JSON decode failed: %s", exc)
-        return None
-
 
 def _validated_zero_based_indices(
     raw_indices: list[object], *, total: int
@@ -61,7 +39,7 @@ def parse_drop_indices(raw: str, *, total: int) -> set[int]:
     ``total`` is the number of findings the model was asked to review.
     Indices ≤ 0 or > total are silently ignored.
     """
-    data = _extract_json_payload(raw)
+    data = extract_json_object(raw, parser_name="self-review parser")
     raw_indices = data.get("drop") if isinstance(data, dict) else None
     if not isinstance(raw_indices, list):
         return set()
