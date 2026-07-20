@@ -1,0 +1,1 @@
+{"claims": 10, "valid": 9, "false_positives": ["claimed random.choice(result.columns) raises IndexError on empty df because columns would be empty; false - agg spec always yields 3 named columns even for a 0-row input, so no IndexError"]}

@@ -1,0 +1,8 @@
+{
+  "covered_ids": [
+    "redundant-filter-conditions",
+    "excessive-intermediate-lists",
+    "manual-length-count"
+  ],
+  "total": 4
+}

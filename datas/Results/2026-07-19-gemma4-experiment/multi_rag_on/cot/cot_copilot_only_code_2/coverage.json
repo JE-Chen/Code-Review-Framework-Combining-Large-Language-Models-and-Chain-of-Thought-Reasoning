@@ -1,0 +1,8 @@
+{
+  "covered_ids": [
+    "silent-type-mismatch",
+    "quadratic-string-building",
+    "deeply-nested-conditionals"
+  ],
+  "total": 6
+}

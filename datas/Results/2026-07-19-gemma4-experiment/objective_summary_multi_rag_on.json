@@ -1,0 +1,407 @@
+{
+  "experiment": "D:\\Codes\\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\\datas\\Results\\2026-07-19-gemma4-experiment",
+  "condition": "multi_rag_on",
+  "completed_cases": 44,
+  "missing_cases": [],
+  "covered": 197,
+  "issues": 333,
+  "recall": 0.5915915915915916,
+  "valid": 474,
+  "claims": 480,
+  "precision": 0.9875,
+  "f1": 0.7399148976632515,
+  "severity_weighted_recall": 0.601526717557252,
+  "per_category": {
+    "bug": {
+      "covered": 35,
+      "total": 67,
+      "recall": 0.5223880597014925
+    },
+    "correctness": {
+      "covered": 67,
+      "total": 137,
+      "recall": 0.48905109489051096
+    },
+    "design": {
+      "covered": 0,
+      "total": 1,
+      "recall": 0.0
+    },
+    "maintainability": {
+      "covered": 61,
+      "total": 80,
+      "recall": 0.7625
+    },
+    "security": {
+      "covered": 12,
+      "total": 21,
+      "recall": 0.5714285714285714
+    },
+    "smell": {
+      "covered": 22,
+      "total": 27,
+      "recall": 0.8148148148148148
+    }
+  },
+  "per_case": {
+    "cot_chatgpt_bad_data_1": {
+      "covered": 8,
+      "issues": 11,
+      "recall": 0.7272727272727273,
+      "claims": 8,
+      "valid": 8
+    },
+    "cot_chatgpt_bad_data_2": {
+      "covered": 6,
+      "issues": 10,
+      "recall": 0.6,
+      "claims": 11,
+      "valid": 10
+    },
+    "cot_chatgpt_code_diff_1": {
+      "covered": 6,
+      "issues": 9,
+      "recall": 0.6666666666666666,
+      "claims": 10,
+      "valid": 10
+    },
+    "cot_chatgpt_code_diff_2": {
+      "covered": 4,
+      "issues": 7,
+      "recall": 0.5714285714285714,
+      "claims": 10,
+      "valid": 10
+    },
+    "cot_chatgpt_code_diff_3": {
+      "covered": 2,
+      "issues": 4,
+      "recall": 0.5,
+      "claims": 8,
+      "valid": 8
+    },
+    "cot_chatgpt_code_diff_4": {
+      "covered": 6,
+      "issues": 9,
+      "recall": 0.6666666666666666,
+      "claims": 8,
+      "valid": 8
+    },
+    "cot_chatgpt_code_diff_5": {
+      "covered": 4,
+      "issues": 7,
+      "recall": 0.5714285714285714,
+      "claims": 10,
+      "valid": 9
+    },
+    "cot_chatgpt_code_diff_6": {
+      "covered": 6,
+      "issues": 7,
+      "recall": 0.8571428571428571,
+      "claims": 9,
+      "valid": 9
+    },
+    "cot_chatgpt_only_code_1": {
+      "covered": 11,
+      "issues": 13,
+      "recall": 0.8461538461538461,
+      "claims": 15,
+      "valid": 15
+    },
+    "cot_chatgpt_only_code_10": {
+      "covered": 7,
+      "issues": 17,
+      "recall": 0.4117647058823529,
+      "claims": 13,
+      "valid": 13
+    },
+    "cot_chatgpt_only_code_11": {
+      "covered": 6,
+      "issues": 9,
+      "recall": 0.6666666666666666,
+      "claims": 14,
+      "valid": 14
+    },
+    "cot_chatgpt_only_code_12": {
+      "covered": 8,
+      "issues": 12,
+      "recall": 0.6666666666666666,
+      "claims": 16,
+      "valid": 16
+    },
+    "cot_chatgpt_only_code_13": {
+      "covered": 4,
+      "issues": 10,
+      "recall": 0.4,
+      "claims": 12,
+      "valid": 12
+    },
+    "cot_chatgpt_only_code_14": {
+      "covered": 4,
+      "issues": 6,
+      "recall": 0.6666666666666666,
+      "claims": 11,
+      "valid": 11
+    },
+    "cot_chatgpt_only_code_2": {
+      "covered": 5,
+      "issues": 10,
+      "recall": 0.5,
+      "claims": 14,
+      "valid": 14
+    },
+    "cot_chatgpt_only_code_3": {
+      "covered": 3,
+      "issues": 7,
+      "recall": 0.42857142857142855,
+      "claims": 13,
+      "valid": 13
+    },
+    "cot_chatgpt_only_code_4": {
+      "covered": 6,
+      "issues": 11,
+      "recall": 0.5454545454545454,
+      "claims": 14,
+      "valid": 14
+    },
+    "cot_chatgpt_only_code_5": {
+      "covered": 5,
+      "issues": 8,
+      "recall": 0.625,
+      "claims": 16,
+      "valid": 16
+    },
+    "cot_chatgpt_only_code_6": {
+      "covered": 7,
+      "issues": 15,
+      "recall": 0.4666666666666667,
+      "claims": 13,
+      "valid": 13
+    },
+    "cot_chatgpt_only_code_7": {
+      "covered": 2,
+      "issues": 6,
+      "recall": 0.3333333333333333,
+      "claims": 9,
+      "valid": 9
+    },
+    "cot_chatgpt_only_code_8": {
+      "covered": 2,
+      "issues": 5,
+      "recall": 0.4,
+      "claims": 9,
+      "valid": 9
+    },
+    "cot_chatgpt_only_code_9": {
+      "covered": 4,
+      "issues": 8,
+      "recall": 0.5,
+      "claims": 11,
+      "valid": 10
+    },
+    "cot_copilot_bad_data_1": {
+      "covered": 5,
+      "issues": 6,
+      "recall": 0.8333333333333334,
+      "claims": 12,
+      "valid": 12
+    },
+    "cot_copilot_bad_data_2": {
+      "covered": 3,
+      "issues": 8,
+      "recall": 0.375,
+      "claims": 7,
+      "valid": 7
+    },
+    "cot_copilot_code_diff_1": {
+      "covered": 5,
+      "issues": 7,
+      "recall": 0.7142857142857143,
+      "claims": 11,
+      "valid": 11
+    },
+    "cot_copilot_code_diff_2": {
+      "covered": 2,
+      "issues": 6,
+      "recall": 0.3333333333333333,
+      "claims": 11,
+      "valid": 11
+    },
+    "cot_copilot_code_diff_3": {
+      "covered": 4,
+      "issues": 5,
+      "recall": 0.8,
+      "claims": 11,
+      "valid": 11
+    },
+    "cot_copilot_code_diff_4": {
+      "covered": 6,
+      "issues": 9,
+      "recall": 0.6666666666666666,
+      "claims": 11,
+      "valid": 11
+    },
+    "cot_copilot_code_diff_5": {
+      "covered": 3,
+      "issues": 5,
+      "recall": 0.6,
+      "claims": 9,
+      "valid": 9
+    },
+    "cot_copilot_code_diff_6": {
+      "covered": 6,
+      "issues": 7,
+      "recall": 0.8571428571428571,
+      "claims": 12,
+      "valid": 11
+    },
+    "cot_copilot_only_code_1": {
+      "covered": 4,
+      "issues": 5,
+      "recall": 0.8,
+      "claims": 13,
+      "valid": 13
+    },
+    "cot_copilot_only_code_10": {
+      "covered": 5,
+      "issues": 6,
+      "recall": 0.8333333333333334,
+      "claims": 11,
+      "valid": 10
+    },
+    "cot_copilot_only_code_11": {
+      "covered": 1,
+      "issues": 1,
+      "recall": 1.0,
+      "claims": 10,
+      "valid": 10
+    },
+    "cot_copilot_only_code_12": {
+      "covered": 3,
+      "issues": 7,
+      "recall": 0.42857142857142855,
+      "claims": 10,
+      "valid": 10
+    },
+    "cot_copilot_only_code_13": {
+      "covered": 2,
+      "issues": 9,
+      "recall": 0.2222222222222222,
+      "claims": 11,
+      "valid": 11
+    },
+    "cot_copilot_only_code_14": {
+      "covered": 5,
+      "issues": 7,
+      "recall": 0.7142857142857143,
+      "claims": 12,
+      "valid": 12
+    },
+    "cot_copilot_only_code_2": {
+      "covered": 3,
+      "issues": 6,
+      "recall": 0.5,
+      "claims": 9,
+      "valid": 9
+    },
+    "cot_copilot_only_code_3": {
+      "covered": 3,
+      "issues": 4,
+      "recall": 0.75,
+      "claims": 8,
+      "valid": 8
+    },
+    "cot_copilot_only_code_4": {
+      "covered": 7,
+      "issues": 8,
+      "recall": 0.875,
+      "claims": 9,
+      "valid": 9
+    },
+    "cot_copilot_only_code_5": {
+      "covered": 2,
+      "issues": 5,
+      "recall": 0.4,
+      "claims": 8,
+      "valid": 8
+    },
+    "cot_copilot_only_code_6": {
+      "covered": 6,
+      "issues": 10,
+      "recall": 0.6,
+      "claims": 11,
+      "valid": 11
+    },
+    "cot_copilot_only_code_7": {
+      "covered": 1,
+      "issues": 4,
+      "recall": 0.25,
+      "claims": 11,
+      "valid": 11
+    },
+    "cot_copilot_only_code_8": {
+      "covered": 1,
+      "issues": 1,
+      "recall": 1.0,
+      "claims": 8,
+      "valid": 8
+    },
+    "cot_copilot_only_code_9": {
+      "covered": 4,
+      "issues": 6,
+      "recall": 0.6666666666666666,
+      "claims": 11,
+      "valid": 10
+    }
+  },
+  "control": {
+    "experiment": "D:\\Codes\\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\\datas\\Results\\2026-07-19-gemma4-experiment",
+    "condition": "single",
+    "completed_cases": 44,
+    "missing_cases": [],
+    "covered": 166,
+    "issues": 333,
+    "recall": 0.4984984984984985,
+    "valid": 329,
+    "claims": 333,
+    "precision": 0.987987987987988,
+    "f1": 0.662650529317196,
+    "severity_weighted_recall": 0.5099236641221374,
+    "per_category": {
+      "bug": {
+        "covered": 27,
+        "total": 67,
+        "recall": 0.40298507462686567
+      },
+      "correctness": {
+        "covered": 53,
+        "total": 137,
+        "recall": 0.38686131386861317
+      },
+      "design": {
+        "covered": 0,
+        "total": 1,
+        "recall": 0.0
+      },
+      "maintainability": {
+        "covered": 59,
+        "total": 80,
+        "recall": 0.7375
+      },
+      "security": {
+        "covered": 10,
+        "total": 21,
+        "recall": 0.47619047619047616
+      },
+      "smell": {
+        "covered": 17,
+        "total": 27,
+        "recall": 0.6296296296296297
+      }
+    }
+  },
+  "paired_case_recall": {
+    "higher": 26,
+    "equal": 14,
+    "lower": 4
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "covered_ids": [
+    "stale-user-index-after-removal",
+    "parallel-friend-arrays",
+    "mutable-global-state"
+  ],
+  "total": 9
+}

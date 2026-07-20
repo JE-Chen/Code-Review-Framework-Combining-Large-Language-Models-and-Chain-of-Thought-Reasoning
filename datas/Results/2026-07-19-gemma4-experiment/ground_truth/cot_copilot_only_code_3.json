@@ -1,0 +1,26 @@
+[
+  {
+    "id": "redundant-filter-conditions",
+    "desc": "The even-number filter includes unnecessary n != 0 and n > -9999 checks that obscure its actual purpose and arbitrarily reject valid even integers below the threshold.",
+    "category": "correctness",
+    "severity": "low"
+  },
+  {
+    "id": "excessive-intermediate-lists",
+    "desc": "The pipeline performs multiple full passes and allocates a new list at every transformation, causing avoidable time and memory overhead.",
+    "category": "maintainability",
+    "severity": "low"
+  },
+  {
+    "id": "manual-length-count",
+    "desc": "step7_redundant_summary manually iterates to count elements instead of using len(), adding needless complexity and preventing use with iterables that lack repeated traversal guarantees.",
+    "category": "smell",
+    "severity": "low"
+  },
+  {
+    "id": "weak-prefix-validation",
+    "desc": "step6_print_all checks startswith(\"VAL\") rather than the generated \"VAL_\" prefix, so malformed values such as \"VALUE\" are treated as valid output.",
+    "category": "correctness",
+    "severity": "low"
+  }
+]

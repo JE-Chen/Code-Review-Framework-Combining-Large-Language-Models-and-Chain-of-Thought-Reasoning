@@ -1,0 +1,25 @@
+{"instance_id": "astropy__astropy-13398", "traj_data": {"pred_files": ["astropy/coordinates/tests/test_intermediate_transformations.py", "astropy/coordinates/builtin_frames/__init__.py"], "pred_spans": {}}}
+{"instance_id": "astropy__astropy-13579", "traj_data": {"pred_files": ["astropy/wcs/wcsapi/wrappers/tests/test_sliced_wcs.py", "astropy/wcs/wcsapi/wrappers/sliced_wcs.py"], "pred_spans": {}}}
+{"instance_id": "astropy__astropy-14096", "traj_data": {"pred_files": ["astropy/coordinates/sky_coordinate.py", "astropy/coordinates/tests/test_sky_coord.py"], "pred_spans": {}}}
+{"instance_id": "astropy__astropy-14539", "traj_data": {"pred_files": ["astropy/io/fits/diff.py", "astropy/io/fits/tests/test_diff.py"], "pred_spans": {}}}
+{"instance_id": "astropy__astropy-14598", "traj_data": {"pred_files": ["astropy/io/fits/tests/test_header.py", "astropy/io/fits/card.py"], "pred_spans": {}}}
+{"instance_id": "astropy__astropy-14995", "traj_data": {"pred_files": ["astropy/nddata/mixins/ndarithmetic.py", "astropy/nddata/mixins/tests/test_ndarithmetic.py"], "pred_spans": {}}}
+{"instance_id": "django__django-10880", "traj_data": {"pred_files": ["django/db/models/aggregates.py", "tests/aggregation/tests.py"], "pred_spans": {}}}
+{"instance_id": "django__django-11099", "traj_data": {"pred_files": ["tests/auth_tests/test_validators.py", "django/contrib/auth/validators.py"], "pred_spans": {}}}
+{"instance_id": "django__django-11163", "traj_data": {"pred_files": ["django/forms/models.py", "tests/model_forms/tests.py"], "pred_spans": {}}}
+{"instance_id": "django__django-11179", "traj_data": {"pred_files": ["django/db/models/deletion.py", "tests/delete/tests.py"], "pred_spans": {}}}
+{"instance_id": "django__django-11400", "traj_data": {"pred_files": ["django/contrib/admin/filters.py", "tests/admin_changelist/tests.py"], "pred_spans": {}}}
+{"instance_id": "django__django-11433", "traj_data": {"pred_files": ["django/forms/models.py", "tests/model_forms/tests.py"], "pred_spans": {}}}
+{"instance_id": "django__django-11451", "traj_data": {"pred_files": ["tests/auth_tests/test_auth_backends.py", "django/contrib/auth/backends.py"], "pred_spans": {}}}
+{"instance_id": "django__django-11555", "traj_data": {"pred_files": ["django/db/models/sql/compiler.py", "tests/ordering/models.py", "tests/ordering/tests.py"], "pred_spans": {}}}
+{"instance_id": "django__django-11603", "traj_data": {"pred_files": ["django/db/models/aggregates.py", "tests/aggregation/tests.py"], "pred_spans": {}}}
+{"instance_id": "django__django-11749", "traj_data": {"pred_files": ["django/core/management/__init__.py", "tests/user_commands/tests.py"], "pred_spans": {}}}
+{"instance_id": "django__django-11790", "traj_data": {"pred_files": ["tests/auth_tests/test_forms.py", "django/contrib/auth/forms.py"], "pred_spans": {}}}
+{"instance_id": "django__django-11815", "traj_data": {"pred_files": ["tests/migrations/test_writer.py"], "pred_spans": {}}}
+{"instance_id": "django__django-11820", "traj_data": {"pred_files": ["tests/invalid_models_tests/test_models.py", "django/db/models/base.py"], "pred_spans": {}}}
+{"instance_id": "django__django-12125", "traj_data": {"pred_files": ["tests/migrations/test_writer.py", "django/db/models/fields/__init__.py"], "pred_spans": {}}}
+{"instance_id": "django__django-12143", "traj_data": {"pred_files": ["django/contrib/admin/options.py"], "pred_spans": {}}}
+{"instance_id": "django__django-12155", "traj_data": {"pred_files": ["django/contrib/admindocs/utils.py", "tests/admin_docs/test_utils.py"], "pred_spans": {}}}
+{"instance_id": "django__django-12193", "traj_data": {"pred_files": ["django/contrib/postgres/forms/array.py", "tests/postgres_tests/test_array.py"], "pred_spans": {}}}
+{"instance_id": "django__django-12262", "traj_data": {"pred_files": ["django/template/library.py", "tests/template_tests/test_custom.py"], "pred_spans": {}}}
+{"instance_id": "django__django-12406", "traj_data": {"pred_files": ["tests/model_forms/test_modelchoicefield.py", "tests/model_forms/tests.py", "django/forms/models.py", "django/forms/widgets.py"], "pred_spans": {}}}

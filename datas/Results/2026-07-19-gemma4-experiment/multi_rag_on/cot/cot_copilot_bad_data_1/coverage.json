@@ -1,0 +1,10 @@
+{
+  "covered_ids": [
+    "mutable-default-container",
+    "overbroad-exception-handler",
+    "inconsistent-return-type",
+    "side-effect-comprehension",
+    "arbitrary-code-eval"
+  ],
+  "total": 6
+}

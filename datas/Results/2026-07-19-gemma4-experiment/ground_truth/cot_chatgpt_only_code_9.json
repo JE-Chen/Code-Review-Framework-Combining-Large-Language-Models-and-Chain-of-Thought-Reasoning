@@ -1,0 +1,50 @@
+[
+  {
+    "id": "missing-request-timeout",
+    "desc": "HTTP requests have no timeout, so an unresponsive server can cause the program to hang indefinitely.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "incompatible-error-return",
+    "desc": "APIClient.fetch returns an error dictionary where callers expect a list, causing process_all to iterate strings and fail with AttributeError.",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "unvalidated-response-shape",
+    "desc": "Successful JSON is used without validating that it is a list of dictionaries, so malformed or unexpected server responses can crash processing.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "nullable-string-concatenation",
+    "desc": "Null or non-string name, title, or todo title values can cause TypeError during string concatenation.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "naive-url-concatenation",
+    "desc": "Constructing URLs with string concatenation produces incorrect paths for base URLs or endpoints with unexpected slash placement.",
+    "category": "correctness",
+    "severity": "low"
+  },
+  {
+    "id": "rejects-valid-2xx",
+    "desc": "fetch treats every successful HTTP status other than exactly 200 as an error.",
+    "category": "correctness",
+    "severity": "low"
+  },
+  {
+    "id": "shared-global-state",
+    "desc": "The global session and mutable cache create hidden coupling and potential races when the client is used concurrently.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "overbroad-exception-handling",
+    "desc": "Catching every Exception and converting it to data obscures failure types and makes errors surface later in unrelated processing code.",
+    "category": "maintainability",
+    "severity": "medium"
+  }
+]

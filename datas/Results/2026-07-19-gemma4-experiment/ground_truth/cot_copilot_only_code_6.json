@@ -1,0 +1,62 @@
+[
+  {
+    "id": "unvalidated-item-type",
+    "desc": "The /add endpoint accepts missing, null, and non-string items, causing later /items requests to fail in len(), slicing, or upper().",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "shared-state-races",
+    "desc": "Unsynchronized mutable globals allow concurrent add and reset requests to lose updates and make DATA_STORE and USER_COUNT inconsistent.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "process-local-storage",
+    "desc": "Process-local in-memory storage produces inconsistent data and counts across multiple workers and loses all data on restart.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "reset-changes-processing-mode",
+    "desc": "Resetting data permanently changes CONFIG mode to reset, unexpectedly altering all subsequent /items processing from truncation to uppercasing.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "debug-server-enabled",
+    "desc": "Running the application with debug=True can expose sensitive debugging information and an interactive debugger if used in a reachable deployment.",
+    "category": "security",
+    "severity": "critical"
+  },
+  {
+    "id": "exception-details-disclosed",
+    "desc": "The /add endpoint returns raw exception messages to clients, potentially disclosing internal implementation details.",
+    "category": "security",
+    "severity": "medium"
+  },
+  {
+    "id": "errors-return-success-status",
+    "desc": "The /add exception handler returns an error body with the default HTTP 200 status, preventing clients and monitoring from reliably detecting failures.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "overbroad-exception-handler",
+    "desc": "Catching every Exception in /add masks programming and infrastructure failures instead of handling only expected request-validation errors.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "unbounded-memory-growth",
+    "desc": "The unauthenticated /add endpoint permits unlimited items and item sizes, allowing memory exhaustion through repeated or oversized requests.",
+    "category": "security",
+    "severity": "high"
+  },
+  {
+    "id": "oversized-integer-failure",
+    "desc": "A very long digit-only param can make int(param) raise ValueError due to Python's integer-string conversion limit, yielding an unhandled 500 response.",
+    "category": "bug",
+    "severity": "low"
+  }
+]

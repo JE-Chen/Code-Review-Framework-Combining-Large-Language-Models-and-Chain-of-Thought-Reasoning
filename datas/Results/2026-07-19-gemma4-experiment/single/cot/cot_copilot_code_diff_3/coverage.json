@@ -1,0 +1,8 @@
+{
+  "covered_ids": [
+    "button-one-text-overwritten",
+    "unnecessary-global-widget-state",
+    "gratuitous-nested-functions"
+  ],
+  "total": 5
+}

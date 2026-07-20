@@ -1,0 +1,50 @@
+{
+  "executed_at_utc": "2026-07-04T03:17:28.561939+00:00",
+  "dataset": {
+    "name": "Contextbench/ContextBench",
+    "config": "contextbench_verified",
+    "split": "train",
+    "offset": 0,
+    "length": 25,
+    "source_url": "https://datasets-server.huggingface.co/rows?dataset=Contextbench%2FContextBench&config=contextbench_verified&split=train&offset=0&length=25"
+  },
+  "benchmark": {
+    "baseline": "extract repository-like path mentions only from problem_statement; no gold_context, patch, or test_patch used for predictions",
+    "command": "python -m prthinker benchmark score scores/cases.jsonl scores/outcomes_path_mention_baseline.jsonl --output scores/score.json --bootstrap-samples 2000 --seed 20260704",
+    "score": {
+      "cases": 25,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0,
+      "f1_ci95": [
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "environment": {
+    "python": "3.14.4",
+    "platform": "Windows-11-10.0.26200-SP0"
+  },
+  "probes": {
+    "docker": {
+      "command": "docker version",
+      "exit_code": 1,
+      "stdout": "Client:\n Version:           29.6.1\n API version:       1.55\n Go version:        go1.26.4\n Git commit:        8900f1d\n Built:             Fri Jun 26 11:43:32 2026\n OS/Arch:           windows/amd64\n Context:           desktop-linux\n",
+      "stderr": "failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.\n"
+    },
+    "cosign": {
+      "command": "cosign version",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "'cosign' is not recognized as an internal or external command,\noperable program or batch file.\n"
+    }
+  },
+  "sha256": {
+    "contextbench_api_response.json": "474d7f882e5746461870819dfa59160ea08c79b6562029638978bf0a31f0f146",
+    "contextbench_verified_25.jsonl": "4eae047fef0d81e6ce5df3720edf4affe666b3dbf0da0496c4bcfaf24e8c818d",
+    "cases.jsonl": "6c6a31b61d73917cf9b14f1671150b112a4de8bc27cf942c25e0ce93da63d108",
+    "outcomes_path_mention_baseline.jsonl": "d2ef2849af4343b8ae991058833f6d11d3117caed111b03c8fbf2f875edc1272",
+    "score.json": "e42cc3bcd78466f010fde916651eacfcdd1237e4914cfeaa26e8d01ee5f2875f"
+  }
+}

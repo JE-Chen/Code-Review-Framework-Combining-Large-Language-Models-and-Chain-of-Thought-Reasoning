@@ -1,0 +1,44 @@
+[
+  {
+    "id": "nondeterministic-timeout",
+    "desc": "Half of the requests omit a timeout at random, allowing the process to hang indefinitely on a stalled connection.",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "unsafe-query-construction",
+    "desc": "The public kind argument is concatenated directly into the URL without encoding, so reserved characters can alter or corrupt the query string.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "random-production-behavior",
+    "desc": "Random request counts, parameters, and timeout behavior make identical calls produce unpredictable results and failures, preventing reliable testing and operation.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "inconsistent-parser-return-type",
+    "desc": "parse_response returns a dictionary or string depending on the outcome, forcing callers to handle an undocumented heterogeneous result type.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "swallowed-network-failure",
+    "desc": "main catches every operational exception, discards all accumulated work, and exits successfully, preventing callers and monitoring systems from detecting failure.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "global-session-lifecycle",
+    "desc": "The module-level Session is only closed by main, so importing and using these functions as a library can leave its connection resources open.",
+    "category": "maintainability",
+    "severity": "low"
+  },
+  {
+    "id": "overbroad-json-exception",
+    "desc": "parse_response catches every exception from JSON processing and misreports programming or runtime failures as merely non-JSON content.",
+    "category": "smell",
+    "severity": "low"
+  }
+]

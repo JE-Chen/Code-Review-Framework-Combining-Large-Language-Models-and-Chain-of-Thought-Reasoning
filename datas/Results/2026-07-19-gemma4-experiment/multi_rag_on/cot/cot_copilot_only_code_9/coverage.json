@@ -1,0 +1,9 @@
+{
+  "covered_ids": [
+    "http-status-not-validated",
+    "unvalidated-response-schema",
+    "persistent-global-results",
+    "overbroad-exception-handling"
+  ],
+  "total": 6
+}

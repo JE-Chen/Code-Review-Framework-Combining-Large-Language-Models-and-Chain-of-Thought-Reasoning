@@ -1,0 +1,8 @@
+{
+  "covered_ids": [
+    "exceptions-silently-corrupt-analysis",
+    "gui-thread-blocking",
+    "shared-global-state"
+  ],
+  "total": 6
+}

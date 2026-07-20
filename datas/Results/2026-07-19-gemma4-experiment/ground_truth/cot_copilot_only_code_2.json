@@ -1,0 +1,38 @@
+[
+  {
+    "id": "silent-type-mismatch",
+    "desc": "Processors silently pass unsupported values through, so the NumberProcessor step is skipped after StringProcessor returns a string, masking incompatible pipeline composition.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "bool-treated-as-int",
+    "desc": "NumberProcessor uses isinstance(data, int), which also accepts booleans and transforms True and False as the integers 1 and 0.",
+    "category": "bug",
+    "severity": "low"
+  },
+  {
+    "id": "quadratic-string-building",
+    "desc": "StringProcessor repeatedly concatenates immutable strings in a loop, causing potentially quadratic runtime and allocation overhead for large inputs.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "ambiguous-character-encoding",
+    "desc": "Non-alphabetic characters are converted to delimiter-free decimal code points, allowing distinct inputs to produce the same output.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "deeply-nested-conditionals",
+    "desc": "The configuration logic uses four nested conditionals, making control flow unnecessarily difficult to understand and maintain.",
+    "category": "maintainability",
+    "severity": "low"
+  },
+  {
+    "id": "unvalidated-pipeline-steps",
+    "desc": "add_step accepts arbitrary objects without validating a processor interface, so run can fail at runtime with an AttributeError.",
+    "category": "maintainability",
+    "severity": "low"
+  }
+]

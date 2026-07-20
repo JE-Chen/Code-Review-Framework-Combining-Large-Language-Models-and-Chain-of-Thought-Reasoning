@@ -36,7 +36,7 @@ from prthinker.config import LocalBackendConfig
 from prthinker.dismissed import DismissedExamplesStore, DismissedFilter
 from prthinker.gpu_lock import gpu_serialized, gpu_serialized_nowait
 from prthinker.pipeline import CoTPipeline, ReviewCancelledError
-from prthinker.rag import FaissRAGRetriever
+from prthinker.rag import AllRulesRetriever, FaissRAGRetriever
 from prthinker.schemas import (
     AskJobStatusResponse,
     AskJobSubmitResponse,
@@ -81,6 +81,29 @@ _LORA_BY_MODEL: dict[str, str] = {
 }
 _DEFAULT_LORA = "../train/outputs-lora-qwen3-30b"
 
+
+def _resolve_lora_path() -> str | None:
+    """Resolve the adapter once, with an explicit base-model escape hatch."""
+    if os.environ.get("PRTHINKER_DISABLE_LORA", "0").strip() == "1":
+        return None
+    configured = os.environ.get("PRTHINKER_LORA_PATH")
+    if configured is not None:
+        return configured.strip() or None
+    return _LORA_BY_MODEL.get(RUN_ON, _DEFAULT_LORA)
+
+
+def _resolve_rag_mode() -> str:
+    mode = os.environ.get("PRTHINKER_RAG_MODE", "retrieval").strip().lower()
+    if mode not in {"retrieval", "all", "off"}:
+        raise ValueError(
+            "PRTHINKER_RAG_MODE must be one of: retrieval, all, off"
+        )
+    return mode
+
+
+_LORA_PATH = _resolve_lora_path()
+_RAG_MODE = _resolve_rag_mode()
+
 app = FastAPI(title="CoT Reviewer Inference Server")
 
 # Expose Prometheus-format metrics at /metrics so the monitoring
@@ -101,8 +124,7 @@ except ImportError:
 _backend = LocalHFBackend(
     LocalBackendConfig(
         model_name=RUN_ON,
-        lora_path=os.environ.get("PRTHINKER_LORA_PATH")
-        or _LORA_BY_MODEL.get(RUN_ON, _DEFAULT_LORA),
+        lora_path=_LORA_PATH,
     )
 )
 
@@ -118,7 +140,8 @@ def _warm_rag_index() -> None:
     discarded — every request builds its own with the request's threshold;
     only the import-time side effect is wanted.
     """
-    FaissRAGRetriever(threshold=0.7)
+    if _RAG_MODE == "retrieval":
+        FaissRAGRetriever(threshold=None)
 
 
 _warm_rag_index()
@@ -160,7 +183,7 @@ _accepted_retriever = _build_accepted_retriever()
 # ---------------------------------------------------------------------------
 
 @app.get("/healthz")
-def healthz() -> dict[str, str]:
+def healthz() -> dict[str, str | bool]:
     """Liveness probe that actually exercises the CUDA context.
 
     A poisoned context keeps answering HTTP while every generation
@@ -171,7 +194,17 @@ def healthz() -> dict[str, str]:
     healthy, gpu_state = _probe_gpu_context()
     if not healthy:
         raise HTTPException(status_code=503, detail=f"GPU probe failed: {gpu_state}")
-    return {"status": "ok", "model": RUN_ON, "gpu": gpu_state}
+    from datas.RAG_data.corpora import active_corpus_name, corpus_digest
+
+    return {
+        "status": "ok",
+        "model": RUN_ON,
+        "gpu": gpu_state,
+        "lora_enabled": _LORA_PATH is not None,
+        "rag_mode": _RAG_MODE,
+        "rag_corpus": active_corpus_name(),
+        "rag_corpus_sha256": corpus_digest(),
+    }
 
 
 @app.post("/ask", response_class=PlainTextResponse)
@@ -185,7 +218,12 @@ def ask(req: AskRequest) -> str:
 
 @app.post("/rag", response_model=RagResponse)
 def rag(req: RagRequest) -> RagResponse:
-    retriever = FaissRAGRetriever(threshold=req.threshold)
+    if _RAG_MODE == "all":
+        retriever = AllRulesRetriever()
+    elif _RAG_MODE == "off":
+        retriever = _NoOpRetriever()
+    else:
+        retriever = FaissRAGRetriever(threshold=req.threshold)
     docs = retriever.retrieve(req.query)
     return RagResponse(docs=docs)
 
@@ -250,11 +288,12 @@ def _execute_review(
     """Synchronous CoT review. Shared by `/review` and the async job worker."""
     code_diff = _truncate_diff(req.code_diff)
 
-    retriever = (
-        FaissRAGRetriever(threshold=req.rag_threshold)
-        if req.rag_enabled
-        else _NoOpRetriever()
-    )
+    if not req.rag_enabled or _RAG_MODE == "off":
+        retriever = _NoOpRetriever()
+    elif _RAG_MODE == "all":
+        retriever = AllRulesRetriever()
+    else:
+        retriever = FaissRAGRetriever(threshold=req.rag_threshold)
     pipeline = CoTPipeline(
         backend=_backend,
         retriever=retriever,

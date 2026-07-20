@@ -1,0 +1,10 @@
+{
+  "covered_ids": [
+    "malformed-json-silently-discarded",
+    "bare-except-catches-control-signals",
+    "unvalidated-json-shape",
+    "unvalidated-field-types",
+    "inconsistent-top-user-return-type"
+  ],
+  "total": 10
+}

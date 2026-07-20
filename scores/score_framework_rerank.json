@@ -1,0 +1,239 @@
+{
+  "aggregate": {
+    "cases": 25,
+    "precision": 0.5490196078431373,
+    "recall": 0.6086956521739131,
+    "f1": 0.577319587628866,
+    "f1_ci95": [
+      0.49866666666666665,
+      0.688
+    ]
+  },
+  "cases": [
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__deb49033",
+      "tp": 4,
+      "fp": 2,
+      "fn": 5,
+      "precision": 0.6666666666666666,
+      "recall": 0.4444444444444444,
+      "f1": 0.5333333333333333
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__71f348da",
+      "tp": 1,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__1d90db61",
+      "tp": 1,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__e5a3bf2a",
+      "tp": 1,
+      "fp": 1,
+      "fn": 1,
+      "precision": 0.5,
+      "recall": 0.5,
+      "f1": 0.5
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__3185b834",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__1ce4c38e",
+      "tp": 1,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__93721db4",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__1a760e52",
+      "tp": 1,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__55a3ef80",
+      "tp": 1,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__9a05fe0c",
+      "tp": 1,
+      "fp": 1,
+      "fn": 1,
+      "precision": 0.5,
+      "recall": 0.5,
+      "f1": 0.5
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__2d5d4dcd",
+      "tp": 1,
+      "fp": 0,
+      "fn": 3,
+      "precision": 1.0,
+      "recall": 0.25,
+      "f1": 0.4
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__12d848d7",
+      "tp": 1,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__7489fdd8",
+      "tp": 1,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__80c9776a",
+      "tp": 1,
+      "fp": 2,
+      "fn": 0,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "f1": 0.5
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__607f6b9e",
+      "tp": 1,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__6f3e4cd9",
+      "tp": 1,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__e97ac668",
+      "tp": 1,
+      "fp": 1,
+      "fn": 1,
+      "precision": 0.5,
+      "recall": 0.5,
+      "f1": 0.5
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__3e44d93a",
+      "tp": 0,
+      "fp": 1,
+      "fn": 1,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__409b7811",
+      "tp": 1,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__bdde6d9c",
+      "tp": 1,
+      "fp": 1,
+      "fn": 1,
+      "precision": 0.5,
+      "recall": 0.5,
+      "f1": 0.5
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__81f2c925",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__dc72c033",
+      "tp": 1,
+      "fp": 1,
+      "fn": 1,
+      "precision": 0.5,
+      "recall": 0.5,
+      "f1": 0.5
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__986c9e85",
+      "tp": 0,
+      "fp": 2,
+      "fn": 1,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__46dc77a5",
+      "tp": 1,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__497deb6f",
+      "tp": 3,
+      "fp": 0,
+      "fn": 3,
+      "precision": 1.0,
+      "recall": 0.5,
+      "f1": 0.6666666666666666
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "status": "protocol_validated_not_model_benchmark",
+  "official_repository": "https://github.com/EuniAI/ContextBench",
+  "official_commit": "1436c28a8eb95496da4ea69ad458b9f8a8eb7d61",
+  "dataset": "Contextbench/ContextBench",
+  "config": "contextbench_verified",
+  "cases": 25,
+  "validation": {
+    "records_passed": 25,
+    "records_failed": 0,
+    "evaluation_completed": 25,
+    "evaluation_errors": 0
+  },
+  "diagnostic": {
+    "name": "patch-file oracle",
+    "warning": "Uses reference patch file names; this is not a model or agent score.",
+    "file_coverage": 0.674,
+    "file_precision": 1.0,
+    "symbol_coverage": 0.0,
+    "span_coverage": 0.0,
+    "line_coverage": 0.0
+  },
+  "invalidated_artifact": {
+    "path": "score.json",
+    "reason": "Used project-specific retrieved-array exact-match scoring rather than official ContextBench trajectory evaluation."
+  }
+}

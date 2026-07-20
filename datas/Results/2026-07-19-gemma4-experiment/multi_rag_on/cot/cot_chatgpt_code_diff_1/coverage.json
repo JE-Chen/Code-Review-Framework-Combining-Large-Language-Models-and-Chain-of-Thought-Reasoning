@@ -1,0 +1,11 @@
+{
+  "covered_ids": [
+    "public-debug-server",
+    "unsynchronized-global-state",
+    "process-local-state",
+    "invalid-input-success",
+    "broad-exception-mask",
+    "traffic-dependent-delay"
+  ],
+  "total": 9
+}

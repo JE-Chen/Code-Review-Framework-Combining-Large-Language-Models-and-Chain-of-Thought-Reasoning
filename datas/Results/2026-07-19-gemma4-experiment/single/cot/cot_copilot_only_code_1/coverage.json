@@ -1,0 +1,9 @@
+{
+  "covered_ids": [
+    "unused-parameters",
+    "excessive-branch-nesting",
+    "opaque-magic-values",
+    "global-data-dependency"
+  ],
+  "total": 5
+}

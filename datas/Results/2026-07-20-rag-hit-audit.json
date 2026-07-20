@@ -1,0 +1,638 @@
+{
+  "created_at": "2026-07-20T05:45:26.326686+00:00",
+  "endpoint": "https://pr-thinker-2.sdpmlab.org",
+  "query_corpus": "datas/code_to_detect (44 files; ground truth excluded)",
+  "runs": {
+    "0.70": {
+      "cases_with_hits": 0,
+      "total_cases": 44,
+      "total_retrieved": 0,
+      "mean_retrieved_per_case": 0.0,
+      "count_distribution": {
+        "0": 44
+      },
+      "per_case": [
+        {
+          "case_id": "cot_chatgpt_bad_data_1",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_bad_data_2",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_bad_data_1",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_bad_data_2",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_code_diff_1",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_code_diff_2",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_code_diff_3",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_code_diff_4",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_code_diff_5",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_code_diff_6",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_code_diff_1",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_code_diff_2",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_code_diff_3",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_code_diff_4",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_code_diff_5",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_code_diff_6",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_1",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_10",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_11",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_12",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_13",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_14",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_2",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_3",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_4",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_5",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_6",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_7",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_8",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_9",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_1",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_10",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_11",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_12",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_13",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_14",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_2",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_3",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_4",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_5",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_6",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_7",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_8",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_9",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        }
+      ]
+    },
+    "0.32": {
+      "cases_with_hits": 25,
+      "total_cases": 44,
+      "total_retrieved": 133,
+      "mean_retrieved_per_case": 3.022727272727273,
+      "count_distribution": {
+        "0": 19,
+        "1": 5,
+        "2": 1,
+        "3": 3,
+        "4": 4,
+        "5": 1,
+        "6": 1,
+        "7": 2,
+        "8": 4,
+        "9": 1,
+        "11": 1,
+        "12": 2
+      },
+      "per_case": [
+        {
+          "case_id": "cot_chatgpt_bad_data_1",
+          "retrieved_count": 5,
+          "retrieved_sha256": [
+            "ded9cdef6dbb1f36880ca0c4db9fb77b7614f38ca4c40b9939c28b6bcbb8f992",
+            "b85d36ecd611ee9d552e1db3952435fbdf7e2935618ae34023cb47503c0b75ae",
+            "47f653446c526fb3861ca08f9ae696c7b6f3548bfa80c0951dcdc57c4b819d07",
+            "69b1bffa2aa55c5d995dce9ebdb6abe0035f62cf7596b7ae66366bfb5994c8ac",
+            "61c257e15a752faa110238ef0939cacb5dae7be60471e7d93ca73f53fecbf89a"
+          ]
+        },
+        {
+          "case_id": "cot_chatgpt_bad_data_2",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_bad_data_1",
+          "retrieved_count": 11,
+          "retrieved_sha256": [
+            "61c257e15a752faa110238ef0939cacb5dae7be60471e7d93ca73f53fecbf89a",
+            "b85d36ecd611ee9d552e1db3952435fbdf7e2935618ae34023cb47503c0b75ae",
+            "8ab9aa34ce1c26a220aba263838b01c2225bf9f054997abc8fc510178bc1c1c8",
+            "1bcb21d609b92789694a7fab0533b55ef3db5570c2855a7b8d9869f081f274c1",
+            "69b1bffa2aa55c5d995dce9ebdb6abe0035f62cf7596b7ae66366bfb5994c8ac",
+            "11251562a8e3efc57a9ad8f274e6252bf34567ec37b86da3581e9f7bc50664be",
+            "94f0d66424a155302a1cc820c4d2e435a34d282f51223186fc0d0431f5b8eb9f",
+            "ded9cdef6dbb1f36880ca0c4db9fb77b7614f38ca4c40b9939c28b6bcbb8f992",
+            "d9d100d90a20e9420397149648b41f44d47d21a75755ecae3809e2883aed8505",
+            "3e79a680c843fe52af63cdc1f79b791309950e3fdd0b72f34af6d0e6bfe8424a",
+            "0177600fc779aabc3fc98d2723b90199e50cbbebb79a6fdf8043108e116018f8"
+          ]
+        },
+        {
+          "case_id": "cot_copilot_bad_data_2",
+          "retrieved_count": 8,
+          "retrieved_sha256": [
+            "1bcb21d609b92789694a7fab0533b55ef3db5570c2855a7b8d9869f081f274c1",
+            "69b1bffa2aa55c5d995dce9ebdb6abe0035f62cf7596b7ae66366bfb5994c8ac",
+            "b85d36ecd611ee9d552e1db3952435fbdf7e2935618ae34023cb47503c0b75ae",
+            "8ab9aa34ce1c26a220aba263838b01c2225bf9f054997abc8fc510178bc1c1c8",
+            "47f653446c526fb3861ca08f9ae696c7b6f3548bfa80c0951dcdc57c4b819d07",
+            "3c5e75f8210dc2a19d95cea803c9b5262e040aa747712a8ca2018efee15955b9",
+            "d9d100d90a20e9420397149648b41f44d47d21a75755ecae3809e2883aed8505",
+            "11251562a8e3efc57a9ad8f274e6252bf34567ec37b86da3581e9f7bc50664be"
+          ]
+        },
+        {
+          "case_id": "cot_chatgpt_code_diff_1",
+          "retrieved_count": 7,
+          "retrieved_sha256": [
+            "69b1bffa2aa55c5d995dce9ebdb6abe0035f62cf7596b7ae66366bfb5994c8ac",
+            "b85d36ecd611ee9d552e1db3952435fbdf7e2935618ae34023cb47503c0b75ae",
+            "8ab9aa34ce1c26a220aba263838b01c2225bf9f054997abc8fc510178bc1c1c8",
+            "1bcb21d609b92789694a7fab0533b55ef3db5570c2855a7b8d9869f081f274c1",
+            "d9d100d90a20e9420397149648b41f44d47d21a75755ecae3809e2883aed8505",
+            "d707287b052e85490baf361bbc7cb218e4ce226aaa4fa09f0453ac2ad70f9723",
+            "c80af0b39242328a073353b3e87ca1d0c0a4b47d442f7253b8520a4c30254249"
+          ]
+        },
+        {
+          "case_id": "cot_chatgpt_code_diff_2",
+          "retrieved_count": 8,
+          "retrieved_sha256": [
+            "8ab9aa34ce1c26a220aba263838b01c2225bf9f054997abc8fc510178bc1c1c8",
+            "69b1bffa2aa55c5d995dce9ebdb6abe0035f62cf7596b7ae66366bfb5994c8ac",
+            "ded9cdef6dbb1f36880ca0c4db9fb77b7614f38ca4c40b9939c28b6bcbb8f992",
+            "d9d100d90a20e9420397149648b41f44d47d21a75755ecae3809e2883aed8505",
+            "d707287b052e85490baf361bbc7cb218e4ce226aaa4fa09f0453ac2ad70f9723",
+            "61c257e15a752faa110238ef0939cacb5dae7be60471e7d93ca73f53fecbf89a",
+            "b85d36ecd611ee9d552e1db3952435fbdf7e2935618ae34023cb47503c0b75ae",
+            "c80af0b39242328a073353b3e87ca1d0c0a4b47d442f7253b8520a4c30254249"
+          ]
+        },
+        {
+          "case_id": "cot_chatgpt_code_diff_3",
+          "retrieved_count": 6,
+          "retrieved_sha256": [
+            "8ab9aa34ce1c26a220aba263838b01c2225bf9f054997abc8fc510178bc1c1c8",
+            "69b1bffa2aa55c5d995dce9ebdb6abe0035f62cf7596b7ae66366bfb5994c8ac",
+            "1bcb21d609b92789694a7fab0533b55ef3db5570c2855a7b8d9869f081f274c1",
+            "b85d36ecd611ee9d552e1db3952435fbdf7e2935618ae34023cb47503c0b75ae",
+            "d9d100d90a20e9420397149648b41f44d47d21a75755ecae3809e2883aed8505",
+            "61c257e15a752faa110238ef0939cacb5dae7be60471e7d93ca73f53fecbf89a"
+          ]
+        },
+        {
+          "case_id": "cot_chatgpt_code_diff_4",
+          "retrieved_count": 12,
+          "retrieved_sha256": [
+            "b85d36ecd611ee9d552e1db3952435fbdf7e2935618ae34023cb47503c0b75ae",
+            "47f653446c526fb3861ca08f9ae696c7b6f3548bfa80c0951dcdc57c4b819d07",
+            "c80af0b39242328a073353b3e87ca1d0c0a4b47d442f7253b8520a4c30254249",
+            "d9d100d90a20e9420397149648b41f44d47d21a75755ecae3809e2883aed8505",
+            "69b1bffa2aa55c5d995dce9ebdb6abe0035f62cf7596b7ae66366bfb5994c8ac",
+            "ded9cdef6dbb1f36880ca0c4db9fb77b7614f38ca4c40b9939c28b6bcbb8f992",
+            "d707287b052e85490baf361bbc7cb218e4ce226aaa4fa09f0453ac2ad70f9723",
+            "61c257e15a752faa110238ef0939cacb5dae7be60471e7d93ca73f53fecbf89a",
+            "11251562a8e3efc57a9ad8f274e6252bf34567ec37b86da3581e9f7bc50664be",
+            "1bcb21d609b92789694a7fab0533b55ef3db5570c2855a7b8d9869f081f274c1",
+            "8ab9aa34ce1c26a220aba263838b01c2225bf9f054997abc8fc510178bc1c1c8",
+            "94f0d66424a155302a1cc820c4d2e435a34d282f51223186fc0d0431f5b8eb9f"
+          ]
+        },
+        {
+          "case_id": "cot_chatgpt_code_diff_5",
+          "retrieved_count": 1,
+          "retrieved_sha256": [
+            "b85d36ecd611ee9d552e1db3952435fbdf7e2935618ae34023cb47503c0b75ae"
+          ]
+        },
+        {
+          "case_id": "cot_chatgpt_code_diff_6",
+          "retrieved_count": 9,
+          "retrieved_sha256": [
+            "69b1bffa2aa55c5d995dce9ebdb6abe0035f62cf7596b7ae66366bfb5994c8ac",
+            "c80af0b39242328a073353b3e87ca1d0c0a4b47d442f7253b8520a4c30254249",
+            "b85d36ecd611ee9d552e1db3952435fbdf7e2935618ae34023cb47503c0b75ae",
+            "61c257e15a752faa110238ef0939cacb5dae7be60471e7d93ca73f53fecbf89a",
+            "d9d100d90a20e9420397149648b41f44d47d21a75755ecae3809e2883aed8505",
+            "1bcb21d609b92789694a7fab0533b55ef3db5570c2855a7b8d9869f081f274c1",
+            "189690c673c897300c4dd07aaf9deb86fd2d960974954f2258c061fd68b90ec9",
+            "8ab9aa34ce1c26a220aba263838b01c2225bf9f054997abc8fc510178bc1c1c8",
+            "d707287b052e85490baf361bbc7cb218e4ce226aaa4fa09f0453ac2ad70f9723"
+          ]
+        },
+        {
+          "case_id": "cot_copilot_code_diff_1",
+          "retrieved_count": 7,
+          "retrieved_sha256": [
+            "69b1bffa2aa55c5d995dce9ebdb6abe0035f62cf7596b7ae66366bfb5994c8ac",
+            "1bcb21d609b92789694a7fab0533b55ef3db5570c2855a7b8d9869f081f274c1",
+            "b85d36ecd611ee9d552e1db3952435fbdf7e2935618ae34023cb47503c0b75ae",
+            "8ab9aa34ce1c26a220aba263838b01c2225bf9f054997abc8fc510178bc1c1c8",
+            "d9d100d90a20e9420397149648b41f44d47d21a75755ecae3809e2883aed8505",
+            "c80af0b39242328a073353b3e87ca1d0c0a4b47d442f7253b8520a4c30254249",
+            "d707287b052e85490baf361bbc7cb218e4ce226aaa4fa09f0453ac2ad70f9723"
+          ]
+        },
+        {
+          "case_id": "cot_copilot_code_diff_2",
+          "retrieved_count": 4,
+          "retrieved_sha256": [
+            "d707287b052e85490baf361bbc7cb218e4ce226aaa4fa09f0453ac2ad70f9723",
+            "69b1bffa2aa55c5d995dce9ebdb6abe0035f62cf7596b7ae66366bfb5994c8ac",
+            "8ab9aa34ce1c26a220aba263838b01c2225bf9f054997abc8fc510178bc1c1c8",
+            "d9d100d90a20e9420397149648b41f44d47d21a75755ecae3809e2883aed8505"
+          ]
+        },
+        {
+          "case_id": "cot_copilot_code_diff_3",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_code_diff_4",
+          "retrieved_count": 4,
+          "retrieved_sha256": [
+            "c80af0b39242328a073353b3e87ca1d0c0a4b47d442f7253b8520a4c30254249",
+            "b85d36ecd611ee9d552e1db3952435fbdf7e2935618ae34023cb47503c0b75ae",
+            "94f0d66424a155302a1cc820c4d2e435a34d282f51223186fc0d0431f5b8eb9f",
+            "69b1bffa2aa55c5d995dce9ebdb6abe0035f62cf7596b7ae66366bfb5994c8ac"
+          ]
+        },
+        {
+          "case_id": "cot_copilot_code_diff_5",
+          "retrieved_count": 4,
+          "retrieved_sha256": [
+            "69b1bffa2aa55c5d995dce9ebdb6abe0035f62cf7596b7ae66366bfb5994c8ac",
+            "b85d36ecd611ee9d552e1db3952435fbdf7e2935618ae34023cb47503c0b75ae",
+            "c80af0b39242328a073353b3e87ca1d0c0a4b47d442f7253b8520a4c30254249",
+            "61c257e15a752faa110238ef0939cacb5dae7be60471e7d93ca73f53fecbf89a"
+          ]
+        },
+        {
+          "case_id": "cot_copilot_code_diff_6",
+          "retrieved_count": 8,
+          "retrieved_sha256": [
+            "69b1bffa2aa55c5d995dce9ebdb6abe0035f62cf7596b7ae66366bfb5994c8ac",
+            "8ab9aa34ce1c26a220aba263838b01c2225bf9f054997abc8fc510178bc1c1c8",
+            "b85d36ecd611ee9d552e1db3952435fbdf7e2935618ae34023cb47503c0b75ae",
+            "c80af0b39242328a073353b3e87ca1d0c0a4b47d442f7253b8520a4c30254249",
+            "1bcb21d609b92789694a7fab0533b55ef3db5570c2855a7b8d9869f081f274c1",
+            "d707287b052e85490baf361bbc7cb218e4ce226aaa4fa09f0453ac2ad70f9723",
+            "189690c673c897300c4dd07aaf9deb86fd2d960974954f2258c061fd68b90ec9",
+            "61c257e15a752faa110238ef0939cacb5dae7be60471e7d93ca73f53fecbf89a"
+          ]
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_1",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_10",
+          "retrieved_count": 3,
+          "retrieved_sha256": [
+            "0177600fc779aabc3fc98d2723b90199e50cbbebb79a6fdf8043108e116018f8",
+            "1bcb21d609b92789694a7fab0533b55ef3db5570c2855a7b8d9869f081f274c1",
+            "189690c673c897300c4dd07aaf9deb86fd2d960974954f2258c061fd68b90ec9"
+          ]
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_11",
+          "retrieved_count": 3,
+          "retrieved_sha256": [
+            "61c257e15a752faa110238ef0939cacb5dae7be60471e7d93ca73f53fecbf89a",
+            "47f653446c526fb3861ca08f9ae696c7b6f3548bfa80c0951dcdc57c4b819d07",
+            "b85d36ecd611ee9d552e1db3952435fbdf7e2935618ae34023cb47503c0b75ae"
+          ]
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_12",
+          "retrieved_count": 1,
+          "retrieved_sha256": [
+            "47f653446c526fb3861ca08f9ae696c7b6f3548bfa80c0951dcdc57c4b819d07"
+          ]
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_13",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_14",
+          "retrieved_count": 3,
+          "retrieved_sha256": [
+            "d9d100d90a20e9420397149648b41f44d47d21a75755ecae3809e2883aed8505",
+            "8ab9aa34ce1c26a220aba263838b01c2225bf9f054997abc8fc510178bc1c1c8",
+            "47f653446c526fb3861ca08f9ae696c7b6f3548bfa80c0951dcdc57c4b819d07"
+          ]
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_2",
+          "retrieved_count": 4,
+          "retrieved_sha256": [
+            "61c257e15a752faa110238ef0939cacb5dae7be60471e7d93ca73f53fecbf89a",
+            "d9d100d90a20e9420397149648b41f44d47d21a75755ecae3809e2883aed8505",
+            "1bcb21d609b92789694a7fab0533b55ef3db5570c2855a7b8d9869f081f274c1",
+            "ded9cdef6dbb1f36880ca0c4db9fb77b7614f38ca4c40b9939c28b6bcbb8f992"
+          ]
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_3",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_4",
+          "retrieved_count": 12,
+          "retrieved_sha256": [
+            "47f653446c526fb3861ca08f9ae696c7b6f3548bfa80c0951dcdc57c4b819d07",
+            "61c257e15a752faa110238ef0939cacb5dae7be60471e7d93ca73f53fecbf89a",
+            "0177600fc779aabc3fc98d2723b90199e50cbbebb79a6fdf8043108e116018f8",
+            "b85d36ecd611ee9d552e1db3952435fbdf7e2935618ae34023cb47503c0b75ae",
+            "d9d100d90a20e9420397149648b41f44d47d21a75755ecae3809e2883aed8505",
+            "1bcb21d609b92789694a7fab0533b55ef3db5570c2855a7b8d9869f081f274c1",
+            "189690c673c897300c4dd07aaf9deb86fd2d960974954f2258c061fd68b90ec9",
+            "94f0d66424a155302a1cc820c4d2e435a34d282f51223186fc0d0431f5b8eb9f",
+            "ded9cdef6dbb1f36880ca0c4db9fb77b7614f38ca4c40b9939c28b6bcbb8f992",
+            "8ab9aa34ce1c26a220aba263838b01c2225bf9f054997abc8fc510178bc1c1c8",
+            "3e79a680c843fe52af63cdc1f79b791309950e3fdd0b72f34af6d0e6bfe8424a",
+            "23e200c95b36329df06525126b2bc63509127caf8283489bda1ccc7f6d1136a0"
+          ]
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_5",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_6",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_7",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_8",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_chatgpt_only_code_9",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_1",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_10",
+          "retrieved_count": 2,
+          "retrieved_sha256": [
+            "c80af0b39242328a073353b3e87ca1d0c0a4b47d442f7253b8520a4c30254249",
+            "61c257e15a752faa110238ef0939cacb5dae7be60471e7d93ca73f53fecbf89a"
+          ]
+        },
+        {
+          "case_id": "cot_copilot_only_code_11",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_12",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_13",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_14",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_2",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_3",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_4",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_5",
+          "retrieved_count": 1,
+          "retrieved_sha256": [
+            "8ab9aa34ce1c26a220aba263838b01c2225bf9f054997abc8fc510178bc1c1c8"
+          ]
+        },
+        {
+          "case_id": "cot_copilot_only_code_6",
+          "retrieved_count": 8,
+          "retrieved_sha256": [
+            "d9d100d90a20e9420397149648b41f44d47d21a75755ecae3809e2883aed8505",
+            "d707287b052e85490baf361bbc7cb218e4ce226aaa4fa09f0453ac2ad70f9723",
+            "8ab9aa34ce1c26a220aba263838b01c2225bf9f054997abc8fc510178bc1c1c8",
+            "11251562a8e3efc57a9ad8f274e6252bf34567ec37b86da3581e9f7bc50664be",
+            "1bcb21d609b92789694a7fab0533b55ef3db5570c2855a7b8d9869f081f274c1",
+            "0177600fc779aabc3fc98d2723b90199e50cbbebb79a6fdf8043108e116018f8",
+            "c80af0b39242328a073353b3e87ca1d0c0a4b47d442f7253b8520a4c30254249",
+            "0bd167382ee9eeaeef2d430b75ccccb971489c29d2fe7f4a728a425c4d16de9e"
+          ]
+        },
+        {
+          "case_id": "cot_copilot_only_code_7",
+          "retrieved_count": 1,
+          "retrieved_sha256": [
+            "8ab9aa34ce1c26a220aba263838b01c2225bf9f054997abc8fc510178bc1c1c8"
+          ]
+        },
+        {
+          "case_id": "cot_copilot_only_code_8",
+          "retrieved_count": 0,
+          "retrieved_sha256": []
+        },
+        {
+          "case_id": "cot_copilot_only_code_9",
+          "retrieved_count": 1,
+          "retrieved_sha256": [
+            "c80af0b39242328a073353b3e87ca1d0c0a4b47d442f7253b8520a4c30254249"
+          ]
+        }
+      ]
+    }
+  }
+}

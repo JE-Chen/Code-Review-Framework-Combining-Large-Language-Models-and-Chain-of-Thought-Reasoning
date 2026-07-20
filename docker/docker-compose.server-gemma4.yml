@@ -39,6 +39,11 @@ services:
       PYTHONPATH: /workspace
       PRTHINKER_MODEL_NAME: ${PRTHINKER_MODEL_NAME:-google/gemma-4-31B-it}
       PRTHINKER_LORA_PATH: ${PRTHINKER_LORA_PATH:-/workspace/codes/train/outputs-lora-gemma4-31b}
+      # Thesis ablation controls. These are fixed at container startup and
+      # echoed by /healthz so a batch cannot silently mix experimental cells.
+      PRTHINKER_DISABLE_LORA: ${PRTHINKER_DISABLE_LORA:-0}
+      PRTHINKER_RAG_MODE: ${PRTHINKER_RAG_MODE:-retrieval}
+      PRTHINKER_RAG_CORPUS: ${PRTHINKER_RAG_CORPUS:-relevant}
       # Overrides the server's qwen-era setdefault: local Gemma deploys
       # use the EmbeddingGemma index (calibrated threshold 0.32).
       EMB_MODEL: ${EMB_MODEL:-google/embeddinggemma-300m}

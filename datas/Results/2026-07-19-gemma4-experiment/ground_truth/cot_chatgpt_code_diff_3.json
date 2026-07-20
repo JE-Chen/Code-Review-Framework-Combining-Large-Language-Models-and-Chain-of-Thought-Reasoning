@@ -1,0 +1,26 @@
+[
+  {
+    "id": "gui-thread-sleep",
+    "desc": "handle_click calls time.sleep on the GUI thread every fifth click, freezing event processing and making the interface unresponsive.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "repeated-timer-overwrite",
+    "desc": "The timer condition remains true for the entire time the click count is congruent to 1 modulo 7, so it repeatedly overwrites the label every 777 ms instead of reacting once.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "stale-mood-display",
+    "desc": "handle_click generates label text before compute_title changes the mood, allowing the label to display a mood inconsistent with the window title and current state.",
+    "category": "correctness",
+    "severity": "low"
+  },
+  {
+    "id": "mutable-global-state",
+    "desc": "Application state is stored in a module-level mutable dictionary, creating hidden coupling between methods and preventing independent window instances or isolated testing.",
+    "category": "maintainability",
+    "severity": "medium"
+  }
+]

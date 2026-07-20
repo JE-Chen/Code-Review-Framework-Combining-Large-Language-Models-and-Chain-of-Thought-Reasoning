@@ -1,0 +1,7 @@
+{
+  "claims": 11,
+  "valid": 10,
+  "false_positives": [
+    "KeyError on p['title']/c['email'] is impossible: the .get(key,'') guard returns '' when the key is missing, so the len>20 / '@'-in condition is False and the direct bracket access is never reached"
+  ]
+}

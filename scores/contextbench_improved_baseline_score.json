@@ -1,0 +1,440 @@
+{
+  "cases_scored": 25,
+  "aggregate": {
+    "file": {
+      "coverage": 0.6086956521739131,
+      "precision": 0.112
+    },
+    "line": {
+      "coverage": 0.062265917602996254,
+      "precision": 0.028750540423692173
+    }
+  },
+  "cases": [
+    {
+      "instance_id": "astropy__astropy-13398",
+      "file": {
+        "coverage": 0.3333333333333333,
+        "precision": 0.3,
+        "intersection": 3,
+        "gold_size": 9,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.0231023102310231,
+        "precision": 0.033816425120772944,
+        "intersection": 7,
+        "gold_size": 303,
+        "pred_size": 207
+      }
+    },
+    {
+      "instance_id": "astropy__astropy-13579",
+      "file": {
+        "coverage": 0.0,
+        "precision": 0.0,
+        "intersection": 0,
+        "gold_size": 1,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.0,
+        "precision": 0.0,
+        "intersection": 0,
+        "gold_size": 94,
+        "pred_size": 190
+      }
+    },
+    {
+      "instance_id": "astropy__astropy-14096",
+      "file": {
+        "coverage": 1.0,
+        "precision": 0.1,
+        "intersection": 1,
+        "gold_size": 1,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.0,
+        "precision": 0.0,
+        "intersection": 0,
+        "gold_size": 52,
+        "pred_size": 188
+      }
+    },
+    {
+      "instance_id": "astropy__astropy-14539",
+      "file": {
+        "coverage": 0.5,
+        "precision": 0.1,
+        "intersection": 1,
+        "gold_size": 2,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.0,
+        "precision": 0.0,
+        "intersection": 0,
+        "gold_size": 61,
+        "pred_size": 205
+      }
+    },
+    {
+      "instance_id": "astropy__astropy-14598",
+      "file": {
+        "coverage": 1.0,
+        "precision": 0.1,
+        "intersection": 1,
+        "gold_size": 1,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.0,
+        "precision": 0.0,
+        "intersection": 0,
+        "gold_size": 132,
+        "pred_size": 189
+      }
+    },
+    {
+      "instance_id": "astropy__astropy-14995",
+      "file": {
+        "coverage": 1.0,
+        "precision": 0.1,
+        "intersection": 1,
+        "gold_size": 1,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.2,
+        "precision": 0.03278688524590164,
+        "intersection": 6,
+        "gold_size": 30,
+        "pred_size": 183
+      }
+    },
+    {
+      "instance_id": "django__django-10880",
+      "file": {
+        "coverage": 1.0,
+        "precision": 0.1,
+        "intersection": 1,
+        "gold_size": 1,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.12,
+        "precision": 0.03278688524590164,
+        "intersection": 6,
+        "gold_size": 50,
+        "pred_size": 183
+      }
+    },
+    {
+      "instance_id": "django__django-11099",
+      "file": {
+        "coverage": 1.0,
+        "precision": 0.1,
+        "intersection": 1,
+        "gold_size": 1,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.68,
+        "precision": 0.10559006211180125,
+        "intersection": 17,
+        "gold_size": 25,
+        "pred_size": 161
+      }
+    },
+    {
+      "instance_id": "django__django-11163",
+      "file": {
+        "coverage": 1.0,
+        "precision": 0.1,
+        "intersection": 1,
+        "gold_size": 1,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.4782608695652174,
+        "precision": 0.05913978494623656,
+        "intersection": 11,
+        "gold_size": 23,
+        "pred_size": 186
+      }
+    },
+    {
+      "instance_id": "django__django-11179",
+      "file": {
+        "coverage": 0.5,
+        "precision": 0.1,
+        "intersection": 1,
+        "gold_size": 2,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.0,
+        "precision": 0.0,
+        "intersection": 0,
+        "gold_size": 40,
+        "pred_size": 201
+      }
+    },
+    {
+      "instance_id": "django__django-11400",
+      "file": {
+        "coverage": 0.5,
+        "precision": 0.2,
+        "intersection": 2,
+        "gold_size": 4,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.0,
+        "precision": 0.0,
+        "intersection": 0,
+        "gold_size": 125,
+        "pred_size": 182
+      }
+    },
+    {
+      "instance_id": "django__django-11433",
+      "file": {
+        "coverage": 1.0,
+        "precision": 0.1,
+        "intersection": 1,
+        "gold_size": 1,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.20588235294117646,
+        "precision": 0.03825136612021858,
+        "intersection": 7,
+        "gold_size": 34,
+        "pred_size": 183
+      }
+    },
+    {
+      "instance_id": "django__django-11451",
+      "file": {
+        "coverage": 1.0,
+        "precision": 0.1,
+        "intersection": 1,
+        "gold_size": 1,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.6842105263157895,
+        "precision": 0.06806282722513089,
+        "intersection": 13,
+        "gold_size": 19,
+        "pred_size": 191
+      }
+    },
+    {
+      "instance_id": "django__django-11555",
+      "file": {
+        "coverage": 1.0,
+        "precision": 0.1,
+        "intersection": 1,
+        "gold_size": 1,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.12612612612612611,
+        "precision": 0.07777777777777778,
+        "intersection": 14,
+        "gold_size": 111,
+        "pred_size": 180
+      }
+    },
+    {
+      "instance_id": "django__django-11603",
+      "file": {
+        "coverage": 1.0,
+        "precision": 0.1,
+        "intersection": 1,
+        "gold_size": 1,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.42857142857142855,
+        "precision": 0.031746031746031744,
+        "intersection": 6,
+        "gold_size": 14,
+        "pred_size": 189
+      }
+    },
+    {
+      "instance_id": "django__django-11749",
+      "file": {
+        "coverage": 1.0,
+        "precision": 0.1,
+        "intersection": 1,
+        "gold_size": 1,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.0,
+        "precision": 0.0,
+        "intersection": 0,
+        "gold_size": 64,
+        "pred_size": 176
+      }
+    },
+    {
+      "instance_id": "django__django-11790",
+      "file": {
+        "coverage": 0.5,
+        "precision": 0.1,
+        "intersection": 1,
+        "gold_size": 2,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.05263157894736842,
+        "precision": 0.02197802197802198,
+        "intersection": 4,
+        "gold_size": 76,
+        "pred_size": 182
+      }
+    },
+    {
+      "instance_id": "django__django-11815",
+      "file": {
+        "coverage": 0.0,
+        "precision": 0.0,
+        "intersection": 0,
+        "gold_size": 1,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.0,
+        "precision": 0.0,
+        "intersection": 0,
+        "gold_size": 42,
+        "pred_size": 187
+      }
+    },
+    {
+      "instance_id": "django__django-11820",
+      "file": {
+        "coverage": 1.0,
+        "precision": 0.1,
+        "intersection": 1,
+        "gold_size": 1,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.109375,
+        "precision": 0.035,
+        "intersection": 7,
+        "gold_size": 64,
+        "pred_size": 200
+      }
+    },
+    {
+      "instance_id": "django__django-12125",
+      "file": {
+        "coverage": 0.5,
+        "precision": 0.1,
+        "intersection": 1,
+        "gold_size": 2,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.043209876543209874,
+        "precision": 0.034653465346534656,
+        "intersection": 7,
+        "gold_size": 162,
+        "pred_size": 202
+      }
+    },
+    {
+      "instance_id": "django__django-12143",
+      "file": {
+        "coverage": 1.0,
+        "precision": 0.1,
+        "intersection": 1,
+        "gold_size": 1,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.3181818181818182,
+        "precision": 0.04142011834319527,
+        "intersection": 7,
+        "gold_size": 22,
+        "pred_size": 169
+      }
+    },
+    {
+      "instance_id": "django__django-12155",
+      "file": {
+        "coverage": 0.5,
+        "precision": 0.1,
+        "intersection": 1,
+        "gold_size": 2,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.08139534883720931,
+        "precision": 0.0457516339869281,
+        "intersection": 7,
+        "gold_size": 86,
+        "pred_size": 153
+      }
+    },
+    {
+      "instance_id": "django__django-12193",
+      "file": {
+        "coverage": 1.0,
+        "precision": 0.1,
+        "intersection": 1,
+        "gold_size": 1,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.0,
+        "precision": 0.0,
+        "intersection": 0,
+        "gold_size": 40,
+        "pred_size": 167
+      }
+    },
+    {
+      "instance_id": "django__django-12262",
+      "file": {
+        "coverage": 1.0,
+        "precision": 0.1,
+        "intersection": 1,
+        "gold_size": 1,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.14,
+        "precision": 0.033816425120772944,
+        "intersection": 7,
+        "gold_size": 50,
+        "pred_size": 207
+      }
+    },
+    {
+      "instance_id": "django__django-12406",
+      "file": {
+        "coverage": 0.5,
+        "precision": 0.3,
+        "intersection": 3,
+        "gold_size": 6,
+        "pred_size": 10
+      },
+      "line": {
+        "coverage": 0.016786570743405275,
+        "precision": 0.04242424242424243,
+        "intersection": 7,
+        "gold_size": 417,
+        "pred_size": 165
+      }
+    }
+  ]
+}

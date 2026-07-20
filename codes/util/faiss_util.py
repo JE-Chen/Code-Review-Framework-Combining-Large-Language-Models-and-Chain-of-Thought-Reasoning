@@ -21,7 +21,10 @@ from codes.util.embedding_config import (
     recommended_threshold,
     uses_sentence_transformers,
 )
-from datas.RAG_data.rag_data import rule_docs
+from datas.RAG_data.corpora import active_corpus_name, active_rule_docs
+
+rule_docs = active_rule_docs()
+CORPUS_NAME = active_corpus_name()
 
 # =========================
 # Env config
@@ -39,6 +42,7 @@ MAX_LENGTH = 2048
 print(f"[RAG] FAISS GPU = {USE_FAISS_GPU}, torch cuda = {TORCH_USE_CUDA}")
 print(f"[RAG] Using device: {DEVICE}")
 print(f"[RAG] Embedding model: {MODEL_NAME}")
+print(f"[RAG] Rule corpus: {CORPUS_NAME} ({len(rule_docs)} documents)")
 
 # =========================
 # Embedding backends

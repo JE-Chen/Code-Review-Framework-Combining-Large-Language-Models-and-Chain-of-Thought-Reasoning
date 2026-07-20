@@ -1,0 +1,27 @@
+{
+  "status": "valid_non_model_baseline",
+  "baseline": "lexical-v1-problem-statement-only",
+  "cases": 25,
+  "completed": 25,
+  "errors": 0,
+  "retrieval": {
+    "top_k_files": 10,
+    "max_spans_per_file": 3,
+    "inputs_used": ["problem_statement", "repository at base_commit"],
+    "inputs_forbidden_and_not_used": ["gold_context", "patch", "test_patch"]
+  },
+  "official_metrics": {
+    "file": {"coverage": 0.196, "precision": 0.036, "f1_from_reported_values": 0.0608, "auc": 0.269},
+    "symbol": {"coverage": 0.081, "precision": 0.068, "f1_from_reported_values": 0.0739, "auc": 0.206},
+    "span": {"coverage": 0.055, "precision": 0.117, "f1_from_reported_values": 0.0748, "auc": 0.114},
+    "line": {"coverage": 0.052, "precision": 0.102, "f1_from_reported_values": 0.0689, "auc": 0.105}
+  },
+  "excluded_metric": {
+    "name": "editloc",
+    "reason": "The official evaluator falls back to the gold patch when model_patch is empty; it is therefore not a valid metric for this retrieval-only baseline."
+  },
+  "official_evaluator": {
+    "repository": "https://github.com/EuniAI/ContextBench",
+    "commit": "1436c28a8eb95496da4ea69ad458b9f8a8eb7d61"
+  }
+}
