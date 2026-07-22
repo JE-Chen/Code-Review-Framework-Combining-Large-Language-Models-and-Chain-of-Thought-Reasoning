@@ -1,0 +1,12 @@
+{
+  "covered_ids": [
+    "division-by-zero-magic-value",
+    "division-errors-swallowed",
+    "invalid-integer-becomes-zero",
+    "conversion-errors-swallowed",
+    "file-handle-leak",
+    "file-errors-as-data",
+    "processing-errors-hidden"
+  ],
+  "total": 8
+}

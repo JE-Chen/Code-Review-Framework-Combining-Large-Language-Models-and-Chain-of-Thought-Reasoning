@@ -1,0 +1,9 @@
+{
+  "covered_ids": [
+    "swallowed-first-request-errors",
+    "bare-except-second-request",
+    "unchecked-http-errors",
+    "monolithic-side-effect-function"
+  ],
+  "total": 7
+}

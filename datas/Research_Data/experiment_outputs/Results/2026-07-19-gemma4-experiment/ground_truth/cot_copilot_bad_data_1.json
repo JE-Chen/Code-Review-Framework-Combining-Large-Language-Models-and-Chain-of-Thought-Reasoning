@@ -1,0 +1,38 @@
+[
+  {
+    "id": "mutable-default-container",
+    "desc": "add_item reuses the same default list across calls, causing unintended state leakage between callers.",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "exposed-global-mutable-state",
+    "desc": "append_global mutates and returns a shared module-level list, coupling callers through persistent mutable state.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "overbroad-exception-handler",
+    "desc": "risky_division catches every Exception and returns None, masking unrelated programming and runtime errors.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "inconsistent-return-type",
+    "desc": "inconsistent_return returns either an integer or a string for the same conceptual value, forcing error-prone type handling by callers.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "side-effect-comprehension",
+    "desc": "The module-level list comprehension executes prints during import and allocates a useless list containing three None values.",
+    "category": "smell",
+    "severity": "medium"
+  },
+  {
+    "id": "arbitrary-code-eval",
+    "desc": "run_code passes its input directly to eval, allowing arbitrary code execution whenever code_str is attacker-controlled.",
+    "category": "security",
+    "severity": "critical"
+  }
+]

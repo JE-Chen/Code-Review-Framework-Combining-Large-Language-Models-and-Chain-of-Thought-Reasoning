@@ -1,0 +1,92 @@
+[
+  {
+    "id": "public-debug-mode",
+    "desc": "The server binds to all interfaces with Flask debug mode enabled, exposing the interactive debugger and potential remote code execution.",
+    "category": "security",
+    "severity": "critical"
+  },
+  {
+    "id": "unauthenticated-user-mutations",
+    "desc": "User creation, modification, deletion, and state reset endpoints require no authentication or authorization.",
+    "category": "security",
+    "severity": "high"
+  },
+  {
+    "id": "sensitive-debug-state",
+    "desc": "The unauthenticated /debug/state endpoint exposes all users, audit-log entries, and the last operation result.",
+    "category": "security",
+    "severity": "high"
+  },
+  {
+    "id": "state-change-via-get",
+    "desc": "The /reset GET endpoint destructively clears application state, allowing accidental activation, CSRF, crawlers, and prefetchers to trigger data loss.",
+    "category": "security",
+    "severity": "high"
+  },
+  {
+    "id": "duplicate-user-ids",
+    "desc": "Generating IDs as len(USERS) + 1 reuses an existing ID when a non-final user is deleted and another user is created.",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "unsynchronized-global-state",
+    "desc": "Concurrent requests mutate shared USERS, REQUEST_LOG, and LAST_RESULT without synchronization, causing races such as duplicate IDs and lost or inconsistent state.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "per-process-state-divergence",
+    "desc": "Keeping application data in module globals makes state non-durable and inconsistent across restarts or multiple worker processes.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "missing-input-validation",
+    "desc": "POST and PUT accept arbitrary name and age values, including null and nonnumeric ages, which can later break filtering, sorting, arithmetic, or JSON serialization.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "invalid-min-age-crash",
+    "desc": "GET /user converts min_age with int() without handling invalid or out-of-range input, producing a server error instead of a client error.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "put-missing-age-corruption",
+    "desc": "PUT permits a missing age and assigns None to the user, corrupting the record and causing subsequent sorting or filtering requests to fail.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "unstable-age-comparisons",
+    "desc": "Mixed or invalid age types can raise TypeError in both the min_age comparison and age-based sorting.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "unstable-do-stuff-input",
+    "desc": "/doStuff performs unchecked arithmetic on client-controlled values, so null, strings, collections, and other nonnumeric values can cause unhandled exceptions.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "unbounded-memory-growth",
+    "desc": "USERS and REQUEST_LOG grow without bounds, allowing sustained requests to exhaust process memory.",
+    "category": "security",
+    "severity": "medium"
+  },
+  {
+    "id": "shared-last-result-leakage",
+    "desc": "LAST_RESULT is global across all clients, so one client's operation result can be exposed to another client through /debug/state.",
+    "category": "security",
+    "severity": "medium"
+  },
+  {
+    "id": "mutable-last-result-alias",
+    "desc": "LAST_RESULT stores references to mutable user objects, so later updates can silently change what is reported as the result of an earlier operation.",
+    "category": "correctness",
+    "severity": "low"
+  }
+]

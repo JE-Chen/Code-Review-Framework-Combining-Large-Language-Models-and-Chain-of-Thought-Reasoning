@@ -1,0 +1,50 @@
+[
+  {
+    "id": "substring-admin-authorization",
+    "desc": "Authorization is granted whenever the case-sensitive substring \"admin\" appears anywhere in the input, so values such as \"notadmin\" bypass access control.",
+    "category": "security",
+    "severity": "critical"
+  },
+  {
+    "id": "arbitrary-code-eval",
+    "desc": "unsafe_eval passes untrusted input directly to eval, allowing arbitrary Python code execution with the process's privileges.",
+    "category": "security",
+    "severity": "critical"
+  },
+  {
+    "id": "overbroad-exception-reset",
+    "desc": "risky_update catches every exception and overwrites count with 0, masking unrelated failures and potentially corrupting valid data.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "invalid-input-tristate",
+    "desc": "process_user_input returns None for invalid input but booleans otherwise, creating an undocumented tri-state result that callers may incorrectly treat as denial.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "truthiness-conflates-values",
+    "desc": "check_value labels legitimate falsy values such as 0, False, and empty containers as having no value.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "mutable-global-behavior",
+    "desc": "secret_behavior and run_task depend on mutable module globals, making behavior susceptible to unrelated state changes and difficult to test reliably.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "missing-config-key-crash",
+    "desc": "run_task indexes global_config[\"mode\"] directly and raises KeyError if the mutable configuration lacks that key.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "mixed-logic-and-console-io",
+    "desc": "process_user_input and run_task hard-code console output into decision logic, coupling behavior to stdout and reducing reuse and testability.",
+    "category": "maintainability",
+    "severity": "low"
+  }
+]

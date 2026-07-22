@@ -1,0 +1,73 @@
+{
+  "snapshot_date": "2026-07-22",
+  "snapshot_time": "2026-07-22T14:46:57+08:00",
+  "paper_version": "paper/論文_v3.21.docx",
+  "experiment_status": "in_progress",
+  "conditions": {
+    "multi_relevant_retrieval": {
+      "completed": 44,
+      "total": 44,
+      "status": "complete"
+    },
+    "multi_retrieval_disabled": {
+      "completed": 44,
+      "total": 44,
+      "status": "complete"
+    },
+    "single_prompt": {
+      "completed": 44,
+      "total": 44,
+      "status": "complete"
+    },
+    "rag_on_off_independent_quality_judging": {
+      "completed": 88,
+      "total": 88,
+      "paired_cases": 44,
+      "status": "complete",
+      "judge": "gpt-5.6-sol",
+      "summary": "experiment_outputs/Results/2026-07-20-gemma4-rag-calibrated/rag_on_off_quality_summary.json"
+    },
+    "irrelevant_retrieval_zero_hit_diagnostic": {
+      "attempted": 26,
+      "successful": 20,
+      "timeouts": 6,
+      "successful_cases_with_retrieved_rules": 0,
+      "status": "stopped_diagnostic_only"
+    },
+    "irrelevant_fixed_three_direct_injection": {
+      "completed": 12,
+      "total": 44,
+      "rules_per_case": 3,
+      "status": "in_progress",
+      "snapshot_time": "2026-07-22T14:46:57+08:00"
+    },
+    "all_rules_direct_injection": {
+      "completed": 0,
+      "total": 44,
+      "status": "not_started"
+    },
+    "gemma_base_without_lora": {
+      "completed": 0,
+      "total": 44,
+      "status": "not_started"
+    }
+  },
+  "reference_issue_set": {
+    "cases": 44,
+    "issues": 333,
+    "generator": "gpt-5.6-sol",
+    "human_gold_standard": false
+  },
+  "fine_tuning_dataset": {
+    "records": 695,
+    "train": 695,
+    "validation": 0,
+    "test": 0
+  }
+}
+
+
+
+
+
+

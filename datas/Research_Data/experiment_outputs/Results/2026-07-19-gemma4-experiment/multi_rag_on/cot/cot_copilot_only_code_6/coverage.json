@@ -1,0 +1,11 @@
+{
+  "covered_ids": [
+    "unvalidated-item-type",
+    "shared-state-races",
+    "process-local-storage",
+    "exception-details-disclosed",
+    "overbroad-exception-handler",
+    "unbounded-memory-growth"
+  ],
+  "total": 10
+}

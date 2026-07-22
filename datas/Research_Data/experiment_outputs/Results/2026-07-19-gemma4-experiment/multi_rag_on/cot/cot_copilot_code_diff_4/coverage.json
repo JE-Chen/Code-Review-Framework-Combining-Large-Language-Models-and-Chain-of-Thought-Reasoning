@@ -1,0 +1,11 @@
+{
+  "covered_ids": [
+    "unsafe-sql-construction",
+    "ignored-schema-error",
+    "connection-leak-on-error",
+    "bare-except-hides-failures",
+    "global-database-state",
+    "mixed-function-responsibilities"
+  ],
+  "total": 9
+}

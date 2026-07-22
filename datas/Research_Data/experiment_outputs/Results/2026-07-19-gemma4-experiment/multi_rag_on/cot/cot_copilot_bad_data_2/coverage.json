@@ -1,0 +1,8 @@
+{
+  "covered_ids": [
+    "arbitrary-code-eval",
+    "overbroad-exception-reset",
+    "mixed-logic-and-console-io"
+  ],
+  "total": 8
+}

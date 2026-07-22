@@ -1,0 +1,775 @@
+"""FastAPI inference server.
+
+Three endpoints:
+    POST /ask     - one-shot generation (kept for backwards compatibility).
+    POST /rag     - retrieve RAG rules for a query. Lets a thin runner do
+                    RAG without bundling the embedding model.
+    POST /review  - full CoT pipeline (RAG + 5 steps, optionally per-file
+                    + inline findings). One round-trip from the runner.
+
+Model + RAG index load once at import time per the project's perf rules.
+"""
+
+from __future__ import annotations
+
+import gc
+import logging
+import os
+import threading
+import time
+import uuid
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import torch
+
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import PlainTextResponse
+
+from codes.util.server_metrics import observe_review
+from prthinker.accepted import (
+    AcceptedExamplesRetriever,
+    AcceptedExamplesStore,
+)
+from prthinker.backends.local import LocalHFBackend
+from prthinker.config import LocalBackendConfig
+from prthinker.dismissed import DismissedExamplesStore, DismissedFilter
+from prthinker.gpu_lock import gpu_serialized, gpu_serialized_nowait
+from prthinker.pipeline import CoTPipeline, ReviewCancelledError
+from prthinker.rag import AllRulesRetriever, FaissRAGRetriever
+from prthinker.schemas import (
+    AskJobStatusResponse,
+    AskJobSubmitResponse,
+    AskRequest,
+    JobStatus,
+    RagRequest,
+    RagResponse,
+    RetrievalEvalRequest,
+    RetrievalEvalResponse,
+    ReviewAttestationRequest,
+    ReviewJobStatusResponse,
+    ReviewJobSubmitResponse,
+    ReviewRequest,
+    ReviewResponse,
+    StepOutput,
+)
+
+log = logging.getLogger("prthinker.server")
+
+# PRTHINKER_MODEL_NAME selects the served model (same env the CLI's
+# local backend uses); the gemma4 compose overlay sets it to
+# google/gemma-4-31B-it. PRTHINKER_LORA_PATH overrides the adapter
+# lookup below for deploys whose adapter lives outside _LORA_BY_MODEL.
+RUN_ON = os.environ.get(
+    "PRTHINKER_MODEL_NAME", "Qwen/Qwen3-Coder-30B-A3B-Instruct"
+)
+
+# This server is the qwen-era deployment: keep its original embedding
+# index (Qwen3-Embedding-4B @ 0.7) unless the operator overrides
+# EMB_MODEL. faiss_util loads lazily at retriever construction below, so
+# this setdefault still wins. New local-Gemma deployments default to
+# EmbeddingGemma instead (READMEs/local_gemma_deployment.md).
+os.environ.setdefault("EMB_MODEL", "Qwen/Qwen3-Embedding-4B")
+
+_LORA_BY_MODEL: dict[str, str] = {
+    "Qwen/Qwen3-1.7B": "../train/outputs-lora-qwen3-1.7b",
+    "Qwen/Qwen2.5-Coder-7B-Instruct": "../train/outputs-lora-qwen2.5-coder-7b",
+    "Qwen/Qwen3-Coder-30B-A3B-Instruct": "../train/outputs-lora-qwen3-coder-30b",
+    # Dense Gemma 4 — needs transformers>=5.7 (gemma4 model_type), which
+    # the Qwen3-A3B deploy's <5 pin forbids; serve it from its own image.
+    "google/gemma-4-31B-it": "../train/outputs-qlora-gemma-4-31b-it",
+}
+_DEFAULT_LORA = "../train/outputs-lora-qwen3-30b"
+
+
+def _resolve_lora_path() -> str | None:
+    """Resolve the adapter once, with an explicit base-model escape hatch."""
+    if os.environ.get("PRTHINKER_DISABLE_LORA", "0").strip() == "1":
+        return None
+    configured = os.environ.get("PRTHINKER_LORA_PATH")
+    if configured is not None:
+        return configured.strip() or None
+    return _LORA_BY_MODEL.get(RUN_ON, _DEFAULT_LORA)
+
+
+def _resolve_rag_mode() -> str:
+    mode = os.environ.get("PRTHINKER_RAG_MODE", "retrieval").strip().lower()
+    if mode not in {"retrieval", "all", "off"}:
+        raise ValueError(
+            "PRTHINKER_RAG_MODE must be one of: retrieval, all, off"
+        )
+    return mode
+
+
+_LORA_PATH = _resolve_lora_path()
+_RAG_MODE = _resolve_rag_mode()
+
+app = FastAPI(title="CoT Reviewer Inference Server")
+
+# Expose Prometheus-format metrics at /metrics so the monitoring
+# compose overlay (prometheus + grafana + dcgm + cadvisor) can scrape
+# per-endpoint request count / latency / status without touching the
+# pipeline. Instrumentation is lazy-imported so a runner-profile
+# install does not have to pull in the dependency.
+try:
+    from prometheus_fastapi_instrumentator import Instrumentator
+    Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+except ImportError:
+    log.info("prometheus_fastapi_instrumentator not installed; /metrics disabled")
+
+# ---------------------------------------------------------------------------
+# One-time module-level initialization (per project perf rules).
+# ---------------------------------------------------------------------------
+
+_backend = LocalHFBackend(
+    LocalBackendConfig(
+        model_name=RUN_ON,
+        lora_path=_LORA_PATH,
+    )
+)
+
+
+def _warm_rag_index() -> None:
+    """Build the FAISS index at boot instead of on the first request.
+
+    Constructing a ``FaissRAGRetriever`` imports ``codes.util.faiss_util``,
+    whose module body loads the embedding model and builds the rule index
+    exactly once. Triggering that here means the boot probe exercises the
+    embedding stack and the first ``/review`` / ``/rag`` does not pay the
+    one-off index-build cost. The retriever instance is intentionally
+    discarded — every request builds its own with the request's threshold;
+    only the import-time side effect is wanted.
+    """
+    if _RAG_MODE == "retrieval":
+        FaissRAGRetriever(threshold=None)
+
+
+_warm_rag_index()
+
+
+def _build_dismissed_filter() -> DismissedFilter | None:
+    raw_path = os.environ.get("PRTHINKER_DISMISSED_PATH", "").strip()
+    if not raw_path:
+        return None
+    store = DismissedExamplesStore(Path(raw_path))
+    if len(store) == 0:
+        log.info("Dismissed store at %s is empty — filter disabled", raw_path)
+        return None
+    threshold = float(os.environ.get("PRTHINKER_DISMISSED_THRESHOLD", "0.85") or 0.85)
+    return DismissedFilter(store, threshold=threshold, path_scoped=False)
+
+
+_dismissed_filter = _build_dismissed_filter()
+
+
+def _build_accepted_retriever() -> AcceptedExamplesRetriever | None:
+    raw_path = os.environ.get("PRTHINKER_ACCEPTED_PATH", "").strip()
+    if not raw_path:
+        return None
+    store = AcceptedExamplesStore(Path(raw_path))
+    if len(store) == 0:
+        log.info("Accepted store at %s is empty — exemplars disabled", raw_path)
+        return None
+    threshold = float(os.environ.get("PRTHINKER_ACCEPTED_THRESHOLD", "0.6") or 0.6)
+    k = int(os.environ.get("PRTHINKER_ACCEPTED_TOP_K", "3") or 3)
+    return AcceptedExamplesRetriever(store, k=k, threshold=threshold)
+
+
+_accepted_retriever = _build_accepted_retriever()
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/healthz")
+def healthz() -> dict[str, str | bool]:
+    """Liveness probe that actually exercises the CUDA context.
+
+    A poisoned context keeps answering HTTP while every generation
+    fails; probing the GPU here lets the CI preflight ping detect that
+    state and skip the review matrix gracefully instead of scheduling
+    dozens of jobs that all die on the same dead context.
+    """
+    healthy, gpu_state = _probe_gpu_context()
+    if not healthy:
+        raise HTTPException(status_code=503, detail=f"GPU probe failed: {gpu_state}")
+    from datas.RAG_data.corpora import active_corpus_name, corpus_digest
+
+    return {
+        "status": "ok",
+        "model": RUN_ON,
+        "gpu": gpu_state,
+        "lora_enabled": _LORA_PATH is not None,
+        "rag_mode": _RAG_MODE,
+        "rag_corpus": active_corpus_name(),
+        "rag_corpus_sha256": corpus_digest(),
+    }
+
+
+@app.post("/ask", response_class=PlainTextResponse)
+def ask(req: AskRequest) -> str:
+    try:
+        return _backend.generate(req.prompt, max_new_tokens=req.max_new_tokens)
+    except Exception as exc:
+        _exit_if_cuda_poisoned(exc)
+        raise
+
+
+@app.post("/rag", response_model=RagResponse)
+def rag(req: RagRequest) -> RagResponse:
+    if _RAG_MODE == "all":
+        retriever = AllRulesRetriever()
+    elif _RAG_MODE == "off":
+        retriever = _NoOpRetriever()
+    else:
+        retriever = FaissRAGRetriever(threshold=req.threshold)
+    docs = retriever.retrieve(req.query)
+    return RagResponse(docs=docs)
+
+
+@app.post("/evaluation/retrieval", response_model=RetrievalEvalResponse)
+def evaluate_retrieval(req: RetrievalEvalRequest) -> RetrievalEvalResponse:
+    from dataclasses import asdict
+    from prthinker.retrieval_eval import evaluate
+
+    return RetrievalEvalResponse(**asdict(evaluate(
+        req.retrieved, req.expected, req.used, req.cited_correct
+    )))
+
+
+@app.post("/attestation/review")
+def make_review_attestation(req: ReviewAttestationRequest) -> dict:
+    from prthinker.supply_chain import review_attestation
+
+    return review_attestation(
+        repository=req.repository,
+        revision=req.revision,
+        base_revision=req.base_revision,
+        policy_digest=req.policy_digest,
+        review_digest=req.review_digest,
+        controls=("automated-review", "evidence-verification"),
+    )
+
+
+# Cap the diff sent to the pipeline so KV cache + activations stay
+# within ~3-4 GiB headroom on a single L40S. CoT prompts wrap the diff
+# with system instructions + RAG docs + extra rules; total context is
+# bounded above by tokens-in-diff + ~1.5x for the wrapping. 6000 keeps
+# the worst case under 16K total context.
+_MAX_DIFF_TOKENS = 6000
+_TRUNCATION_NOTICE = (
+    "\n\n... [diff truncated server-side to fit GPU memory budget;"
+    " review covers the prefix above only]\n"
+)
+
+
+def _truncate_diff(diff: str) -> str:
+    tokenizer = getattr(_backend, "_tokenizer", None)
+    if tokenizer is None:
+        return diff
+    encoded = tokenizer(diff, add_special_tokens=False).input_ids
+    if len(encoded) <= _MAX_DIFF_TOKENS:
+        return diff
+    kept = tokenizer.decode(encoded[:_MAX_DIFF_TOKENS], skip_special_tokens=True)
+    log.warning(
+        "Diff truncated from %d to %d tokens",
+        len(encoded),
+        _MAX_DIFF_TOKENS,
+    )
+    return kept + _TRUNCATION_NOTICE
+
+
+@observe_review
+def _execute_review(
+    req: ReviewRequest,
+    cancel_event: "threading.Event | None" = None,
+) -> ReviewResponse:
+    """Synchronous CoT review. Shared by `/review` and the async job worker."""
+    code_diff = _truncate_diff(req.code_diff)
+
+    if not req.rag_enabled or _RAG_MODE == "off":
+        retriever = _NoOpRetriever()
+    elif _RAG_MODE == "all":
+        retriever = AllRulesRetriever()
+    else:
+        retriever = FaissRAGRetriever(threshold=req.rag_threshold)
+    pipeline = CoTPipeline(
+        backend=_backend,
+        retriever=retriever,
+        steps=tuple(req.steps or ()),
+        max_new_tokens=req.max_new_tokens,
+        extra_rules=tuple(req.extra_rules),
+        dismissed_filter=_dismissed_filter,
+        accepted_retriever=_accepted_retriever,
+        cancel_event=cancel_event,
+        max_step_result_chars=int(
+            os.environ.get("PRTHINKER_MAX_STEP_RESULT_CHARS", "6000") or "6000"
+        ),
+    )
+
+    if req.file_path is not None:
+        file_result = pipeline.run_for_file(
+            req.file_path,
+            code_diff,
+            step_plan=req.step_plan,
+        )
+        return ReviewResponse(
+            code_diff=code_diff,
+            rag_docs=file_result.rag_docs,
+            steps=[StepOutput(name=k, output=v)
+                   for k, v in file_result.step_outputs.items()],
+            inline_findings=file_result.inline_findings,
+        )
+
+    result = pipeline.run(code_diff)
+    return ReviewResponse(
+        code_diff=result.code_diff,
+        rag_docs=result.rag_docs,
+        steps=[StepOutput(name=k, output=v) for k, v in result.step_outputs.items()],
+        inline_findings=[],
+    )
+
+
+@app.post("/review", response_model=ReviewResponse)
+def review(req: ReviewRequest) -> ReviewResponse:
+    if not req.code_diff.strip():
+        raise HTTPException(status_code=400, detail="code_diff is empty")
+    try:
+        return _execute_review(req)
+    except Exception as exc:
+        _exit_if_cuda_poisoned(exc)
+        raise
+    finally:
+        _release_gpu_memory()
+
+
+# ---------------------------------------------------------------------------
+# Async job pattern for long-running reviews.
+#
+# Cloudflare's free/pro/business proxy aborts any single HTTP request at
+# 100s. A 30B MoE CoT review runs for minutes, so the synchronous /review
+# endpoint cannot survive the edge. Clients behind such a proxy submit
+# the job, then poll for the result — each individual HTTP call returns
+# in well under the 100s budget.
+# ---------------------------------------------------------------------------
+
+_JOB_TTL_SECONDS = 3600
+# Bound queued requests and retained responses.  Each worker owns the full
+# Pydantic request (often a multi-megabyte diff) and each completed job keeps
+# its full model output, so an unbounded table also means unbounded threads and
+# host RAM.  The GPU lock serializes inference; creating more workers cannot
+# increase throughput.
+_MAX_JOBS_PER_KIND = int(os.environ.get("PRTHINKER_MAX_JOBS", "32") or "32")
+if _MAX_JOBS_PER_KIND < 1:
+    raise ValueError("PRTHINKER_MAX_JOBS must be at least 1")
+# A running job whose result endpoint has not been polled for this long
+# is presumed abandoned (matrix runner was cancelled, lost network, etc.).
+# The sweeper sets its cancel_event so the worker bails out at the next
+# step boundary instead of finishing inference no one will read.
+_IDLE_TIMEOUT_SECONDS = 180
+_SWEEPER_INTERVAL_SECONDS = 30
+
+
+@dataclass
+class _Job:
+    status: JobStatus = "pending"
+    result: ReviewResponse | None = None
+    error: str | None = None
+    created_at: float = field(default_factory=time.time)
+    last_polled_at: float = field(default_factory=time.time)
+    cancel_event: threading.Event = field(default_factory=threading.Event)
+
+
+_JOBS: dict[str, _Job] = {}
+_JOBS_LOCK = threading.Lock()
+
+
+def _make_job_slot_locked(jobs: dict, now: float) -> bool:
+    """Evict expired/old terminal jobs and report whether one slot is free.
+
+    Caller holds the matching table lock.  Expired active workers are also
+    cancelled before their bookkeeping entry is removed; deleting the entry
+    alone used to orphan a live thread that could keep consuming GPU and RAM.
+    """
+    stale = [
+        jid for jid, job in jobs.items()
+        if now - job.created_at > _JOB_TTL_SECONDS
+    ]
+    for jid in stale:
+        jobs[jid].cancel_event.set()
+        del jobs[jid]
+
+    terminal = {"done", "error", "cancelled"}
+    while len(jobs) >= _MAX_JOBS_PER_KIND:
+        oldest = next(
+            (jid for jid, job in jobs.items() if job.status in terminal),
+            None,
+        )
+        if oldest is None:
+            return False
+        del jobs[oldest]
+    return True
+
+
+def _cancel_if_idle(jid: str, job: "_Job | _AskJob", now: float, label: str) -> None:
+    """Set a running job's cancel_event if it has been idle past the timeout."""
+    if job.status != "running":
+        return
+    if job.cancel_event.is_set():
+        return
+    idle_for = now - job.last_polled_at
+    if idle_for > _IDLE_TIMEOUT_SECONDS:
+        log.warning(
+            "%s job %s idle for %.0fs; setting cancel_event",
+            label,
+            jid,
+            idle_for,
+        )
+        job.cancel_event.set()
+
+
+def _sweep_table_once(
+    lock: threading.Lock,
+    jobs: "dict[str, _Job] | dict[str, _AskJob]",
+    label: str,
+    now: float,
+) -> None:
+    """Cancel every idle running job in one job table under its lock."""
+    with lock:
+        _make_job_slot_locked(jobs, now)
+        for jid, job in jobs.items():
+            _cancel_if_idle(jid, job, now, label)
+
+
+def _sweep_idle_jobs() -> None:
+    """Background sweeper: cancel running jobs that nobody is polling.
+
+    The matrix runner polls every 5 seconds, so 180 s of silence almost
+    certainly means the runner was cancelled (concurrency
+    cancel-in-progress, manual cancel, hung CI) and there is no point
+    burning GPU on a review nobody will read. Both /review and /ask
+    job tables share the same idle policy.
+    """
+    while True:
+        time.sleep(_SWEEPER_INTERVAL_SECONDS)
+        now = time.time()
+        _sweep_table_once(_JOBS_LOCK, _JOBS, "Review", now)
+        _sweep_table_once(_ASK_JOBS_LOCK, _ASK_JOBS, "Ask", now)
+
+
+threading.Thread(target=_sweep_idle_jobs, daemon=True).start()
+
+
+def _release_gpu_memory() -> None:
+    """Drop intermediate tensors and return reserved CUDA blocks to the OS.
+
+    Per-file review accumulates KV cache + activations on the GPU; without
+    this the cache hangs on between jobs and the next allocation OOMs even
+    when free VRAM looks adequate.
+    """
+    gc.collect()
+    if torch.cuda.is_available():
+        # A different request may start generation immediately after this
+        # request's LocalHFBackend.generate() releases the process-wide lock.
+        # empty_cache() mutates the same CUDA allocator, so serialize it with
+        # forward passes instead of racing an active model.generate().
+        with gpu_serialized():
+            torch.cuda.empty_cache()
+
+
+_CUDA_FATAL_MARKERS = (
+    "CUDA error",
+    "CUBLAS_STATUS",
+    "CUDNN_STATUS",
+    "device-side assert",
+)
+_HEALTH_PROBE_DIM = 8
+
+
+def _is_fatal_cuda_error(exc: BaseException) -> bool:
+    """True when ``exc`` signals a poisoned CUDA context, not a plain OOM.
+
+    A CUDA out-of-memory is recoverable — dropping the batch and emptying
+    the cache restores service — but an asynchronous CUDA / cuBLAS / cuDNN
+    failure poisons the process's CUDA context: every later kernel launch
+    fails with the same error until the process restarts.
+    """
+    if isinstance(exc, torch.cuda.OutOfMemoryError):
+        return False
+    message = str(exc)
+    return any(marker in message for marker in _CUDA_FATAL_MARKERS)
+
+
+def _exit_if_cuda_poisoned(exc: BaseException) -> None:
+    """Fail fast on a poisoned CUDA context so the supervisor restarts us.
+
+    Serving on after a fatal CUDA error turns one GPU fault into an
+    outage: the process keeps accepting jobs while every generation dies
+    on the same dead context. Exiting lets the container's
+    ``restart: unless-stopped`` policy bring up a fresh process, and the
+    boot-time generation probe re-validates the GPU before any job is
+    accepted again. ``PRTHINKER_NO_CUDA_FAILFAST=1`` keeps the old
+    keep-serving behaviour (e.g. debugging without a supervisor).
+    """
+    if not _is_fatal_cuda_error(exc):
+        return
+    if os.environ.get("PRTHINKER_NO_CUDA_FAILFAST", "").lower() in ("1", "true", "yes"):
+        log.critical("Fatal CUDA error (fail-fast disabled): %s", exc)
+        return
+    log.critical(
+        "Fatal CUDA error — exiting so the supervisor restarts a clean "
+        "process: %s", exc,
+    )
+    logging.shutdown()
+    os._exit(1)
+
+
+def _touch_cuda_devices() -> None:
+    """One tiny allocation + matmul + sync per CUDA device."""
+    for index in range(torch.cuda.device_count()):
+        ones = torch.ones(
+            (_HEALTH_PROBE_DIM, _HEALTH_PROBE_DIM), device=f"cuda:{index}")
+        (ones @ ones).sum().item()
+
+
+def _probe_gpu_context() -> tuple[bool, str]:
+    """Return ``(healthy, state)`` after touching every CUDA device.
+
+    Non-blocking on the GPU lock: an in-flight generation holds it, and a
+    generating GPU is de facto alive — blocking would stall the liveness
+    probe behind a minutes-long review. A probe failure that matches the
+    fatal markers exits immediately (self-heal via the supervisor); any
+    other failure is reported so ``/healthz`` can answer 503.
+    """
+    if not torch.cuda.is_available():
+        return True, "no-cuda"
+    with gpu_serialized_nowait() as acquired:
+        if not acquired:
+            return True, "busy"
+        try:
+            _touch_cuda_devices()
+        except RuntimeError as exc:
+            log.critical("healthz GPU probe failed: %s", exc)
+            _exit_if_cuda_poisoned(exc)
+            return False, str(exc)[:200]
+    return True, "ok"
+
+
+def _start_job_worker(
+    worker: threading.Thread,
+    lock: threading.Lock,
+    jobs: dict,
+    job_id: str,
+) -> None:
+    """Start a worker, rolling back its table entry if thread startup fails."""
+    try:
+        worker.start()
+    except Exception:
+        with lock:
+            jobs.pop(job_id, None)
+        raise
+
+
+def _run_review_job(job_id: str, req: ReviewRequest) -> None:
+    with _JOBS_LOCK:
+        job = _JOBS.get(job_id)
+        if job is None:
+            return
+        job.status = "running"
+        cancel_event = job.cancel_event
+    try:
+        result = _execute_review(req, cancel_event=cancel_event)
+        with _JOBS_LOCK:
+            job = _JOBS.get(job_id)
+            if job is not None:
+                job.status = "done"
+                job.result = result
+    except ReviewCancelledError:
+        log.info("Review job %s cancelled by client", job_id)
+        with _JOBS_LOCK:
+            job = _JOBS.get(job_id)
+            if job is not None:
+                job.status = "cancelled"
+    except Exception as exc:
+        log.exception("Review job %s failed", job_id)
+        with _JOBS_LOCK:
+            job = _JOBS.get(job_id)
+            if job is not None:
+                job.status = "error"
+                job.error = f"{type(exc).__name__}: {exc}"
+        _exit_if_cuda_poisoned(exc)
+    finally:
+        _release_gpu_memory()
+
+
+@app.post("/review/submit", response_model=ReviewJobSubmitResponse)
+def review_submit(req: ReviewRequest) -> ReviewJobSubmitResponse:
+    if not req.code_diff.strip():
+        raise HTTPException(status_code=400, detail="code_diff is empty")
+    job_id = uuid.uuid4().hex
+    with _JOBS_LOCK:
+        if not _make_job_slot_locked(_JOBS, time.time()):
+            raise HTTPException(
+                status_code=503,
+                detail="review queue is full; retry after an active job finishes",
+            )
+        _JOBS[job_id] = _Job()
+    worker = threading.Thread(
+        target=_run_review_job,
+        args=(job_id, req),
+        daemon=True,
+    )
+    _start_job_worker(worker, _JOBS_LOCK, _JOBS, job_id)
+    return ReviewJobSubmitResponse(job_id=job_id)
+
+
+@app.get("/review/result/{job_id}", response_model=ReviewJobStatusResponse)
+def review_result(job_id: str) -> ReviewJobStatusResponse:
+    with _JOBS_LOCK:
+        job = _JOBS.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="job not found")
+        # Heartbeat for the idle sweeper — as long as a client polls
+        # within _IDLE_TIMEOUT_SECONDS the worker keeps running.
+        job.last_polled_at = time.time()
+        return ReviewJobStatusResponse(
+            job_id=job_id,
+            status=job.status,
+            result=job.result,
+            error=job.error,
+        )
+
+
+@app.post("/review/cancel/{job_id}")
+def review_cancel(job_id: str) -> dict[str, str | bool]:
+    """Mark a running job for cancellation.
+
+    Sets the worker's ``cancel_event``; the pipeline picks it up at the
+    next step boundary (inference itself is uninterruptible) and the
+    job ends with ``status="cancelled"``. Already-terminal jobs are
+    left alone and the endpoint reports the current status.
+    """
+    with _JOBS_LOCK:
+        job = _JOBS.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="job not found")
+        if job.status in ("done", "error", "cancelled"):
+            return {"job_id": job_id, "cancelled": False, "status": job.status}
+        job.cancel_event.set()
+        return {"job_id": job_id, "cancelled": True, "status": job.status}
+
+
+# ---------------------------------------------------------------------------
+# Async job pattern for /ask.
+#
+# Mirrors the /review submit + poll pattern. A long single-prompt
+# generation (e.g. the aggregate's PR-wide overall-summary synthesis
+# with max_new_tokens in the tens of thousands) easily exceeds the
+# 100 s Cloudflare idle timeout that the synchronous /ask cannot
+# survive. /ask/submit returns a job id; /ask/result/{id} is polled
+# every few seconds so each round-trip fits inside the proxy budget.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _AskJob:
+    status: JobStatus = "pending"
+    result: str | None = None
+    error: str | None = None
+    created_at: float = field(default_factory=time.time)
+    last_polled_at: float = field(default_factory=time.time)
+    cancel_event: threading.Event = field(default_factory=threading.Event)
+
+
+_ASK_JOBS: dict[str, _AskJob] = {}
+_ASK_JOBS_LOCK = threading.Lock()
+
+
+def _run_ask_job(job_id: str, req: AskRequest) -> None:
+    with _ASK_JOBS_LOCK:
+        job = _ASK_JOBS.get(job_id)
+        if job is None:
+            return
+        job.status = "running"
+        cancel_event = job.cancel_event
+    try:
+        text = _backend.generate(
+            req.prompt,
+            max_new_tokens=req.max_new_tokens,
+            cancel_event=cancel_event,
+        )
+        with _ASK_JOBS_LOCK:
+            job = _ASK_JOBS.get(job_id)
+            if job is not None:
+                job.status = "done"
+                job.result = text
+    except ReviewCancelledError:
+        log.info("Ask job %s cancelled by client", job_id)
+        with _ASK_JOBS_LOCK:
+            job = _ASK_JOBS.get(job_id)
+            if job is not None:
+                job.status = "cancelled"
+    except Exception as exc:
+        log.exception("Ask job %s failed", job_id)
+        with _ASK_JOBS_LOCK:
+            job = _ASK_JOBS.get(job_id)
+            if job is not None:
+                job.status = "error"
+                job.error = f"{type(exc).__name__}: {exc}"
+        _exit_if_cuda_poisoned(exc)
+    finally:
+        _release_gpu_memory()
+
+
+@app.post("/ask/submit", response_model=AskJobSubmitResponse)
+def ask_submit(req: AskRequest) -> AskJobSubmitResponse:
+    if not req.prompt.strip():
+        raise HTTPException(status_code=400, detail="prompt is empty")
+    job_id = uuid.uuid4().hex
+    with _ASK_JOBS_LOCK:
+        if not _make_job_slot_locked(_ASK_JOBS, time.time()):
+            raise HTTPException(
+                status_code=503,
+                detail="ask queue is full; retry after an active job finishes",
+            )
+        _ASK_JOBS[job_id] = _AskJob()
+    worker = threading.Thread(
+        target=_run_ask_job,
+        args=(job_id, req),
+        daemon=True,
+    )
+    _start_job_worker(worker, _ASK_JOBS_LOCK, _ASK_JOBS, job_id)
+    return AskJobSubmitResponse(job_id=job_id)
+
+
+@app.get("/ask/result/{job_id}", response_model=AskJobStatusResponse)
+def ask_result(job_id: str) -> AskJobStatusResponse:
+    with _ASK_JOBS_LOCK:
+        job = _ASK_JOBS.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="job not found")
+        job.last_polled_at = time.time()
+        return AskJobStatusResponse(
+            job_id=job_id,
+            status=job.status,
+            result=job.result,
+            error=job.error,
+        )
+
+
+@app.post("/ask/cancel/{job_id}")
+def ask_cancel(job_id: str) -> dict[str, str | bool]:
+    with _ASK_JOBS_LOCK:
+        job = _ASK_JOBS.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="job not found")
+        if job.status in ("done", "error", "cancelled"):
+            return {"job_id": job_id, "cancelled": False, "status": job.status}
+        job.cancel_event.set()
+        return {"job_id": job_id, "cancelled": True, "status": job.status}
+
+
+class _NoOpRetriever:
+    def retrieve(self, prompt: str) -> list[str]:  # pylint: disable=unused-argument  # retriever interface signature
+        return []

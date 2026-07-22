@@ -1,0 +1,44 @@
+[
+  {
+    "id": "missing-request-timeouts",
+    "desc": "All HTTP requests omit timeouts, so the program can hang indefinitely on a stalled server or connection.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "swallowed-first-request-errors",
+    "desc": "The first request catches and only prints every Exception, hiding failures from callers and allowing execution to continue in a partially failed state.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "bare-except-second-request",
+    "desc": "The bare except catches BaseException subclasses such as KeyboardInterrupt and SystemExit and silently converts them into a print message.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "unhandled-post-failures",
+    "desc": "The POST request is outside either try block, so network exceptions terminate the program despite the earlier requests being handled.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "unchecked-http-errors",
+    "desc": "The first GET and POST never validate HTTP status codes, causing error responses to be printed as ordinary results.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "unclosed-global-session",
+    "desc": "The module-level requests.Session is never closed, leaving its connection-pool resources unmanaged for the process lifetime.",
+    "category": "maintainability",
+    "severity": "low"
+  },
+  {
+    "id": "monolithic-side-effect-function",
+    "desc": "One tightly coupled function performs three unrelated HTTP operations and console reporting through globals, making reuse, testing, and independent error handling difficult.",
+    "category": "maintainability",
+    "severity": "medium"
+  }
+]

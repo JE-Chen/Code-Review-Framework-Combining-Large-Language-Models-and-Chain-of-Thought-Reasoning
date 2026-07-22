@@ -1,0 +1,12 @@
+{
+  "covered_ids": [
+    "duplicate-user-ids",
+    "unsynchronized-global-state",
+    "missing-input-validation",
+    "invalid-min-age-crash",
+    "put-missing-age-corruption",
+    "unstable-do-stuff-input",
+    "shared-last-result-leakage"
+  ],
+  "total": 15
+}

@@ -1,0 +1,11 @@
+{
+  "covered_ids": [
+    "exceptions-silently-suppressed",
+    "mutable-default-arguments",
+    "hidden-global-state",
+    "blocking-plot-side-effect",
+    "monolithic-mixed-responsibilities",
+    "quadratic-style-row-access"
+  ],
+  "total": 12
+}

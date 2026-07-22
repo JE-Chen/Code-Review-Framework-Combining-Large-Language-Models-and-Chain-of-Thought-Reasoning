@@ -1,0 +1,56 @@
+[
+  {
+    "id": "message-sql-injection",
+    "desc": "write_log interpolates message directly into SQL, allowing SQL injection and causing valid messages containing apostrophes to fail.",
+    "category": "security",
+    "severity": "high"
+  },
+  {
+    "id": "limit-sql-injection",
+    "desc": "read_logs concatenates the caller-supplied limit into SQL, allowing crafted values to alter or inject SQL.",
+    "category": "security",
+    "severity": "high"
+  },
+  {
+    "id": "random-transaction-commit",
+    "desc": "write_log commits nondeterministically, so identical calls have inconsistent durability and may unexpectedly commit unrelated pending work.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "zero-limit-ignored",
+    "desc": "read_logs uses a truthiness check for limit, so limit=0 incorrectly returns every row instead of no rows.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "commit-errors-suppressed",
+    "desc": "do_business_logic_but_sql_heavy silently suppresses all commit failures and returns results despite failed persistence.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "setup-not-idempotent",
+    "desc": "Each setup call inserts another copy of the initialization records despite using CREATE TABLE IF NOT EXISTS, causing duplicate seed data.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "global-db-state",
+    "desc": "The module-level connection and cursor create shared mutable state, are unsafe for concurrent callers, and remain unusable after main closes them.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "missing-resource-finally",
+    "desc": "main closes the cursor and connection only on normal completion, so any database or printing exception leaks both resources.",
+    "category": "maintainability",
+    "severity": "low"
+  },
+  {
+    "id": "nondeterministic-business-logic",
+    "desc": "Random write counts, messages, limits, and commit behavior make business results irreproducible and difficult to test or reason about.",
+    "category": "smell",
+    "severity": "medium"
+  }
+]

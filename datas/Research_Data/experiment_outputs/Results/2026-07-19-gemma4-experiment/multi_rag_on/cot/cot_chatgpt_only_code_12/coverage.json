@@ -1,0 +1,13 @@
+{
+  "covered_ids": [
+    "exceptions-silently-suppressed",
+    "mutable-default-arguments",
+    "unused-public-parameters",
+    "hidden-global-state",
+    "blocking-plot-side-effect",
+    "artificial-sleep",
+    "monolithic-mixed-responsibilities",
+    "quadratic-style-row-access"
+  ],
+  "total": 12
+}

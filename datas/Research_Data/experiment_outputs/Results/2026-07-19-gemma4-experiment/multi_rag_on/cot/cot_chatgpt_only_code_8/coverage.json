@@ -1,0 +1,7 @@
+{
+  "covered_ids": [
+    "gui-thread-sleep",
+    "overbroad-exception-handler"
+  ],
+  "total": 5
+}

@@ -1,0 +1,1 @@
+{"claims": 11, "valid": 10, "false_positives": ["Claims p['title'] may raise KeyError, but it is unreachable: the guard len(p.get('title',''))>15 guarantees the key exists before p['title'] is accessed"]}

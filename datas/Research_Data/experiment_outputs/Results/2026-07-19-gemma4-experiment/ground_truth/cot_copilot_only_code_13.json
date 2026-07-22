@@ -1,0 +1,56 @@
+[
+  {
+    "id": "respawn-overlaps-player",
+    "desc": "A collided enemy can respawn overlapping the player, causing repeated score increments on subsequent frames without a new player action.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "frame-dependent-movement",
+    "desc": "Player movement uses a fixed distance per frame instead of elapsed time, so game speed changes when the actual frame rate drops or varies.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "faster-diagonal-movement",
+    "desc": "Applying SPEED independently on both axes makes diagonal movement approximately 41% faster than horizontal or vertical movement.",
+    "category": "correctness",
+    "severity": "low"
+  },
+  {
+    "id": "opposite-key-priority",
+    "desc": "Using elif gives LEFT and UP priority when opposite direction keys are held simultaneously instead of canceling the corresponding movement.",
+    "category": "correctness",
+    "severity": "low"
+  },
+  {
+    "id": "font-created-every-frame",
+    "desc": "drawEverything constructs a new font object every frame, causing unnecessary repeated resource allocation in the main rendering loop.",
+    "category": "maintainability",
+    "severity": "low"
+  },
+  {
+    "id": "init-duplicates-enemies",
+    "desc": "initGame appends enemies without clearing enemyList, so calling it more than once accumulates additional enemies.",
+    "category": "bug",
+    "severity": "low"
+  },
+  {
+    "id": "non-resettable-run-state",
+    "desc": "initGame does not reset runningGame, so the game loop exits immediately if the game is initialized again after a previous run.",
+    "category": "bug",
+    "severity": "low"
+  },
+  {
+    "id": "pervasive-global-state",
+    "desc": "Mutable game state is spread across module globals, tightly coupling initialization, updates, rendering, and collision handling and making reuse and testing difficult.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "library-hostile-exit",
+    "desc": "endGame unconditionally calls sys.exit, preventing callers from cleaning up or continuing execution when the module is embedded or tested.",
+    "category": "maintainability",
+    "severity": "low"
+  }
+]

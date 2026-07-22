@@ -1,0 +1,9 @@
+{
+  "status": "ok",
+  "model": "google/gemma-4-31B-it",
+  "gpu": "ok",
+  "lora_enabled": true,
+  "rag_mode": "retrieval",
+  "rag_corpus": "relevant",
+  "rag_corpus_sha256": "80489dfc8c43974525550b5657364bd083c811ed2231d7c76a4d5b488dabaa7b"
+}

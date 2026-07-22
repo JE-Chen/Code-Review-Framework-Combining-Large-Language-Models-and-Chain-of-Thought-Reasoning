@@ -1,0 +1,62 @@
+[
+  {
+    "id": "duplicate-kill-scoring",
+    "desc": "After an enemy is removed, the inner bullet loop continues and another hit can increment the score again before ENEMIES.remove(e) raises an exception.",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "swallowed-collision-errors",
+    "desc": "The bare except suppresses all exceptions and aborts remaining collision processing for the frame, concealing logic and programming failures.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "unculled-bullets",
+    "desc": "Bullets that leave the screen are never removed, causing BULLETS and per-frame update/render costs to grow without bound.",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "unbounded-enemy-growth",
+    "desc": "Enemies spawn continuously and are not removed when they reach or damage the player, allowing ENEMIES and processing costs to grow without bound.",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "contact-damage-every-frame",
+    "desc": "An overlapping enemy subtracts HP on every frame with no cooldown or removal, so one contact can drain roughly 60 HP per second.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "initial-free-heal",
+    "desc": "last_score_check starts at -1, so score zero is treated as a new multiple-of-five score and grants 3 HP on the first frame.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "incorrect-player-bounds",
+    "desc": "Player coordinates are clamped to W and H even though they are the top-left of a 20x20 rectangle, allowing most of the player sprite to leave the screen.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "frame-rate-dependent-simulation",
+    "desc": "Movement, spawning, firing, damage, and flag timing are measured in frames rather than elapsed time, so gameplay slows and timings change whenever 60 FPS cannot be maintained.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "faster-diagonal-movement",
+    "desc": "Simultaneous horizontal and vertical input moves the player about 41% faster diagonally because the movement vector is not normalized.",
+    "category": "correctness",
+    "severity": "low"
+  },
+  {
+    "id": "monolithic-global-state",
+    "desc": "A single large loop directly mutates module-level dictionaries and lists, coupling input, simulation, collision, rendering, and lifecycle logic and making safe restart, testing, and maintenance difficult.",
+    "category": "maintainability",
+    "severity": "medium"
+  }
+]

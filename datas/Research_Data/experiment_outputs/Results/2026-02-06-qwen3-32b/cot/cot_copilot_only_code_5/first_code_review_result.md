@@ -1,0 +1,4 @@
+- **Global state usage**: The code relies on a mutable global dictionary (`GLOBAL_STATE`), creating tight coupling and making unit testing impossible. Refactor to use an object-oriented approach with encapsulated state instead of global variables.
+- **Unused key**: The assignment to `GLOBAL_STATE["mode"]` in `reset_state()` is never used elsewhere. Remove this line to eliminate dead code and confusion.
+- **Magic number**: Hardcoded threshold value `77` lacks clarity. Define a named constant (e.g., `DEFAULT_THRESHOLD = 77`) for maintainability.
+- **Missing documentation**: Functions lack docstrings explaining purpose, inputs, and outputs. Add concise docstrings to improve readability and maintainability.

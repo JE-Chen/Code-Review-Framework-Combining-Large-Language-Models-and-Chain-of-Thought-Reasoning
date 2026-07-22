@@ -1,0 +1,10 @@
+{
+  "covered_ids": [
+    "shared-class-records",
+    "grouping-requires-contiguous-users",
+    "analyzer-empty-values-failure",
+    "unknown-mode-silently-means",
+    "empty-stats-input-failure"
+  ],
+  "total": 8
+}

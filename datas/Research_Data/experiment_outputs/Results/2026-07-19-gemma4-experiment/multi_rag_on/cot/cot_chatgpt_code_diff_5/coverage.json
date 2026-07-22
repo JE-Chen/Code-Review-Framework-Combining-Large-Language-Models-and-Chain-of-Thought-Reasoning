@@ -1,0 +1,9 @@
+{
+  "covered_ids": [
+    "low-entropy-time-seed",
+    "nondeterministic-transform",
+    "nondeterministic-aggregation-order",
+    "unexpected-input-mutation"
+  ],
+  "total": 7
+}

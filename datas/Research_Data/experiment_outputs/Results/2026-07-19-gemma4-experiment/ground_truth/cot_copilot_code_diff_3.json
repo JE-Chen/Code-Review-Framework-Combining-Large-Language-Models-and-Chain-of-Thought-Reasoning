@@ -1,0 +1,32 @@
+[
+  {
+    "id": "button-one-text-overwritten",
+    "desc": "btn1 has two click handlers that synchronously set the same label, so the first handler's text is immediately overwritten and never meaningfully displayed.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "button-two-text-overwritten",
+    "desc": "btn2's nested-function handler overwrites the text set by its first click handler, so clicking it ends with the unrelated nested-function message.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "unnecessary-global-widget-state",
+    "desc": "The label is stored in mutable module-global state even though all callbacks already capture it, creating unnecessary shared state and retaining the widget beyond its owning window's intended lifetime.",
+    "category": "maintainability",
+    "severity": "low"
+  },
+  {
+    "id": "unused-global-variable",
+    "desc": "anotherGlobal is defined but never used, leaving dead module-level state that obscures the module's actual behavior.",
+    "category": "smell",
+    "severity": "low"
+  },
+  {
+    "id": "gratuitous-nested-functions",
+    "desc": "The btn2 callback uses two nested functions solely to perform one label update, adding needless indirection and making the signal behavior harder to follow.",
+    "category": "maintainability",
+    "severity": "low"
+  }
+]

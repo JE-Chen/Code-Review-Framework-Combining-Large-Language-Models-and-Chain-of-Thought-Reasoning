@@ -1,0 +1,7 @@
+{
+  "covered_ids": [
+    "http-status-not-validated",
+    "overbroad-exception-handling"
+  ],
+  "total": 6
+}

@@ -1,0 +1,6 @@
+services:
+  prthinker:
+    environment:
+      PRTHINKER_DISABLE_LORA: "0"
+      PRTHINKER_RAG_MODE: retrieval
+      PRTHINKER_RAG_CORPUS: irrelevant

@@ -1,0 +1,56 @@
+[
+  {
+    "id": "unsafe-sql-construction",
+    "desc": "INSERT statements are built with string concatenation instead of parameters, making the code unsafe if names or ages later come from untrusted input.",
+    "category": "security",
+    "severity": "medium"
+  },
+  {
+    "id": "ignored-schema-error",
+    "desc": "CREATE TABLE failures are caught and ignored, so execution continues into INSERT statements with a potentially missing or unusable table.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "connection-leak-on-error",
+    "desc": "The connection is not managed by a context manager or finally block, so failures during insertion, querying, or commit can leave it open and the transaction unresolved.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "bare-except-hides-failures",
+    "desc": "The bare except around the query suppresses all exceptions, including process-control exceptions, and prevents callers from detecting query failures.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "commits-after-query-failure",
+    "desc": "A failed SELECT is swallowed and execution still commits the pending inserts, allowing partial behavior to be reported only by a print message.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "duplicate-seed-records",
+    "desc": "Every execution unconditionally inserts Alice and Bob, so repeated runs accumulate duplicate user records.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "global-database-state",
+    "desc": "Keeping the connection and cursor in mutable globals makes the function non-reentrant, complicates cleanup and testing, and permits unrelated code to corrupt database state.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "schema-position-coupling",
+    "desc": "SELECT * combined with positional access to r[1] tightly couples the query logic to the current column order and can silently read the wrong field after schema changes.",
+    "category": "maintainability",
+    "severity": "low"
+  },
+  {
+    "id": "mixed-function-responsibilities",
+    "desc": "One function manages schema creation, data insertion, querying, presentation, transaction handling, and resource cleanup, making failures and changes difficult to isolate.",
+    "category": "smell",
+    "severity": "low"
+  }
+]

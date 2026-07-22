@@ -1,0 +1,1 @@
+{"claims": 11, "valid": 10, "false_positives": ["input/path validation for _load_from_file: path is a hardcoded literal already guarded by try/except; implied path-safety concern not present"]}

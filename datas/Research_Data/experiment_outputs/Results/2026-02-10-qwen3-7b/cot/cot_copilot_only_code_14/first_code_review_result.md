@@ -1,0 +1,9 @@
+- **Indentation & Formatting**: Use 4-space indentation consistently. Add trailing spaces to variable names for clarity.  
+- **Variable Naming**: Improve clarity for `dataFrameLike` and `resultCache` (e.g., `DataFrameLike` and `AnalysisResults`).  
+- **Code Structure**: Extract `analyzeData` into a helper function for better readability.  
+- **Logic Errors**: Add checks for empty data in `analyzeData` to prevent errors.  
+- **Comments**: Add inline comments for complex logic (e.g., `resultCache` initialization).  
+- **Edge Cases**: Handle empty data and invalid inputs in `analyzeData`.  
+- **Performance**: Avoid redundant calculations in `analyzeData`.  
+- **Testing**: Add unit tests for critical functions (e.g., `analyzeData`, `showData`).  
+- **Consistency**: Use consistent spacing and formatting across all code blocks.

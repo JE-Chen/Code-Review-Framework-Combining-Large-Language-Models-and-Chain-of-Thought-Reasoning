@@ -1,0 +1,11 @@
+{
+  "covered_ids": [
+    "nondeterministic-timeout",
+    "unsafe-query-construction",
+    "inconsistent-parser-return-type",
+    "swallowed-network-failure",
+    "global-session-lifecycle",
+    "overbroad-json-exception"
+  ],
+  "total": 7
+}

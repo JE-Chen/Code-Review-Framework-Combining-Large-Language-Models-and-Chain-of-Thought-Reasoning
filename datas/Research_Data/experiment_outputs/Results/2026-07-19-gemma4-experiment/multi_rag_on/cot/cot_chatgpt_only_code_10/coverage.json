@@ -1,0 +1,12 @@
+{
+  "covered_ids": [
+    "mutable-default-headers",
+    "caller-headers-mutated",
+    "stream-response-not-closed",
+    "download-buffered-entirely",
+    "quadratic-byte-concatenation",
+    "weak-md5-checksum",
+    "hash-builtin-shadowed"
+  ],
+  "total": 17
+}

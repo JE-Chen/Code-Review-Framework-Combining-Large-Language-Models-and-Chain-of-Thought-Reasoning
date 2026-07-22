@@ -1,0 +1,38 @@
+[
+  {
+    "id": "spawn-overlaps-player",
+    "desc": "Enemies are spawned without excluding the player's rectangle, so initialization or respawning can award points immediately and repeatedly without a new player collision.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "frame-rate-dependent-movement",
+    "desc": "Movement uses a fixed number of pixels per frame instead of elapsed time, causing player speed to decrease whenever the game cannot sustain 27 FPS.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "opposite-key-priority",
+    "desc": "The elif-based input handling gives left and up priority when opposite direction keys are held, rather than canceling the opposing inputs.",
+    "category": "bug",
+    "severity": "low"
+  },
+  {
+    "id": "font-created-every-frame",
+    "desc": "drawEverything constructs a new system Font on every frame, causing avoidable repeated resource allocation in the hot rendering loop.",
+    "category": "maintainability",
+    "severity": "low"
+  },
+  {
+    "id": "unreset-global-game-state",
+    "desc": "initGame appends enemies and does not reset player, score, running, or enemy state, so initializing another game in the same process produces stale and duplicate state.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "pervasive-mutable-globals",
+    "desc": "Core game state is spread across mutable module globals, tightly coupling functions and making lifecycle management, testing, and multiple game instances error-prone.",
+    "category": "maintainability",
+    "severity": "medium"
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "covered_ids": [
+    "shared-class-user-state",
+    "mutable-default-data",
+    "unbound-result",
+    "exceptions-silently-swallowed",
+    "file-not-reliably-closed",
+    "inconsistent-process-return-type"
+  ],
+  "total": 10
+}

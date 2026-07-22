@@ -1,0 +1,61 @@
+# Gemma-4 inference server on the local DGX Spark.
+#
+# Local deployment policy (this machine only): Gemma deployments use
+# google/gemma-4-31B-it with the EmbeddingGemma RAG index — see
+# READMEs/local_gemma_deployment.md. EmbeddingGemma is a gated HF repo:
+# export HF_TOKEN before bringing the stack up.
+#
+#   cd docker
+#   docker compose -f docker-compose.server-gemma4.yml up -d --build
+#   docker logs -f gemma4-server      # boot takes ~10 min (31B FP8 load
+#                                     # + LoRA + boot probe + FAISS index)
+#   curl http://localhost:9000/healthz
+#
+# The TLS / monitoring overlays target the `prthinker` service, so they
+# stack on this deploy too, e.g.:
+#   docker compose -f docker-compose.server-gemma4.yml -f docker-compose.monitoring.yml up -d
+#
+# Shares the hf-cache volume with docker-compose.train.yml so base model,
+# LoRA-era downloads, and embedding models are reused across stacks.
+
+services:
+  # Service name is `prthinker` (not gemma4-server) so the TLS / monitoring
+  # overlays — which override the `prthinker` service and proxy to its
+  # network alias — stack on this deploy too. The container keeps the
+  # gemma4-server name for `docker logs` / `docker compose` ergonomics.
+  prthinker:
+    build:
+      context: .
+      dockerfile: Dockerfile.server-gemma4
+    image: prthinker-gemma4-server
+    container_name: gemma4-server
+    gpus: all
+    ipc: host
+    restart: unless-stopped
+    working_dir: /workspace
+    ports:
+      - "9000:9000"
+    environment:
+      PYTHONPATH: /workspace
+      PRTHINKER_MODEL_NAME: ${PRTHINKER_MODEL_NAME:-google/gemma-4-31B-it}
+      PRTHINKER_LORA_PATH: ${PRTHINKER_LORA_PATH:-/workspace/codes/train/outputs-lora-gemma4-31b}
+      # Thesis ablation controls. These are fixed at container startup and
+      # echoed by /healthz so a batch cannot silently mix experimental cells.
+      PRTHINKER_DISABLE_LORA: ${PRTHINKER_DISABLE_LORA:-0}
+      PRTHINKER_RAG_MODE: ${PRTHINKER_RAG_MODE:-retrieval}
+      PRTHINKER_RAG_CORPUS: ${PRTHINKER_RAG_CORPUS:-relevant}
+      # Overrides the server's qwen-era setdefault: local Gemma deploys
+      # use the EmbeddingGemma index (calibrated threshold 0.32).
+      EMB_MODEL: ${EMB_MODEL:-google/embeddinggemma-300m}
+      # FP8 weights (transformers-native FineGrainedFP8) roughly halve the
+      # bytes read per token, the bottleneck on the memory-bandwidth-bound
+      # single GB10 decode. Override with PRTHINKER_QUANT=bf16 to roll back.
+      PRTHINKER_QUANT: ${PRTHINKER_QUANT:-fp8}
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_HUB_DISABLE_XET: "1"
+    volumes:
+      - ..:/workspace
+      - hf-cache:/workspace/.hf_cache
+
+volumes:
+  hf-cache:
