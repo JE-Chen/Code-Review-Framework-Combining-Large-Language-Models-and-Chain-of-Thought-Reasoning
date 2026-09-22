@@ -58,6 +58,7 @@ In the same commit: delete the item from `progress.md`, add a `#done` entry here
 
 | ID | Date | Title | Tags | Batch |
 |---|---|---|---|---|
+| U-20260922-05 | 2026-09-22 | ContextBench cache under D:\tmp deleted by mistake | #incident #benchmarks | [2026-09](2026-09.md) |
 | U-20260922-04 | 2026-09-22 | Drop the three old stashes | #done #housekeeping | [2026-09](2026-09.md) |
 | U-20260922-03 | 2026-09-22 | Stop tracking .idea/ | #done #housekeeping | [2026-09](2026-09.md) |
 | U-20260922-02 | 2026-09-22 | Ablation results included in thesis v3.33 | #done #paper | [2026-09](2026-09.md) |
@@ -67,4 +68,4 @@ In the same commit: delete the item from `progress.md`, add a `#done` entry here
 
 | File | Period | Entries |
 |---|---|---:|
-| [2026-09.md](2026-09.md) | 2026-09 | 4 |
+| [2026-09.md](2026-09.md) | 2026-09 | 5 |
