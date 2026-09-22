@@ -47,8 +47,8 @@ guide before changing production code, tests, deployment files, documentation, o
 
 Read `paper/AGENT_HANDOFF.md` before resuming the thesis experiments or updating the manuscript.
 That file records the completed evidence, current active batch, result locations, and update
-checklist. Update the handoff when experiment state changes; do not place transient progress in this
-root instruction file.
+checklist. Update the handoff when experiment state changes; open items go to `progress.md` and
+finished work to `docs/updates/`; neither belongs in this root instruction file.
 
 
 

@@ -1,0 +1,15 @@
+# progress.md：prthinker（Code-Review-Framework）
+
+只放還沒做的事。做完就在同一個 commit 裡刪掉這條，並在 `docs/updates/` 新增一筆 `#done` 紀錄（格式與查詢方式見 `docs/updates/README.md`）。不放已完成的項目、不寫流水帳、不寫規則（規則在 `CLAUDE.md` / `AGENTS.md`）。實驗狀態與證據在 `paper/AGENT_HANDOFF.md`。
+編號 `#n` 不重用。標記：〔決定〕需擁有者拍板、〔選作〕可做可不做、〔阻塞〕在等別的事。實驗相關項目皆需使用者決定，勿擅自開始。
+跨專案與工作區層級的待辦在 `D:\Codes\progress.md`（與本專案相關：X-8、X-16、W-5）。
+
+## 待辦
+
+- **#1** 在 Word 開 `paper/論文_v3.33.docx` 全選按 F9 更新欄位，校正主目錄 5.4 與表十一、表十二的頁碼快取值（`paper/AGENT_HANDOFF.md` §一）。工作樹裡的 v3.33 在 2026-08-04 有未提交的修改：若只是更新欄位就提交；若有實質內容修改，違反 `AGENTS.md`「docx 不可原地修改」，要改用腳本產生新版號。
+- **#2** 〔選作〕`multi_rag_on` 條件下的 LoRA vs 基礎模型：尚未安排。本輪只跑了 rag_off 一臂，故 LoRA×RAG 交互作用未測。伺服器目前仍在 LoRA 組態、語料 sha 一致，補這 44 案不需重部署，直接跑 driver 即可。
+- **#3** 〔選作〕同一部署內的 LoRA 隨機化對照：尚未安排且無法直接做——LoRA 開與關無法在同一容器並存。現有結果是「相鄰部署、僅切換旗標」，論文須據實表述，不可寫成同一部署內對照。
+- **#4** `dev` 比 `main` 多 9 個 commit 沒合併；`CHANGELOG.md` 的 Unreleased（3 項新增、1 項變更）沒發版，也沒有任何 tag（`release.yml` 只在 `v*` tag 觸發）。
+- **#5** 9 個 dependabot 分支沒處理；其中 transformers `>=4.51,<6` 違反 `CLAUDE.md` 的 `transformers<5`，peft 0.20.0 違反 `pyproject.toml` 的 `==0.19.1`，這兩個應關閉（工作區 X-16）。
+- **#6** 3 個舊 stash（2026-06-02、06-08）待處理（工作區 W-5）。
+- **#7** 〔決定〕17 項研究級機制都還沒做端到端評估，論文以 §6.4.5 未來工作對應（`paper/REWRITE_BRIEF.md` ≈:144）；跨後端比較也屬未來工作（≈:147）。
