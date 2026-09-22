@@ -233,3 +233,6 @@ gen-paper/node_modules/
 paper/_dump_*.txt
 /paper/論文_v3.8.docx
 /paper/論文_v3.9.before-data.docx
+
+# JetBrains IDE settings (per machine)
+.idea/
