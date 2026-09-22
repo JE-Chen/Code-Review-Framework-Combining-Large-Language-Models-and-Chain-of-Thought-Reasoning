@@ -58,6 +58,7 @@ In the same commit: delete the item from `progress.md`, add a `#done` entry here
 
 | ID | Date | Title | Tags | Batch |
 |---|---|---|---|---|
+| U-20260923-01 | 2026-09-23 | Write down what PyBreeze sends prthinker | #docs #pybreeze | [2026-09](2026-09.md) |
 | U-20260922-06 | 2026-09-22 | Thesis v3.33 field caches refreshed | #done #paper | [2026-09](2026-09.md) |
 | U-20260922-05 | 2026-09-22 | ContextBench cache under D:\tmp deleted by mistake | #incident #benchmarks | [2026-09](2026-09.md) |
 | U-20260922-04 | 2026-09-22 | Drop the three old stashes | #done #housekeeping | [2026-09](2026-09.md) |
@@ -69,4 +70,4 @@ In the same commit: delete the item from `progress.md`, add a `#done` entry here
 
 | File | Period | Entries |
 |---|---|---:|
-| [2026-09.md](2026-09.md) | 2026-09 | 6 |
+| [2026-09.md](2026-09.md) | 2026-09 | 7 |

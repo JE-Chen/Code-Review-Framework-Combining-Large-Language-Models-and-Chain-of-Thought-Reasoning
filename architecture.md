@@ -120,10 +120,20 @@ datas/fine_tuning_data → codes/train/<model>.py (QLoRA) → LoRA adapter → s
 
 ## 6. Cross-project boundaries
 
-- **PyBreeze** runs `python -m prthinker` as a subprocess and installs prthinker from a local source
-  path with the `[runner]` extra (`pybreeze/extend/process_executor/prthinker/`,
-  `pybreeze/extend/prthinker_extend/prthinker_setting.py`). The CLI subcommands and flags are therefore
-  a contract: rename or remove them only together with a PyBreeze change.
+- **PyBreeze** runs `python -m prthinker review-file <path>` or `review-pr --pr-number <n>` as a
+  subprocess, with the interpreter chosen in its IDE, and installs prthinker from a local source path
+  with the `[runner]` extra (`pybreeze/extend/process_executor/prthinker/`,
+  `pybreeze/extend/prthinker_extend/prthinker_setting.py`). Every setting travels as an environment
+  variable: `PRTHINKER_BACKEND`; the model as `PRTHINKER_MODEL_NAME` (`local`, `remote`) or the
+  backend's own `PRTHINKER_<BACKEND>_MODEL`; `PRTHINKER_REMOTE_URL`, `PRTHINKER_REMOTE_API_KEY`,
+  `PRTHINKER_OPENAI_API_KEY`, `PRTHINKER_OPENAI_BASE_URL`, `PRTHINKER_ANTHROPIC_API_KEY`,
+  `PRTHINKER_PLATFORM`, `PRTHINKER_PLATFORM_BASE_URL`, `GITHUB_REPOSITORY`, `GITHUB_TOKEN`; and always
+  `PRTHINKER_RAG_ENABLED=false` or `PRTHINKER_REMOTE_RAG=true`, because an installed runner has no
+  local RAG index. The backends it offers must stay `BackendKind` values, and its contract test
+  (`test/test_utils/test_prthinker_contract.py`) builds the review configuration through
+  `prthinker.cli._build_parser` and `_build_config`. The CLI subcommands and flags, these variables and
+  those two functions are therefore a contract: rename or remove them only together with a PyBreeze
+  change (PyBreeze `architecture.md` §6 keeps the same list).
 - The runner side may depend only on `httpx`, `pydantic` and `PyYAML`; downstream repositories install
   `prthinker[runner]` without the `codes/` tree (it is excluded from the package). No `prthinker/` module
   may import `codes.*` at module top; only server-only paths (`backends/local.py`, FAISS / embedding
