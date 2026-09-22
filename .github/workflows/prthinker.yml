@@ -62,14 +62,14 @@ jobs:
       # Checkout first so its working-tree clean does not wipe the
       # restored .prthinker/ state cache that follows.
       - name: Check out PR head
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
 
       - name: Restore prthinker state cache
         id: state-restore
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
@@ -331,7 +331,7 @@ jobs:
         file: ${{ fromJSON(needs.enumerate.outputs.files) }}
     steps:
       - name: Check out PR head
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
@@ -355,7 +355,7 @@ jobs:
       # remembers, the CoT pipeline short-circuits before any GPU
       # work. Only the aggregate job writes back to this key.
       - name: Restore prthinker state cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
@@ -524,7 +524,7 @@ jobs:
 
       - name: Save shard state checkpoint
         if: success() && steps.shard-state.outputs.updated == 'true'
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-shard-${{ strategy.job-index }}
@@ -549,7 +549,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out PR head
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
@@ -570,7 +570,7 @@ jobs:
       # known baseline (defends against half-written state from a run
       # that died mid-aggregate).
       - name: Restore prthinker state cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
@@ -668,7 +668,7 @@ jobs:
       - name: Upload SARIF to code scanning
         if: ${{ always() && steps.sarif.outputs.exists == 'true' }}
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ runner.temp }}/prthinker.sarif
 
@@ -844,7 +844,7 @@ jobs:
 
       - name: Save prthinker state cache
         if: always() && steps.write-state.outcome == 'success'
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
