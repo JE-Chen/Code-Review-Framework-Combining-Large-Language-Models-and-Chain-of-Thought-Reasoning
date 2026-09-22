@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import builtins
+import os
+import sys
+from pathlib import Path
+
+import anyio
 import pytest
 
 from prthinker import mcp_server
@@ -156,3 +162,59 @@ def test_shared_config_defaults(monkeypatch):
     assert cfg.cache.path == ".prthinker/cache.sqlite"
     assert cfg.telemetry.enabled is False
     assert cfg.telemetry.path == ".prthinker/telemetry.sqlite"
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+MCP_TOOLS = {"review_diff", "triage_diff", "evaluate_retrieval", "make_review_attestation", "stats"}
+
+
+def test_mcp_extra_stays_on_the_1x_sdk():
+    """mcp 2.x renamed FastMCP; with it ``prthinker mcp`` could not start."""
+    import tomllib
+
+    from packaging.requirements import Requirement
+
+    with (REPO_ROOT / "pyproject.toml").open("rb") as handle:
+        specs = tomllib.load(handle)["project"]["optional-dependencies"]["mcp"]
+    requirement = Requirement(specs[0])
+    assert requirement.name == "mcp"
+    assert not requirement.specifier.contains("2.0.0")
+    assert requirement.specifier.contains("1.30.0")
+
+
+def test_run_names_the_sdk_version_it_needs(monkeypatch, capsys):
+    """Without a 1.x SDK (none, or 2.x) the message must not just say "not installed"."""
+    real_import = builtins.__import__
+
+    def _no_fastmcp(name, *args, **kwargs):
+        if name == "mcp.server.fastmcp":
+            raise ModuleNotFoundError("No module named 'mcp.server.fastmcp'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _no_fastmcp)
+    assert mcp_server.run() == 1
+    assert "mcp>=1.28.1,<2" in capsys.readouterr().err
+
+
+def test_stdio_round_trip_with_the_official_client(tmp_path):
+    """Start ``prthinker mcp`` and drive it the way an MCP host does."""
+    pytest.importorskip("mcp.server.fastmcp")
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+
+    env = {
+        key: value for key, value in os.environ.items()
+        if not key.startswith("PRTHINKER_") and key not in {"OPENAI_API_KEY", "ANTHROPIC_API_KEY"}
+    }
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(REPO_ROOT), env.get("PYTHONPATH")]))
+    env["PRTHINKER_REMOTE_URL"] = "https://example.test"
+    params = StdioServerParameters(
+        command=sys.executable, args=["-m", "prthinker", "mcp"], env=env, cwd=str(tmp_path))
+
+    async def _list_tools() -> set:
+        async with stdio_client(params) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                return {tool.name for tool in (await session.list_tools()).tools}
+
+    assert anyio.run(_list_tools) == MCP_TOOLS

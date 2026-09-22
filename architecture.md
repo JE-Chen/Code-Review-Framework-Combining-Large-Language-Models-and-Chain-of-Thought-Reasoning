@@ -63,7 +63,8 @@
   `/review`, async jobs `/ask/submit|result/{job_id}|cancel/{job_id}` and
   `/review/submit|result/{job_id}|cancel/{job_id}`, `/evaluation/retrieval`, `/attestation/review`.
 - **MCP**: `prthinker mcp` starts `prthinker/mcp_server.py` (tools such as `review_diff`,
-  `triage_diff`, `evaluate_retrieval`, `make_review_attestation`, `stats`; configured from env vars).
+  `triage_diff`, `evaluate_retrieval`, `make_review_attestation`, `stats`; configured from env vars). It uses
+  the 1.x SDK's `FastMCP`, so the `[mcp]` extra stays below mcp 2.0, which renamed it.
 - **CI integration**: `.github/workflows/prthinker.yml` runs `python -m prthinker` per changed file in
   a matrix with `max-parallel: 1`; `release.yml` builds and publishes on `v*` tags.
 - **Research scripts**: e.g. `python -m codes.run.cot`; training via the scripts in `codes/train/`.

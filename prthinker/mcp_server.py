@@ -161,9 +161,11 @@ def run() -> int:
     """Entry point for ``prthinker mcp``. Blocks until the client disconnects."""
     try:
         from mcp.server.fastmcp import FastMCP
-    except ImportError as exc:  # pragma: no cover — guarded by the dep
+    except ImportError as exc:
+        # mcp 2.x lands here too: it renamed FastMCP, so "not installed" would mislead.
         sys.stderr.write(
-            "The `mcp` package is not installed. Install with\n"
+            "Cannot import FastMCP from the `mcp` package; prthinker needs the 1.x SDK\n"
+            "(mcp>=1.28.1,<2). Install it with\n"
             "    pip install -e \".[mcp]\"\n"
             f"Original error: {exc}\n"
         )
