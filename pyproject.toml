@@ -46,7 +46,7 @@ dev = [
 # Validate any change with the hf_model_util boot probe (do NOT set
 # PRTHINKER_SKIP_BOOT_PROBE). See CLAUDE.md "GPU Server: bf16".
 local = [
-    "transformers>=4.51,<5",
+    "transformers>=4.51,<6",
     "torch",
     "accelerate",
     "bitsandbytes",
