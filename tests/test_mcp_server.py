@@ -168,8 +168,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 MCP_TOOLS = {"review_diff", "triage_diff", "evaluate_retrieval", "make_review_attestation", "stats"}
 
 
-def test_mcp_extra_stays_on_the_1x_sdk():
-    """mcp 2.x renamed FastMCP; with it ``prthinker mcp`` could not start."""
+def test_mcp_extra_allows_both_sdk_lines():
+    """``prthinker mcp`` runs on the 1.x ``FastMCP`` and the 2.x ``MCPServer``."""
     import tomllib
 
     from packaging.requirements import Requirement
@@ -178,27 +178,29 @@ def test_mcp_extra_stays_on_the_1x_sdk():
         specs = tomllib.load(handle)["project"]["optional-dependencies"]["mcp"]
     requirement = Requirement(specs[0])
     assert requirement.name == "mcp"
-    assert not requirement.specifier.contains("2.0.0")
     assert requirement.specifier.contains("1.30.0")
+    assert requirement.specifier.contains("2.2.0")
+    assert not requirement.specifier.contains("1.28.0")
+    assert not requirement.specifier.contains("3.0.0")
 
 
 def test_run_names_the_sdk_version_it_needs(monkeypatch, capsys):
-    """Without a 1.x SDK (none, or 2.x) the message must not just say "not installed"."""
+    """Without either server class the message names the SDK range to install."""
     real_import = builtins.__import__
 
     def _no_fastmcp(name, *args, **kwargs):
-        if name == "mcp.server.fastmcp":
-            raise ModuleNotFoundError("No module named 'mcp.server.fastmcp'")
+        if name in ("mcp.server.fastmcp", "mcp.server.mcpserver"):
+            raise ModuleNotFoundError(f"No module named {name!r}")
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", _no_fastmcp)
     assert mcp_server.run() == 1
-    assert "mcp>=1.28.1,<2" in capsys.readouterr().err
+    assert "mcp>=1.28.1,<3" in capsys.readouterr().err
 
 
 def test_stdio_round_trip_with_the_official_client(tmp_path):
     """Start ``prthinker mcp`` and drive it the way an MCP host does."""
-    pytest.importorskip("mcp.server.fastmcp")
+    pytest.importorskip("mcp")
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
 
