@@ -58,6 +58,7 @@ In the same commit: delete the item from `progress.md`, add a `#done` entry here
 
 | ID | Date | Title | Tags | Batch |
 |---|---|---|---|---|
+| U-20260923-04 | 2026-09-23 | Three Actions bumps merged; transformers <6 refused | #done #deps | [2026-09](2026-09.md) |
 | U-20260923-03 | 2026-09-23 | Dependabot backlog cleared; updates now target dev | #done #ci #deps | [2026-09](2026-09.md) |
 | U-20260923-02 | 2026-09-23 | Keep the mcp extra on the 1.x SDK and test the server end to end | #done #mcp #bugfix | [2026-09](2026-09.md) |
 | U-20260923-01 | 2026-09-23 | Write down what PyBreeze sends prthinker | #docs #pybreeze | [2026-09](2026-09.md) |
@@ -72,4 +73,4 @@ In the same commit: delete the item from `progress.md`, add a `#done` entry here
 
 | File | Period | Entries |
 |---|---|---:|
-| [2026-09.md](2026-09.md) | 2026-09 | 9 |
+| [2026-09.md](2026-09.md) | 2026-09 | 10 |
