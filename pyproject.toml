@@ -50,7 +50,7 @@ local = [
     "torch",
     "accelerate",
     "bitsandbytes",
-    "peft==0.19.1",
+    "peft==0.21.0",
     "faiss-cpu",
     "numpy",
     # EmbeddingGemma (the default local RAG embedding) needs the ST stack:
