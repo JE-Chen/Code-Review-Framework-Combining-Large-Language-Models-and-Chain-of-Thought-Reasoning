@@ -4,7 +4,6 @@ review). Independent of both pipelines. Resumable.
 """
 import json
 import os
-import re
 import shutil
 import subprocess  # nosec B404 - local codex CLI, arg list, no shell
 import time
