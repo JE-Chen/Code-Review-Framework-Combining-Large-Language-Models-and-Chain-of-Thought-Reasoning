@@ -138,17 +138,30 @@ workflow 以 PR 为单位分组 concurrency 并取消进行中：
 必需权限
 --------
 
-Workflow 声明：
+Workflow 默认只给只读权限，需要写入的 job 各自只提高它用到的：
 
 .. code-block:: yaml
 
-   permissions:
-     contents: read         # checkout
-     pull-requests: write   # upsert 总结评论、提交 inline review
-     checks: write          # 打开与结算合并前的 Check Run gate
-     actions: read          # 抓 CI 失败 job 的日志
+   permissions:              # workflow 默认，review 分片用这组
+     contents: read          # checkout
+     pull-requests: read     # 读 PR 的文件与 diff
+     checks: read            # 读 CI 信号
+     actions: read           # 抓 CI 失败 job 的日志
 
-若你 fork 这份 workflow，请保留同样的权限，否则功能会被默默跳过。
+   jobs:
+     enumerate:
+       permissions:
+         contents: read
+         pull-requests: write   # 审查中占位评论、PR 摘要
+     aggregate:
+       permissions:
+         contents: read
+         pull-requests: write   # upsert 总结评论、提交 inline review
+         checks: write          # 打开与结算合并前的 Check Run gate
+         actions: read          # 抓 CI 失败 job 的日志
+         security-events: write # 把 SARIF 报告上传到 code scanning
+
+若你 fork 这份 workflow，请保留同样的权限，否则功能会被默默跳过。每个 action 都锁在 commit SHA，并在注释写版本；checkout 设 ``persist-credentials: false``，job 的 token 不会留在 ``.git/config``。
 
 可调整的环境变量
 ----------------
@@ -253,7 +266,7 @@ Workflow 范例：
          PRTHINKER_USE_REMOTE_PIPELINE: "false"
          PRTHINKER_REMOTE_RAG: "false"
        steps:
-         - uses: actions/checkout@v4
+         - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
          - run: pip install -e ".[local]"
          - run: python -m prthinker review-pr
 

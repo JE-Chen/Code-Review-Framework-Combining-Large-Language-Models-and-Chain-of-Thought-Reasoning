@@ -4,10 +4,12 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+# Read-only by default: the review shards only read the PR and its CI
+# signals. The jobs that write raise what they need for themselves.
 permissions:
   contents: read
-  pull-requests: write
-  checks: write
+  pull-requests: read
+  checks: read
   actions: read
 
 # A new commit supersedes the PR's own in-flight review, so group per PR
@@ -47,6 +49,10 @@ jobs:
   enumerate:
     if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
+    # Posts the review-in-progress placeholder and the PR summary comment.
+    permissions:
+      contents: read
+      pull-requests: write
     # Higher than the bare file-listing needs: this job also posts the
     # pre-review PR summary, which makes one (short) backend call. Keeping
     # that call here — before the matrix — preserves the serial-GPU
@@ -62,14 +68,15 @@ jobs:
       # Checkout first so its working-tree clean does not wipe the
       # restored .prthinker/ state cache that follows.
       - name: Check out PR head
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
 
       - name: Restore prthinker state cache
         id: state-restore
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
@@ -77,7 +84,7 @@ jobs:
             prthinker-state-pr-${{ github.event.pull_request.number }}-
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.12"
 
@@ -296,7 +303,7 @@ jobs:
         if: >-
           ${{ (steps.list.outputs.skipped != '0' && steps.list.outputs.skipped != '') ||
               (steps.list.outputs.plan_skipped != '0' && steps.list.outputs.plan_skipped != '') }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: partial-skipped
           path: ${{ runner.temp }}/skipped/
@@ -307,7 +314,7 @@ jobs:
       # into the aggregate so the comment lists them as skipped (deleted).
       - name: Upload deleted-file partial
         if: steps.list.outputs.deleted != '0' && steps.list.outputs.deleted != ''
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: partial-deleted
           path: ${{ runner.temp }}/deleted/
@@ -331,13 +338,14 @@ jobs:
         file: ${{ fromJSON(needs.enumerate.outputs.files) }}
     steps:
       - name: Check out PR head
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.12"
           cache: "pip"
@@ -355,7 +363,7 @@ jobs:
       # remembers, the CoT pipeline short-circuits before any GPU
       # work. Only the aggregate job writes back to this key.
       - name: Restore prthinker state cache
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
@@ -425,7 +433,7 @@ jobs:
           # other matrix shards produced; if all shards skipped, it
           # posts a "backend unreachable" notice.
           if [ -z "$PRTHINKER_REMOTE_URL" ]; then
-            echo "::warning::PRThinker skipped ${{ matrix.file }} — backend not configured"
+            echo "::warning::PRThinker skipped ${PRTHINKER_TARGET_FILE} — backend not configured"
             exit 0
           fi
           AUTH_HEADER=()
@@ -434,7 +442,7 @@ jobs:
           fi
           if ! curl -fsS --max-time 5 "${AUTH_HEADER[@]}" \
                    "$PRTHINKER_REMOTE_URL/healthz" > /dev/null; then
-            echo "::warning::PRThinker skipped ${{ matrix.file }} — backend unreachable"
+            echo "::warning::PRThinker skipped ${PRTHINKER_TARGET_FILE} — backend unreachable"
             exit 0
           fi
 
@@ -445,7 +453,7 @@ jobs:
         # artifact collection — the upload step itself just no-ops if
         # the file is missing.
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: partial-${{ strategy.job-index }}
           path: ${{ runner.temp }}/partial.json
@@ -524,7 +532,7 @@ jobs:
 
       - name: Save shard state checkpoint
         if: success() && steps.shard-state.outputs.updated == 'true'
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-shard-${{ strategy.job-index }}
@@ -547,15 +555,24 @@ jobs:
            needs.enumerate.outputs.plan_skipped != '0') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Posts the summary comment and inline review, closes the check run,
+    # and uploads the SARIF report to code scanning.
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+      actions: read
+      security-events: write
     steps:
       - name: Check out PR head
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.12"
           cache: "pip"
@@ -570,7 +587,7 @@ jobs:
       # known baseline (defends against half-written state from a run
       # that died mid-aggregate).
       - name: Restore prthinker state cache
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
@@ -578,7 +595,7 @@ jobs:
             prthinker-state-pr-${{ github.event.pull_request.number }}-
 
       - name: Download all partial review artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           path: ${{ runner.temp }}/partials
           pattern: partial-*
@@ -668,7 +685,7 @@ jobs:
       - name: Upload SARIF to code scanning
         if: ${{ always() && steps.sarif.outputs.exists == 'true' }}
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd  # v4.38.1
         with:
           sarif_file: ${{ runner.temp }}/prthinker.sarif
 
@@ -677,7 +694,7 @@ jobs:
       - name: Upload review reports
         if: ${{ always() }}
         continue-on-error: true
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: prthinker-reports
           path: |
@@ -844,7 +861,7 @@ jobs:
 
       - name: Save prthinker state cache
         if: always() && steps.write-state.outcome == 'success'
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: .prthinker/
           key: prthinker-state-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}

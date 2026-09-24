@@ -363,9 +363,10 @@ package. New code that violates these is rejected at review.
 
 ### GitHub Integration
 
-- The bundled workflow asks for the **minimum** permissions needed
-  (`contents: read`, `pull-requests: write`, `checks: write`,
-  `actions: read`). Do not broaden.
+- The bundled workflow asks for the **minimum** permissions needed:
+  read-only by default (`contents`, `pull-requests`, `checks`,
+  `actions`), with writes raised per job (see "GitHub Actions
+  Permissions" below). Do not broaden.
 - Authenticate to the GitHub REST API exclusively via
   `Authorization: Bearer ${GITHUB_TOKEN}`. The token is provided by
   Actions and must never be echoed to logs.
@@ -676,10 +677,15 @@ the above.
 The bundled `.github/workflows/prthinker.yml` lists the **minimum**
 permissions for current features:
 
-- `contents: read` — checkout.
-- `pull-requests: write` — upsert summary comment, post inline review.
-- `checks: write` — open + complete the Check Run gate.
-- `actions: read` — fetch failed-job logs for CI signals.
+- Workflow default (the review shards): `contents: read` (checkout),
+  `pull-requests: read`, `checks: read`, `actions: read` (fetch
+  failed-job logs for CI signals).
+- `enumerate` job: `pull-requests: write` — review-in-progress
+  placeholder and PR summary comment.
+- `aggregate` job: `pull-requests: write` (upsert summary comment, post
+  inline review), `checks: write` (open + complete the Check Run gate),
+  `actions: read`, `security-events: write` (upload the SARIF report to
+  code scanning).
 
 Do not broaden these. New features that need additional permissions must
 document the increase in their PR description.

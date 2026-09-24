@@ -97,8 +97,8 @@ pip install -e . --no-deps
    | `ANTHROPIC_API_KEY` | `sk-ant-...` |
 
 3. **复制 workflow 文件** `.github/workflows/prthinker.yml`\ ──本 repo 内
-   附的版本已经声明必要 permissions（\ `contents: read`\ 、
-   `pull-requests: write`\ 、\ `checks: write`\ 、\ `actions: read`\ ）。
+   附的版本已经声明必要 permissions：默认只读，只有要发帖的 job 才提高
+   `pull-requests: write`\ 、\ `checks: write`\ 、\ `security-events: write`\ 。
 
 4. **推 PR**\ ──workflow 自动跑──summary 评论 + 带 suggestion block 的
    inline review 就上来了。
@@ -416,11 +416,15 @@ review + 开 + 关 gate 各一次。Skip / fallback 行为、env vars、fan-in
 **必要 permissions：**
 
 ```yaml
-permissions:
-  contents: read         # checkout
-  pull-requests: write   # 贴 summary + inline review
-  checks: write          # 打开与结算 gate
-  actions: read          # 抓 CI 失败 log
+permissions:               # workflow 默认（review 分片）
+  contents: read           # checkout
+  pull-requests: read      # 读 PR 的文件与 diff
+  checks: read             # 读 CI 信号
+  actions: read            # 抓 CI 失败 log
+# enumerate job：pull-requests: write（占位评论 + PR 摘要）
+# aggregate job：pull-requests: write（summary + inline review）、
+#                checks: write（打开与结算 gate）、
+#                security-events: write（上传 SARIF）
 ```
 
 **Trigger：** 默认 `pull_request` opened / synchronize / reopened。想等 CI

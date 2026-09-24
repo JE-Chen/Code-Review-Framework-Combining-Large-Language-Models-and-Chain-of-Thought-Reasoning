@@ -58,6 +58,7 @@ In the same commit: delete the item from `progress.md`, add a `#done` entry here
 
 | ID | Date | Title | Tags | Batch |
 |---|---|---|---|---|
+| U-20260924-01 | 2026-09-24 | Workflows: no file names in shell, per-job permissions, pinned actions | #ci #security | [2026-09](2026-09.md) |
 | U-20260923-06 | 2026-09-23 | attest-build-provenance v4 merged; peft 0.21 refused | #done #deps | [2026-09](2026-09.md) |
 | U-20260923-05 | 2026-09-23 | prthinker mcp runs on mcp 1.x and 2.x; extra allows <3 | #done #mcp #compat | [2026-09](2026-09.md) |
 | U-20260923-04 | 2026-09-23 | Three Actions bumps merged; transformers <6 refused | #done #deps | [2026-09](2026-09.md) |
@@ -75,4 +76,4 @@ In the same commit: delete the item from `progress.md`, add a `#done` entry here
 
 | File | Period | Entries |
 |---|---|---:|
-| [2026-09.md](2026-09.md) | 2026-09 | 12 |
+| [2026-09.md](2026-09.md) | 2026-09 | 13 |

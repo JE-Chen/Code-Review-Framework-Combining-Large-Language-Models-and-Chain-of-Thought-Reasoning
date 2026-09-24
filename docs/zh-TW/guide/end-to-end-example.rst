@@ -149,11 +149,11 @@ Runner 端不需要 GPU\ ，用 ``runner`` extra 即可\ 。
        if: ${{ github.event.pull_request.draft == false }}
        timeout-minutes: 30
        steps:
-         - uses: actions/checkout@v4
+         - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
            with:
              ref: ${{ github.event.pull_request.head.sha }}
              fetch-depth: 1
-         - uses: actions/setup-python@v5
+         - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
            with:
              python-version: "3.12"
              cache: "pip"
