@@ -80,12 +80,15 @@
   抓 issue、定位相關檔案、提出語法驗證過的 find/replace 編輯、可選
   測試指令把關，然後開分支、push、開 draft fix PR / MR，其 `Fixes #N`
   於合併時自動關閉 issue。
-- **可替換的 backend**：四種任你挑──本機 in-process Hugging Face
+- **可替換的 backend**：多種任你挑──本機 in-process Hugging Face
   causal-LM（Qwen、Llama、Mistral、CodeLlama …，支援 LoRA + 量化）、
   自架 FastAPI 推論伺服器、任何 OpenAI-Chat-Completions 相容端點
   （OpenAI、Azure、vLLM、Ollama `/v1`、LM Studio、Together、Groq、
-  DeepInfra、OpenRouter …）、Anthropic Claude Messages API、或
-  Gemini / Cohere / Mistral；`RouterBackend`（故障轉移）與
+  DeepInfra、OpenRouter …）、Anthropic Claude Messages API、
+  Gemini / Cohere / Mistral、或以子行程驅動本機 agent CLI
+  （`--backend claude-cli` 以 print 模式跑已安裝的 `claude` CLI，
+  `--backend codex-cli` 以 headless 跑 `codex exec`），並可選擇授予審查
+  對工作樹的唯讀工具白名單；`RouterBackend`（故障轉移）與
   `EnsembleBackend`（表決）可組合上述任一後端。
 
 ### 研究級擴充（opt-in）
