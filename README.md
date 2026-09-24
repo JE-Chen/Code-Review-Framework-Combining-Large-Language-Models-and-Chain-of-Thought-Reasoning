@@ -96,9 +96,12 @@ remembers past feedback, and explains its reasoning step by step.
   quantization; the project's own FastAPI inference server; any
   OpenAI-Chat-Completions endpoint (OpenAI, Azure OpenAI, vLLM,
   Ollama `/v1`, LM Studio, Together, Groq, DeepInfra, OpenRouter, …);
-  Anthropic Claude (Messages API); or Gemini / Cohere / Mistral.
-  `RouterBackend` (failover) and `EnsembleBackend` (voting) compose any
-  of these.
+  Anthropic Claude (Messages API); Gemini / Cohere / Mistral; or a local
+  agent CLI driven as a subprocess (`--backend claude-cli` runs the
+  installed `claude` CLI in print mode, `--backend codex-cli` runs
+  `codex exec` headless), optionally granting the reviewer a read-only
+  tool allowlist over the working tree. `RouterBackend` (failover) and
+  `EnsembleBackend` (voting) compose any of these.
 - **Cost + latency telemetry** — SQLite-backed prompt cache (`--cache`)
   with content-hash invalidation, plus per-call telemetry (`--telemetry`)
   that records tokens, latency, cache-hit status and estimated USD cost.

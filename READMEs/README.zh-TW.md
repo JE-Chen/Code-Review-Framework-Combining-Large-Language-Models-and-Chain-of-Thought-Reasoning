@@ -80,13 +80,39 @@
   抓 issue、定位相關檔案、提出語法驗證過的 find/replace 編輯、可選
   測試指令把關，然後開分支、push、開 draft fix PR / MR，其 `Fixes #N`
   於合併時自動關閉 issue。
-- **可替換的 backend**：四種任你挑──本機 in-process Hugging Face
+- **可替換的 backend**：多種任你挑──本機 in-process Hugging Face
   causal-LM（Qwen、Llama、Mistral、CodeLlama …，支援 LoRA + 量化）、
   自架 FastAPI 推論伺服器、任何 OpenAI-Chat-Completions 相容端點
   （OpenAI、Azure、vLLM、Ollama `/v1`、LM Studio、Together、Groq、
-  DeepInfra、OpenRouter …）、Anthropic Claude Messages API、或
-  Gemini / Cohere / Mistral；`RouterBackend`（故障轉移）與
+  DeepInfra、OpenRouter …）、Anthropic Claude Messages API、
+  Gemini / Cohere / Mistral、或以子行程驅動本機 agent CLI
+  （`--backend claude-cli` 以 print 模式跑已安裝的 `claude` CLI，
+  `--backend codex-cli` 以 headless 跑 `codex exec`），並可選擇授予審查
+  對工作樹的唯讀工具白名單；`RouterBackend`（故障轉移）與
   `EnsembleBackend`（表決）可組合上述任一後端。
+- **成本 + 延遲遙測**──SQLite 支援的 prompt cache（`--cache`）搭配內容
+  雜湊失效，外加逐次呼叫遙測（`--telemetry`）紀錄 token 數、延遲、cache
+  命中狀態與估算的美金成本。`prthinker stats` 依 backend／model 彙整。
+- **`.prthinker.yaml` repo 層級組態**──在單一可供 PR 審查的檔案裡釘住
+  backend、gate 門檻、cache + 遙測、各 repo 規則。密鑰一律來自環境變數，
+  絕不放進 YAML。
+- **密鑰遮蔽**──`--redact-secrets` 在任何付費 backend 呼叫前，把 AWS／
+  GitHub／OpenAI／Anthropic／Stripe／Slack／JWT／PEM 金鑰從 diff 中擦除。
+  冪等、對 cache 友善、絕不記錄內容。
+- **審查導航訊號**──十三個無需模型的檢查呈現於每則 PR 摘要下方（也可
+  透過 `prthinker triage` 獨立執行）：Trojan-Source 雙向／不可見字元、
+  殘留合併衝突標記、重新命名／搬移、刪除、檔案 mode／執行位變更、
+  lockfile／vendored／minified 雜訊、純格式變更、二進位變更、大段貼上、
+  測試覆蓋缺口、新增 TODO/FIXME 標記、殘留 debug 敘述、以及吞掉的
+  `except: pass`。
+- **`prthinker triage`**──對 diff 跑遍每個導航訊號，**不需 backend**
+  （瞬間、GPU-free）：`git diff | prthinker triage`，或 `--staged`／
+  `--against REF`。`--exit-nonzero-on-signal` 讓它成為便宜的合併前 gate；
+  可在 CI 排定完整審查前先重用。
+- **MCP server**──`prthinker mcp` 把 pipeline 以 Model Context Protocol
+  stdio server 形式對外提供，讓 Claude Desktop、Cursor、Continue、Cline
+  與 Zed 能在 IDE 內執行審查。工具：`review_diff`（完整 CoT 審查）、
+  `triage_diff`（無模型訊號）與 `stats`。
 
 ### 研究級擴充（opt-in）
 
@@ -98,13 +124,37 @@
 （`--otel-endpoint`）。外部驗證工具在缺席時回報 `unsupported`，絕不
 偽造成功的檢查。
 
-`prthinker retrieval-eval` 對每筆紀錄平均 recall／precision／
+```shell
+prthinker verify --workdir . --base-ref origin/main --head-ref HEAD --command pytest -q
+prthinker verify --workdir . --tiers static,dynamic,bounded --output evidence.json
+prthinker retrieval-eval retrieval-records.jsonl --output retrieval-score.json
+```
+
+`retrieval-eval` 對每筆紀錄平均 recall／precision／
 utilization／citation-correctness；帶有 `pred_spans` / `gold_spans`
 的紀錄另有三個可選的寬容定位指標──`line_hit_at_k`（k=10：前 10 條
 預測行任一命中 gold 行集合即為 1.0）、`window_recall`（gold 行中，
 同檔 ±3 行（含）內存在預測行的比例）、`block_f1`（以 Python AST 的
 function／class 區間為粒度的 F1，其餘退回 20 行 bucket）。gold 行
 集合為空的 case 不列入該指標的平均；舊格式紀錄的輸出不變。
+
+### 證據、沙箱與證明
+
+驗證預設拒絕本機執行。對不受信任的 pull request，請使用釘選版本、
+專門打造的容器映像：
+
+```shell
+prthinker verify --workdir . --tiers static,dynamic \
+  --sandbox docker --sandbox-image registry.example/reviewer@sha256:DIGEST
+prthinker verify --workdir . --tiers dynamic \
+  --sandbox none --allow-unsandboxed  # trusted repositories only
+prthinker attest --repository https://example/repo --revision HEAD_SHA \
+  --base-revision BASE_SHA --review-file review.json --output-dir attestations/
+```
+
+Docker executor 會停用網路、卸除 capabilities、啟用 ``no-new-privileges``、
+使用唯讀 root，並限制 CPU、記憶體、PID、時間與暫存空間。``--sign-image``
+可選用 cosign；cosign 缺席時結果為 ``unsupported``，絕不偽造簽章。
 
 十七個多數 LLM code review 系統未實作的機制。大多需搭配 `--inline-review`；
 依本專案不謊造原則，我們只交付框架，量化 benchmark 數字屬未來工作。
@@ -159,13 +209,6 @@ run manifest 與離線公開資料集轉接器的評估 harness（CodeFuse-CR-Be
 SWE-PRBench──見 [`benchmarks/`](../benchmarks/)）、成本估算與預算，
 以及聚焦審查模式（security / performance /
 test-coverage / IaC / DB-migration / accessibility / secret-scan / PII）。
-
-**審查導航訊號（無需模型）**：十三個純函式檢查呈現於每則 PR 摘要下方，
-亦可透過 `prthinker triage`（無 backend、瞬間、GPU-free）或 MCP `triage_diff`
-工具獨立執行──Trojan-Source 雙向／不可見字元、殘留合併衝突標記、重新命名／
-搬移、刪除、mode／執行位變更、lockfile／vendored／minified 雜訊、純格式變更、
-二進位變更、大段貼上、覆蓋缺口、新增 TODO/FIXME 標記、殘留 debug 敘述、
-吞錯 `except: pass`。
 
 設計細節見 [`docs/zh-TW/concepts/research-extensions.rst`](../docs/zh-TW/concepts/research-extensions.rst)。
 
