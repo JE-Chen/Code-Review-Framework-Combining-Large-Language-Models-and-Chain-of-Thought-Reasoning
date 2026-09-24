@@ -90,6 +90,29 @@
   `--backend codex-cli` 以 headless 运行 `codex exec`），并可选择授予审查
   对工作树的只读工具白名单；`RouterBackend`（故障转移）与
   `EnsembleBackend`（表决）可组合上述任一后端。
+- **成本 + 延迟遥测**──SQLite 支持的 prompt cache（`--cache`）搭配内容
+  哈希失效，外加逐次调用遥测（`--telemetry`）记录 token 数、延迟、cache
+  命中状态与估算的美元成本。`prthinker stats` 按 backend／model 聚合。
+- **`.prthinker.yaml` repo 级配置**──在单一可供 PR 审查的文件里钉住
+  backend、gate 阈值、cache + 遥测、各 repo 规则。密钥一律来自环境变量，
+  绝不放进 YAML。
+- **密钥脱敏**──`--redact-secrets` 在任何付费 backend 调用前，把 AWS／
+  GitHub／OpenAI／Anthropic／Stripe／Slack／JWT／PEM 密钥从 diff 中擦除。
+  幂等、对 cache 友好、绝不记录内容。
+- **审查导航信号**──十三个无需模型的检查呈现于每条 PR 摘要下方（也可
+  通过 `prthinker triage` 独立执行）：Trojan-Source 双向／不可见字符、
+  残留合并冲突标记、重命名／移动、删除、文件 mode／执行位变更、
+  lockfile／vendored／minified 噪声、纯格式变更、二进制变更、大段粘贴、
+  测试覆盖缺口、新增 TODO/FIXME 标记、残留 debug 语句、以及吞掉的
+  `except: pass`。
+- **`prthinker triage`**──对 diff 跑遍每个导航信号，**不启动 backend**
+  （瞬间、GPU-free）：`git diff | prthinker triage`，或 `--staged`／
+  `--against REF`。`--exit-nonzero-on-signal` 让它成为便宜的合并前 gate；
+  可在 CI 排定完整审查前先重用。
+- **MCP server**──`prthinker mcp` 把 pipeline 以 Model Context Protocol
+  stdio server 形式对外提供，让 Claude Desktop、Cursor、Continue、Cline
+  与 Zed 能在 IDE 内执行审查。工具：`review_diff`（完整 CoT 审查）、
+  `triage_diff`（无模型信号）与 `stats`。
 
 ### 研究级扩展（opt-in）
 
@@ -101,13 +124,37 @@
 （`--otel-endpoint`）。外部验证工具在缺席时报告 `unsupported`，绝不
 伪造成功的检查。
 
-`prthinker retrieval-eval` 对每笔记录平均 recall／precision／
+```shell
+prthinker verify --workdir . --base-ref origin/main --head-ref HEAD --command pytest -q
+prthinker verify --workdir . --tiers static,dynamic,bounded --output evidence.json
+prthinker retrieval-eval retrieval-records.jsonl --output retrieval-score.json
+```
+
+`retrieval-eval` 对每笔记录平均 recall／precision／
 utilization／citation-correctness；带有 `pred_spans` / `gold_spans`
 的记录另有三个可选的宽容定位指标──`line_hit_at_k`（k=10：前 10 条
 预测行任一命中 gold 行集合即为 1.0）、`window_recall`（gold 行中，
 同文件 ±3 行（含）内存在预测行的比例）、`block_f1`（以 Python AST 的
 function／class 区间为粒度的 F1，其余退回 20 行 bucket）。gold 行
 集合为空的 case 不列入该指标的平均；旧格式记录的输出不变。
+
+### 证据、沙箱与证明
+
+验证默认拒绝本地执行。对不受信任的 pull request，请使用钉选版本、
+专门打造的容器镜像：
+
+```shell
+prthinker verify --workdir . --tiers static,dynamic \
+  --sandbox docker --sandbox-image registry.example/reviewer@sha256:DIGEST
+prthinker verify --workdir . --tiers dynamic \
+  --sandbox none --allow-unsandboxed  # trusted repositories only
+prthinker attest --repository https://example/repo --revision HEAD_SHA \
+  --base-revision BASE_SHA --review-file review.json --output-dir attestations/
+```
+
+Docker executor 会停用网络、卸除 capabilities、启用 ``no-new-privileges``、
+使用只读 root，并限制 CPU、内存、PID、时间与临时存储。``--sign-image``
+可选用 cosign；cosign 缺席时结果为 ``unsupported``，绝不伪造签名。
 
 十七个多数 LLM code review 系统未实作的机制。大多需搭配 `--inline-review`；
 依本项目不臆造原则，我们只交付框架，量化 benchmark 数字属于未来工作。
@@ -162,13 +209,6 @@ run manifest 与离线公开数据集 adapter 的评估 harness
 （CodeFuse-CR-Bench / SWE-PRBench──见 [`benchmarks/`](../benchmarks/)）、
 成本估算与预算，以及聚焦审查模式（security / performance /
 test-coverage / IaC / DB-migration / accessibility / secret-scan / PII）。
-
-**审查导航信号（无需模型）**：十三个纯函数检查呈现于每条 PR 摘要下方，
-亦可通过 `prthinker triage`（无 backend、瞬间、GPU-free）或 MCP `triage_diff`
-工具独立执行──Trojan-Source 双向／不可见字符、残留合并冲突标记、重命名／
-移动、删除、mode／执行位变更、lockfile／vendored／minified 噪声、纯格式变更、
-二进制变更、大段粘贴、覆盖缺口、新增 TODO/FIXME 标记、残留 debug 语句、
-吞错 `except: pass`。
 
 设计细节见 [`docs/zh-CN/concepts/research-extensions.rst`](../docs/zh-CN/concepts/research-extensions.rst)。
 
