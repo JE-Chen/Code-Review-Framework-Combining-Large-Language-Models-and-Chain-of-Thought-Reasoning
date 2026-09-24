@@ -493,6 +493,17 @@ CJK punctuation adjacent to RST inline markup needs a backslash-space (`\` follo
 space) zero-width separator — for example, write `（前文）\ ``code`` 之 ...` rather than
 `（前文）``code`` 之 ...`. The latter parses as inline-markup-without-end-string.
 
+### README Stays Current — All Three Languages
+
+`README.md` (English, the source), `READMEs/README.zh-TW.md`, and
+`READMEs/README.zh-CN.md` MUST stay current with the code — as must the paired
+`READMEs/setup*.md` / `READMEs/features*.md` translations. Any user-facing
+change (a backend or pipeline, a CLI command or flag, install / setup, an env
+var or configuration, a requirement) updates `README.md` **and both README
+translations in the same commit**, structure and content aligned. Never update
+one language and leave the others stale. No test guards the README trio, so the
+check is manual — read the diff against all three before committing.
+
 ### Paper Work Follows `paper/paper_inserts.md` + `paper/REWRITE_BRIEF.md`
 
 `paper/paper_inserts.md` carries hard rules: **no fabrication, no hallucination**. Never
