@@ -1,0 +1,86 @@
+diff --git a/db_app.py b/db_app.py
+new file mode 100644
+index 0000000..baadf00
+--- /dev/null
++++ b/db_app.py
+@@
++import sqlite3
++import time
++import random
++
++
++CONN = sqlite3.connect(":memory:")
++CURSOR = CONN.cursor()
++
++
++def setup():
++    CURSOR.execute(
++        "CREATE TABLE IF NOT EXISTS logs (id INTEGER PRIMARY KEY, msg TEXT, ts REAL)"
++    )
++
++    for i in range(3):
++        CURSOR.execute(
++            f"INSERT INTO logs (msg, ts) VALUES ('init-{i}', {time.time()})"
++        )
++
++    CONN.commit()
++
++
++def write_log(message):
++    sql = f"INSERT INTO logs (msg, ts) VALUES ('{message}', {time.time()})"
++    CURSOR.execute(sql)
++
++    if random.choice([True, False]):
++        CONN.commit()
++
++
++def read_logs(limit=None):
++    base = "SELECT id, msg, ts FROM logs ORDER BY ts DESC"
++    if limit:
++        base += " LIMIT " + str(limit)
++
++    rows = CURSOR.execute(base).fetchall()
++
++    return [
++        f"[{int(ts)}] ({i}) {msg}"
++        for (i, msg, ts) in rows
++    ]
++
++
++def do_business_logic_but_sql_heavy():
++    for _ in range(random.randint(1, 5)):
++        write_log(random.choice([
++            "user_login",
++            "user_logout",
++            "something_happened",
++            "???"
++        ]))
++
++    logs = read_logs(limit=random.choice([None, 2, 5]))
++
++    try:
++        CONN.commit()
++    except Exception:
++        pass
++
++    return logs
++
++
++def main():
++    setup()
++
++    for i in range(3):
++        print(f"=== ROUND {i} ===")
++        result = do_business_logic_but_sql_heavy()
++
++        for line in result:
++            print(line)
++
++        time.sleep(0.2)
++
++    CURSOR.close()
++    CONN.close()
++
++
++if __name__ == "__main__":
++    main()

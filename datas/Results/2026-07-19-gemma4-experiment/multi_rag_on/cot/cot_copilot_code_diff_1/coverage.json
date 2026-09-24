@@ -1,0 +1,10 @@
+{
+  "covered_ids": [
+    "shared-global-state",
+    "unsynchronized-state",
+    "process-local-state",
+    "debug-mode-enabled",
+    "duplicate-statistics-work"
+  ],
+  "total": 7
+}

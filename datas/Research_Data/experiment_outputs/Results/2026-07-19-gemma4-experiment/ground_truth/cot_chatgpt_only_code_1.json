@@ -1,0 +1,80 @@
+[
+  {
+    "id": "mutable-default-bucket",
+    "desc": "collectValues reuses one mutable default list across calls, causing values and external mutations to leak between invocations.",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "bare-except",
+    "desc": "The bare except catches BaseException subclasses such as KeyboardInterrupt and SystemExit and silently converts them into a zero value.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "unsafe-global-accumulator",
+    "desc": "doStuff mutates global total_result, making results depend on prior calls and causing lost updates under concurrent execution.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "lossy-float-conversion",
+    "desc": "processEverything silently truncates every float to an integer, so fractional input data is discarded.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "nonpolymorphic-type-checks",
+    "desc": "Exact type comparisons reject valid int, float, and str subclasses and unexpectedly treat them as zero.",
+    "category": "correctness",
+    "severity": "low"
+  },
+  {
+    "id": "nonfinite-float-crash",
+    "desc": "Converting NaN or infinite float inputs with int(item) raises an uncaught ValueError or OverflowError.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "hardcoded-constant-precision",
+    "desc": "Hardcoded approximations of pi and e introduce avoidable numerical error despite importing the more accurate math constants.",
+    "category": "correctness",
+    "severity": "low"
+  },
+  {
+    "id": "forced-processing-delay",
+    "desc": "doStuff unconditionally sleeps for 10 milliseconds per item, imposing linear latency unrelated to its computation.",
+    "category": "smell",
+    "severity": "medium"
+  },
+  {
+    "id": "excessive-parameter-branching",
+    "desc": "doStuff takes ten weakly related parameters and uses deeply nested boolean branching, making behavior difficult to understand, test, and safely modify.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "unused-parameters",
+    "desc": "Parameters i and j have no observable effect because their only branch executes pass.",
+    "category": "smell",
+    "severity": "low"
+  },
+  {
+    "id": "dead-computation-chain",
+    "desc": "The temp1 and temp2 operations cancel each other exactly and add unnecessary computation and cognitive overhead.",
+    "category": "smell",
+    "severity": "low"
+  },
+  {
+    "id": "redundant-sum-conversion",
+    "desc": "Converting the numeric total to a string and immediately back to float is redundant and can unnecessarily discard integer precision.",
+    "category": "correctness",
+    "severity": "low"
+  },
+  {
+    "id": "shadowed-sum-builtin",
+    "desc": "Assigning to sum shadows Python's built-in sum function and makes later maintenance more error-prone.",
+    "category": "maintainability",
+    "severity": "low"
+  }
+]

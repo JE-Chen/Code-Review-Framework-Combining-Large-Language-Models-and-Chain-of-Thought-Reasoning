@@ -1,0 +1,44 @@
+[
+  {
+    "id": "shared-global-state",
+    "desc": "DATA and RESULTS are shared across all clients, causing users to overwrite, clear, and observe one another's data.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "unsynchronized-state",
+    "desc": "Concurrent generate, analyze, and clear requests mutate shared globals without synchronization, allowing races and internally inconsistent results.",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "process-local-state",
+    "desc": "In-memory globals are lost on restart and diverge between worker processes, making behavior unreliable in production deployments.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "unsafe-get-mutations",
+    "desc": "The GET endpoints /generate and /clear mutate application state, so crawlers, prefetching, caching, or cross-site requests can trigger destructive actions.",
+    "category": "security",
+    "severity": "medium"
+  },
+  {
+    "id": "debug-mode-enabled",
+    "desc": "Starting Flask with debug=True can expose sensitive diagnostics and an interactive debugger if the server is deployed or made externally reachable.",
+    "category": "security",
+    "severity": "high"
+  },
+  {
+    "id": "non-json-results",
+    "desc": "The analysis endpoint returns Python's dictionary string representation rather than valid JSON, making the response unreliable for API consumers.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "duplicate-statistics-work",
+    "desc": "Mean and median are each calculated twice instead of reusing their computed values, creating unnecessary work and duplicated logic.",
+    "category": "maintainability",
+    "severity": "low"
+  }
+]

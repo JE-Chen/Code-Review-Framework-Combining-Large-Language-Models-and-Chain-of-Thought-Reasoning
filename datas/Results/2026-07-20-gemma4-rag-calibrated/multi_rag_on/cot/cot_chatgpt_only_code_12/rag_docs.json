@@ -1,0 +1,1 @@
+["\nAvoid time-dependent or environment-dependent logic without proper abstraction.\nDirect calls to system time, random number generators, or environment variables\nshould be isolated to make tests deterministic.\n"]

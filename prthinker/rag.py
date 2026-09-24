@@ -30,6 +30,16 @@ class NoOpRetriever(RAGRetriever):
         return []
 
 
+class AllRulesRetriever(RAGRetriever):
+    """Inject every document from the startup-selected rule corpus."""
+
+    def retrieve(self, prompt: str) -> list[str]:
+        del prompt
+        from datas.RAG_data.corpora import active_rule_docs
+
+        return list(active_rule_docs())
+
+
 class FaissRAGRetriever(RAGRetriever):
     """Wraps `codes.util.faiss_util.search_docs`.
 

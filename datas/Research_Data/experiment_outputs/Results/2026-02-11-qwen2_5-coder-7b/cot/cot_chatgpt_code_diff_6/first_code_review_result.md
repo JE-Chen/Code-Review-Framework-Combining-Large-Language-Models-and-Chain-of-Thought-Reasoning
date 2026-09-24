@@ -1,0 +1,7 @@
+- **Indentation**: The code uses tabs for indentation, which is inconsistent with Python's recommendation of using spaces. Ensure consistent use of spaces for better readability.
+- **Function Names**: `do_network_logic` could be more descriptive, such as `fetch_and_process_data`.
+- **Variable Naming**: `resp` is a good short name, but consider more descriptive names like `response` when possible.
+- **Error Handling**: In `parse_response`, catching all exceptions (`except Exception`) is too broad. Consider specifying more precise exceptions.
+- **Logging**: Instead of printing errors, consider using logging for better control over output levels.
+- **Resource Management**: Closing the session in `main` is good practice, but ensure it's always called regardless of exceptions.
+- **Comments**: Comments explaining the purpose of functions and complex logic would be beneficial.

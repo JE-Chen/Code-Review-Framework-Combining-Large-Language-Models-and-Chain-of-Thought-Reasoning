@@ -1,0 +1,144 @@
+{
+  "snapshot_date": "2026-07-27",
+  "snapshot_time": "2026-07-27T01:10:00+08:00",
+  "paper_version": "paper/論文_v3.33.docx",
+  "paper_version_note": "v3.33 adds section 5.4 (ablation analysis, tables 11 and 12) and limitations 6.3 (9) and (10); v3.32 is kept unmodified as the read-only source",
+  "experiment_status": "complete",
+  "scoring_protocol": {
+    "judge": "gpt-5.6-sol",
+    "effort": "medium",
+    "sessions": 2,
+    "session_a": "2026-07-26T22:41+08:00 to 23:39, 352 cases, our_score_gpt56sol_session0726.md",
+    "session_b": "2026-07-26T23:56+08:00 to 2026-07-27T00:47, 352 cases, our_score_gpt56sol_session0726b.md",
+    "canonical_scores": "mean of the two sessions",
+    "rule_1": "both arms of a paired comparison must be scored in the same session",
+    "rule_2": "an effect smaller than the between-session movement is not discussable",
+    "between_session_movement": "paired mean difference moves up to ~3 points (all-rules injection, correctness and coverage)",
+    "judge_drift_evidence": "the 2026-07-20 rag_off reviews, re-judged unchanged on 2026-07-26, rose on all five dimensions: coverage 75.27 -> 84.50 (+9.23), comprehensiveness +4.66, correctness +2.84, constructiveness +2.68, readability +1.02; a same-day 12-hour re-judge moved every dimension mean by at most 0.52",
+    "supersedes": "the earlier 'generation batch / deployment confound' diagnosis, which named the wrong mechanism"
+  },
+  "headline_result": {
+    "tests": 25,
+    "not_significant": 24,
+    "marginal": "all-rules direct injection / readability: paired diff -0.66, within-table Holm p=0.012, study-wide Holm across all 25 tests p=0.060 (not significant); direction consistent across both sessions (-0.84, -0.48)",
+    "summary": "no supply path for rules (retrieval, irrelevant injection, full direct injection, retrieval with or without LoRA) and no fine-tuning contrast produced a measurable quality change on this 44-case synthetic Python benchmark; all paired mean differences are <= 1.42 in absolute value"
+  },
+  "conditions": {
+    "multi_relevant_retrieval": {
+      "completed": 44,
+      "total": 44,
+      "status": "complete"
+    },
+    "multi_retrieval_disabled": {
+      "completed": 44,
+      "total": 44,
+      "status": "complete"
+    },
+    "single_prompt": {
+      "completed": 44,
+      "total": 44,
+      "status": "complete"
+    },
+    "rag_on_off_independent_quality_judging": {
+      "completed": 88,
+      "total": 88,
+      "paired_cases": 44,
+      "status": "complete",
+      "judge": "gpt-5.6-sol",
+      "summary": "experiment_outputs/Results/2026-07-20-gemma4-rag-calibrated/rag_on_off_quality_summary.json"
+    },
+    "irrelevant_retrieval_zero_hit_diagnostic": {
+      "attempted": 26,
+      "successful": 20,
+      "timeouts": 6,
+      "successful_cases_with_retrieved_rules": 0,
+      "status": "stopped_diagnostic_only"
+    },
+    "irrelevant_fixed_three_direct_injection": {
+      "completed": 44,
+      "total": 44,
+      "scored": 44,
+      "rules_per_case": 3,
+      "status": "complete",
+      "judge": "gpt-5.6-sol",
+      "comparison": "same_deployment_ragoff_baseline",
+      "same_deployment_ragoff_baseline": {
+        "completed": 44,
+        "total": 44,
+        "scored": 44,
+        "note": "rag_off, no injection, identical pr-thinker-2 deployment (sha 467b7a9c); isolates the injection; 4 cases regenerated after transient Cloudflare 525"
+      },
+      "result": "two-session mean: no significant effect on any of the five quality dimensions (Holm-adjusted p=1.000 for all; absolute paired mean difference <= 0.98, four of five between-session intervals straddle zero)",
+      "summary": "EXPERIMENT_RESULTS_TABLES.md section 7 (canonical); single-session summaries retained under experiment_outputs/Results/2026-07-23-gemma4-ragoff-samedeploy/ for traceability",
+      "snapshot_time": "2026-07-27T01:10:00+08:00"
+    },
+    "all_rules_direct_injection": {
+      "completed": 44,
+      "total": 44,
+      "scored": 44,
+      "rules_per_case": 19,
+      "corpus": "relevant",
+      "status": "complete",
+      "judge": "gpt-5.6-sol",
+      "comparison": "same_deployment_ragoff_baseline",
+      "result": "two-session mean: readability -0.66 is the only test in the study to clear within-table Holm correction (p=0.012) and its direction is consistent across both sessions (-0.84, -0.48), but study-wide Holm across all 25 tests gives 0.060, so it is a marginal observation and not a finding; the other four dimensions are not significant and their between-session intervals straddle or approach zero",
+      "output_length": "injection lengthens reviews by 9% (2870 vs 2623 bytes, longer in 31/44); length is not controlled for",
+      "summary": "EXPERIMENT_RESULTS_TABLES.md section 8 (canonical); single-session summaries retained under experiment_outputs/Results/2026-07-24-gemma4-allrules-direct/ for traceability",
+      "snapshot_time": "2026-07-27T01:10:00+08:00"
+    },
+    "gemma_base_without_lora": {
+      "conditions": ["multi_rag_on", "multi_rag_off"],
+      "total_per_condition": 44,
+      "completed_per_condition": 44,
+      "scored": 88,
+      "paired_cases": 44,
+      "status": "complete",
+      "judge": "gpt-5.6-sol",
+      "comparison": "within_run_paired_rag_on_vs_rag_off",
+      "deployment": "pr-thinker-2 redeployed with PRTHINKER_DISABLE_LORA=1 (docker-compose.ablation-base.yml); /healthz lora_enabled=false verified; rag_corpus=relevant (sha 80489dfc); both conditions generated back-to-back in the same deployment",
+      "purpose": "test whether the base (non-fine-tuned) model benefits from RAG; base rag_on > rag_off would have confirmed LoRA internalized the rules",
+      "retrieval_hit_rate": "25/44 cases retrieved at least one document (mean 3.02, median 1, max 12)",
+      "result": "two-session mean: no significant effect on any of the five quality dimensions (Holm-adjusted p 0.947-1.000; absolute paired mean difference <= 1.12)",
+      "interpretation": "the internalization hypothesis is NOT supported: the base model without LoRA gains nothing from retrieval either, so the parsimonious reading is that retrieval provides no measurable quality benefit under this corpus, threshold and prompt assembly, independent of fine-tuning",
+      "confound_note": "cross-deployment comparison against the 2026-07-23 LoRA baseline is NOT valid (different LoRA state, different rag_corpus sha, two days apart); this group supports only the within-run rag_on vs rag_off contrast. The 2026-07-26 lora-matched group is the deployment-matched contrast",
+      "summary": "EXPERIMENT_RESULTS_TABLES.md section 6 (canonical)",
+      "snapshot_time": "2026-07-27T01:10:00+08:00"
+    },
+    "gemma_lora_matched": {
+      "conditions": ["multi_rag_off"],
+      "total_per_condition": 44,
+      "completed_per_condition": 44,
+      "scored": 44,
+      "paired_cases": 44,
+      "status": "complete",
+      "judge": "gpt-5.6-sol",
+      "comparison": "paired against gemma_base_without_lora multi_rag_off, both arms scored in the same session",
+      "deployment": "pr-thinker-2 brought back up without the ablation-base overlay; /healthz lora_enabled=true, rag_mode=retrieval, rag_corpus=relevant, sha 80489dfc - identical to the base group on every reported field, LoRA flag being the only difference",
+      "purpose": "isolate the effect of fine-tuning with retrieval held off",
+      "result": "two-session mean: no significant effect on any of the five quality dimensions (Holm-adjusted p 0.788-1.000; absolute paired mean difference <= 1.05)",
+      "output_length": "LoRA reviews are 16% shorter (2501 vs 2988 bytes, shorter in 41/44); coverage and comprehensiveness favour longer output, so 'more concise' and 'lower coverage' cannot be separated here",
+      "design_note": "adjacent deployments one day apart, not a within-deployment randomised contrast; LoRA on and off cannot coexist in one container. Report as 'adjacent deployments with identical configuration apart from the LoRA flag'",
+      "not_run": "the multi_rag_on arm of this deployment, so the LoRA x RAG interaction is not measured",
+      "summary": "EXPERIMENT_RESULTS_TABLES.md section 9 (canonical)",
+      "snapshot_time": "2026-07-27T01:10:00+08:00"
+    }
+  },
+  "reference_issue_set": {
+    "cases": 44,
+    "issues": 333,
+    "generator": "gpt-5.6-sol",
+    "human_gold_standard": false
+  },
+  "fine_tuning_dataset": {
+    "records": 695,
+    "train": 695,
+    "validation": 0,
+    "test": 0
+  }
+}
+
+
+
+
+
+

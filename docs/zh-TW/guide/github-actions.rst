@@ -138,17 +138,30 @@ workflow 以 PR 為單位分組 concurrency 並取消進行中：
 必要權限
 --------
 
-Workflow 宣告：
+Workflow 預設只給唯讀權限，需要寫入的 job 各自只提高它用到的：
 
 .. code-block:: yaml
 
-   permissions:
-     contents: read         # checkout
-     pull-requests: write   # upsert 總結留言、提交 inline review
-     checks: write          # 開啟與結算合併前的 Check Run gate
-     actions: read          # 抓 CI 失敗 job 的 log
+   permissions:              # workflow 預設，review 分片用這組
+     contents: read          # checkout
+     pull-requests: read     # 讀 PR 的檔案與 diff
+     checks: read            # 讀 CI 訊號
+     actions: read           # 抓 CI 失敗 job 的 log
 
-若你 fork 這份 workflow，請保留同樣的權限，不然功能會被默默跳過。
+   jobs:
+     enumerate:
+       permissions:
+         contents: read
+         pull-requests: write   # 審查中佔位留言、PR 摘要
+     aggregate:
+       permissions:
+         contents: read
+         pull-requests: write   # upsert 總結留言、提交 inline review
+         checks: write          # 開啟與結算合併前的 Check Run gate
+         actions: read          # 抓 CI 失敗 job 的 log
+         security-events: write # 把 SARIF 報告上傳到 code scanning
+
+若你 fork 這份 workflow，請保留同樣的權限，不然功能會被默默跳過。每個 action 都鎖在 commit SHA，並在註解寫版本；checkout 設 ``persist-credentials: false``，job 的 token 不會留在 ``.git/config``。
 
 可調整的環境變數
 ----------------
@@ -253,7 +266,7 @@ Workflow 範例：
          PRTHINKER_USE_REMOTE_PIPELINE: "false"
          PRTHINKER_REMOTE_RAG: "false"
        steps:
-         - uses: actions/checkout@v4
+         - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
          - run: pip install -e ".[local]"
          - run: python -m prthinker review-pr
 

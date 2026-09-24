@@ -1,0 +1,62 @@
+[
+  {
+    "id": "shared-class-user-state",
+    "desc": "The mutable users dictionary is a class attribute, so all UserService instances unexpectedly share and modify the same user state.",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "mutable-default-data",
+    "desc": "process uses a mutable default list, causing results to accumulate across calls that omit the data argument.",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "unbound-result",
+    "desc": "main reads result even when CONFIG[\"retry\"] is zero or negative, which raises UnboundLocalError.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "environment-captured-at-import",
+    "desc": "The APP_ENV default is evaluated when the function is defined, so later environment changes are ignored by new UserService instances.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "exceptions-silently-swallowed",
+    "desc": "_load_from_file catches every exception and silently returns potentially partial data, hiding I/O and parsing failures.",
+    "category": "maintainability",
+    "severity": "high"
+  },
+  {
+    "id": "file-not-reliably-closed",
+    "desc": "The opened file is not closed if an exception occurs before f.close(), potentially leaking file descriptors.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "duplicate-random-users",
+    "desc": "Randomly generated names can collide, so the returned list may contain duplicates while the users dictionary contains fewer than ten entries.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "inconsistent-process-return-type",
+    "desc": "process returns either a list or False, forcing callers to handle unrelated return types and making its contract error-prone.",
+    "category": "smell",
+    "severity": "low"
+  },
+  {
+    "id": "retry-setting-does-not-retry",
+    "desc": "CONFIG[\"retry\"] only gates a single process call and never performs retries, making the configuration behavior misleading and incorrect for its stated purpose.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "unused-timeout-setting",
+    "desc": "CONFIG[\"timeout\"] is never used, so configuring it has no effect.",
+    "category": "maintainability",
+    "severity": "low"
+  }
+]

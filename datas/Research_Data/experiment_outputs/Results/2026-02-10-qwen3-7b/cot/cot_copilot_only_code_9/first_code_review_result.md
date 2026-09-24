@@ -1,0 +1,5 @@
+- **Function Naming**: Improve clarity of `get_users`, `get_posts`, and `get_comments` by adding `fetch_` prefix for consistency.
+- **Global Results Handling**: Use `logging` module for better separation of logs instead of `print()` statements.
+- **Error Handling**: Add specific exceptions (e.g., `requests.exceptions.RequestException`) for more granular error reporting.
+- **Modularization**: Extract `process_data` into a class with `process()` method for better encapsulation.
+- **Documentation**: Add docstrings to functions and comments explaining expected inputs/output.

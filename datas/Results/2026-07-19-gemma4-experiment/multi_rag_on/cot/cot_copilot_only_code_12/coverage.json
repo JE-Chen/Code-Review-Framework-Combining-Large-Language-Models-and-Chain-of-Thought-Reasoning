@@ -1,0 +1,8 @@
+{
+  "covered_ids": [
+    "misleading-derived-statistics",
+    "shared-mutable-global-state",
+    "unused-duplicate-storage"
+  ],
+  "total": 7
+}

@@ -1,0 +1,56 @@
+[
+  {
+    "id": "public-debug-server",
+    "desc": "The app binds Flask's debug server to all interfaces, potentially exposing the interactive debugger and enabling remote code execution.",
+    "category": "security",
+    "severity": "critical"
+  },
+  {
+    "id": "unsynchronized-global-state",
+    "desc": "Concurrent requests mutate and read the shared STATE dictionary without synchronization, causing lost visit increments and inconsistent responses.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "process-local-state",
+    "desc": "STATE is process-local and resets on restart, so visit counts, uptime, mood, and health results diverge across production workers and deployments.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "random-health-status",
+    "desc": "The health endpoint returns 503 based on a random mood set by unrelated traffic rather than the application's actual readiness or liveness.",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "get-mutates-state",
+    "desc": "GET requests to the root endpoint mutate visit and mood state, violating GET safety and allowing crawlers, caches, or prefetchers to change application behavior.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "invalid-input-success",
+    "desc": "Invalid integer input returns the misleading string \"NaN-but-not-really\" with HTTP 200 instead of a client-error response.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "broad-exception-mask",
+    "desc": "Catching Exception around conversion and computation hides unexpected programming/runtime failures and misreports them as invalid numeric input.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "empty-input-changes-response-shape",
+    "desc": "The truthiness check treats an explicitly supplied empty data value as absent, returning the state object instead of reporting invalid input consistently.",
+    "category": "bug",
+    "severity": "low"
+  },
+  {
+    "id": "traffic-dependent-delay",
+    "desc": "The root endpoint deliberately blocks request workers according to mutable global traffic state, reducing throughput and producing unpredictable latency.",
+    "category": "smell",
+    "severity": "medium"
+  }
+]

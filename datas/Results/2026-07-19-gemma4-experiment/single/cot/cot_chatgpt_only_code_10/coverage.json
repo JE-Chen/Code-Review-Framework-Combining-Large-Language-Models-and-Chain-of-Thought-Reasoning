@@ -1,0 +1,10 @@
+{
+  "covered_ids": [
+    "mutable-default-headers",
+    "unchecked-http-errors",
+    "download-buffered-entirely",
+    "weak-md5-checksum",
+    "hash-builtin-shadowed"
+  ],
+  "total": 17
+}

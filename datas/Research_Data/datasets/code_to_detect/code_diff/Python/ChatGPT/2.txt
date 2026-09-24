@@ -1,0 +1,90 @@
+diff --git a/game.py b/game.py
+new file mode 100644
+index 0000000..deadbee
+--- /dev/null
++++ b/game.py
+@@
++import pygame
++import random
++import time
++import math
++
++pygame.init()
++
++SCREEN_W, SCREEN_H = 640, 480
++screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
++pygame.display.set_caption("Totally Fine Game")
++
++clock = pygame.time.Clock()
++
++STATE = {
++    "running": True,
++    "score": 0,
++    "player": [SCREEN_W // 2, SCREEN_H // 2],
++    "velocity": 3,
++    "color": [255, 255, 255],
++    "last_time": time.time()
++}
++
++
++def do_everything(event=None):
++    if event and event.type == pygame.KEYDOWN:
++        STATE["velocity"] += random.choice([-1, 0, 1])
++
++    now = time.time()
++    delta = now - STATE["last_time"]
++    STATE["last_time"] = now
++
++    if delta > 0:
++        STATE["score"] += int(delta * 10) % 7
++
++    for i in range(3):
++        STATE["color"][i] = (STATE["color"][i] + random.randint(-5, 5)) % 256
++
++
++def move_player(keys):
++    if keys[pygame.K_LEFT]:
++        STATE["player"][0] -= STATE["velocity"]
++    if keys[pygame.K_RIGHT]:
++        STATE["player"][0] += int(math.sqrt(STATE["velocity"] ** 2))
++    if keys[pygame.K_UP]:
++        STATE["player"][1] -= abs(STATE["velocity"])
++    if keys[pygame.K_DOWN]:
++        STATE["player"][1] += STATE["velocity"] or 1
++
++    STATE["player"][0] %= SCREEN_W
++    STATE["player"][1] %= SCREEN_H
++
++
++def draw_stuff():
++    screen.fill((0, 0, STATE["score"] % 255))
++
++    pygame.draw.circle(
++        screen,
++        STATE["color"],
++        STATE["player"],
++        10 + STATE["score"] % 15
++    )
++
++    font = pygame.font.SysFont(None, 24)
++    text = font.render(f"Score-ish: {STATE['score']}", True, (255, 255, 255))
++    screen.blit(text, (10, 10))
++
++
++while STATE["running"]:
++    for event in pygame.event.get():
++        if event.type == pygame.QUIT:
++            STATE["running"] = False
++        do_everything(event)
++
++    keys = pygame.key.get_pressed()
++    move_player(keys)
++
++    draw_stuff()
++
++    pygame.display.flip()
++
++    clock.tick(57)
++
++
++pygame.quit()

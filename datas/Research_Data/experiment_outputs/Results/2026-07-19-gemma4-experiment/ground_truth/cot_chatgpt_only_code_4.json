@@ -1,0 +1,68 @@
+[
+  {
+    "id": "invalid-json-output",
+    "desc": "JsonLikeExporter produces invalid JSON by using single quotes and failing to escape quotes, backslashes, newlines, and other special characters in report content.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "exporter-finish-never-called",
+    "desc": "ReportService never calls exporter.finish(), so the declared export lifecycle is incomplete and subclass finalization logic never runs.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "uppercase-title-unintentionally",
+    "desc": "Enabling uppercase selects UpperTextExporter, which uppercases the entire formatted report including its title, while ReportFormatter only treats uppercase as a row-formatting option.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "duplicated-uppercase-responsibility",
+    "desc": "Uppercasing is performed independently by both ReportFormatter and UpperTextExporter, creating redundant work and inconsistent semantics between formatting and exporting.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "silent-format-fallback",
+    "desc": "Unknown export_format values silently fall back to TextExporter, masking configuration errors and potentially producing output in the wrong format.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "global-mutable-config",
+    "desc": "Formatting and exporter selection depend on shared mutable CONFIG state, making behavior order-dependent, difficult to test, and unsafe for concurrent executions.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "quadratic-string-building",
+    "desc": "ReportFormatter and ReportService repeatedly concatenate immutable strings in loops, causing quadratic copying and poor performance for large reports.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "unused-retry-setting",
+    "desc": "CONFIG exposes a retry setting that is never honored, so export failures receive no configured retry behavior.",
+    "category": "correctness",
+    "severity": "low"
+  },
+  {
+    "id": "unused-duration-measurement",
+    "desc": "ExportManager calculates duration but never returns, records, logs, or otherwise uses it, leaving misleading instrumentation.",
+    "category": "smell",
+    "severity": "low"
+  },
+  {
+    "id": "empty-export-hook",
+    "desc": "ReportService.after_export is an empty extension hook that adds indirection and fails to perform the apparent exporter finalization responsibility.",
+    "category": "smell",
+    "severity": "low"
+  },
+  {
+    "id": "refused-finish-contract",
+    "desc": "BaseExporter requires a finish lifecycle method even though JsonLikeExporter does not need or implement meaningful finalization, forcing subclasses to inherit an irrelevant no-op contract.",
+    "category": "maintainability",
+    "severity": "low"
+  }
+]

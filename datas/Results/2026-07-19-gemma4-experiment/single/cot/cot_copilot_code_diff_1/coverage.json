@@ -1,0 +1,9 @@
+{
+  "covered_ids": [
+    "shared-global-state",
+    "unsynchronized-state",
+    "non-json-results",
+    "duplicate-statistics-work"
+  ],
+  "total": 7
+}

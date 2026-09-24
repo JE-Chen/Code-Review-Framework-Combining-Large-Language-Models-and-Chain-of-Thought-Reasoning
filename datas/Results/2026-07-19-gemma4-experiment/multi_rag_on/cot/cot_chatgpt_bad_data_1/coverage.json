@@ -1,0 +1,13 @@
+{
+  "covered_ids": [
+    "global-results-accumulate",
+    "unsafe-eval",
+    "broad-exception-swallowing",
+    "unbounded-global-storage",
+    "mutable-default-argument",
+    "global-state-not-thread-safe",
+    "hardcoded-processing-delay",
+    "discarded-list-literal"
+  ],
+  "total": 11
+}

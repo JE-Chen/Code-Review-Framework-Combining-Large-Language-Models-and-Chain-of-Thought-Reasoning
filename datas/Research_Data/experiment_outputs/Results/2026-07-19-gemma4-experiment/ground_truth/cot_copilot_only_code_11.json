@@ -1,0 +1,8 @@
+[
+  {
+    "id": "ignored-third-config-flag",
+    "desc": "Mode X logic checks only the first two flags, so it can print \"all flags False\" when the third flag is True.",
+    "category": "correctness",
+    "severity": "medium"
+  }
+]

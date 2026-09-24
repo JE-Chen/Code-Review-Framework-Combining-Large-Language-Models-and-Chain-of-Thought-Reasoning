@@ -1,0 +1,12 @@
+{
+  "condition": "multi_irrelevant_fixed",
+  "method": "direct_extra_rules",
+  "rag_enabled": false,
+  "rag_threshold_recorded_but_not_applied": 0.32,
+  "rules_per_case": 3,
+  "selection": "sha256(case_id) rotating window",
+  "rule_corpus_size": 19,
+  "rule_corpus_sha256": "a7dea4f55502548fa5e9d1a886b6726439b5ab5c8b97698b95eefeedef86520c",
+  "max_new_tokens_per_step": 8192,
+  "step_plan": "full"
+}

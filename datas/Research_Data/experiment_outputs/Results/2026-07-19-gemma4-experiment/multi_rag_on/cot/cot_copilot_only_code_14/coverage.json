@@ -1,0 +1,10 @@
+{
+  "covered_ids": [
+    "false-success-status",
+    "global-shared-state",
+    "quadratic-category-count",
+    "redundant-statistic-computation",
+    "side-effect-list-lambda"
+  ],
+  "total": 7
+}

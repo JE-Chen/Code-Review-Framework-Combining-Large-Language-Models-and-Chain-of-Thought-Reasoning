@@ -12,6 +12,8 @@ version: 2
 updates:
   - package-ecosystem: "pip"
     directory: "/"
+    # Work lands on dev; a PR against main sits unmerged (six of them did).
+    target-branch: "dev"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
@@ -25,9 +27,18 @@ updates:
       # note in pyproject.toml and CLAUDE.md. A major bump is a no-go.
       - dependency-name: "transformers"
         update-types: ["version-update:semver-major"]
+        # The update-types rule above did not stop a PR that only widened the
+        # ceiling (<5 to <6), so the version range is spelled out as well.
+      - dependency-name: "transformers"
+        versions: [">=5"]
+      # peft is pinned exactly (peft==0.19.1) because the GPU server loads its
+      # LoRA adapters with that version; a bump has to be validated against the
+      # adapter on the L40S box, not merged from a PR.
+      - dependency-name: "peft"
 
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
@@ -37,6 +48,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/docker"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 3

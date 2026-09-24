@@ -1,0 +1,74 @@
+[
+  {
+    "id": "empty-input-crashes-summary",
+    "desc": "When x is zero or negative, the DataFrame is empty and max(df[\"mystery\"]) and min(df[\"mystery\"]) raise ValueError.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "invalid-x-not-validated",
+    "desc": "x is not type- or range-validated, so values such as strings, NaN, or infinity can cause exceptions or a nonterminating loop.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "exceptions-silently-suppressed",
+    "desc": "Broad exception handlers silently discard conversion, aggregation, and flagging failures, allowing corrupted or incomplete results without exposing the cause.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "mutable-default-arguments",
+    "desc": "The y and z parameters use shared mutable defaults, creating cross-call state hazards even though the parameters are currently unused.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "unused-public-parameters",
+    "desc": "The y and z parameters are never read, making the function contract misleading and increasing maintenance burden.",
+    "category": "smell",
+    "severity": "low"
+  },
+  {
+    "id": "hidden-global-state",
+    "desc": "Each call mutates GLOBAL_THING and STRANGE_CACHE, making results depend on hidden shared state and making concurrent use unsafe.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "uncontrolled-randomness",
+    "desc": "The function uses two independent unseeded random-number generators, so identical inputs cannot be reproduced reliably.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "blocking-plot-side-effect",
+    "desc": "The computation unconditionally opens and shows a plot, which can block execution or fail in headless environments and prevents noninteractive reuse.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "figure-not-closed",
+    "desc": "Created matplotlib figures are never closed, so repeated calls can accumulate figure resources and memory.",
+    "category": "bug",
+    "severity": "low"
+  },
+  {
+    "id": "artificial-sleep",
+    "desc": "Every invocation adds unconditional sleep delays unrelated to its result, unnecessarily degrading throughput.",
+    "category": "smell",
+    "severity": "low"
+  },
+  {
+    "id": "monolithic-mixed-responsibilities",
+    "desc": "One function combines data generation, transformation, global caching, summarization, delays, and interactive visualization, making it difficult to test and reuse safely.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "quadratic-style-row-access",
+    "desc": "The row loop repeatedly performs df.iloc[i] lookups instead of vectorized operations, causing substantial avoidable overhead for large x.",
+    "category": "maintainability",
+    "severity": "medium"
+  }
+]

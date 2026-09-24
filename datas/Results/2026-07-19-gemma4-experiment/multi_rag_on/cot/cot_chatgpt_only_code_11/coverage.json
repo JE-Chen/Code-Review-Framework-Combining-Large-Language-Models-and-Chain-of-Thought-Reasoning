@@ -1,0 +1,11 @@
+{
+  "covered_ids": [
+    "stale-user-index-after-removal",
+    "inconsistent-friend-storage",
+    "unique-ages-not-sorted",
+    "parallel-friend-arrays",
+    "mutable-global-state",
+    "log-record-aliasing"
+  ],
+  "total": 9
+}

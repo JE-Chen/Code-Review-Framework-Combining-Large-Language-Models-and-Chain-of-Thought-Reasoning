@@ -1,0 +1,9 @@
+{
+  "covered_ids": [
+    "incompatible-error-return",
+    "naive-url-concatenation",
+    "shared-global-state",
+    "overbroad-exception-handling"
+  ],
+  "total": 8
+}

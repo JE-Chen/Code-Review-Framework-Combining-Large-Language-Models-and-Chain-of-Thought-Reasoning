@@ -1,0 +1,7 @@
+{
+  "covered_ids": [
+    "inconsistent-logger-interface",
+    "mutable-dictionary-domain-model"
+  ],
+  "total": 7
+}

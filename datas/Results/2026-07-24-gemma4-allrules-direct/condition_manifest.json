@@ -1,0 +1,12 @@
+{
+  "condition": "multi_all_rules_direct",
+  "method": "direct_extra_rules",
+  "rag_enabled": false,
+  "rag_threshold_recorded_but_not_applied": 0.32,
+  "rules_per_case": 19,
+  "selection": "full relevant corpus (identical every case)",
+  "rule_corpus_size": 19,
+  "rule_corpus_sha256": "c5daa951fa05ce6f7866010bb02104d35bfa7fd445011979cf4869f3d7691dd9",
+  "max_new_tokens_per_step": 8192,
+  "step_plan": "full"
+}

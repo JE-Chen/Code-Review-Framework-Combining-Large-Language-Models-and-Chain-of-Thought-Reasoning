@@ -1,0 +1,11 @@
+{
+  "covered_ids": [
+    "message-sql-injection",
+    "limit-sql-injection",
+    "random-transaction-commit",
+    "commit-errors-suppressed",
+    "global-db-state",
+    "missing-resource-finally"
+  ],
+  "total": 9
+}

@@ -45,6 +45,7 @@ exclude_patterns = [
     "_build",
     "Thumbs.db",
     ".DS_Store",
+    "updates",
 ]
 
 # Use the first heading on a page as the document title.

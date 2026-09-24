@@ -1,0 +1,44 @@
+[
+  {
+    "id": "stale-results-after-generation",
+    "desc": "Generating a new dataset does not invalidate resultCache, so the UI can display analysis results belonging to the previous dataset.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "result-cache-not-reset",
+    "desc": "analyzeData never clears resultCache, causing obsolete entries such as \"error\" or metrics from prior analyses to remain and be displayed alongside current results.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "false-success-status",
+    "desc": "The Analyze button always calls updateStatus and reports analysis completion even when no data exists and analyzeData records an error.",
+    "category": "correctness",
+    "severity": "low"
+  },
+  {
+    "id": "global-shared-state",
+    "desc": "Core data, cached results, and UI widgets are stored in mutable module globals, tightly coupling callbacks and making state consistency, testing, and reuse difficult.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "quadratic-category-count",
+    "desc": "Category counts repeatedly scan the entire category list once per distinct value via cats.count, yielding avoidable O(n*k) work instead of a single-pass count.",
+    "category": "smell",
+    "severity": "low"
+  },
+  {
+    "id": "redundant-statistic-computation",
+    "desc": "The mean and median are each computed twice for the same input, adding unnecessary work and duplicating logic that can drift during maintenance.",
+    "category": "smell",
+    "severity": "low"
+  },
+  {
+    "id": "side-effect-list-lambda",
+    "desc": "The Analyze callback uses a lambda that constructs a throwaway list solely to sequence side effects, obscuring control flow and error handling.",
+    "category": "maintainability",
+    "severity": "low"
+  }
+]

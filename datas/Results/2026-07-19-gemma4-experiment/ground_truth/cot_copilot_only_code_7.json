@@ -1,0 +1,26 @@
+[
+  {
+    "id": "shared-global-state",
+    "desc": "Mutable module globals couple all MainWindow instances, so actions or resets in one window silently alter every other window's counter and mode.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "reset-changes-counter-semantics",
+    "desc": "Reset permanently changes GLOBAL_MODE to \"reset\", causing subsequent large-counter displays to use even/odd messages instead of restoring the initial default behavior.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "unused-unbounded-text-buffer",
+    "desc": "GLOBAL_TEXT retains an unbounded duplicate of every accepted input but is never read, wasting memory throughout long-running sessions.",
+    "category": "maintainability",
+    "severity": "low"
+  },
+  {
+    "id": "empty-input-reported-updated",
+    "desc": "Submitting empty input reports \"Status: Updated\" even though no text or counter state was updated.",
+    "category": "correctness",
+    "severity": "low"
+  }
+]

@@ -1,0 +1,7 @@
+- **Class Naming**: Use more descriptive class names like `API Client` instead of `APIClient`.  
+- **Variable/Function Clarity**: Improve variable names (e.g., `BASE_URL` → `BASE_URL`) and add docstrings for functions.  
+- **Modularity**: Extract helper functions (e.g., `process_results`) for cleaner logic.  
+- **Error Handling**: Add `try-except` blocks in `process_all` to handle missing data gracefully.  
+- **Documentation**: Add docstrings to functions and explain cache usage.  
+- **Test Coverage**: Suggest unit tests for edge cases (e.g., empty data, invalid IDs).  
+- **Performance**: Optimize cache usage and reduce redundant data fetching.

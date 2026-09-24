@@ -1,0 +1,32 @@
+[
+  {
+    "id": "gui-thread-sleep",
+    "desc": "time.sleep() runs in GUI event handlers, blocking painting, input, and timer processing and making the application unresponsive.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "overbroad-exception-handler",
+    "desc": "The bare except around int() catches BaseException subclasses such as KeyboardInterrupt and SystemExit instead of only conversion errors.",
+    "category": "correctness",
+    "severity": "low"
+  },
+  {
+    "id": "stylesheet-properties-lost",
+    "desc": "refresh_status() replaces the entire label stylesheet, permanently discarding the initial 14px font-size setting after the first timer tick.",
+    "category": "bug",
+    "severity": "low"
+  },
+  {
+    "id": "import-time-qapplication",
+    "desc": "QApplication is constructed at module import time, causing GUI initialization and sys.argv consumption even when the module is imported for testing or reuse.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "editable-event-output",
+    "desc": "The event output uses an editable QTextEdit, allowing displayed add/delete history to be altered independently of the actual user state.",
+    "category": "correctness",
+    "severity": "low"
+  }
+]

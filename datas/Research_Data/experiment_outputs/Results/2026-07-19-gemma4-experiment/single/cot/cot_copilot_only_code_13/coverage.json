@@ -1,0 +1,8 @@
+{
+  "covered_ids": [
+    "frame-dependent-movement",
+    "font-created-every-frame",
+    "pervasive-global-state"
+  ],
+  "total": 9
+}

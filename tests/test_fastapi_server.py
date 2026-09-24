@@ -89,7 +89,7 @@ def test_warm_rag_index_constructs_default_retriever(server_module, monkeypatch)
     The helper exists only for its import-time side effect (loading the
     embedding stack + building the index once); it returns nothing and the
     retriever it constructs is discarded. We spy on the constructor to assert
-    it is built at the legacy 0.7 threshold without touching a real model.
+    it resolves the active embedding model's calibrated threshold.
     """
     thresholds: list[float | None] = []
 
@@ -102,7 +102,19 @@ def test_warm_rag_index_constructs_default_retriever(server_module, monkeypatch)
     result = server_module._warm_rag_index()
 
     assert result is None
-    assert thresholds == [0.7]
+    assert thresholds == [None]
+
+
+def test_resolve_lora_path_can_force_base_model(server_module, monkeypatch):
+    monkeypatch.setenv("PRTHINKER_DISABLE_LORA", "1")
+    monkeypatch.setenv("PRTHINKER_LORA_PATH", "/adapter")
+    assert server_module._resolve_lora_path() is None
+
+
+def test_resolve_rag_mode_rejects_unknown_value(server_module, monkeypatch):
+    monkeypatch.setenv("PRTHINKER_RAG_MODE", "typo")
+    with pytest.raises(ValueError, match="PRTHINKER_RAG_MODE"):
+        server_module._resolve_rag_mode()
 
 
 def test_cancel_if_idle_sets_event_when_idle(server_module):

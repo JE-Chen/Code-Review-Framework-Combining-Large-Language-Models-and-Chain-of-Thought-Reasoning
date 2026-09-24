@@ -90,18 +90,34 @@ Set these in **Settings → Secrets and variables → Actions**.
 Required permissions
 --------------------
 
-The workflow declares:
+The workflow grants read-only access by default; each job that writes
+raises only what it needs:
 
 .. code-block:: yaml
 
-   permissions:
-     contents: read         # checkout
-     pull-requests: write   # upsert summary comment, post inline review
-     checks: write          # open + complete the pre-merge Check Run
-     actions: read          # fetch failed-job logs for CI signals
+   permissions:              # workflow default, used by the review shards
+     contents: read          # checkout
+     pull-requests: read     # read the PR's files and diff
+     checks: read            # read CI signals
+     actions: read           # fetch failed-job logs for CI signals
+
+   jobs:
+     enumerate:
+       permissions:
+         contents: read
+         pull-requests: write   # review-in-progress placeholder, PR summary
+     aggregate:
+       permissions:
+         contents: read
+         pull-requests: write   # upsert summary comment, post inline review
+         checks: write          # open + complete the pre-merge Check Run
+         actions: read          # fetch failed-job logs for CI signals
+         security-events: write # upload the SARIF report to code scanning
 
 If you fork the workflow, keep these permissions or features will be
-silently skipped.
+silently skipped. Every action is pinned to a commit SHA with its release
+as a comment, and checkouts set ``persist-credentials: false`` so the job
+token does not stay in ``.git/config``.
 
 Tunable env vars
 ----------------
@@ -331,7 +347,7 @@ In your workflow:
          PRTHINKER_USE_REMOTE_PIPELINE: "false"
          PRTHINKER_REMOTE_RAG: "false"
        steps:
-         - uses: actions/checkout@v4
+         - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
          - run: pip install -e ".[local]"
          - run: python -m prthinker review-pr
 

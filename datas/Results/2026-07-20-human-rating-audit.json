@@ -1,0 +1,68 @@
+{
+  "source": "C:\\Users\\USER\\Downloads\\LLM 程式碼審查-人工評分.csv",
+  "source_sha256": "f2debe3cc4c12600fce4009fb1dc23d657ba084c9472ace965b9d9df93e87d1f",
+  "valid_responses": 8,
+  "distinct_raters_confirmable_from_csv": false,
+  "distinct_raters_author_confirmed": 8,
+  "distinct_raters_provenance": "Author confirmation on 2026-07-20; the CSV itself contains no rater identifier.",
+  "response_layout": {
+    "groups": 3,
+    "dimensions_per_group": 5,
+    "group_order": [
+      "fine-tuned multi-stage",
+      "non-fine-tuned multi-stage",
+      "single-prompt"
+    ],
+    "mapping_basis": "Appendix questionnaire order and READMEs/Human_Judge.md"
+  },
+  "group_means": {
+    "fine_tuned_multi_stage": {
+      "readability": 83.5,
+      "constructiveness": 86.25,
+      "correctness": 87.75,
+      "coverage_extractability": 86.25,
+      "comprehensiveness": 84.25,
+      "five_dimension_mean": 85.6
+    },
+    "non_fine_tuned_multi_stage": {
+      "readability": 84.625,
+      "constructiveness": 84.875,
+      "correctness": 86.375,
+      "coverage_extractability": 86.375,
+      "comprehensiveness": 84.75,
+      "five_dimension_mean": 85.4
+    },
+    "single_prompt": {
+      "readability": 85.25,
+      "constructiveness": 79.875,
+      "correctness": 80.75,
+      "coverage_extractability": 74.125,
+      "comprehensiveness": 76.25,
+      "five_dimension_mean": 79.25
+    }
+  },
+  "paired_direction_counts": {
+    "fine_tuned_multi_stage_vs_single_prompt": {
+      "readability": {"win": 4, "tie": 1, "loss": 3},
+      "constructiveness": {"win": 7, "tie": 0, "loss": 1},
+      "correctness": {"win": 5, "tie": 1, "loss": 2},
+      "coverage_extractability": {"win": 5, "tie": 2, "loss": 1},
+      "comprehensiveness": {"win": 5, "tie": 1, "loss": 2},
+      "five_dimension_mean": {"win": 6, "tie": 0, "loss": 2}
+    },
+    "fine_tuned_vs_non_fine_tuned_multi_stage": {
+      "five_dimension_mean": {"win": 4, "tie": 0, "loss": 4},
+      "mean_difference": 0.2
+    }
+  },
+  "protocol_evidence": {
+    "case_selection": "READMEs/Human_Judge.md instructs each respondent to randomly select one result folder.",
+    "case_id_recorded": false,
+    "rater_identifier_recorded": false,
+    "professional_background_recorded": false,
+    "development_experience_recorded": false,
+    "condition_blinding_confirmed": false,
+    "method_order_randomized_confirmed": false,
+    "note": "The folder names in the rating guide disclose experimental conditions. Because case identifiers and rater identifiers are absent, formal inter-rater reliability must not be reported from this CSV."
+  }
+}

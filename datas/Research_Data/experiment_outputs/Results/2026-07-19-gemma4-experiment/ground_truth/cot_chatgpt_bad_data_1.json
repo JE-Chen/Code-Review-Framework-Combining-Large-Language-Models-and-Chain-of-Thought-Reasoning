@@ -1,0 +1,68 @@
+[
+  {
+    "id": "global-results-accumulate",
+    "desc": "process_items appends to a module-global results list, so results from prior calls leak into later calls.",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "shared-result-alias",
+    "desc": "Every process_items call returns the same mutable global list, so previously returned outputs change when later calls append results.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "unsafe-eval",
+    "desc": "expensive_compute constructs and evaluates source code from x, allowing code execution when an attacker-controlled object supplies a malicious string representation.",
+    "category": "security",
+    "severity": "critical"
+  },
+  {
+    "id": "broad-exception-swallowing",
+    "desc": "expensive_compute catches every Exception and returns 0, concealing programming errors and making failures indistinguishable from valid results.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "inconsistent-compute-result-types",
+    "desc": "expensive_compute returns numbers, None, or the string \"invalid\", forcing callers to handle an undocumented heterogeneous result type.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "cache-key-type-mismatch",
+    "desc": "get_user_data converts input to a string before lookup, so textual input such as \"1\" cannot retrieve a result cached under numeric key 1.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "unbounded-global-storage",
+    "desc": "The cache and results collections grow without eviction or reset, causing unbounded memory consumption in a long-running process.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "mutable-default-argument",
+    "desc": "process_items uses a shared mutable list as its default argument, making future mutation or refactoring prone to cross-call state leakage.",
+    "category": "smell",
+    "severity": "low"
+  },
+  {
+    "id": "global-state-not-thread-safe",
+    "desc": "Unsynchronized reads and writes to the global cache and results list can produce duplicate computation and nondeterministic behavior under concurrent calls.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "hardcoded-processing-delay",
+    "desc": "process_items sleeps for every item regardless of need, imposing avoidable latency and making the function harder to test and reuse.",
+    "category": "smell",
+    "severity": "low"
+  },
+  {
+    "id": "discarded-list-literal",
+    "desc": "Wrapping results.append in a one-element list creates and immediately discards an unnecessary list on every iteration.",
+    "category": "smell",
+    "severity": "low"
+  }
+]

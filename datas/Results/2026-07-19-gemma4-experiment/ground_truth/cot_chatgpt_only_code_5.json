@@ -1,0 +1,50 @@
+[
+  {
+    "id": "shared-class-records",
+    "desc": "TransactionStore.records is class-level, so all store instances share and accumulate the same transactions.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "grouping-requires-contiguous-users",
+    "desc": "fn_processTransactions creates separate totals for the same user when that user's transactions are not contiguous in the input.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "empty-transactions-yields-zero-group",
+    "desc": "fn_processTransactions returns [0] for an empty transaction list, falsely reporting a group with a zero total.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "analyzer-empty-values-failure",
+    "desc": "Analyzer.analyze raises an exception when data is empty or contains only zero values because mean, median, and max require nonempty input.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "unknown-mode-silently-means",
+    "desc": "Analyzer.analyze silently treats every unrecognized mode as mean, masking invalid caller input and producing potentially incorrect results.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "mutable-records-exposed",
+    "desc": "TransactionStore.get_all returns the internal records list directly, allowing callers to mutate store contents without using the store API.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "empty-stats-input-failure",
+    "desc": "calculate_stats raises IndexError on empty input when accessing temp[0] before it can return statistics.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "non-string-date-concatenation",
+    "desc": "format_transaction raises TypeError when a present date value is not a string, including when date is explicitly None.",
+    "category": "correctness",
+    "severity": "low"
+  }
+]

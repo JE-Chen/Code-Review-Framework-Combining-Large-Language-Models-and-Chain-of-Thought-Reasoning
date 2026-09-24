@@ -1,0 +1,44 @@
+[
+  {
+    "id": "results-accumulate-across-runs",
+    "desc": "calcStats appends to the global resultList without clearing it, so repeated main or calcStats calls print stale and duplicate results.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "uninitialized-dataframe-crash",
+    "desc": "calcStats and plotData dereference DATAFRAME without validating initialization, causing an AttributeError or TypeError when called before loadData.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "blocking-interactive-plot",
+    "desc": "plotData unconditionally calls plt.show(), which can block execution or fail in headless and automated environments.",
+    "category": "maintainability",
+    "severity": "low"
+  },
+  {
+    "id": "misleading-derived-statistics",
+    "desc": "calcStats records arbitrary or redundant values such as meanA_again, meanB_plus_42, and dummy row count as results, making its output semantically misleading.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "shared-mutable-global-state",
+    "desc": "Core functions communicate through mutable globals instead of parameters and return values, creating hidden ordering dependencies and making reuse and testing error-prone.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "uncontrolled-random-input",
+    "desc": "loadData generates data from global unseeded randomness with no injectable seed or generator, preventing reproducible results and deterministic tests.",
+    "category": "maintainability",
+    "severity": "low"
+  },
+  {
+    "id": "unused-duplicate-storage",
+    "desc": "tempStorage duplicates selected values from resultList but is never read or reset, adding persistent state with no functional purpose.",
+    "category": "smell",
+    "severity": "low"
+  }
+]

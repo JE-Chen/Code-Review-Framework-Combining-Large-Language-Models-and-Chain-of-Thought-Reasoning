@@ -1,0 +1,38 @@
+[
+  {
+    "id": "error-return-type-crash",
+    "desc": "APIClient.fetch returns an error dictionary on request, HTTP, or JSON-decoding failure, but process_all treats it as a list of dictionaries and crashes when calling .get on its string keys.",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "missing-request-timeout",
+    "desc": "HTTP requests have no timeout, so an unresponsive server can cause the program to hang indefinitely.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "broad-exception-swallowing",
+    "desc": "Catching every Exception and converting it to a return value obscures programming errors and loses traceback and exception-type information.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "naive-url-concatenation",
+    "desc": "Constructing URLs with string concatenation can produce malformed URLs when base_url or endpoint slash conventions differ.",
+    "category": "correctness",
+    "severity": "low"
+  },
+  {
+    "id": "global-mutable-network-state",
+    "desc": "The module-level Session and cache introduce shared mutable state, making concurrent use, test isolation, configuration, and resource lifecycle management unsafe or difficult.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "duplicated-resource-fetchers",
+    "desc": "get_users, get_posts, and get_todos duplicate identical fetch-and-cache logic, increasing the likelihood of inconsistent changes as more resources are added.",
+    "category": "smell",
+    "severity": "low"
+  }
+]

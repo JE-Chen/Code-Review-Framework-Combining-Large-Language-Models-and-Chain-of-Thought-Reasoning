@@ -1,0 +1,7 @@
+- **Key changes**: Implemented `CustomWidget` with two buttons and a text area, adding event handlers to display text length feedback (e.g., "Short", "Medium").  
+- **Impact scope**: Modified `BaseWindow`, `CustomWidget`, and `MainWindow` classes; affects UI flow and input validation logic.  
+- **Purpose**: To demonstrate basic event handling and user feedback for text input validation in a GUI application.  
+- **Risks**: Nested conditionals in `handle_btnB` reduce readability and increase maintenance risk (e.g., future length thresholds may require deep logic changes).  
+- **Items to confirm**:  
+  - Verify `handle_btnB` logic handles all edge cases (empty input, exact length boundaries) correctly.  
+  - Assess if docstrings for `CustomWidget` and event handlers would improve maintainability.

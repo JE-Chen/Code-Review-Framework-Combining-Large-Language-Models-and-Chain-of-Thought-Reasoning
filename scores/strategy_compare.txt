@@ -1,0 +1,4 @@
+lexical (top10)                  recall=0.609 prec=0.112 f1=0.189 pred=250
+lexical keep_ratio=0.6           recall=0.609 prec=0.128 f1=0.211 pred=219
+structural expansion             recall=0.565 prec=0.104 f1=0.176 pred=250
+structural keep_ratio=0.6        recall=0.543 prec=0.167 f1=0.255 pred=150

@@ -1,0 +1,32 @@
+[
+  {
+    "id": "swallowed-analysis-errors",
+    "desc": "Catching Exception and only printing it suppresses all failures in the mean-age analysis, preventing callers from detecting or handling them.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "uncontrolled-random-results",
+    "desc": "Using the module-level random generator without seed injection makes computed columns nondeterministic and tests or analyses irreproducible.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "mutable-global-dataframe",
+    "desc": "Storing and mutating the DataFrame through GLOBAL_DF introduces hidden shared state and makes repeated, concurrent, and isolated use error-prone.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "mixed-function-responsibilities",
+    "desc": "The function combines data creation, random transformation, validation, statistical analysis, error handling, and console output, making it difficult to reuse and test.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "result-only-printed",
+    "desc": "The analysis function returns no result and exposes output only through printing and global mutation, unnecessarily coupling callers to side effects.",
+    "category": "smell",
+    "severity": "low"
+  }
+]

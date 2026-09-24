@@ -1,0 +1,9 @@
+{
+  "covered_ids": [
+    "unvalidated-item-type",
+    "process-local-storage",
+    "exception-details-disclosed",
+    "overbroad-exception-handler"
+  ],
+  "total": 10
+}

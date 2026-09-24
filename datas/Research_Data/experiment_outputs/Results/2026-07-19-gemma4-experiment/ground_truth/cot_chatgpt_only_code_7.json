@@ -1,0 +1,38 @@
+[
+  {
+    "id": "gui-thread-sleep",
+    "desc": "time.sleep() runs on the GUI thread in both actions, freezing painting, input handling, and timer processing.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "stylesheet-properties-lost",
+    "desc": "refresh_status() replaces the label stylesheet with color-only rules, permanently discarding the initial 14px font size.",
+    "category": "bug",
+    "severity": "low"
+  },
+  {
+    "id": "bare-except-age",
+    "desc": "The bare except catches BaseException subclasses such as KeyboardInterrupt and SystemExit instead of only conversion errors.",
+    "category": "correctness",
+    "severity": "low"
+  },
+  {
+    "id": "qapplication-import-side-effect",
+    "desc": "Constructing QApplication at module import time causes GUI initialization side effects and can conflict with hosts or tests that already own a QApplication.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "editable-output-log",
+    "desc": "The output log uses an editable QTextEdit, allowing displayed add/delete history to be accidentally or deliberately altered.",
+    "category": "smell",
+    "severity": "low"
+  },
+  {
+    "id": "whitespace-name-accepted",
+    "desc": "Name validation rejects only the empty string, so whitespace-only names are accepted as users.",
+    "category": "correctness",
+    "severity": "low"
+  }
+]

@@ -18,6 +18,19 @@ When you finish editing code, work through this list explicitly before staging. 
 fix it — do not ship around it. Skipping tests "to come back later" is not allowed because later
 never happens and the gap compounds.
 
+## Stage commits, `progress.md`, `docs/updates/` and `architecture.md`
+
+Workspace rule shared by every repository under `D:\Codes` (full text: `D:\Codes\CLAUDE.md`).
+
+- **Commit at every stage.** A stage is the smallest piece of work that leaves the repository consistent and passes this project's checks (definition of done, tests, lint): one finished `progress.md` item, or one self-contained step of a larger one. Commit it before starting the next stage, before switching to another repository, and before the session ends. Do not leave work uncommitted across sessions; if a stage cannot be finished, commit the consistent part and record the rest in `progress.md`.
+  - Stage only the files that stage touched (`git add <path>`, never `git add -A`), follow this file's commit-message rules, and never add AI attribution.
+  - Committing is not pushing: push or open a PR only as this project's branch flow says or when asked.
+- **`progress.md`** (repository root, tracked) holds outstanding work only: no finished items, no history, no rules.
+- **`docs/updates/`** records finished work: one batch file per month (`YYYY-MM.md`), one entry per piece of work headed `## U-YYYYMMDD-NN · date · title · #tags`, and an index with query commands in `docs/updates/README.md`. When a `progress.md` item is done, delete it and add a `#done` entry plus its index row in the same commit.
+- **`architecture.md`** (repository root) is the short architecture overview: layers, entry points, main flows, extension points, cross-project boundaries. Update it in the same commit whenever a change alters any of those.
+- **Cross-project contracts** are listed in `architecture.md` §6: what other repositories rely on here (CLI flags, import paths, constructor arguments, file layouts) and what this repository relies on elsewhere. No test here protects them, so never rename or remove one without changing its consumers in the same round, and update §6 whenever a contract is added or changes.
+- Thesis experiment state and evidence stay in `paper/AGENT_HANDOFF.md`; its open items live in `progress.md`.
+
 ## Git Commits
 
 - NEVER add `Co-Authored-By` lines to commit messages. All commits should only contain the commit
@@ -25,6 +38,13 @@ never happens and the gap compounds.
 - NEVER mention "Claude", "Claude Code", "AI-generated", "GPT", "Copilot", or any AI tool / model
   name anywhere — including commit messages, PR titles, PR descriptions, code comments, and
   documentation.
+- **Pull requests must not mention any AI — at all.** PR titles, descriptions, the commit list,
+  review comments, and any linked discussion MUST NOT name Claude, Copilot, GPT, ChatGPT, Gemini,
+  Codex, or any other AI tool / model / assistant, and MUST NOT state or imply the change was
+  produced, assisted, or reviewed by AI. The ONLY exception is a literal code identifier the change
+  actually touches (e.g. `AnthropicBackend`, `ClaudeCliBackend`, `CodexCliBackend`,
+  `GeminiBackend`): naming the class you edited is allowed; crediting or referencing the AI itself
+  is not.
 - Commit message format: `<type>: <short description>` (≤ 72 chars), where type ∈
   `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `security`. Body explains **why**,
   not what; wrap at 72 chars.

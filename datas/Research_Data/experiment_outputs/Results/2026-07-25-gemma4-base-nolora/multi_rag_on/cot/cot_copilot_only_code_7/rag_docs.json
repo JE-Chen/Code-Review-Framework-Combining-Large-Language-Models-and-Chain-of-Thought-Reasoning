@@ -1,0 +1,1 @@
+["\nBe careful with shared mutable state at the module or class level.\nGlobal lists, dictionaries, or class attributes that are mutated can introduce hidden coupling\nbetween different parts of the code and make behavior difficult to reason about or test.\nPrefer passing state explicitly or encapsulating it in well-defined objects.\n"]

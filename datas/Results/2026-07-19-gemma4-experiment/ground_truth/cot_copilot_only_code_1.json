@@ -1,0 +1,32 @@
+[
+  {
+    "id": "unused-parameters",
+    "desc": "Parameters g, h, i, and j are accepted but never used, obscuring the function contract and allowing caller mistakes to go unnoticed.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "magic-zero-divisor-sentinel",
+    "desc": "When d is zero, doSomething returns the unexplained value 999999 instead of explicitly reporting or representing the invalid division.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "excessive-branch-nesting",
+    "desc": "doSomething uses deeply nested conditionals with unrelated inputs and outcomes, making its behavior difficult to understand, test, and safely modify.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "opaque-magic-values",
+    "desc": "Numerous unexplained constants and sentinel results such as 1234, 42, 123456789, and -1 make the business rules and return-value semantics unclear.",
+    "category": "smell",
+    "severity": "medium"
+  },
+  {
+    "id": "global-data-dependency",
+    "desc": "processData implicitly depends on the mutable global dataList instead of accepting its input explicitly, reducing testability and making results sensitive to external mutation.",
+    "category": "maintainability",
+    "severity": "low"
+  }
+]

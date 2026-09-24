@@ -1,0 +1,104 @@
+[
+  {
+    "id": "mutable-default-headers",
+    "desc": "The mutable default headers dictionary is modified in place, causing request headers to leak across calls.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "caller-headers-mutated",
+    "desc": "fetch_resource mutates the caller-provided headers dictionary by assigning User-Agent.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "user-agent-overwritten",
+    "desc": "fetch_resource always overwrites User-Agent, so batch_fetch's mobile, bot, and desktop modes have no effect.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "incomplete-cache-key",
+    "desc": "The cache is keyed only by URL, so requests with different headers, authentication, or redirect policies can receive an incompatible cached response.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "unbounded-global-cache",
+    "desc": "The process-wide response cache has no size limit or eviction policy and can grow indefinitely.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "cached-mutable-response",
+    "desc": "Caching and returning the same mutable Response object lets one caller's consumption, closure, or mutation affect later callers.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "missing-request-timeouts",
+    "desc": "All HTTP requests omit a timeout and can block indefinitely on an unresponsive server.",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "unchecked-http-errors",
+    "desc": "HTTP error responses are treated as successful data because status codes are not validated before caching, hashing, or writing content.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "stream-response-not-closed",
+    "desc": "download_file never closes its streamed Response, potentially leaking connections and exhausting the connection pool.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "download-buffered-entirely",
+    "desc": "download_file accumulates the entire response in memory despite enabling streaming, allowing large downloads to exhaust memory.",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "quadratic-byte-concatenation",
+    "desc": "Repeated content += chunk copies the growing byte string on every iteration, producing quadratic time and allocation behavior.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "preview-limit-overshoot",
+    "desc": "The preview limit is checked before appending and uses > rather than >=, so the written preview can substantially exceed 3000 bytes.",
+    "category": "correctness",
+    "severity": "low"
+  },
+  {
+    "id": "text-based-file-checksum",
+    "desc": "fetch_and_verify hashes decoded and re-encoded text rather than the original response bytes, so its checksum may not represent the fetched resource.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "no-actual-verification",
+    "desc": "fetch_and_verify only computes a checksum and never compares it with an expected value, so it does not verify integrity.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "weak-md5-checksum",
+    "desc": "MD5 is collision-prone and unsuitable if the reported checksum is used for security-sensitive integrity verification.",
+    "category": "security",
+    "severity": "medium"
+  },
+  {
+    "id": "request-header-disclosure",
+    "desc": "Printing r.request.headers can disclose sensitive headers from a cached request, such as Authorization or cookies.",
+    "category": "security",
+    "severity": "high"
+  },
+  {
+    "id": "hash-builtin-shadowed",
+    "desc": "Defining hash shadows Python's built-in hash function, making the module API misleading and error-prone.",
+    "category": "smell",
+    "severity": "low"
+  }
+]

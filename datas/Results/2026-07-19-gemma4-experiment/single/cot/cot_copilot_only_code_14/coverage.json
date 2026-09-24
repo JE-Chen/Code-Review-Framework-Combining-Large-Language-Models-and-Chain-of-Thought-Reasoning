@@ -1,0 +1,8 @@
+{
+  "covered_ids": [
+    "global-shared-state",
+    "redundant-statistic-computation",
+    "side-effect-list-lambda"
+  ],
+  "total": 7
+}

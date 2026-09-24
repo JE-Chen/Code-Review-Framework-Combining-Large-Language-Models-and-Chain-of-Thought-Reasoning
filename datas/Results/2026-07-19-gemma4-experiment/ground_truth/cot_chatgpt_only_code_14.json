@@ -1,0 +1,38 @@
+[
+  {
+    "id": "failed-dataframe-crashes",
+    "desc": "If DataFrame construction fails, the exception handler sets GLOBAL_DATA_THING to None and the following len(GLOBAL_DATA_THING) raises TypeError.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "exceptions-silently-corrupt-analysis",
+    "desc": "Broad exception handlers replace failed mix calculations with zeros and skip failed rows, silently producing plausible but incorrect analysis results.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "invalid-normalization-denominator",
+    "desc": "The norm denominator substitutes abs(gamma) for nonpositive mix values while norm divides the original mix values, so the resulting values are not consistently normalized and generally do not sum to one.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "gui-thread-blocking",
+    "desc": "Button handlers perform sleeps, DataFrame processing, table population, and plotting synchronously on the GUI thread, blocking event processing and making the interface unresponsive during those operations.",
+    "category": "maintainability",
+    "severity": "low"
+  },
+  {
+    "id": "shared-global-state",
+    "desc": "Mutable module globals store the active dataset and dirty flag, coupling all window instances and allowing one window's actions to overwrite another's state.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "unbounded-output-growth",
+    "desc": "Every analysis appends more text to the QTextEdit without any retention limit or clearing policy, causing memory and rendering costs to grow indefinitely during long-running use.",
+    "category": "maintainability",
+    "severity": "low"
+  }
+]

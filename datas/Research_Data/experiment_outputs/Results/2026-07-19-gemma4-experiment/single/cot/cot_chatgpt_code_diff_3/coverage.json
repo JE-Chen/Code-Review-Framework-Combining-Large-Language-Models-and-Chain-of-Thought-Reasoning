@@ -1,0 +1,7 @@
+{
+  "covered_ids": [
+    "gui-thread-sleep",
+    "mutable-global-state"
+  ],
+  "total": 4
+}

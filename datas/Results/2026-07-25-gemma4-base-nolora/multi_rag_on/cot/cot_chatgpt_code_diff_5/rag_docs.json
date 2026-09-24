@@ -1,0 +1,1 @@
+["\nAvoid modifying input arguments unless it is clearly documented and expected.\nFunctions that mutate their inputs can lead to surprising side effects for callers.\nIf mutation is required for performance reasons, document it clearly or return a new value instead.\n"]

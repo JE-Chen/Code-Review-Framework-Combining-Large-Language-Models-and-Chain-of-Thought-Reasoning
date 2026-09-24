@@ -1,0 +1,9 @@
+{
+  "covered_ids": [
+    "duplicate-kill-scoring",
+    "swallowed-collision-errors",
+    "incorrect-player-bounds",
+    "monolithic-global-state"
+  ],
+  "total": 10
+}

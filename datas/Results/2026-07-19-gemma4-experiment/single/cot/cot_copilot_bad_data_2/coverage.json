@@ -1,0 +1,9 @@
+{
+  "covered_ids": [
+    "arbitrary-code-eval",
+    "overbroad-exception-reset",
+    "mutable-global-behavior",
+    "mixed-logic-and-console-io"
+  ],
+  "total": 8
+}

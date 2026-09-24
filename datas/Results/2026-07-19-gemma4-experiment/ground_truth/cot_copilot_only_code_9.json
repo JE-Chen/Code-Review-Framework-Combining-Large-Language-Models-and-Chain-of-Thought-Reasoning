@@ -1,0 +1,38 @@
+[
+  {
+    "id": "missing-request-timeout",
+    "desc": "HTTP requests have no timeout, so the program can hang indefinitely when the service or network stalls.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "http-status-not-validated",
+    "desc": "Responses are parsed without raise_for_status(), allowing HTTP error payloads to be treated as valid application data.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "failures-treated-as-empty-data",
+    "desc": "Fetch failures return empty lists, making outages indistinguishable from valid empty responses and potentially producing the misleading result \"No results found\".",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "unvalidated-response-schema",
+    "desc": "process_data assumes decoded responses are lists of dictionaries with string fields, so unexpected or malformed JSON can cause uncaught AttributeError, TypeError, or KeyError exceptions.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "persistent-global-results",
+    "desc": "GLOBAL_RESULTS is never cleared, so repeated calls to process_data() or main() in the same process accumulate duplicate and stale results.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "overbroad-exception-handling",
+    "desc": "Catching Exception in each fetch function masks programming and data-decoding defects as ordinary retrieval failures, hindering diagnosis and allowing execution with invalid state.",
+    "category": "maintainability",
+    "severity": "low"
+  }
+]

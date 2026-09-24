@@ -1,0 +1,11 @@
+{
+  "covered_ids": [
+    "missing-request-timeouts",
+    "swallowed-first-request-errors",
+    "bare-except-second-request",
+    "unchecked-http-errors",
+    "unclosed-global-session",
+    "monolithic-side-effect-function"
+  ],
+  "total": 7
+}

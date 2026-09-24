@@ -1,0 +1,44 @@
+[
+  {
+    "id": "updates-depend-on-events",
+    "desc": "Score, color, and timing updates run only when an event is received, so they freeze whenever the event queue is empty.",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "elapsed-time-score-loss",
+    "desc": "The score calculation uses int(delta * 10) % 7, discarding fractional elapsed time and wrapping larger intervals into nonmonotonic score increments.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "non-monotonic-clock",
+    "desc": "Using time.time() for elapsed-time measurement allows system-clock adjustments to produce negative or otherwise incorrect deltas.",
+    "category": "correctness",
+    "severity": "low"
+  },
+  {
+    "id": "invalid-negative-velocity",
+    "desc": "Key presses can reduce velocity to zero or below, causing left and down controls to reverse direction while right and up continue using its magnitude.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "frame-dependent-movement",
+    "desc": "Player displacement is applied per rendered frame instead of scaling by elapsed time, so movement speed changes when the achieved frame rate changes.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "font-created-every-frame",
+    "desc": "draw_stuff constructs a new system Font on every frame, causing unnecessary repeated resource lookup and allocation in the hot render loop.",
+    "category": "maintainability",
+    "severity": "low"
+  },
+  {
+    "id": "unguarded-game-loop",
+    "desc": "Initialization and the blocking game loop execute at module import time, preventing safe reuse or import by tests and other modules.",
+    "category": "maintainability",
+    "severity": "medium"
+  }
+]

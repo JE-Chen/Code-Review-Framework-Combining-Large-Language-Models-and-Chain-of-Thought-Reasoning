@@ -1,0 +1,9 @@
+{
+  "covered_ids": [
+    "elapsed-time-score-loss",
+    "invalid-negative-velocity",
+    "font-created-every-frame",
+    "unguarded-game-loop"
+  ],
+  "total": 7
+}

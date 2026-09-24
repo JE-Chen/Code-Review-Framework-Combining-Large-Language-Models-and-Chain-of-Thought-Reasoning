@@ -1,0 +1,11 @@
+{
+  "covered_ids": [
+    "invalid-json-output",
+    "duplicated-uppercase-responsibility",
+    "global-mutable-config",
+    "quadratic-string-building",
+    "empty-export-hook",
+    "refused-finish-contract"
+  ],
+  "total": 11
+}

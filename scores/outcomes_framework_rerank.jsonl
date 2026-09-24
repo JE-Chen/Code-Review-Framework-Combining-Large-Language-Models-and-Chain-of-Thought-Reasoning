@@ -1,0 +1,25 @@
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__deb49033", "raw_output": "{\"retrieved\": [\"astropy/coordinates/tests/test_intermediate_transformations.py\", \"astropy/coordinates/builtin_frames/icrs_observed_transforms.py\", \"astropy/coordinates/builtin_frames/__init__.py\", \"astropy/coordinates/builtin_frames/altaz.py\", \"astropy/coordinates/builtin_frames/itrs.py\", \"astropy/coordinates/builtin_frames/hadec.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__71f348da", "raw_output": "{\"retrieved\": [\"astropy/wcs/wcsapi/wrappers/tests/test_sliced_wcs.py\", \"astropy/wcs/wcsapi/wrappers/sliced_wcs.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__1d90db61", "raw_output": "{\"retrieved\": [\"astropy/coordinates/sky_coordinate.py\", \"astropy/coordinates/tests/test_sky_coord.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__e5a3bf2a", "raw_output": "{\"retrieved\": [\"astropy/io/fits/diff.py\", \"astropy/io/fits/tests/test_diff.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__3185b834", "raw_output": "{\"retrieved\": [\"astropy/io/fits/card.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__1ce4c38e", "raw_output": "{\"retrieved\": [\"astropy/nddata/mixins/ndarithmetic.py\", \"astropy/nddata/mixins/tests/test_ndarithmetic.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__93721db4", "raw_output": "{\"retrieved\": [\"django/db/models/aggregates.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__1a760e52", "raw_output": "{\"retrieved\": [\"tests/auth_tests/test_validators.py\", \"django/contrib/auth/validators.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__55a3ef80", "raw_output": "{\"retrieved\": [\"django/forms/models.py\", \"tests/model_forms/tests.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__9a05fe0c", "raw_output": "{\"retrieved\": [\"django/db/models/deletion.py\", \"tests/delete/tests.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__2d5d4dcd", "raw_output": "{\"retrieved\": [\"django/contrib/admin/filters.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__12d848d7", "raw_output": "{\"retrieved\": [\"django/forms/models.py\", \"tests/model_forms/tests.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__7489fdd8", "raw_output": "{\"retrieved\": [\"tests/auth_tests/test_auth_backends.py\", \"django/contrib/auth/backends.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__80c9776a", "raw_output": "{\"retrieved\": [\"django/db/models/sql/compiler.py\", \"tests/ordering/models.py\", \"tests/ordering/tests.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__607f6b9e", "raw_output": "{\"retrieved\": [\"django/db/models/aggregates.py\", \"tests/aggregation/tests.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__6f3e4cd9", "raw_output": "{\"retrieved\": [\"django/core/management/__init__.py\", \"tests/user_commands/tests.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__e97ac668", "raw_output": "{\"retrieved\": [\"tests/auth_tests/test_forms.py\", \"django/contrib/auth/forms.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__3e44d93a", "raw_output": "{\"retrieved\": [\"tests/migrations/test_writer.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__409b7811", "raw_output": "{\"retrieved\": [\"tests/invalid_models_tests/test_models.py\", \"django/db/models/base.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__bdde6d9c", "raw_output": "{\"retrieved\": [\"tests/migrations/test_writer.py\", \"django/db/models/fields/__init__.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__81f2c925", "raw_output": "{\"retrieved\": [\"django/contrib/admin/options.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__dc72c033", "raw_output": "{\"retrieved\": [\"django/contrib/admindocs/utils.py\", \"tests/admin_docs/test_utils.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__986c9e85", "raw_output": "{\"retrieved\": [\"django/contrib/postgres/forms/array.py\", \"tests/postgres_tests/test_array.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__46dc77a5", "raw_output": "{\"retrieved\": [\"django/template/library.py\", \"tests/template_tests/test_custom.py\"]}"}
+{"case_id": "contextbench:SWE-Bench-Verified__python__maintenance__bugfix__497deb6f", "raw_output": "{\"retrieved\": [\"tests/model_forms/test_modelchoicefield.py\", \"django/forms/models.py\", \"django/forms/widgets.py\"]}"}

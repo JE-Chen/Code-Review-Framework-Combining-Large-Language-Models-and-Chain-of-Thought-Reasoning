@@ -1,0 +1,9 @@
+{
+  "covered_ids": [
+    "swallowed-analysis-errors",
+    "mutable-global-dataframe",
+    "mixed-function-responsibilities",
+    "result-only-printed"
+  ],
+  "total": 5
+}

@@ -1,0 +1,4 @@
+- Replace list comprehension `[results.append(cache[item])]` with direct append `results.append(cache[item])` to avoid confusing side effects and adhere to style guidelines.
+- Replace `eval(f"{x} * {x}")` with direct arithmetic `x * x` to eliminate critical security risks and improve performance.
+- Remove unnecessary `time.sleep(0.01)` from the loop to prevent intentional performance degradation without justification.
+- Avoid global variables `cache` and `results` by encapsulating state within a class or function scope to improve testability and maintainability.

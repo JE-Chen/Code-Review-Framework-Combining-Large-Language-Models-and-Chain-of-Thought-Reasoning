@@ -100,9 +100,9 @@ configured via repo secrets + `.prthinker.yaml`.
    | `ANTHROPIC_API_KEY` | `sk-ant-...` |
 
 3. **Copy the workflow file** `.github/workflows/prthinker.yml` from
-   this repo into yours. It already declares the required permissions
-   (`contents: read`, `pull-requests: write`, `checks: write`,
-   `actions: read`).
+   this repo into yours. It already declares the required permissions:
+   read-only by default, with `pull-requests: write`, `checks: write`
+   and `security-events: write` raised only on the jobs that post.
 
 4. **Push a PR** → the workflow runs → a summary comment + inline
    review with suggestion blocks lands.
@@ -433,11 +433,15 @@ contract) in the
 **Required permissions:**
 
 ```yaml
-permissions:
-  contents: read         # checkout
-  pull-requests: write   # post summary + inline review
-  checks: write          # open + complete the gate
-  actions: read          # fetch failed CI logs
+permissions:               # workflow default (review shards)
+  contents: read           # checkout
+  pull-requests: read      # read the PR's files and diff
+  checks: read             # read CI signals
+  actions: read            # fetch failed CI logs
+# enumerate job: pull-requests: write (placeholder + PR summary)
+# aggregate job: pull-requests: write (summary + inline review),
+#                checks: write (open + complete the gate),
+#                security-events: write (SARIF upload)
 ```
 
 **Triggers:** `pull_request` opened / synchronize / reopened by default.

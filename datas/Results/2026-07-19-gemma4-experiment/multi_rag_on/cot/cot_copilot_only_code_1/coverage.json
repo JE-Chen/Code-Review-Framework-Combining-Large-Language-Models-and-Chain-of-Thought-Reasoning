@@ -1,0 +1,9 @@
+{
+  "covered_ids": [
+    "unused-parameters",
+    "magic-zero-divisor-sentinel",
+    "excessive-branch-nesting",
+    "opaque-magic-values"
+  ],
+  "total": 5
+}

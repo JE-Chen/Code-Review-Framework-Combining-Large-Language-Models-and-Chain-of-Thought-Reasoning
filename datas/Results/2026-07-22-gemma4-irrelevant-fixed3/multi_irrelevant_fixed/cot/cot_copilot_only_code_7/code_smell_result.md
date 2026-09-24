@@ -1,0 +1,22 @@
+- Code Smell Type: Use of Global State
+- Problem Location: `GLOBAL_TEXT`, `GLOBAL_COUNTER`, `GLOBAL_MODE` and the `global` keywords inside `handle_btn1`, `handle_btn2`, and `handle_btn3`.
+- Detailed Explanation: The application relies on global variables to maintain state. This creates tight coupling between the logic and the global scope, making the code difficult to test in isolation, prone to side-effect bugs, and impossible to instantiate multiple `MainWindow` instances independently.
+- Improvement Suggestions: Move these variables into the `MainWindow` class as instance attributes (e.g., `self.text`, `self.counter`, `self.mode`) initialized in the `__init__` method.
+- Priority Level: High
+
+- Code Smell Type: Unclear Naming
+- Problem Location: `btn1`, `btn2`, `btn3`, `input1`, `label1`, `handle_btn1`, `handle_btn2`, `handle_btn3`.
+- Detailed Explanation: The names are generic and do not describe the purpose or function of the widgets. As the application grows, names like `btn1` provide no semantic meaning, forcing developers to read the button text or the handler logic to understand what the component does.
+- Improvement Suggestions: Rename variables to reflect their intent:
+    - `btn1` $\rightarrow$ `add_text_button` / `handle_btn1` $\rightarrow$ `on_add_text_clicked`
+    - `btn2` $\rightarrow$ `show_counter_button` / `handle_btn2` $\rightarrow$ `on_show_counter_clicked`
+    - `btn3` $\rightarrow$ `reset_button` / `handle_btn3` $\rightarrow$ `on_reset_clicked`
+    - `input1` $\rightarrow$ `text_input`
+    - `label1` $\rightarrow$ `status_label`
+- Priority Level: Medium
+
+- Code Smell Type: Deeply Nested Conditional Logic (Arrow Anti-pattern)
+- Problem Location: `handle_btn2` method.
+- Detailed Explanation: The method uses multiple levels of nested `if/else` statements to determine which message to display. This increases cognitive load and makes the logic harder to follow and maintain.
+- Improvement Suggestions: Use "Guard Clauses" to return early or flatten the logic. For example, handle the `GLOBAL_COUNTER <= 5` case first and return, then handle the `GLOBAL_MODE` logic separately.
+- Priority Level: Low

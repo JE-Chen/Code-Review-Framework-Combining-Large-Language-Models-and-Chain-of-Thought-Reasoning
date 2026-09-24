@@ -208,6 +208,7 @@ cython_debug/
 /codes/training_QLoRa/outputs-lora-qwen-3-30b-a3b/checkpoint-50/vocab.json
 /codes/training_QLoRa/outputs-lora-qwen-3-30b-a3b/vocab.json
 /.idea/workspace.xml
+/.idea/shelf/
 /codes/train/outputs-lora-qwen3-30b/
 /codes/train/outputs-lora-qwen3-1.7b/
 /codes/train/outputs-lora-qwen2.5-coder-7b/
@@ -227,6 +228,12 @@ gen-paper/node_modules/
 
 # pytest basetemp (transient per-test tmp dirs)
 .pytest-tmp-*/
+.test-tmp/
 
 # Regenerable manuscript text dumps (paper/_dump_docx.py output)
 paper/_dump_*.txt
+/paper/論文_v3.8.docx
+/paper/論文_v3.9.before-data.docx
+
+# JetBrains IDE settings (per machine)
+.idea/

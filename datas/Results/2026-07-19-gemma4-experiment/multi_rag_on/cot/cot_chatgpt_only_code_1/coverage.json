@@ -1,0 +1,16 @@
+{
+  "covered_ids": [
+    "mutable-default-bucket",
+    "bare-except",
+    "unsafe-global-accumulator",
+    "nonpolymorphic-type-checks",
+    "hardcoded-constant-precision",
+    "forced-processing-delay",
+    "excessive-parameter-branching",
+    "unused-parameters",
+    "dead-computation-chain",
+    "redundant-sum-conversion",
+    "shadowed-sum-builtin"
+  ],
+  "total": 13
+}

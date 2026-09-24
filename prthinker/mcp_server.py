@@ -157,13 +157,24 @@ def _config_from_env() -> Config:
     )
 
 
+def _import_fastmcp():
+    """The FastMCP server class of the installed SDK: 2.x ``MCPServer``, else 1.x ``FastMCP``."""
+    try:
+        from mcp.server.mcpserver import MCPServer
+    except ImportError:
+        from mcp.server.fastmcp import FastMCP
+        return FastMCP
+    return MCPServer
+
+
 def run() -> int:
     """Entry point for ``prthinker mcp``. Blocks until the client disconnects."""
     try:
-        from mcp.server.fastmcp import FastMCP
-    except ImportError as exc:  # pragma: no cover — guarded by the dep
+        FastMCP = _import_fastmcp()  # noqa: N806 - the SDK's class, whichever line provides it
+    except ImportError as exc:
         sys.stderr.write(
-            "The `mcp` package is not installed. Install with\n"
+            "Cannot import the MCP server class from the `mcp` package; prthinker needs\n"
+            "mcp>=1.28.1,<3. Install it with\n"
             "    pip install -e \".[mcp]\"\n"
             f"Original error: {exc}\n"
         )

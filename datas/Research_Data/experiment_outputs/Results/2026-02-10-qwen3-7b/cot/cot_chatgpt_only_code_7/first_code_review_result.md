@@ -1,0 +1,8 @@
+- **Indentation & Formatting**: Consistent 4-space indentation for blocks. Layouts (e.g., `top_layout`, `mid_layout`) should align vertically for clarity.  
+- **Naming Clarity**: Variable names (`self.users`) are descriptive. Consider `users_data` for explicit intent.  
+- **Code Structure**: Modular layout with distinct sections (input, buttons, output). Use of `QHBoxLayout`/`QVBoxLayout` improves readability.  
+- **Edge Case Handling**: Validates empty inputs and negative ages. Missing checks for empty `self.users` in `delete_user`.  
+- **Status Feedback**: Color-coding via `QLabel.setStyleSheet()` improves readability.  
+- **Performance**: `time.sleep()` calls are unnecessary and could be removed.  
+- **Documentation**: Minimal comments; add docstrings to methods for clarity.  
+- **Testing**: No unit tests mentioned. Consider adding smoke tests for critical paths.

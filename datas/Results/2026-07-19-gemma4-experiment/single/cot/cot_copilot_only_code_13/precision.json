@@ -1,0 +1,8 @@
+{
+  "claims": 9,
+  "valid": 7,
+  "false_positives": [
+    "Says constants are defined 'in the middle of the file'; WIDTH/HEIGHT/PLAYER_SIZE/etc are already grouped at the top (lines 14-18)",
+    "Claims game logic (movement/collision) is mixed with rendering logic; movePlayer and checkCollision are already separate functions from drawEverything"
+  ]
+}

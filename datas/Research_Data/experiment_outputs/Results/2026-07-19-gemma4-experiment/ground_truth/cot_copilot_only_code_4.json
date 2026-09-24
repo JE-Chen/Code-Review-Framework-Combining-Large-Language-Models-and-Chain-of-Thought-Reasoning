@@ -1,0 +1,50 @@
+[
+  {
+    "id": "division-by-zero-magic-value",
+    "desc": "risky_division returns 9999 for division by zero, silently converting an invalid operation into a plausible but incorrect result.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "division-errors-swallowed",
+    "desc": "risky_division catches every unexpected exception and returns -1, hiding failures and allowing corrupted calculations to continue.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "invalid-integer-becomes-zero",
+    "desc": "convert_to_int maps invalid integer text to 0, making malformed input indistinguishable from a valid zero.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "conversion-errors-swallowed",
+    "desc": "convert_to_int converts all unexpected exceptions into the magic value -999, masking type and programming errors.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "file-handle-leak",
+    "desc": "read_file does not close the file if f.read() raises, potentially leaking file descriptors; a context manager is required.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "file-errors-as-data",
+    "desc": "read_file represents failures with ordinary strings, so FILE_NOT_FOUND and empty-string error results are processed as valid input instead of propagating failure.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "processing-errors-hidden",
+    "desc": "process_data has multiple broad exception handlers that replace failures with empty input, zero contributions, or None, producing ambiguous and potentially incorrect results.",
+    "category": "maintainability",
+    "severity": "high"
+  },
+  {
+    "id": "failure-exits-successfully",
+    "desc": "main catches all exceptions without re-raising or returning a nonzero exit status, so automation may interpret a failed run as successful.",
+    "category": "correctness",
+    "severity": "medium"
+  }
+]

@@ -70,6 +70,29 @@ curl http://localhost:9000/healthz
 - RAG uses the EmbeddingGemma index. Remote callers must send
   `rag_threshold: 0.32` explicitly — the wire default (0.7) is the
   qwen-era index's cutoff and retrieves nothing here.
+- Thesis ablations are selected at container startup. The /healthz response
+  reports rag_mode, rag_corpus, rag_corpus_sha256, and lora_enabled; save this
+  response with every result directory. The three missing experimental cells
+  have dedicated compose overlays:
+
+  ~~~bash
+  # A. Negative control: retrieve 19 browser-UI rules irrelevant to Python bugs
+  docker compose -f docker-compose.server-gemma4.yml \
+    -f docker-compose.ablation-irrelevant.yml up -d --build --force-recreate
+
+  # B. Direct context control: inject all 19 relevant rules, bypassing FAISS
+  docker compose -f docker-compose.server-gemma4.yml \
+    -f docker-compose.ablation-all-rules.yml up -d --build --force-recreate
+
+  # C. Adapter ablation: relevant retrieval on the Gemma base model, no LoRA
+  docker compose -f docker-compose.server-gemma4.yml \
+    -f docker-compose.ablation-base.yml up -d --build --force-recreate
+  ~~~
+
+  Run only one overlay at a time and use a new OUT_ROOT for every cell.
+  scores/gemma_experiment_driver.py can assert the expected health fields
+  through EXPECTED_RAG_MODE, EXPECTED_RAG_CORPUS, and
+  EXPECTED_LORA_ENABLED; a mismatch aborts before the first case.
 - The image strips NGC's bundled flash-attn: gemma-4-31B's head_dim
   exceeds flash-attn's 256 limit, so attention must dispatch to SDPA;
   with flash-attn present the auto-probe picks it and the load fails.

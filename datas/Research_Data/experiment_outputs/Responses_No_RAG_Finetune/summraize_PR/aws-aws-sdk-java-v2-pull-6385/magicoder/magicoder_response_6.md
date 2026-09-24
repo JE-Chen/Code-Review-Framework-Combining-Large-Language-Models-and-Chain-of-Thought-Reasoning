@@ -1,0 +1,3 @@
+The code in this PR is for generating the endpoint interceptor and modifying the request. 
+
+The main modification is when dealing with the region parameter in the endpoint parameters. Before, we assumed that the endpoint parameters contains a'region' member, but endpoint rules do not require this. We now add a check to see if the endpoint parameters contains a'region' parameter, and if not, fallback to the region from execution attributes. This is to maintain backwards compatibility.

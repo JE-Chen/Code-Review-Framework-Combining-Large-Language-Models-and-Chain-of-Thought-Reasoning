@@ -1,0 +1,7 @@
+{
+  "covered_ids": [
+    "incomplete-initialization",
+    "shared-mutable-global-state"
+  ],
+  "total": 5
+}

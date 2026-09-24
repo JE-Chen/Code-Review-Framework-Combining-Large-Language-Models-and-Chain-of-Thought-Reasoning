@@ -1,0 +1,8 @@
+[
+  {
+    "id": "deeply-nested-length-branches",
+    "desc": "handle_btnB uses unnecessarily deep nested conditionals, making the length classification logic harder to read, modify, and verify.",
+    "category": "maintainability",
+    "severity": "low"
+  }
+]

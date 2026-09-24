@@ -1,0 +1,9 @@
+{
+  "covered_ids": [
+    "duplicated-uppercase-responsibility",
+    "global-mutable-config",
+    "quadratic-string-building",
+    "refused-finish-contract"
+  ],
+  "total": 11
+}

@@ -1,0 +1,1 @@
+{"claims": 11, "valid": 10, "false_positives": ["Claims p[\"title\"] risks a KeyError, but it is guarded by the preceding 'if len(p.get(\"title\",\"\")) > 15' check so the key must exist when accessed"]}

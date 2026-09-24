@@ -1,0 +1,56 @@
+[
+  {
+    "id": "stale-user-index-after-removal",
+    "desc": "remove_young_users deletes users without updating stored positions for subsequent users, so later lookups can target the wrong user or raise IndexError.",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "inconsistent-friend-storage",
+    "desc": "add_friend writes to each user record while get_friends reads separate FRIEND_A/FRIEND_B arrays, so friendships added through add_friend are omitted from analysis.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "unique-ages-not-sorted",
+    "desc": "get_unique_ages_sorted returns an unordered list produced from a set despite promising sorted results.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "duplicate-user-ids-allowed",
+    "desc": "add_user permits duplicate UIDs, making find_user_position ambiguous and causing map-producing functions to silently overwrite records.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "unvalidated-friend-identifiers",
+    "desc": "Friend APIs accept nonexistent user IDs, allowing dangling relationships and inconsistent user data.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "parallel-friend-arrays",
+    "desc": "Storing relationship endpoints in separate mutable arrays permits length or positional desynchronization and makes the data model fragile.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "mutable-global-state",
+    "desc": "All user, index, relationship, and log data is process-global and never reset, making repeated main calls or tests accumulate state and produce incorrect results.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "log-record-aliasing",
+    "desc": "MIXED_LOG stores the same record objects as USERS, so later mutations to nested friend lists or metadata retroactively alter supposed log entries.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "inactive-overwrites-age",
+    "desc": "mark_inactive encodes status by replacing the user's real age with -1, destroying data and causing age-based operations to misclassify inactive users.",
+    "category": "design",
+    "severity": "medium"
+  }
+]

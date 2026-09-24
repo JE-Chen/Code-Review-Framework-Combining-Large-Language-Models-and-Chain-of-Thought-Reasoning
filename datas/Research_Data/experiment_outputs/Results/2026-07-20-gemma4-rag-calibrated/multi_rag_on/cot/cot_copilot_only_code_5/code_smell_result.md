@@ -1,0 +1,11 @@
+- Code Smell Type: Shared Mutable State (Global State)
+- Problem Location: `GLOBAL_STATE = { ... }` and its usage across `init_data`, `increment_counter`, `toggle_flag`, `process_items`, and `reset_state`.
+- Detailed Explanation: The code relies on a global dictionary to manage application state. This introduces hidden coupling between all functions, making the code difficult to reason about, test, and scale. Because any function can modify `GLOBAL_STATE` at any time, it becomes nearly impossible to track state transitions in a larger system or run tests in parallel without side effects interfering with one another. This directly violates the provided RAG rule regarding shared mutable state.
+- Improvement Suggestions: Encapsulate the state within a class (e.g., `AppState` or `StateManager`). Pass an instance of this class to the functions that require it, or make the functions methods of that class. This makes dependencies explicit and allows for multiple independent state instances.
+- Priority Level: High
+
+- Code Smell Type: Magic Numbers
+- Problem Location: `GLOBAL_STATE["threshold"]: 77` and `range(1, 21)` in `init_data`.
+- Detailed Explanation: The number `77` and the range `1, 21` are "magic numbers"—hardcoded values without descriptive names. A developer reading the code cannot determine the business logic or significance behind why the threshold is 77 or why the data size is 20.
+- Improvement Suggestions: Define these values as named constants at the top of the module (e.g., `DEFAULT_THRESHOLD = 77` and `INITIAL_DATA_SIZE = 20`) to provide semantic meaning.
+- Priority Level: Low

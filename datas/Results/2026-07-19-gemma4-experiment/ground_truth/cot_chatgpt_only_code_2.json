@@ -1,0 +1,62 @@
+[
+  {
+    "id": "overwrites-user-data-on-startup",
+    "desc": "Running the module unconditionally replaces the configured users file with hard-coded sample data, destroying existing data.",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "random-non-top-user",
+    "desc": "getTopUser can return a randomly selected user when allow_random is true, violating its top-user behavior.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "inactive-users-forced-active",
+    "desc": "loadAndProcessUsers defaults flag to true and consequently treats every loaded user as active regardless of stored data.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "malformed-json-silently-discarded",
+    "desc": "The bare exception handler converts any JSON parsing failure into an empty dataset, silently hiding corrupt input.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "bare-except-catches-control-signals",
+    "desc": "The bare except also catches exceptions such as KeyboardInterrupt and SystemExit that should not be treated as invalid JSON.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "unvalidated-json-shape",
+    "desc": "The loader assumes the JSON root is iterable and every element is a mapping, so valid JSON with another shape can crash at item.get.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "unvalidated-field-types",
+    "desc": "User fields are not type-validated, allowing comparisons, averaging, or string concatenation to fail on otherwise valid JSON values of unexpected types.",
+    "category": "bug",
+    "severity": "medium"
+  },
+  {
+    "id": "inconsistent-top-user-return-type",
+    "desc": "getTopUser returns either None, a User, or a dictionary based on the winning score, forcing callers to depend on unrelated type-switching behavior.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "stale-mutable-global-cache",
+    "desc": "The global cache retains old results on early returns and exposes the same mutable list returned to callers, making cached state stale or externally mutable.",
+    "category": "correctness",
+    "severity": "low"
+  },
+  {
+    "id": "cwd-dependent-data-path",
+    "desc": "The relative data path is resolved against the process working directory rather than the module location, so the program can read or overwrite an unintended users.json.",
+    "category": "correctness",
+    "severity": "medium"
+  }
+]

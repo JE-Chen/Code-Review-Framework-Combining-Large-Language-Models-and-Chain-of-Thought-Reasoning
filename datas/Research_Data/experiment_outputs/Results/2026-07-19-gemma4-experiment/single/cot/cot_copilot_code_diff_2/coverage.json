@@ -1,0 +1,7 @@
+{
+  "covered_ids": [
+    "font-created-every-frame",
+    "pervasive-mutable-globals"
+  ],
+  "total": 6
+}

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "partial-rng-seeding",
+    "desc": "Only NumPy's RNG is seeded; Python's random module remains unseeded, so data size, categories, scaling, transformations, and ordering cannot be reproduced from RANDOM_SEED.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "low-entropy-time-seed",
+    "desc": "Deriving the NumPy seed from int(time.time()) % 1000 provides only 1,000 seeds and causes frequent identical random sequences across separate runs.",
+    "category": "correctness",
+    "severity": "low"
+  },
+  {
+    "id": "nondeterministic-transform",
+    "desc": "mysterious_transform randomly changes values to absolute values before filtering, so identical input data can produce materially different output without any explicit parameter.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "nondeterministic-aggregation-order",
+    "desc": "aggregate_but_confusing randomly selects both the sort column and direction, making identical aggregated data appear in unpredictable orders.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "misleading-flag-count",
+    "desc": "Aggregating flag with count reports only non-null flag values rather than group row counts, so groups containing missing flags are undercounted.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "unexpected-input-mutation",
+    "desc": "mysterious_transform adds value_squared and may overwrite value on the caller's DataFrame before returning a filtered DataFrame, creating surprising partial mutation of the input.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "blocking-interactive-plot",
+    "desc": "Unconditionally calling plt.show() can block execution or fail in headless and automated environments.",
+    "category": "maintainability",
+    "severity": "medium"
+  }
+]

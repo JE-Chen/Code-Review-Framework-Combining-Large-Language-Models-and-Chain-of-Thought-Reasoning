@@ -1,0 +1,10 @@
+{
+  "covered_ids": [
+    "error-return-type-crash",
+    "broad-exception-swallowing",
+    "naive-url-concatenation",
+    "global-mutable-network-state",
+    "duplicated-resource-fetchers"
+  ],
+  "total": 6
+}

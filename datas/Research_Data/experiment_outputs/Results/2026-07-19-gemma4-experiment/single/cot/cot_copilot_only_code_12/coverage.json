@@ -1,0 +1,8 @@
+{
+  "covered_ids": [
+    "uninitialized-dataframe-crash",
+    "shared-mutable-global-state",
+    "unused-duplicate-storage"
+  ],
+  "total": 7
+}

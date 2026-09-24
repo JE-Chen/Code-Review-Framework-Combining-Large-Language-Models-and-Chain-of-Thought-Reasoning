@@ -1,0 +1,44 @@
+[
+  {
+    "id": "discount-uses-stale-total",
+    "desc": "process_order calculates the discount rate from order[\"total_price\"] before recomputing that total from items, producing an incorrect final price when the stored total differs from the item sum.",
+    "category": "correctness",
+    "severity": "high"
+  },
+  {
+    "id": "paid-status-overwritten",
+    "desc": "process_order unconditionally sets order[\"paid\"] to False, potentially reverting an already-paid order to unpaid.",
+    "category": "bug",
+    "severity": "high"
+  },
+  {
+    "id": "money-uses-binary-floats",
+    "desc": "Discount and final-price calculations use binary floating-point arithmetic, which can introduce rounding errors for monetary values.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "unvalidated-item-structure",
+    "desc": "process_order assumes every item has at least two elements and a numeric price, so malformed input causes IndexError or TypeError instead of controlled validation failure.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "logger-callability-not-checked",
+    "desc": "log_order checks only whether log or write attributes exist and then calls them, so a non-callable attribute causes a TypeError.",
+    "category": "bug",
+    "severity": "low"
+  },
+  {
+    "id": "inconsistent-logger-interface",
+    "desc": "FileLogger and ConsoleLogger expose different logging methods, forcing log_order to perform runtime capability checks and making logger implementations unnecessarily difficult to substitute.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "mutable-dictionary-domain-model",
+    "desc": "Orders are represented as unrestricted dictionaries that are mutated in place, allowing missing keys, invalid states, and accidental caller-visible changes without validation.",
+    "category": "maintainability",
+    "severity": "medium"
+  }
+]

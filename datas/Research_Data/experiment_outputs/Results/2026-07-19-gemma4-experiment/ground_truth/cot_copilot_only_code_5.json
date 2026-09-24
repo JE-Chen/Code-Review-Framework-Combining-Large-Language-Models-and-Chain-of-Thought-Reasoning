@@ -1,0 +1,32 @@
+[
+  {
+    "id": "incomplete-state-reset",
+    "desc": "reset_state leaves threshold unchanged, so a mutated threshold survives a purported full state reset.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "incomplete-initialization",
+    "desc": "init_data initializes only data and counter, making subsequent processing depend on stale flag, mode, or threshold values from prior use.",
+    "category": "correctness",
+    "severity": "medium"
+  },
+  {
+    "id": "shared-mutable-global-state",
+    "desc": "All operations mutate a shared global dictionary, creating hidden coupling, order-dependent behavior, poor test isolation, and unsafe concurrent access.",
+    "category": "maintainability",
+    "severity": "medium"
+  },
+  {
+    "id": "unvalidated-state-schema",
+    "desc": "Functions directly index a publicly mutable dictionary without validating required keys or value types, so external mutation can cause runtime exceptions or invalid results.",
+    "category": "maintainability",
+    "severity": "low"
+  },
+  {
+    "id": "unused-mode-state",
+    "desc": "The mode field is written but never read, creating misleading state with no effect on program behavior.",
+    "category": "smell",
+    "severity": "low"
+  }
+]
