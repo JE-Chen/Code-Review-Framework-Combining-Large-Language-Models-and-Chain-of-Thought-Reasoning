@@ -58,6 +58,7 @@ In the same commit: delete the item from `progress.md`, add a `#done` entry here
 
 | ID | Date | Title | Tags | Batch |
 |---|---|---|---|---|
+| U-20260925-01 | 2026-09-25 | Dependabot waits 7 days before proposing a new release | #ci #security #deps | [2026-09](2026-09.md) |
 | U-20260924-02 | 2026-09-24 | anyio 4.15.1 in the CI and runner locks | #deps #security | [2026-09](2026-09.md) |
 | U-20260924-01 | 2026-09-24 | Workflows: no file names in shell, per-job permissions, pinned actions | #ci #security | [2026-09](2026-09.md) |
 | U-20260923-06 | 2026-09-23 | attest-build-provenance v4 merged; peft 0.21 refused | #done #deps | [2026-09](2026-09.md) |
@@ -77,4 +78,4 @@ In the same commit: delete the item from `progress.md`, add a `#done` entry here
 
 | File | Period | Entries |
 |---|---|---:|
-| [2026-09.md](2026-09.md) | 2026-09 | 14 |
+| [2026-09.md](2026-09.md) | 2026-09 | 15 |
