@@ -17,7 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 _LINK = re.compile(r"\]\(([^)\s]+)[^)]*\)|(?:src|href)=\"([^\"]+)\"")
 _FENCE = re.compile(r"```.*?```", re.DOTALL)
 _SCHEME = re.compile(r"[a-z][a-z0-9+.-]*:", re.IGNORECASE)
-_READMES = sorted([*REPO_ROOT.glob("README*.md"), *REPO_ROOT.glob("readmes/*.md")])
+_READMES = sorted([*REPO_ROOT.glob("README*.md"), *REPO_ROOT.glob("READMEs/*.md")])
 
 
 def _broken_links(readme: Path) -> list[str]:

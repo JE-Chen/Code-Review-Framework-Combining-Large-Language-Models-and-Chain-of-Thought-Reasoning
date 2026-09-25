@@ -582,7 +582,7 @@ Four extensions that go beyond the one-shot reviewer most LLM code-review
 systems ship. Every flag is **opt-in** and requires `--inline-review`;
 the framework alone is delivered — per the project's no-fabrication rule
 no measured benchmark numbers are bundled. See
-[`docs/concepts/research-extensions.rst`](../docs/concepts/research-extensions.rst)
+[`docs/en/concepts/research-extensions.rst`](../docs/en/concepts/research-extensions.rst)
 for the design write-up.
 
 | Flag                       | Env var                              | Default | Extra cost              |

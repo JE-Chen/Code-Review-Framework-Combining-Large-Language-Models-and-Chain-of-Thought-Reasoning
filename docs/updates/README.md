@@ -58,6 +58,7 @@ In the same commit: delete the item from `progress.md`, add a `#done` entry here
 
 | ID | Date | Title | Tags | Batch |
 |---|---|---|---|---|
+| U-20260925-03 | 2026-09-25 | Redaction test builds its AWS example keys; setup.md link fix lands | #tests #security #docs | [2026-09](2026-09.md) |
 | U-20260925-02 | 2026-09-25 | setup.md links the research-extensions doc that exists | #docs #tests | [2026-09](2026-09.md) |
 | U-20260925-01 | 2026-09-25 | Dependabot waits 7 days before proposing a new release | #ci #security #deps | [2026-09](2026-09.md) |
 | U-20260924-02 | 2026-09-24 | anyio 4.15.1 in the CI and runner locks | #deps #security | [2026-09](2026-09.md) |
@@ -79,4 +80,4 @@ In the same commit: delete the item from `progress.md`, add a `#done` entry here
 
 | File | Period | Entries |
 |---|---|---:|
-| [2026-09.md](2026-09.md) | 2026-09 | 16 |
+| [2026-09.md](2026-09.md) | 2026-09 | 17 |
