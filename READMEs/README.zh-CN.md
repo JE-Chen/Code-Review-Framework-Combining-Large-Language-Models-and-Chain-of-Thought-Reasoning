@@ -351,17 +351,12 @@ GitLab 与 Gitea 通过 `--platform-base-url` 即可。详见
   所有 env var、疑难排查）。`PRTHINKER_*` 环境变量优先于旧拼法
   `REVIEWMIND_*`。
 - **[`features.zh-CN.md`](features.zh-CN.md)** — 完整功能总览。
-- **[`docs/zh-CN/`](../docs/zh-CN/)** — Read-the-Docs 风格深度章节。
+- **[`docs/zh-CN/`](../docs/zh-CN/)** — Read-the-Docs 风格深度章节（提供
+  英文、繁体中文、简体中文三种语言）。
 
 完整文档发布于 Read the Docs：
 **<https://code-review-framework.readthedocs.io/en/latest/>**（源码在
-[`docs/`](../docs/)），三种语言并行维护：
-
-- `docs/`（英文，主版本）
-- `docs/zh-TW/`（繁体中文）
-- `docs/zh-CN/`（简体中文）
-
-每个版本包含：
+[`docs/`](../docs/)）：
 
 - **Guide**──安装、快速开始、配置、GitHub Actions、GitLab CI
 - **Concepts**──架构、pipeline、RAG、语料库、CI 信号与 gate
@@ -371,7 +366,7 @@ GitLab 与 Gitea 通过 `--platform-base-url` 即可。详见
 
 ```bash
 pip install -r docs/requirements.txt
-py -m sphinx -b html docs docs/_build/html
+sphinx-build -b html docs docs/_build/html
 ```
 
 ## 仓库结构

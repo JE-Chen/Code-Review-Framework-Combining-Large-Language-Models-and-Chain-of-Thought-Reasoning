@@ -347,21 +347,16 @@ GitLab 與 Gitea 透過 `--platform-base-url` 即可。詳見
 
 ## 文件
 
-- **[`setup.zh-TW.md`](setup.zh-TW.md)** — 完整設置指引（六種情境、
+- **[`setup.zh-TW.md`](setup.zh-TW.md)** — 完整設定指南（六種情境、
   所有 env var、疑難排解）。`PRTHINKER_*` 環境變數優先於舊拼法
   `REVIEWMIND_*`。
 - **[`features.zh-TW.md`](features.zh-TW.md)** — 完整功能總覽。
-- **[`docs/zh-TW/`](../docs/zh-TW/)** — Read-the-Docs 風格深度章節。
+- **[`docs/zh-TW/`](../docs/zh-TW/)** — Read-the-Docs 風格深度章節（提供
+  英文、繁體中文、簡體中文三種語言）。
 
 完整文件發佈於 Read the Docs：
 **<https://code-review-framework.readthedocs.io/en/latest/>**（原始碼在
-[`docs/`](../docs/)），三種語言並行維護：
-
-- `docs/`（英文，主版本）
-- `docs/zh-TW/`（繁體中文）
-- `docs/zh-CN/`（简体中文）
-
-每個版本包含：
+[`docs/`](../docs/)）：
 
 - **Guide**──安裝、快速開始、組態、GitHub Actions、GitLab CI
 - **Concepts**──架構、pipeline、RAG、語料庫、CI 訊號與 gate
@@ -371,7 +366,7 @@ GitLab 與 Gitea 透過 `--platform-base-url` 即可。詳見
 
 ```bash
 pip install -r docs/requirements.txt
-py -m sphinx -b html docs docs/_build/html
+sphinx-build -b html docs docs/_build/html
 ```
 
 ## 專案結構
