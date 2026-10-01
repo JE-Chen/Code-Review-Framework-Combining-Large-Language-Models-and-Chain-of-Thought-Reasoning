@@ -146,3 +146,24 @@ def test_run_scripts_never_expand_untrusted_values(workflow):
     bad = [f"{workflow.name}:{number} {line.strip()}"
            for number, line in _run_scripts(workflow) if _UNTRUSTED.search(line)]
     assert bad == []
+
+
+_JOB_HEAD = re.compile(r"^  [A-Za-z0-9_-]+:\s*(#.*)?$")
+
+
+def _jobs(path: Path) -> list[tuple[str, str]]:
+    """Return ``(job id, job text)`` for each job under ``jobs:`` in a workflow."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    start = next(i for i, line in enumerate(lines) if re.match(r"^jobs:\s*(#.*)?$", line))
+    heads = [i for i in range(start + 1, len(lines)) if _JOB_HEAD.match(lines[i])]
+    ends = [*heads[1:], len(lines)]
+    return [(lines[i].strip().rstrip(":"), "\n".join(lines[i:end])) for i, end in zip(heads, ends)]
+
+
+@pytest.mark.parametrize("workflow", _WORKFLOWS, ids=lambda p: p.name)
+def test_every_job_has_a_timeout(workflow):
+    # Without timeout-minutes a hung job runs for GitHub's default six hours.
+    # Each job sets about three times its slowest recent run, at least 15 minutes.
+    bad = [name for name, body in _jobs(workflow)
+           if "runs-on:" in body and not re.search(r"^\s*timeout-minutes:", body, re.MULTILINE)]
+    assert bad == []
