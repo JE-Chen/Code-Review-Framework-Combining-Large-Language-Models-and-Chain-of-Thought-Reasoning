@@ -1,7 +1,19 @@
 import json
 from pathlib import Path
+
+import pytest
+
 from prthinker.cli import main
 from tests.conftest import FakeBackend
+
+
+def test_benchmark_run_existing_directory_does_not_create_backend(tmp_path, monkeypatch):
+    def unexpected(_config):
+        pytest.fail("existing evidence must be rejected before backend creation")
+
+    monkeypatch.setattr("prthinker.backends.create_backend", unexpected)
+    with pytest.raises(FileExistsError):
+        main(["benchmark", "run", str(tmp_path / "cases.jsonl"), str(tmp_path)])
 
 
 def _write_score_fixtures(tmp_path: Path) -> tuple[Path, Path, Path]:

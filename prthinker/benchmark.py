@@ -14,15 +14,15 @@ numpy / faiss / httpx / transformers).
 
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import platform
 import subprocess
 import sys
-from datetime import datetime, timezone
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Callable, Sequence
 
 from prthinker.backends.base import InferenceBackend
 from prthinker.repo_retrieval import RepoContextRetriever
@@ -57,7 +57,7 @@ class BenchmarkOutcome:
         return {_CASE_ID_KEY: self.case_id, _RAW_OUTPUT_KEY: self.raw_output}
 
     @classmethod
-    def from_dict(cls, data: dict[str, str]) -> "BenchmarkOutcome":
+    def from_dict(cls, data: dict[str, str]) -> BenchmarkOutcome:
         """Reconstruct an outcome from a parsed JSONL row."""
         return cls(
             case_id=data[_CASE_ID_KEY],
@@ -88,7 +88,7 @@ def run_cases(
 def run_retrieval_cases(
     retriever: RepoContextRetriever,
     cases: Sequence[BenchmarkCase],
-    resolve_workdir: Callable[[BenchmarkCase], "Path | None"],
+    resolve_workdir: Callable[[BenchmarkCase], Path | None],
 ) -> list[BenchmarkOutcome]:
     """Answer repository-context cases by retrieving from each case's work-tree.
 
@@ -170,13 +170,21 @@ def write_run_bundle(
     """Write outcomes plus an immutable-input manifest for reproducibility."""
     source = Path(cases_path)
     target = Path(output_dir)
-    target.mkdir(parents=True, exist_ok=True)
+    # Hash and validate inputs before reserving an evidence directory.
+    dataset_hash = _sha256(source)
+    cases = load_cases(source)
+    case_ids = [case.case_id for case in cases]
+    if len(set(case_ids)) != len(case_ids):
+        raise ValueError("benchmark case IDs must be unique")
+    if [outcome.case_id for outcome in outcomes] != case_ids:
+        raise ValueError("outcomes must match dataset case IDs in input order")
+    target.mkdir(parents=True, exist_ok=False)
     outcomes_path = target / "outcomes.jsonl"
     write_outcomes(outcomes, outcomes_path)
     manifest = {
         "schema_version": 1,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "dataset": {"path": str(source), "sha256": _sha256(source)},
+        "created_at": datetime.now(UTC).isoformat(),
+        "dataset": {"path": str(source), "sha256": dataset_hash},
         "outcomes": {
             "path": outcomes_path.name,
             "sha256": _sha256(outcomes_path),

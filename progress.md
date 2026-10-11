@@ -6,6 +6,9 @@
 
 ## 待辦
 
+- **#15** PR #75 的公開 benchmark：補齊資料集 revision／license、來源檔雜湊、完整執行組態與重現指令；逐案保存成功、失敗與不支援狀態，完成全資料集實測及可重現彙整。
+- **#16** PR #75 後續工作線：版本化對抗 benchmark、最低 Python 版本驗證、獨立 pr-summary 強化、多語知識圖譜、17 項固定控制消融、自主 issue-autofix、線上品質評估、JEditor／PyBreeze 協定與整合，最後通過證據門檻才發布 1.0。
+
 - **#2** 〔選作〕`multi_rag_on` 條件下的 LoRA vs 基礎模型：尚未安排。本輪只跑了 rag_off 一臂，故 LoRA×RAG 交互作用未測。伺服器目前仍在 LoRA 組態、語料 sha 一致，補這 44 案不需重部署，直接跑 driver 即可。
 - **#3** 〔選作〕同一部署內的 LoRA 隨機化對照：尚未安排且無法直接做——LoRA 開與關無法在同一容器並存。現有結果是「相鄰部署、僅切換旗標」，論文須據實表述，不可寫成同一部署內對照。
 - **#4** `dev` 比 `main` 多 9 個 commit 沒合併；`CHANGELOG.md` 的 Unreleased（3 項新增、1 項變更）沒發版，也沒有任何 tag（`release.yml` 只在 `v*` tag 觸發）。

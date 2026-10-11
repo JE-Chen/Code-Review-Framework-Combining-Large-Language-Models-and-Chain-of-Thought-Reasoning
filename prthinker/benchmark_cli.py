@@ -1,10 +1,12 @@
 """CLI handlers for deterministic benchmark conversion and evaluation."""
 
 from __future__ import annotations
+
 import argparse
 import json
 from dataclasses import asdict
 from pathlib import Path
+
 from prthinker.ablation import compare_runs
 from prthinker.benchmark_datasets import convert_dataset
 from prthinker.benchmark_scoring import aggregate, score_files
@@ -70,6 +72,8 @@ def _run_benchmark(args: argparse.Namespace) -> int:
     from prthinker.benchmark import load_cases, run_cases, write_run_bundle
     from prthinker.cli_review import _build_config
 
+    if args.output_dir.exists():
+        raise FileExistsError(f"benchmark output directory already exists: {args.output_dir}")
     config = _build_config(args)
     backend = create_backend(config)
     try:

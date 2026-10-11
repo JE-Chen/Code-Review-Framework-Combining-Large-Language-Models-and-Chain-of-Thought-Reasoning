@@ -6,13 +6,15 @@ import dataclasses
 import json
 from pathlib import Path
 
+import pytest
+
 from prthinker.benchmark import (
     BenchmarkCase,
     BenchmarkOutcome,
-    run_cases,
     load_cases,
-    write_run_bundle,
+    run_cases,
     write_outcomes,
+    write_run_bundle,
 )
 
 from .conftest import FakeBackend
@@ -110,7 +112,7 @@ def test_outcome_has_no_numeric_score_field() -> None:
     for forbidden in ("score", "metric", "rating", "accuracy", "value"):
         assert forbidden not in field_names
     outcome = BenchmarkOutcome(case_id="a", raw_output="x")
-    for _name, field_value in vars(outcome).items():
+    for field_value in vars(outcome).values():
         assert not isinstance(field_value, (int, float))
 
 
@@ -152,3 +154,43 @@ def test_write_run_bundle_hashes_inputs_and_outputs(tmp_path: Path) -> None:
     assert manifest["outcomes"]["count"] == 1
     assert manifest["backend"] == "fake"
     assert manifest["seed"] == 7
+
+
+def test_bundle_refuses_to_overwrite_evidence(tmp_path: Path) -> None:
+    cases = tmp_path / "cases.jsonl"
+    cases.write_text('{"case_id":"a","prompt":"p"}\n', encoding="utf-8")
+    target = tmp_path / "run"
+    outcomes = [BenchmarkOutcome("a", "original")]
+    write_run_bundle(cases, outcomes, target, backend="fake", model="fake")
+    before = {path.name: path.read_bytes() for path in target.iterdir()}
+    with pytest.raises(FileExistsError):
+        write_run_bundle(cases, [BenchmarkOutcome("a", "changed")], target,
+                         backend="fake", model="fake")
+    assert {path.name: path.read_bytes() for path in target.iterdir()} == before
+
+
+@pytest.mark.parametrize("ids", [[], ["a"], ["b", "a"], ["a", "a"], ["a", "b", "c"]])
+def test_bundle_rejects_incomplete_or_misaligned_results(tmp_path: Path, ids) -> None:
+    cases = tmp_path / "cases.jsonl"
+    cases.write_text('{"case_id":"a","prompt":"p"}\n'
+                     '{"case_id":"b","prompt":"q"}\n', encoding="utf-8")
+    with pytest.raises(ValueError, match="input order"):
+        write_run_bundle(cases, [BenchmarkOutcome(i, "r") for i in ids],
+                         tmp_path / "run", backend="fake", model="fake")
+    assert not (tmp_path / "run").exists()
+
+
+def test_bundle_rejects_duplicate_dataset_ids(tmp_path: Path) -> None:
+    cases = tmp_path / "cases.jsonl"
+    cases.write_text('{"case_id":"a","prompt":"p"}\n' * 2, encoding="utf-8")
+    with pytest.raises(ValueError, match="unique"):
+        write_run_bundle(cases, [BenchmarkOutcome("a", "r")] * 2,
+                         tmp_path / "run", backend="fake", model="fake")
+    assert not (tmp_path / "run").exists()
+
+
+def test_bundle_accepts_empty_dataset(tmp_path: Path) -> None:
+    cases = tmp_path / "cases.jsonl"
+    cases.write_text("", encoding="utf-8")
+    manifest = write_run_bundle(cases, [], tmp_path / "run", backend="fake", model="fake")
+    assert json.loads(manifest.read_text(encoding="utf-8"))["outcomes"]["count"] == 0

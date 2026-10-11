@@ -36,7 +36,13 @@ ground-truth comments cannot leak into the review prompt.
    `outcomes.jsonl` and `manifest.json` with dataset/output hashes, Git commit,
    runtime, backend, model, seed, and generation parameters.
 
-Never edit a completed run directory. Create a new run for every changed model,
+Never edit a completed run directory.
+The bundle writer requires a new output directory (even an existing empty
+directory is rejected). The CLI checks this before creating a backend. Bundles
+also require unique dataset case IDs and one outcome per case in input order;
+incomplete or misaligned results cannot be archived as a completed run.
+
+Create a new run for every changed model,
 prompt, dataset revision, or generation parameter. Scoring belongs in a
 separate derived artifact and must retain both manifest hashes.
 
