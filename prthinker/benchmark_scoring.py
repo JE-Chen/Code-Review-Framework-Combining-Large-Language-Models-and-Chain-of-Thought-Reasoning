@@ -1,12 +1,14 @@
 """Deterministic, auditable scoring for structured review findings."""
 
 from __future__ import annotations
+
 import json
 import random
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Sequence
 from pathlib import Path
+from typing import Any
 
 _MESSAGE_JACCARD_FLOOR = 0.35
 _CI_LOW = 0.025
@@ -142,9 +144,13 @@ def _prf(tp, fp, fn):
 def _bootstrap_f1_ci(scores, samples, seed):
     """Return the 95% bootstrap CI for mean F1 across the cases."""
     rng = random.Random(seed)  # nosec B311 — deterministic bootstrap resampling, not security
-    boot = sorted(
-        sum(rng.choice(scores).f1 for _ in scores) / len(scores) for _ in range(samples)
-    )
+    samples = max(1, samples)
+    boot = []
+    for _iteration in range(samples):
+        selected = rng.choices(scores, k=len(scores))
+        boot.append(_prf(sum(row.tp for row in selected), sum(row.fp for row in selected),
+                         sum(row.fn for row in selected))[2])
+    boot.sort()
     return [boot[int(_CI_LOW * (samples - 1))], boot[int(_CI_HIGH * (samples - 1))]]
 
 
@@ -171,7 +177,10 @@ def _load_cases(cases_path: str | Path) -> dict[str, Any]:
         for line in handle:
             if line.strip():
                 row = json.loads(line)
-                cases[str(row["case_id"])] = row
+                case_id = str(row["case_id"])
+                if case_id in cases:
+                    raise ValueError("duplicate benchmark case ID")
+                cases[case_id] = row
     return cases
 
 
@@ -212,14 +221,20 @@ def score_files(cases_path: str | Path, outcomes_path: str | Path) -> list[CaseS
     """Score canonical cases against raw structured benchmark outcomes."""
     cases = _load_cases(cases_path)
     scores: list[CaseScore] = []
+    seen = set()
     with Path(outcomes_path).open(encoding="utf-8") as handle:
         for line in handle:
             if not line.strip():
                 continue
             row = json.loads(line)
             case_id = str(row["case_id"])
+            if case_id in seen:
+                raise ValueError("duplicate outcome case ID")
+            seen.add(case_id)
             if case_id not in cases:
                 raise ValueError(f"outcome references unknown case {case_id!r}")
             metadata = cases[case_id].get("metadata", {})
+            if row.get("status", "success") in ("failed", "unsupported"):
+                continue
             scores.append(_score_outcome(case_id, row.get("raw_output", ""), metadata))
     return scores

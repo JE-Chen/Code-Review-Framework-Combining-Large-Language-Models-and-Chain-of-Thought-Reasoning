@@ -24,6 +24,9 @@ from prthinker.issue_autofix import IssueFixOptions, auto_fix_issue, fix_open_is
 from prthinker.issue_fix import IssueFixProposer, build_patch
 from prthinker.issue_fix_cli import _make_retriever
 from prthinker.issue_tracker import IssueTracker, create_issue_tracker
+from prthinker.repair_loop import RepairJournal, RepairLimits, RepairLoop
+from prthinker.repair_review import BudgetBackend, post_fix_reviewer
+from prthinker.verify_cli import _build_executor
 
 _DEFAULT_TOP_K = 10
 _DEFAULT_BATCH_LIMIT = 3
@@ -76,6 +79,14 @@ def add_parser(sub, common: argparse.ArgumentParser) -> None:
                         help="gate the PR on this command passing in the workdir")
     parser.add_argument("--test-timeout", type=float, default=_DEFAULT_TEST_TIMEOUT)
     parser.add_argument("--output", type=Path, help="write the results JSON here")
+    parser.add_argument("--autonomous", action="store_true", help="Isolated bounded repair with tests and post-fix review")
+    parser.add_argument("--repair-audit", type=Path, default=Path(".prthinker/repairs.sqlite"))
+    parser.add_argument("--total-timeout", type=float, default=1800)
+    parser.add_argument("--max-patch-bytes", type=int, default=100000)
+    parser.add_argument("--sandbox", choices=("docker", "none"), default="docker")
+    parser.add_argument("--sandbox-image", default="")
+    parser.add_argument("--allow-unsandboxed", action="store_true")
+    parser.add_argument("--allow-unpinned-image", action="store_true")
 
 
 def _validate_args(args: argparse.Namespace) -> str:
@@ -85,6 +96,8 @@ def _validate_args(args: argparse.Namespace) -> str:
     picked_number = args.issue_number is not None
     if picked_number == bool(args.issue_label):
         return "issue-autofix needs exactly one of --issue-number / --issue-label"
+    if getattr(args, "autonomous", False) and (not args.test_cmd or args.no_draft):
+        return "autonomous repair requires --test-cmd and draft PRs"
     return ""
 
 
@@ -160,9 +173,30 @@ def command(args: argparse.Namespace) -> int:
     backend = create_backend(_build_config(args))
     proposer = IssueFixProposer(
         _make_retriever(args, backend), backend, max_retries=args.max_retries)
-    if args.open_pr:
-        payloads = _full_run(proposer, args, tracker)
-    else:
-        payloads = _dry_run(proposer, _issues_for(args, tracker), args.workdir)
+    try:
+        if getattr(args, "autonomous", False):
+            bounded = BudgetBackend(backend, args.total_timeout, 3 * (args.max_retries + 1) * args.limit)
+            proposer = IssueFixProposer(_make_retriever(args, bounded), bounded,
+                                        max_new_tokens=args.max_new_tokens, max_retries=0)
+            loop = RepairLoop(proposer, _build_executor(args),
+                              post_fix_reviewer(bounded, args.max_new_tokens),
+                              RepairJournal(args.repair_audit),
+                              limits=RepairLimits(attempts=args.max_retries + 1,
+                                                  total_seconds=args.total_timeout,
+                                                  test_seconds=args.test_timeout,
+                                                  max_patch_bytes=args.max_patch_bytes))
+            results = [loop.run(issue, args.workdir, tuple(shlex.split(args.test_cmd)),
+                                tracker=tracker if args.open_pr else None,
+                                base=args.base_branch or "HEAD")
+                       for issue in _issues_for(args, tracker)]
+            payloads = [dataclasses.asdict(result) | {"valid": result.valid} for result in results]
+        elif args.open_pr:
+            payloads = _full_run(proposer, args, tracker)
+        else:
+            payloads = _dry_run(proposer, _issues_for(args, tracker), args.workdir)
+    finally:
+        close = getattr(backend, "close", None)
+        if close:
+            close()
     _emit(payloads, args.output)
     return 0 if payloads and all(row["valid"] for row in payloads) else 1

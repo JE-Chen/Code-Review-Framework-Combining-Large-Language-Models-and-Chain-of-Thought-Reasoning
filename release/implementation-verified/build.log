@@ -1,0 +1,1250 @@
+* Creating isolated environment: venv+pip...
+* Installing packages in isolated environment:
+  - setuptools>=68
+  - wheel
+* Getting build dependencies for sdist...
+running egg_info
+writing prthinker.egg-info\PKG-INFO
+writing dependency_links to prthinker.egg-info\dependency_links.txt
+writing entry points to prthinker.egg-info\entry_points.txt
+writing requirements to prthinker.egg-info\requires.txt
+writing top-level names to prthinker.egg-info\top_level.txt
+reading manifest file 'prthinker.egg-info\SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'prthinker.egg-info\SOURCES.txt'
+* Installed build dependency versions:
+  - setuptools==84.0.0
+  - wheel==0.48.0
+* Building sdist...
+running sdist
+running egg_info
+writing prthinker.egg-info\PKG-INFO
+writing dependency_links to prthinker.egg-info\dependency_links.txt
+writing entry points to prthinker.egg-info\entry_points.txt
+writing requirements to prthinker.egg-info\requires.txt
+writing top-level names to prthinker.egg-info\top_level.txt
+reading manifest file 'prthinker.egg-info\SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'prthinker.egg-info\SOURCES.txt'
+running check
+creating prthinker-0.1.0
+creating prthinker-0.1.0\prthinker
+creating prthinker-0.1.0\prthinker.egg-info
+creating prthinker-0.1.0\prthinker\adversarial_corpus
+creating prthinker-0.1.0\prthinker\backends
+creating prthinker-0.1.0\prthinker\platforms
+creating prthinker-0.1.0\prthinker\prompts
+creating prthinker-0.1.0\prthinker\prompts\CRSCORE
+creating prthinker-0.1.0\prthinker\review_modes
+creating prthinker-0.1.0\tests
+copying files to prthinker-0.1.0...
+copying LICENSE -> prthinker-0.1.0
+copying README.md -> prthinker-0.1.0
+copying pyproject.toml -> prthinker-0.1.0
+copying prthinker\__init__.py -> prthinker-0.1.0\prthinker
+copying prthinker\__main__.py -> prthinker-0.1.0\prthinker
+copying prthinker\ablation.py -> prthinker-0.1.0\prthinker
+copying prthinker\ablation_study.py -> prthinker-0.1.0\prthinker
+copying prthinker\accepted.py -> prthinker-0.1.0\prthinker
+copying prthinker\adversarial.py -> prthinker-0.1.0\prthinker
+copying prthinker\adversarial_benchmark.py -> prthinker-0.1.0\prthinker
+copying prthinker\adversarial_eval.py -> prthinker-0.1.0\prthinker
+copying prthinker\api_consistency.py -> prthinker-0.1.0\prthinker
+copying prthinker\api_surface.py -> prthinker-0.1.0\prthinker
+copying prthinker\arbitration.py -> prthinker-0.1.0\prthinker
+copying prthinker\auto_fix.py -> prthinker-0.1.0\prthinker
+copying prthinker\batch_review.py -> prthinker-0.1.0\prthinker
+copying prthinker\benchmark.py -> prthinker-0.1.0\prthinker
+copying prthinker\benchmark_cli.py -> prthinker-0.1.0\prthinker
+copying prthinker\benchmark_datasets.py -> prthinker-0.1.0\prthinker
+copying prthinker\benchmark_execution.py -> prthinker-0.1.0\prthinker
+copying prthinker\benchmark_measurement.py -> prthinker-0.1.0\prthinker
+copying prthinker\benchmark_scoring.py -> prthinker-0.1.0\prthinker
+copying prthinker\benchmark_session.py -> prthinker-0.1.0\prthinker
+copying prthinker\bidi_guard.py -> prthinker-0.1.0\prthinker
+copying prthinker\binary_changes.py -> prthinker-0.1.0\prthinker
+copying prthinker\cache.py -> prthinker-0.1.0\prthinker
+copying prthinker\calibration.py -> prthinker-0.1.0\prthinker
+copying prthinker\change_map.py -> prthinker-0.1.0\prthinker
+copying prthinker\change_stats.py -> prthinker-0.1.0\prthinker
+copying prthinker\checks.py -> prthinker-0.1.0\prthinker
+copying prthinker\ci_signals.py -> prthinker-0.1.0\prthinker
+copying prthinker\citation_verify.py -> prthinker-0.1.0\prthinker
+copying prthinker\cli.py -> prthinker-0.1.0\prthinker
+copying prthinker\cli_commands.py -> prthinker-0.1.0\prthinker
+copying prthinker\cli_commands_helpers.py -> prthinker-0.1.0\prthinker
+copying prthinker\cli_io.py -> prthinker-0.1.0\prthinker
+copying prthinker\cli_parser.py -> prthinker-0.1.0\prthinker
+copying prthinker\cli_parser_groups.py -> prthinker-0.1.0\prthinker
+copying prthinker\cli_parser_provider_groups.py -> prthinker-0.1.0\prthinker
+copying prthinker\cli_review.py -> prthinker-0.1.0\prthinker
+copying prthinker\cli_review_autofix.py -> prthinker-0.1.0\prthinker
+copying prthinker\cli_review_emit.py -> prthinker-0.1.0\prthinker
+copying prthinker\cli_review_helpers.py -> prthinker-0.1.0\prthinker
+copying prthinker\cli_review_issues.py -> prthinker-0.1.0\prthinker
+copying prthinker\cli_review_overall_summary.py -> prthinker-0.1.0\prthinker
+copying prthinker\cli_triage.py -> prthinker-0.1.0\prthinker
+copying prthinker\codequality.py -> prthinker-0.1.0\prthinker
+copying prthinker\commit_review.py -> prthinker-0.1.0\prthinker
+copying prthinker\confidence.py -> prthinker-0.1.0\prthinker
+copying prthinker\config.py -> prthinker-0.1.0\prthinker
+copying prthinker\context_graph.py -> prthinker-0.1.0\prthinker
+copying prthinker\conventional.py -> prthinker-0.1.0\prthinker
+copying prthinker\corpora_base.py -> prthinker-0.1.0\prthinker
+copying prthinker\cost.py -> prthinker-0.1.0\prthinker
+copying prthinker\counterfactual.py -> prthinker-0.1.0\prthinker
+copying prthinker\coverage_gap.py -> prthinker-0.1.0\prthinker
+copying prthinker\coverage_runner.py -> prthinker-0.1.0\prthinker
+copying prthinker\csv_report.py -> prthinker-0.1.0\prthinker
+copying prthinker\debug_left.py -> prthinker-0.1.0\prthinker
+copying prthinker\deleted_files.py -> prthinker-0.1.0\prthinker
+copying prthinker\dep_upgrade.py -> prthinker-0.1.0\prthinker
+copying prthinker\depth_eval.py -> prthinker-0.1.0\prthinker
+copying prthinker\depth_eval_cli.py -> prthinker-0.1.0\prthinker
+copying prthinker\detector_util.py -> prthinker-0.1.0\prthinker
+copying prthinker\dialogue.py -> prthinker-0.1.0\prthinker
+copying prthinker\diff.py -> prthinker-0.1.0\prthinker
+copying prthinker\diff_entropy.py -> prthinker-0.1.0\prthinker
+copying prthinker\dismissed.py -> prthinker-0.1.0\prthinker
+copying prthinker\empty_except.py -> prthinker-0.1.0\prthinker
+copying prthinker\evidence_binding.py -> prthinker-0.1.0\prthinker
+copying prthinker\execution_evidence.py -> prthinker-0.1.0\prthinker
+copying prthinker\execution_retriever.py -> prthinker-0.1.0\prthinker
+copying prthinker\execution_sandbox.py -> prthinker-0.1.0\prthinker
+copying prthinker\fault_localization.py -> prthinker-0.1.0\prthinker
+copying prthinker\finding_clusters.py -> prthinker-0.1.0\prthinker
+copying prthinker\finding_dedup.py -> prthinker-0.1.0\prthinker
+copying prthinker\findings.py -> prthinker-0.1.0\prthinker
+copying prthinker\formatters.py -> prthinker-0.1.0\prthinker
+copying prthinker\formatters_blocks.py -> prthinker-0.1.0\prthinker
+copying prthinker\formatters_summary.py -> prthinker-0.1.0\prthinker
+copying prthinker\gha_annotations.py -> prthinker-0.1.0\prthinker
+copying prthinker\gitea_harvest.py -> prthinker-0.1.0\prthinker
+copying prthinker\github_api.py -> prthinker-0.1.0\prthinker
+copying prthinker\gitlab_ci_signals.py -> prthinker-0.1.0\prthinker
+copying prthinker\gitlab_harvest.py -> prthinker-0.1.0\prthinker
+copying prthinker\golden.py -> prthinker-0.1.0\prthinker
+copying prthinker\gpu_lock.py -> prthinker-0.1.0\prthinker
+copying prthinker\harvest.py -> prthinker-0.1.0\prthinker
+copying prthinker\html_report.py -> prthinker-0.1.0\prthinker
+copying prthinker\hypothesis_retriever.py -> prthinker-0.1.0\prthinker
+copying prthinker\ide_protocol.py -> prthinker-0.1.0\prthinker
+copying prthinker\ignore.py -> prthinker-0.1.0\prthinker
+copying prthinker\impact_map.py -> prthinker-0.1.0\prthinker
+copying prthinker\incremental_save.py -> prthinker-0.1.0\prthinker
+copying prthinker\injection_guard.py -> prthinker-0.1.0\prthinker
+copying prthinker\inline_ignore.py -> prthinker-0.1.0\prthinker
+copying prthinker\issue_autofile.py -> prthinker-0.1.0\prthinker
+copying prthinker\issue_autofix.py -> prthinker-0.1.0\prthinker
+copying prthinker\issue_autofix_cli.py -> prthinker-0.1.0\prthinker
+copying prthinker\issue_fix.py -> prthinker-0.1.0\prthinker
+copying prthinker\issue_fix_cli.py -> prthinker-0.1.0\prthinker
+copying prthinker\issue_tracker.py -> prthinker-0.1.0\prthinker
+copying prthinker\judge.py -> prthinker-0.1.0\prthinker
+copying prthinker\junit_report.py -> prthinker-0.1.0\prthinker
+copying prthinker\kg_visualize.py -> prthinker-0.1.0\prthinker
+copying prthinker\large_hunk.py -> prthinker-0.1.0\prthinker
+copying prthinker\lenient_json.py -> prthinker-0.1.0\prthinker
+copying prthinker\lessons.py -> prthinker-0.1.0\prthinker
+copying prthinker\localize.py -> prthinker-0.1.0\prthinker
+copying prthinker\markdown_report.py -> prthinker-0.1.0\prthinker
+copying prthinker\matrix_enumerate.py -> prthinker-0.1.0\prthinker
+copying prthinker\mcp_server.py -> prthinker-0.1.0\prthinker
+copying prthinker\merge_markers.py -> prthinker-0.1.0\prthinker
+copying prthinker\metrics.py -> prthinker-0.1.0\prthinker
+copying prthinker\mode_changes.py -> prthinker-0.1.0\prthinker
+copying prthinker\new_markers.py -> prthinker-0.1.0\prthinker
+copying prthinker\noise_files.py -> prthinker-0.1.0\prthinker
+copying prthinker\online_quality.py -> prthinker-0.1.0\prthinker
+copying prthinker\orientation.py -> prthinker-0.1.0\prthinker
+copying prthinker\otel.py -> prthinker-0.1.0\prthinker
+copying prthinker\paired_statistics.py -> prthinker-0.1.0\prthinker
+copying prthinker\personas.py -> prthinker-0.1.0\prthinker
+copying prthinker\pipeline.py -> prthinker-0.1.0\prthinker
+copying prthinker\pipeline_exec.py -> prthinker-0.1.0\prthinker
+copying prthinker\pipeline_extras.py -> prthinker-0.1.0\prthinker
+copying prthinker\pipeline_types.py -> prthinker-0.1.0\prthinker
+copying prthinker\plugins.py -> prthinker-0.1.0\prthinker
+copying prthinker\polyglot_graph.py -> prthinker-0.1.0\prthinker
+copying prthinker\pr_classifier.py -> prthinker-0.1.0\prthinker
+copying prthinker\pr_labels.py -> prthinker-0.1.0\prthinker
+copying prthinker\pr_overview.py -> prthinker-0.1.0\prthinker
+copying prthinker\pr_summary.py -> prthinker-0.1.0\prthinker
+copying prthinker\pricing.py -> prthinker-0.1.0\prthinker
+copying prthinker\rag.py -> prthinker-0.1.0\prthinker
+copying prthinker\redaction.py -> prthinker-0.1.0\prthinker
+copying prthinker\release_gate.py -> prthinker-0.1.0\prthinker
+copying prthinker\rename_map.py -> prthinker-0.1.0\prthinker
+copying prthinker\repair_loop.py -> prthinker-0.1.0\prthinker
+copying prthinker\repair_review.py -> prthinker-0.1.0\prthinker
+copying prthinker\repo_config.py -> prthinker-0.1.0\prthinker
+copying prthinker\repo_graph.py -> prthinker-0.1.0\prthinker
+copying prthinker\repo_kg.py -> prthinker-0.1.0\prthinker
+copying prthinker\repo_retrieval.py -> prthinker-0.1.0\prthinker
+copying prthinker\repo_retrieval_factory.py -> prthinker-0.1.0\prthinker
+copying prthinker\report.py -> prthinker-0.1.0\prthinker
+copying prthinker\report_formats.py -> prthinker-0.1.0\prthinker
+copying prthinker\reproducibility.py -> prthinker-0.1.0\prthinker
+copying prthinker\retrieval_eval.py -> prthinker-0.1.0\prthinker
+copying prthinker\retrieval_eval_cli.py -> prthinker-0.1.0\prthinker
+copying prthinker\retrieval_report_cli.py -> prthinker-0.1.0\prthinker
+copying prthinker\retrieval_scoring.py -> prthinker-0.1.0\prthinker
+copying prthinker\review_cache.py -> prthinker-0.1.0\prthinker
+copying prthinker\review_delta.py -> prthinker-0.1.0\prthinker
+copying prthinker\review_order.py -> prthinker-0.1.0\prthinker
+copying prthinker\review_presets.py -> prthinker-0.1.0\prthinker
+copying prthinker\review_rollups.py -> prthinker-0.1.0\prthinker
+copying prthinker\risk_score.py -> prthinker-0.1.0\prthinker
+copying prthinker\rules.py -> prthinker-0.1.0\prthinker
+copying prthinker\sandbox.py -> prthinker-0.1.0\prthinker
+copying prthinker\sarif.py -> prthinker-0.1.0\prthinker
+copying prthinker\schemas.py -> prthinker-0.1.0\prthinker
+copying prthinker\self_consistency.py -> prthinker-0.1.0\prthinker
+copying prthinker\self_review.py -> prthinker-0.1.0\prthinker
+copying prthinker\signals.py -> prthinker-0.1.0\prthinker
+copying prthinker\sonar_report.py -> prthinker-0.1.0\prthinker
+copying prthinker\stack_trace.py -> prthinker-0.1.0\prthinker
+copying prthinker\step_dag.py -> prthinker-0.1.0\prthinker
+copying prthinker\step_planner.py -> prthinker-0.1.0\prthinker
+copying prthinker\steps.py -> prthinker-0.1.0\prthinker
+copying prthinker\study_cli.py -> prthinker-0.1.0\prthinker
+copying prthinker\summary_command.py -> prthinker-0.1.0\prthinker
+copying prthinker\supply_chain.py -> prthinker-0.1.0\prthinker
+copying prthinker\supply_chain_cli.py -> prthinker-0.1.0\prthinker
+copying prthinker\telemetry.py -> prthinker-0.1.0\prthinker
+copying prthinker\trajectory.py -> prthinker-0.1.0\prthinker
+copying prthinker\undefined_guard.py -> prthinker-0.1.0\prthinker
+copying prthinker\verification_tiers.py -> prthinker-0.1.0\prthinker
+copying prthinker\verify_cli.py -> prthinker-0.1.0\prthinker
+copying prthinker\whitespace_only.py -> prthinker-0.1.0\prthinker
+copying prthinker.egg-info\PKG-INFO -> prthinker-0.1.0\prthinker.egg-info
+copying prthinker.egg-info\SOURCES.txt -> prthinker-0.1.0\prthinker.egg-info
+copying prthinker.egg-info\dependency_links.txt -> prthinker-0.1.0\prthinker.egg-info
+copying prthinker.egg-info\entry_points.txt -> prthinker-0.1.0\prthinker.egg-info
+copying prthinker.egg-info\requires.txt -> prthinker-0.1.0\prthinker.egg-info
+copying prthinker.egg-info\top_level.txt -> prthinker-0.1.0\prthinker.egg-info
+copying prthinker\adversarial_corpus\seed.jsonl -> prthinker-0.1.0\prthinker\adversarial_corpus
+copying prthinker\adversarial_corpus\v1.jsonl -> prthinker-0.1.0\prthinker\adversarial_corpus
+copying prthinker\adversarial_corpus\v1.manifest.json -> prthinker-0.1.0\prthinker\adversarial_corpus
+copying prthinker\backends\__init__.py -> prthinker-0.1.0\prthinker\backends
+copying prthinker\backends\agent_cli.py -> prthinker-0.1.0\prthinker\backends
+copying prthinker\backends\anthropic.py -> prthinker-0.1.0\prthinker\backends
+copying prthinker\backends\base.py -> prthinker-0.1.0\prthinker\backends
+copying prthinker\backends\claude_cli.py -> prthinker-0.1.0\prthinker\backends
+copying prthinker\backends\codex_cli.py -> prthinker-0.1.0\prthinker\backends
+copying prthinker\backends\cohere.py -> prthinker-0.1.0\prthinker\backends
+copying prthinker\backends\ensemble.py -> prthinker-0.1.0\prthinker\backends
+copying prthinker\backends\gemini.py -> prthinker-0.1.0\prthinker\backends
+copying prthinker\backends\local.py -> prthinker-0.1.0\prthinker\backends
+copying prthinker\backends\mistral.py -> prthinker-0.1.0\prthinker\backends
+copying prthinker\backends\openai_compat.py -> prthinker-0.1.0\prthinker\backends
+copying prthinker\backends\remote.py -> prthinker-0.1.0\prthinker\backends
+copying prthinker\backends\router.py -> prthinker-0.1.0\prthinker\backends
+copying prthinker\backends\wrappers.py -> prthinker-0.1.0\prthinker\backends
+copying prthinker\platforms\__init__.py -> prthinker-0.1.0\prthinker\platforms
+copying prthinker\platforms\base.py -> prthinker-0.1.0\prthinker\platforms
+copying prthinker\platforms\gitea.py -> prthinker-0.1.0\prthinker\platforms
+copying prthinker\platforms\github.py -> prthinker-0.1.0\prthinker\platforms
+copying prthinker\platforms\gitlab.py -> prthinker-0.1.0\prthinker\platforms
+copying prthinker\prompts\__init__.py -> prthinker-0.1.0\prthinker\prompts
+copying prthinker\prompts\batch_findings.py -> prthinker-0.1.0\prthinker\prompts
+copying prthinker\prompts\code_smell_detector.py -> prthinker-0.1.0\prthinker\prompts
+copying prthinker\prompts\compact_review.py -> prthinker-0.1.0\prthinker\prompts
+copying prthinker\prompts\counterfactual_review.py -> prthinker-0.1.0\prthinker\prompts
+copying prthinker\prompts\finding_self_review.py -> prthinker-0.1.0\prthinker\prompts
+copying prthinker\prompts\first_code_review.py -> prthinker-0.1.0\prthinker\prompts
+copying prthinker\prompts\first_summary_prompt.py -> prthinker-0.1.0\prthinker\prompts
+copying prthinker\prompts\global_rule.py -> prthinker-0.1.0\prthinker\prompts
+copying prthinker\prompts\inline_findings.py -> prthinker-0.1.0\prthinker\prompts
+copying prthinker\prompts\judge.py -> prthinker-0.1.0\prthinker\prompts
+copying prthinker\prompts\judge_single_review.py -> prthinker-0.1.0\prthinker\prompts
+copying prthinker\prompts\judge_step.py -> prthinker-0.1.0\prthinker\prompts
+copying prthinker\prompts\linter.py -> prthinker-0.1.0\prthinker\prompts
+copying prthinker\prompts\localization_hypothesis.py -> prthinker-0.1.0\prthinker\prompts
+copying prthinker\prompts\review_critic.py -> prthinker-0.1.0\prthinker\prompts
+copying prthinker\prompts\step_by_step_analysis.py -> prthinker-0.1.0\prthinker\prompts
+copying prthinker\prompts\total_summary.py -> prthinker-0.1.0\prthinker\prompts
+copying prthinker\prompts\unified_review.py -> prthinker-0.1.0\prthinker\prompts
+copying prthinker\prompts\walkthrough.py -> prthinker-0.1.0\prthinker\prompts
+copying prthinker\prompts\CRSCORE\__init__.py -> prthinker-0.1.0\prthinker\prompts\CRSCORE
+copying prthinker\prompts\CRSCORE\crscore_cot_evaluation.py -> prthinker-0.1.0\prthinker\prompts\CRSCORE
+copying prthinker\prompts\CRSCORE\crscore_llm_as_judge.py -> prthinker-0.1.0\prthinker\prompts\CRSCORE
+copying prthinker\review_modes\__init__.py -> prthinker-0.1.0\prthinker\review_modes
+copying prthinker\review_modes\_registry.py -> prthinker-0.1.0\prthinker\review_modes
+copying prthinker\review_modes\accessibility.py -> prthinker-0.1.0\prthinker\review_modes
+copying prthinker\review_modes\ai_generated.py -> prthinker-0.1.0\prthinker\review_modes
+copying prthinker\review_modes\db_migration.py -> prthinker-0.1.0\prthinker\review_modes
+copying prthinker\review_modes\iac.py -> prthinker-0.1.0\prthinker\review_modes
+copying prthinker\review_modes\performance.py -> prthinker-0.1.0\prthinker\review_modes
+copying prthinker\review_modes\pii.py -> prthinker-0.1.0\prthinker\review_modes
+copying prthinker\review_modes\refactoring.py -> prthinker-0.1.0\prthinker\review_modes
+copying prthinker\review_modes\secret_scan.py -> prthinker-0.1.0\prthinker\review_modes
+copying prthinker\review_modes\security.py -> prthinker-0.1.0\prthinker\review_modes
+copying prthinker\review_modes\test_coverage.py -> prthinker-0.1.0\prthinker\review_modes
+copying tests\test_ablation_study.py -> prthinker-0.1.0\tests
+copying tests\test_adversarial.py -> prthinker-0.1.0\tests
+copying tests\test_adversarial_benchmark.py -> prthinker-0.1.0\tests
+copying tests\test_adversarial_eval.py -> prthinker-0.1.0\tests
+copying tests\test_agent_cli.py -> prthinker-0.1.0\tests
+copying tests\test_aggregate_preserves_prior.py -> prthinker-0.1.0\tests
+copying tests\test_aggregate_score_file.py -> prthinker-0.1.0\tests
+copying tests\test_anthropic.py -> prthinker-0.1.0\tests
+copying tests\test_api_consistency.py -> prthinker-0.1.0\tests
+copying tests\test_api_surface.py -> prthinker-0.1.0\tests
+copying tests\test_arbitration.py -> prthinker-0.1.0\tests
+copying tests\test_attn_impl_guard.py -> prthinker-0.1.0\tests
+copying tests\test_auto_fix.py -> prthinker-0.1.0\tests
+copying tests\test_batch_review.py -> prthinker-0.1.0\tests
+copying tests\test_benchmark.py -> prthinker-0.1.0\tests
+copying tests\test_benchmark_cli.py -> prthinker-0.1.0\tests
+copying tests\test_benchmark_datasets.py -> prthinker-0.1.0\tests
+copying tests\test_benchmark_measurement.py -> prthinker-0.1.0\tests
+copying tests\test_benchmark_session.py -> prthinker-0.1.0\tests
+copying tests\test_bidi_guard.py -> prthinker-0.1.0\tests
+copying tests\test_binary_changes.py -> prthinker-0.1.0\tests
+copying tests\test_cache_and_telemetry.py -> prthinker-0.1.0\tests
+copying tests\test_calibration.py -> prthinker-0.1.0\tests
+copying tests\test_calibration_replay.py -> prthinker-0.1.0\tests
+copying tests\test_change_map.py -> prthinker-0.1.0\tests
+copying tests\test_change_stats.py -> prthinker-0.1.0\tests
+copying tests\test_checks.py -> prthinker-0.1.0\tests
+copying tests\test_ci_signals.py -> prthinker-0.1.0\tests
+copying tests\test_citation_verify.py -> prthinker-0.1.0\tests
+copying tests\test_claude_cli.py -> prthinker-0.1.0\tests
+copying tests\test_cli.py -> prthinker-0.1.0\tests
+copying tests\test_cli_commands.py -> prthinker-0.1.0\tests
+copying tests\test_cli_io.py -> prthinker-0.1.0\tests
+copying tests\test_cli_parser.py -> prthinker-0.1.0\tests
+copying tests\test_cli_review.py -> prthinker-0.1.0\tests
+copying tests\test_cli_review_emit.py -> prthinker-0.1.0\tests
+copying tests\test_cli_review_helpers.py -> prthinker-0.1.0\tests
+copying tests\test_cli_review_issues.py -> prthinker-0.1.0\tests
+copying tests\test_cli_triage.py -> prthinker-0.1.0\tests
+copying tests\test_codequality.py -> prthinker-0.1.0\tests
+copying tests\test_codex_cli.py -> prthinker-0.1.0\tests
+copying tests\test_cohere.py -> prthinker-0.1.0\tests
+copying tests\test_commit_review.py -> prthinker-0.1.0\tests
+copying tests\test_confidence.py -> prthinker-0.1.0\tests
+copying tests\test_config.py -> prthinker-0.1.0\tests
+copying tests\test_context_graph.py -> prthinker-0.1.0\tests
+copying tests\test_conventional.py -> prthinker-0.1.0\tests
+copying tests\test_corpora_base.py -> prthinker-0.1.0\tests
+copying tests\test_cost.py -> prthinker-0.1.0\tests
+copying tests\test_counterfactual.py -> prthinker-0.1.0\tests
+copying tests\test_coverage_gap.py -> prthinker-0.1.0\tests
+copying tests\test_coverage_runner.py -> prthinker-0.1.0\tests
+copying tests\test_csv_report.py -> prthinker-0.1.0\tests
+copying tests\test_dataset_specific_scoring.py -> prthinker-0.1.0\tests
+copying tests\test_debug_left.py -> prthinker-0.1.0\tests
+copying tests\test_deleted_files.py -> prthinker-0.1.0\tests
+copying tests\test_dep_upgrade.py -> prthinker-0.1.0\tests
+copying tests\test_depth_eval.py -> prthinker-0.1.0\tests
+copying tests\test_depth_eval_cli.py -> prthinker-0.1.0\tests
+copying tests\test_detector_util.py -> prthinker-0.1.0\tests
+copying tests\test_dialogue.py -> prthinker-0.1.0\tests
+copying tests\test_diff.py -> prthinker-0.1.0\tests
+copying tests\test_diff_entropy.py -> prthinker-0.1.0\tests
+copying tests\test_dismissed.py -> prthinker-0.1.0\tests
+copying tests\test_embedding_config.py -> prthinker-0.1.0\tests
+copying tests\test_empty_except.py -> prthinker-0.1.0\tests
+copying tests\test_ensemble_backend.py -> prthinker-0.1.0\tests
+copying tests\test_evidence_binding.py -> prthinker-0.1.0\tests
+copying tests\test_evidence_extensions.py -> prthinker-0.1.0\tests
+copying tests\test_execution_retriever.py -> prthinker-0.1.0\tests
+copying tests\test_fastapi_server.py -> prthinker-0.1.0\tests
+copying tests\test_fault_localization.py -> prthinker-0.1.0\tests
+copying tests\test_feature_wiring.py -> prthinker-0.1.0\tests
+copying tests\test_finding_clusters.py -> prthinker-0.1.0\tests
+copying tests\test_finding_dedup.py -> prthinker-0.1.0\tests
+copying tests\test_findings.py -> prthinker-0.1.0\tests
+copying tests\test_formatters.py -> prthinker-0.1.0\tests
+copying tests\test_formatters_and_stores.py -> prthinker-0.1.0\tests
+copying tests\test_gemini.py -> prthinker-0.1.0\tests
+copying tests\test_gemma_experiment_driver.py -> prthinker-0.1.0\tests
+copying tests\test_gha_annotations.py -> prthinker-0.1.0\tests
+copying tests\test_gitea.py -> prthinker-0.1.0\tests
+copying tests\test_gitea_harvest.py -> prthinker-0.1.0\tests
+copying tests\test_github.py -> prthinker-0.1.0\tests
+copying tests\test_github_api.py -> prthinker-0.1.0\tests
+copying tests\test_github_base_url.py -> prthinker-0.1.0\tests
+copying tests\test_gitlab.py -> prthinker-0.1.0\tests
+copying tests\test_gitlab_ci_signals.py -> prthinker-0.1.0\tests
+copying tests\test_gitlab_harvest.py -> prthinker-0.1.0\tests
+copying tests\test_golden.py -> prthinker-0.1.0\tests
+copying tests\test_gpu_lock.py -> prthinker-0.1.0\tests
+copying tests\test_harvest.py -> prthinker-0.1.0\tests
+copying tests\test_hf_model_lora_load.py -> prthinker-0.1.0\tests
+copying tests\test_hook.py -> prthinker-0.1.0\tests
+copying tests\test_html_report.py -> prthinker-0.1.0\tests
+copying tests\test_hypothesis_retriever.py -> prthinker-0.1.0\tests
+copying tests\test_ide_protocol.py -> prthinker-0.1.0\tests
+copying tests\test_ignore.py -> prthinker-0.1.0\tests
+copying tests\test_impact_map.py -> prthinker-0.1.0\tests
+copying tests\test_incremental_save.py -> prthinker-0.1.0\tests
+copying tests\test_injection_guard.py -> prthinker-0.1.0\tests
+copying tests\test_inline_ignore.py -> prthinker-0.1.0\tests
+copying tests\test_issue_autofile.py -> prthinker-0.1.0\tests
+copying tests\test_issue_autofix.py -> prthinker-0.1.0\tests
+copying tests\test_issue_autofix_cli.py -> prthinker-0.1.0\tests
+copying tests\test_issue_fix.py -> prthinker-0.1.0\tests
+copying tests\test_issue_fix_cli.py -> prthinker-0.1.0\tests
+copying tests\test_issue_tracker.py -> prthinker-0.1.0\tests
+copying tests\test_judge.py -> prthinker-0.1.0\tests
+copying tests\test_junit_report.py -> prthinker-0.1.0\tests
+copying tests\test_kg_visualize_connects.py -> prthinker-0.1.0\tests
+copying tests\test_large_hunk.py -> prthinker-0.1.0\tests
+copying tests\test_lenient_json.py -> prthinker-0.1.0\tests
+copying tests\test_lessons.py -> prthinker-0.1.0\tests
+copying tests\test_localize.py -> prthinker-0.1.0\tests
+copying tests\test_markdown_report.py -> prthinker-0.1.0\tests
+copying tests\test_matrix_enumerate.py -> prthinker-0.1.0\tests
+copying tests\test_mcp_server.py -> prthinker-0.1.0\tests
+copying tests\test_merge_markers.py -> prthinker-0.1.0\tests
+copying tests\test_metrics.py -> prthinker-0.1.0\tests
+copying tests\test_mistral.py -> prthinker-0.1.0\tests
+copying tests\test_mode_changes.py -> prthinker-0.1.0\tests
+copying tests\test_multilingual_kg.py -> prthinker-0.1.0\tests
+copying tests\test_new_extensions.py -> prthinker-0.1.0\tests
+copying tests\test_new_markers.py -> prthinker-0.1.0\tests
+copying tests\test_noise_files.py -> prthinker-0.1.0\tests
+copying tests\test_online_quality.py -> prthinker-0.1.0\tests
+copying tests\test_openai_compat.py -> prthinker-0.1.0\tests
+copying tests\test_orientation.py -> prthinker-0.1.0\tests
+copying tests\test_personas.py -> prthinker-0.1.0\tests
+copying tests\test_pipeline.py -> prthinker-0.1.0\tests
+copying tests\test_pipeline_dag.py -> prthinker-0.1.0\tests
+copying tests\test_pipeline_exec.py -> prthinker-0.1.0\tests
+copying tests\test_pipeline_extras.py -> prthinker-0.1.0\tests
+copying tests\test_pipeline_repo_context.py -> prthinker-0.1.0\tests
+copying tests\test_platforms.py -> prthinker-0.1.0\tests
+copying tests\test_plugins.py -> prthinker-0.1.0\tests
+copying tests\test_pr_classifier.py -> prthinker-0.1.0\tests
+copying tests\test_pr_labels.py -> prthinker-0.1.0\tests
+copying tests\test_pr_overview.py -> prthinker-0.1.0\tests
+copying tests\test_pr_summary.py -> prthinker-0.1.0\tests
+copying tests\test_prompts_bundled.py -> prthinker-0.1.0\tests
+copying tests\test_provenance.py -> prthinker-0.1.0\tests
+copying tests\test_python_compatibility.py -> prthinker-0.1.0\tests
+copying tests\test_quant_guard.py -> prthinker-0.1.0\tests
+copying tests\test_rag_experiment_modes.py -> prthinker-0.1.0\tests
+copying tests\test_redaction.py -> prthinker-0.1.0\tests
+copying tests\test_release_gate.py -> prthinker-0.1.0\tests
+copying tests\test_release_preparation.py -> prthinker-0.1.0\tests
+copying tests\test_remote_backend_url.py -> prthinker-0.1.0\tests
+copying tests\test_remote_poll_retry.py -> prthinker-0.1.0\tests
+copying tests\test_remote_terminal_cancel.py -> prthinker-0.1.0\tests
+copying tests\test_rename_map.py -> prthinker-0.1.0\tests
+copying tests\test_repair_budget.py -> prthinker-0.1.0\tests
+copying tests\test_repair_loop.py -> prthinker-0.1.0\tests
+copying tests\test_repo_config.py -> prthinker-0.1.0\tests
+copying tests\test_repo_graph.py -> prthinker-0.1.0\tests
+copying tests\test_repo_kg.py -> prthinker-0.1.0\tests
+copying tests\test_repo_retrieval.py -> prthinker-0.1.0\tests
+copying tests\test_repo_retrieval_factory.py -> prthinker-0.1.0\tests
+copying tests\test_report.py -> prthinker-0.1.0\tests
+copying tests\test_report_formats.py -> prthinker-0.1.0\tests
+copying tests\test_reproducibility.py -> prthinker-0.1.0\tests
+copying tests\test_retrieval_eval.py -> prthinker-0.1.0\tests
+copying tests\test_retrieval_eval_cli.py -> prthinker-0.1.0\tests
+copying tests\test_retrieval_report_cli.py -> prthinker-0.1.0\tests
+copying tests\test_retrieval_scoring.py -> prthinker-0.1.0\tests
+copying tests\test_review_cache.py -> prthinker-0.1.0\tests
+copying tests\test_review_delta.py -> prthinker-0.1.0\tests
+copying tests\test_review_mode_accessibility.py -> prthinker-0.1.0\tests
+copying tests\test_review_mode_db_migration.py -> prthinker-0.1.0\tests
+copying tests\test_review_mode_iac.py -> prthinker-0.1.0\tests
+copying tests\test_review_mode_performance.py -> prthinker-0.1.0\tests
+copying tests\test_review_mode_pii.py -> prthinker-0.1.0\tests
+copying tests\test_review_mode_secret_scan.py -> prthinker-0.1.0\tests
+copying tests\test_review_mode_security.py -> prthinker-0.1.0\tests
+copying tests\test_review_mode_test_coverage.py -> prthinker-0.1.0\tests
+copying tests\test_review_modes.py -> prthinker-0.1.0\tests
+copying tests\test_review_order.py -> prthinker-0.1.0\tests
+copying tests\test_review_rollups.py -> prthinker-0.1.0\tests
+copying tests\test_risk_score.py -> prthinker-0.1.0\tests
+copying tests\test_router_backend.py -> prthinker-0.1.0\tests
+copying tests\test_sandbox.py -> prthinker-0.1.0\tests
+copying tests\test_sarif.py -> prthinker-0.1.0\tests
+copying tests\test_self_consistency.py -> prthinker-0.1.0\tests
+copying tests\test_self_review.py -> prthinker-0.1.0\tests
+copying tests\test_server_metrics.py -> prthinker-0.1.0\tests
+copying tests\test_signals.py -> prthinker-0.1.0\tests
+copying tests\test_sonar_report.py -> prthinker-0.1.0\tests
+copying tests\test_stack_trace.py -> prthinker-0.1.0\tests
+copying tests\test_step_dag_advanced.py -> prthinker-0.1.0\tests
+copying tests\test_step_planner.py -> prthinker-0.1.0\tests
+copying tests\test_summary_command.py -> prthinker-0.1.0\tests
+copying tests\test_supply_chain.py -> prthinker-0.1.0\tests
+copying tests\test_telemetry.py -> prthinker-0.1.0\tests
+copying tests\test_think_split.py -> prthinker-0.1.0\tests
+copying tests\test_thread_local_usage.py -> prthinker-0.1.0\tests
+copying tests\test_undefined_guard.py -> prthinker-0.1.0\tests
+copying tests\test_whitespace_only.py -> prthinker-0.1.0\tests
+copying tests\test_workflow_actions.py -> prthinker-0.1.0\tests
+Writing prthinker-0.1.0\setup.cfg
+Creating tar archive
+removing 'prthinker-0.1.0' (and everything under it)
+* Building wheel from sdist
+* Creating isolated environment: venv+pip...
+* Installing packages in isolated environment:
+  - setuptools>=68
+  - wheel
+* Getting build dependencies for wheel...
+running egg_info
+writing prthinker.egg-info\PKG-INFO
+writing dependency_links to prthinker.egg-info\dependency_links.txt
+writing entry points to prthinker.egg-info\entry_points.txt
+writing requirements to prthinker.egg-info\requires.txt
+writing top-level names to prthinker.egg-info\top_level.txt
+reading manifest file 'prthinker.egg-info\SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'prthinker.egg-info\SOURCES.txt'
+* Installed build dependency versions:
+  - setuptools==84.0.0
+  - wheel==0.48.0
+* Building wheel...
+running bdist_wheel
+running build
+running build_py
+creating build\lib\prthinker
+copying prthinker\ablation.py -> build\lib\prthinker
+copying prthinker\ablation_study.py -> build\lib\prthinker
+copying prthinker\accepted.py -> build\lib\prthinker
+copying prthinker\adversarial.py -> build\lib\prthinker
+copying prthinker\adversarial_benchmark.py -> build\lib\prthinker
+copying prthinker\adversarial_eval.py -> build\lib\prthinker
+copying prthinker\api_consistency.py -> build\lib\prthinker
+copying prthinker\api_surface.py -> build\lib\prthinker
+copying prthinker\arbitration.py -> build\lib\prthinker
+copying prthinker\auto_fix.py -> build\lib\prthinker
+copying prthinker\batch_review.py -> build\lib\prthinker
+copying prthinker\benchmark.py -> build\lib\prthinker
+copying prthinker\benchmark_cli.py -> build\lib\prthinker
+copying prthinker\benchmark_datasets.py -> build\lib\prthinker
+copying prthinker\benchmark_execution.py -> build\lib\prthinker
+copying prthinker\benchmark_measurement.py -> build\lib\prthinker
+copying prthinker\benchmark_scoring.py -> build\lib\prthinker
+copying prthinker\benchmark_session.py -> build\lib\prthinker
+copying prthinker\bidi_guard.py -> build\lib\prthinker
+copying prthinker\binary_changes.py -> build\lib\prthinker
+copying prthinker\cache.py -> build\lib\prthinker
+copying prthinker\calibration.py -> build\lib\prthinker
+copying prthinker\change_map.py -> build\lib\prthinker
+copying prthinker\change_stats.py -> build\lib\prthinker
+copying prthinker\checks.py -> build\lib\prthinker
+copying prthinker\citation_verify.py -> build\lib\prthinker
+copying prthinker\ci_signals.py -> build\lib\prthinker
+copying prthinker\cli.py -> build\lib\prthinker
+copying prthinker\cli_commands.py -> build\lib\prthinker
+copying prthinker\cli_commands_helpers.py -> build\lib\prthinker
+copying prthinker\cli_io.py -> build\lib\prthinker
+copying prthinker\cli_parser.py -> build\lib\prthinker
+copying prthinker\cli_parser_groups.py -> build\lib\prthinker
+copying prthinker\cli_parser_provider_groups.py -> build\lib\prthinker
+copying prthinker\cli_review.py -> build\lib\prthinker
+copying prthinker\cli_review_autofix.py -> build\lib\prthinker
+copying prthinker\cli_review_emit.py -> build\lib\prthinker
+copying prthinker\cli_review_helpers.py -> build\lib\prthinker
+copying prthinker\cli_review_issues.py -> build\lib\prthinker
+copying prthinker\cli_review_overall_summary.py -> build\lib\prthinker
+copying prthinker\cli_triage.py -> build\lib\prthinker
+copying prthinker\codequality.py -> build\lib\prthinker
+copying prthinker\commit_review.py -> build\lib\prthinker
+copying prthinker\confidence.py -> build\lib\prthinker
+copying prthinker\config.py -> build\lib\prthinker
+copying prthinker\context_graph.py -> build\lib\prthinker
+copying prthinker\conventional.py -> build\lib\prthinker
+copying prthinker\corpora_base.py -> build\lib\prthinker
+copying prthinker\cost.py -> build\lib\prthinker
+copying prthinker\counterfactual.py -> build\lib\prthinker
+copying prthinker\coverage_gap.py -> build\lib\prthinker
+copying prthinker\coverage_runner.py -> build\lib\prthinker
+copying prthinker\csv_report.py -> build\lib\prthinker
+copying prthinker\debug_left.py -> build\lib\prthinker
+copying prthinker\deleted_files.py -> build\lib\prthinker
+copying prthinker\depth_eval.py -> build\lib\prthinker
+copying prthinker\depth_eval_cli.py -> build\lib\prthinker
+copying prthinker\dep_upgrade.py -> build\lib\prthinker
+copying prthinker\detector_util.py -> build\lib\prthinker
+copying prthinker\dialogue.py -> build\lib\prthinker
+copying prthinker\diff.py -> build\lib\prthinker
+copying prthinker\diff_entropy.py -> build\lib\prthinker
+copying prthinker\dismissed.py -> build\lib\prthinker
+copying prthinker\empty_except.py -> build\lib\prthinker
+copying prthinker\evidence_binding.py -> build\lib\prthinker
+copying prthinker\execution_evidence.py -> build\lib\prthinker
+copying prthinker\execution_retriever.py -> build\lib\prthinker
+copying prthinker\execution_sandbox.py -> build\lib\prthinker
+copying prthinker\fault_localization.py -> build\lib\prthinker
+copying prthinker\findings.py -> build\lib\prthinker
+copying prthinker\finding_clusters.py -> build\lib\prthinker
+copying prthinker\finding_dedup.py -> build\lib\prthinker
+copying prthinker\formatters.py -> build\lib\prthinker
+copying prthinker\formatters_blocks.py -> build\lib\prthinker
+copying prthinker\formatters_summary.py -> build\lib\prthinker
+copying prthinker\gha_annotations.py -> build\lib\prthinker
+copying prthinker\gitea_harvest.py -> build\lib\prthinker
+copying prthinker\github_api.py -> build\lib\prthinker
+copying prthinker\gitlab_ci_signals.py -> build\lib\prthinker
+copying prthinker\gitlab_harvest.py -> build\lib\prthinker
+copying prthinker\golden.py -> build\lib\prthinker
+copying prthinker\gpu_lock.py -> build\lib\prthinker
+copying prthinker\harvest.py -> build\lib\prthinker
+copying prthinker\html_report.py -> build\lib\prthinker
+copying prthinker\hypothesis_retriever.py -> build\lib\prthinker
+copying prthinker\ide_protocol.py -> build\lib\prthinker
+copying prthinker\ignore.py -> build\lib\prthinker
+copying prthinker\impact_map.py -> build\lib\prthinker
+copying prthinker\incremental_save.py -> build\lib\prthinker
+copying prthinker\injection_guard.py -> build\lib\prthinker
+copying prthinker\inline_ignore.py -> build\lib\prthinker
+copying prthinker\issue_autofile.py -> build\lib\prthinker
+copying prthinker\issue_autofix.py -> build\lib\prthinker
+copying prthinker\issue_autofix_cli.py -> build\lib\prthinker
+copying prthinker\issue_fix.py -> build\lib\prthinker
+copying prthinker\issue_fix_cli.py -> build\lib\prthinker
+copying prthinker\issue_tracker.py -> build\lib\prthinker
+copying prthinker\judge.py -> build\lib\prthinker
+copying prthinker\junit_report.py -> build\lib\prthinker
+copying prthinker\kg_visualize.py -> build\lib\prthinker
+copying prthinker\large_hunk.py -> build\lib\prthinker
+copying prthinker\lenient_json.py -> build\lib\prthinker
+copying prthinker\lessons.py -> build\lib\prthinker
+copying prthinker\localize.py -> build\lib\prthinker
+copying prthinker\markdown_report.py -> build\lib\prthinker
+copying prthinker\matrix_enumerate.py -> build\lib\prthinker
+copying prthinker\mcp_server.py -> build\lib\prthinker
+copying prthinker\merge_markers.py -> build\lib\prthinker
+copying prthinker\metrics.py -> build\lib\prthinker
+copying prthinker\mode_changes.py -> build\lib\prthinker
+copying prthinker\new_markers.py -> build\lib\prthinker
+copying prthinker\noise_files.py -> build\lib\prthinker
+copying prthinker\online_quality.py -> build\lib\prthinker
+copying prthinker\orientation.py -> build\lib\prthinker
+copying prthinker\otel.py -> build\lib\prthinker
+copying prthinker\paired_statistics.py -> build\lib\prthinker
+copying prthinker\personas.py -> build\lib\prthinker
+copying prthinker\pipeline.py -> build\lib\prthinker
+copying prthinker\pipeline_exec.py -> build\lib\prthinker
+copying prthinker\pipeline_extras.py -> build\lib\prthinker
+copying prthinker\pipeline_types.py -> build\lib\prthinker
+copying prthinker\plugins.py -> build\lib\prthinker
+copying prthinker\polyglot_graph.py -> build\lib\prthinker
+copying prthinker\pricing.py -> build\lib\prthinker
+copying prthinker\pr_classifier.py -> build\lib\prthinker
+copying prthinker\pr_labels.py -> build\lib\prthinker
+copying prthinker\pr_overview.py -> build\lib\prthinker
+copying prthinker\pr_summary.py -> build\lib\prthinker
+copying prthinker\rag.py -> build\lib\prthinker
+copying prthinker\redaction.py -> build\lib\prthinker
+copying prthinker\release_gate.py -> build\lib\prthinker
+copying prthinker\rename_map.py -> build\lib\prthinker
+copying prthinker\repair_loop.py -> build\lib\prthinker
+copying prthinker\repair_review.py -> build\lib\prthinker
+copying prthinker\report.py -> build\lib\prthinker
+copying prthinker\report_formats.py -> build\lib\prthinker
+copying prthinker\repo_config.py -> build\lib\prthinker
+copying prthinker\repo_graph.py -> build\lib\prthinker
+copying prthinker\repo_kg.py -> build\lib\prthinker
+copying prthinker\repo_retrieval.py -> build\lib\prthinker
+copying prthinker\repo_retrieval_factory.py -> build\lib\prthinker
+copying prthinker\reproducibility.py -> build\lib\prthinker
+copying prthinker\retrieval_eval.py -> build\lib\prthinker
+copying prthinker\retrieval_eval_cli.py -> build\lib\prthinker
+copying prthinker\retrieval_report_cli.py -> build\lib\prthinker
+copying prthinker\retrieval_scoring.py -> build\lib\prthinker
+copying prthinker\review_cache.py -> build\lib\prthinker
+copying prthinker\review_delta.py -> build\lib\prthinker
+copying prthinker\review_order.py -> build\lib\prthinker
+copying prthinker\review_presets.py -> build\lib\prthinker
+copying prthinker\review_rollups.py -> build\lib\prthinker
+copying prthinker\risk_score.py -> build\lib\prthinker
+copying prthinker\rules.py -> build\lib\prthinker
+copying prthinker\sandbox.py -> build\lib\prthinker
+copying prthinker\sarif.py -> build\lib\prthinker
+copying prthinker\schemas.py -> build\lib\prthinker
+copying prthinker\self_consistency.py -> build\lib\prthinker
+copying prthinker\self_review.py -> build\lib\prthinker
+copying prthinker\signals.py -> build\lib\prthinker
+copying prthinker\sonar_report.py -> build\lib\prthinker
+copying prthinker\stack_trace.py -> build\lib\prthinker
+copying prthinker\steps.py -> build\lib\prthinker
+copying prthinker\step_dag.py -> build\lib\prthinker
+copying prthinker\step_planner.py -> build\lib\prthinker
+copying prthinker\study_cli.py -> build\lib\prthinker
+copying prthinker\summary_command.py -> build\lib\prthinker
+copying prthinker\supply_chain.py -> build\lib\prthinker
+copying prthinker\supply_chain_cli.py -> build\lib\prthinker
+copying prthinker\telemetry.py -> build\lib\prthinker
+copying prthinker\trajectory.py -> build\lib\prthinker
+copying prthinker\undefined_guard.py -> build\lib\prthinker
+copying prthinker\verification_tiers.py -> build\lib\prthinker
+copying prthinker\verify_cli.py -> build\lib\prthinker
+copying prthinker\whitespace_only.py -> build\lib\prthinker
+copying prthinker\__init__.py -> build\lib\prthinker
+copying prthinker\__main__.py -> build\lib\prthinker
+creating build\lib\prthinker\backends
+copying prthinker\backends\agent_cli.py -> build\lib\prthinker\backends
+copying prthinker\backends\anthropic.py -> build\lib\prthinker\backends
+copying prthinker\backends\base.py -> build\lib\prthinker\backends
+copying prthinker\backends\claude_cli.py -> build\lib\prthinker\backends
+copying prthinker\backends\codex_cli.py -> build\lib\prthinker\backends
+copying prthinker\backends\cohere.py -> build\lib\prthinker\backends
+copying prthinker\backends\ensemble.py -> build\lib\prthinker\backends
+copying prthinker\backends\gemini.py -> build\lib\prthinker\backends
+copying prthinker\backends\local.py -> build\lib\prthinker\backends
+copying prthinker\backends\mistral.py -> build\lib\prthinker\backends
+copying prthinker\backends\openai_compat.py -> build\lib\prthinker\backends
+copying prthinker\backends\remote.py -> build\lib\prthinker\backends
+copying prthinker\backends\router.py -> build\lib\prthinker\backends
+copying prthinker\backends\wrappers.py -> build\lib\prthinker\backends
+copying prthinker\backends\__init__.py -> build\lib\prthinker\backends
+creating build\lib\prthinker\platforms
+copying prthinker\platforms\base.py -> build\lib\prthinker\platforms
+copying prthinker\platforms\gitea.py -> build\lib\prthinker\platforms
+copying prthinker\platforms\github.py -> build\lib\prthinker\platforms
+copying prthinker\platforms\gitlab.py -> build\lib\prthinker\platforms
+copying prthinker\platforms\__init__.py -> build\lib\prthinker\platforms
+creating build\lib\prthinker\prompts
+copying prthinker\prompts\batch_findings.py -> build\lib\prthinker\prompts
+copying prthinker\prompts\code_smell_detector.py -> build\lib\prthinker\prompts
+copying prthinker\prompts\compact_review.py -> build\lib\prthinker\prompts
+copying prthinker\prompts\counterfactual_review.py -> build\lib\prthinker\prompts
+copying prthinker\prompts\finding_self_review.py -> build\lib\prthinker\prompts
+copying prthinker\prompts\first_code_review.py -> build\lib\prthinker\prompts
+copying prthinker\prompts\first_summary_prompt.py -> build\lib\prthinker\prompts
+copying prthinker\prompts\global_rule.py -> build\lib\prthinker\prompts
+copying prthinker\prompts\inline_findings.py -> build\lib\prthinker\prompts
+copying prthinker\prompts\judge.py -> build\lib\prthinker\prompts
+copying prthinker\prompts\judge_single_review.py -> build\lib\prthinker\prompts
+copying prthinker\prompts\judge_step.py -> build\lib\prthinker\prompts
+copying prthinker\prompts\linter.py -> build\lib\prthinker\prompts
+copying prthinker\prompts\localization_hypothesis.py -> build\lib\prthinker\prompts
+copying prthinker\prompts\review_critic.py -> build\lib\prthinker\prompts
+copying prthinker\prompts\step_by_step_analysis.py -> build\lib\prthinker\prompts
+copying prthinker\prompts\total_summary.py -> build\lib\prthinker\prompts
+copying prthinker\prompts\unified_review.py -> build\lib\prthinker\prompts
+copying prthinker\prompts\walkthrough.py -> build\lib\prthinker\prompts
+copying prthinker\prompts\__init__.py -> build\lib\prthinker\prompts
+creating build\lib\prthinker\review_modes
+copying prthinker\review_modes\accessibility.py -> build\lib\prthinker\review_modes
+copying prthinker\review_modes\ai_generated.py -> build\lib\prthinker\review_modes
+copying prthinker\review_modes\db_migration.py -> build\lib\prthinker\review_modes
+copying prthinker\review_modes\iac.py -> build\lib\prthinker\review_modes
+copying prthinker\review_modes\performance.py -> build\lib\prthinker\review_modes
+copying prthinker\review_modes\pii.py -> build\lib\prthinker\review_modes
+copying prthinker\review_modes\refactoring.py -> build\lib\prthinker\review_modes
+copying prthinker\review_modes\secret_scan.py -> build\lib\prthinker\review_modes
+copying prthinker\review_modes\security.py -> build\lib\prthinker\review_modes
+copying prthinker\review_modes\test_coverage.py -> build\lib\prthinker\review_modes
+copying prthinker\review_modes\_registry.py -> build\lib\prthinker\review_modes
+copying prthinker\review_modes\__init__.py -> build\lib\prthinker\review_modes
+creating build\lib\prthinker\prompts\CRSCORE
+copying prthinker\prompts\CRSCORE\crscore_cot_evaluation.py -> build\lib\prthinker\prompts\CRSCORE
+copying prthinker\prompts\CRSCORE\crscore_llm_as_judge.py -> build\lib\prthinker\prompts\CRSCORE
+copying prthinker\prompts\CRSCORE\__init__.py -> build\lib\prthinker\prompts\CRSCORE
+running egg_info
+writing prthinker.egg-info\PKG-INFO
+writing dependency_links to prthinker.egg-info\dependency_links.txt
+writing entry points to prthinker.egg-info\entry_points.txt
+writing requirements to prthinker.egg-info\requires.txt
+writing top-level names to prthinker.egg-info\top_level.txt
+reading manifest file 'prthinker.egg-info\SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'prthinker.egg-info\SOURCES.txt'
+creating build\lib\prthinker\adversarial_corpus
+copying prthinker\adversarial_corpus\seed.jsonl -> build\lib\prthinker\adversarial_corpus
+copying prthinker\adversarial_corpus\v1.jsonl -> build\lib\prthinker\adversarial_corpus
+copying prthinker\adversarial_corpus\v1.manifest.json -> build\lib\prthinker\adversarial_corpus
+installing to build\bdist.win-amd64\wheel
+running install
+running install_lib
+creating build\bdist.win-amd64\wheel
+creating build\bdist.win-amd64\wheel\prthinker
+copying build\lib\prthinker\ablation.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\ablation_study.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\accepted.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\adversarial.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\adversarial_benchmark.py -> build\bdist.win-amd64\wheel\.\prthinker
+creating build\bdist.win-amd64\wheel\prthinker\adversarial_corpus
+copying build\lib\prthinker\adversarial_corpus\seed.jsonl -> build\bdist.win-amd64\wheel\.\prthinker\adversarial_corpus
+copying build\lib\prthinker\adversarial_corpus\v1.jsonl -> build\bdist.win-amd64\wheel\.\prthinker\adversarial_corpus
+copying build\lib\prthinker\adversarial_corpus\v1.manifest.json -> build\bdist.win-amd64\wheel\.\prthinker\adversarial_corpus
+copying build\lib\prthinker\adversarial_eval.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\api_consistency.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\api_surface.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\arbitration.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\auto_fix.py -> build\bdist.win-amd64\wheel\.\prthinker
+creating build\bdist.win-amd64\wheel\prthinker\backends
+copying build\lib\prthinker\backends\agent_cli.py -> build\bdist.win-amd64\wheel\.\prthinker\backends
+copying build\lib\prthinker\backends\anthropic.py -> build\bdist.win-amd64\wheel\.\prthinker\backends
+copying build\lib\prthinker\backends\base.py -> build\bdist.win-amd64\wheel\.\prthinker\backends
+copying build\lib\prthinker\backends\claude_cli.py -> build\bdist.win-amd64\wheel\.\prthinker\backends
+copying build\lib\prthinker\backends\codex_cli.py -> build\bdist.win-amd64\wheel\.\prthinker\backends
+copying build\lib\prthinker\backends\cohere.py -> build\bdist.win-amd64\wheel\.\prthinker\backends
+copying build\lib\prthinker\backends\ensemble.py -> build\bdist.win-amd64\wheel\.\prthinker\backends
+copying build\lib\prthinker\backends\gemini.py -> build\bdist.win-amd64\wheel\.\prthinker\backends
+copying build\lib\prthinker\backends\local.py -> build\bdist.win-amd64\wheel\.\prthinker\backends
+copying build\lib\prthinker\backends\mistral.py -> build\bdist.win-amd64\wheel\.\prthinker\backends
+copying build\lib\prthinker\backends\openai_compat.py -> build\bdist.win-amd64\wheel\.\prthinker\backends
+copying build\lib\prthinker\backends\remote.py -> build\bdist.win-amd64\wheel\.\prthinker\backends
+copying build\lib\prthinker\backends\router.py -> build\bdist.win-amd64\wheel\.\prthinker\backends
+copying build\lib\prthinker\backends\wrappers.py -> build\bdist.win-amd64\wheel\.\prthinker\backends
+copying build\lib\prthinker\backends\__init__.py -> build\bdist.win-amd64\wheel\.\prthinker\backends
+copying build\lib\prthinker\batch_review.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\benchmark.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\benchmark_cli.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\benchmark_datasets.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\benchmark_execution.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\benchmark_measurement.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\benchmark_scoring.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\benchmark_session.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\bidi_guard.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\binary_changes.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\cache.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\calibration.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\change_map.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\change_stats.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\checks.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\citation_verify.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\ci_signals.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\cli.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\cli_commands.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\cli_commands_helpers.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\cli_io.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\cli_parser.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\cli_parser_groups.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\cli_parser_provider_groups.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\cli_review.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\cli_review_autofix.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\cli_review_emit.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\cli_review_helpers.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\cli_review_issues.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\cli_review_overall_summary.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\cli_triage.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\codequality.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\commit_review.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\confidence.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\config.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\context_graph.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\conventional.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\corpora_base.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\cost.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\counterfactual.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\coverage_gap.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\coverage_runner.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\csv_report.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\debug_left.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\deleted_files.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\depth_eval.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\depth_eval_cli.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\dep_upgrade.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\detector_util.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\dialogue.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\diff.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\diff_entropy.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\dismissed.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\empty_except.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\evidence_binding.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\execution_evidence.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\execution_retriever.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\execution_sandbox.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\fault_localization.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\findings.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\finding_clusters.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\finding_dedup.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\formatters.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\formatters_blocks.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\formatters_summary.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\gha_annotations.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\gitea_harvest.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\github_api.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\gitlab_ci_signals.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\gitlab_harvest.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\golden.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\gpu_lock.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\harvest.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\html_report.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\hypothesis_retriever.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\ide_protocol.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\ignore.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\impact_map.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\incremental_save.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\injection_guard.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\inline_ignore.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\issue_autofile.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\issue_autofix.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\issue_autofix_cli.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\issue_fix.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\issue_fix_cli.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\issue_tracker.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\judge.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\junit_report.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\kg_visualize.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\large_hunk.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\lenient_json.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\lessons.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\localize.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\markdown_report.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\matrix_enumerate.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\mcp_server.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\merge_markers.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\metrics.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\mode_changes.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\new_markers.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\noise_files.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\online_quality.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\orientation.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\otel.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\paired_statistics.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\personas.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\pipeline.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\pipeline_exec.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\pipeline_extras.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\pipeline_types.py -> build\bdist.win-amd64\wheel\.\prthinker
+creating build\bdist.win-amd64\wheel\prthinker\platforms
+copying build\lib\prthinker\platforms\base.py -> build\bdist.win-amd64\wheel\.\prthinker\platforms
+copying build\lib\prthinker\platforms\gitea.py -> build\bdist.win-amd64\wheel\.\prthinker\platforms
+copying build\lib\prthinker\platforms\github.py -> build\bdist.win-amd64\wheel\.\prthinker\platforms
+copying build\lib\prthinker\platforms\gitlab.py -> build\bdist.win-amd64\wheel\.\prthinker\platforms
+copying build\lib\prthinker\platforms\__init__.py -> build\bdist.win-amd64\wheel\.\prthinker\platforms
+copying build\lib\prthinker\plugins.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\polyglot_graph.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\pricing.py -> build\bdist.win-amd64\wheel\.\prthinker
+creating build\bdist.win-amd64\wheel\prthinker\prompts
+copying build\lib\prthinker\prompts\batch_findings.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts
+copying build\lib\prthinker\prompts\code_smell_detector.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts
+copying build\lib\prthinker\prompts\compact_review.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts
+copying build\lib\prthinker\prompts\counterfactual_review.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts
+creating build\bdist.win-amd64\wheel\prthinker\prompts\CRSCORE
+copying build\lib\prthinker\prompts\CRSCORE\crscore_cot_evaluation.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts\CRSCORE
+copying build\lib\prthinker\prompts\CRSCORE\crscore_llm_as_judge.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts\CRSCORE
+copying build\lib\prthinker\prompts\CRSCORE\__init__.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts\CRSCORE
+copying build\lib\prthinker\prompts\finding_self_review.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts
+copying build\lib\prthinker\prompts\first_code_review.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts
+copying build\lib\prthinker\prompts\first_summary_prompt.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts
+copying build\lib\prthinker\prompts\global_rule.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts
+copying build\lib\prthinker\prompts\inline_findings.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts
+copying build\lib\prthinker\prompts\judge.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts
+copying build\lib\prthinker\prompts\judge_single_review.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts
+copying build\lib\prthinker\prompts\judge_step.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts
+copying build\lib\prthinker\prompts\linter.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts
+copying build\lib\prthinker\prompts\localization_hypothesis.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts
+copying build\lib\prthinker\prompts\review_critic.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts
+copying build\lib\prthinker\prompts\step_by_step_analysis.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts
+copying build\lib\prthinker\prompts\total_summary.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts
+copying build\lib\prthinker\prompts\unified_review.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts
+copying build\lib\prthinker\prompts\walkthrough.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts
+copying build\lib\prthinker\prompts\__init__.py -> build\bdist.win-amd64\wheel\.\prthinker\prompts
+copying build\lib\prthinker\pr_classifier.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\pr_labels.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\pr_overview.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\pr_summary.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\rag.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\redaction.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\release_gate.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\rename_map.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\repair_loop.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\repair_review.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\report.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\report_formats.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\repo_config.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\repo_graph.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\repo_kg.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\repo_retrieval.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\repo_retrieval_factory.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\reproducibility.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\retrieval_eval.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\retrieval_eval_cli.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\retrieval_report_cli.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\retrieval_scoring.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\review_cache.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\review_delta.py -> build\bdist.win-amd64\wheel\.\prthinker
+creating build\bdist.win-amd64\wheel\prthinker\review_modes
+copying build\lib\prthinker\review_modes\accessibility.py -> build\bdist.win-amd64\wheel\.\prthinker\review_modes
+copying build\lib\prthinker\review_modes\ai_generated.py -> build\bdist.win-amd64\wheel\.\prthinker\review_modes
+copying build\lib\prthinker\review_modes\db_migration.py -> build\bdist.win-amd64\wheel\.\prthinker\review_modes
+copying build\lib\prthinker\review_modes\iac.py -> build\bdist.win-amd64\wheel\.\prthinker\review_modes
+copying build\lib\prthinker\review_modes\performance.py -> build\bdist.win-amd64\wheel\.\prthinker\review_modes
+copying build\lib\prthinker\review_modes\pii.py -> build\bdist.win-amd64\wheel\.\prthinker\review_modes
+copying build\lib\prthinker\review_modes\refactoring.py -> build\bdist.win-amd64\wheel\.\prthinker\review_modes
+copying build\lib\prthinker\review_modes\secret_scan.py -> build\bdist.win-amd64\wheel\.\prthinker\review_modes
+copying build\lib\prthinker\review_modes\security.py -> build\bdist.win-amd64\wheel\.\prthinker\review_modes
+copying build\lib\prthinker\review_modes\test_coverage.py -> build\bdist.win-amd64\wheel\.\prthinker\review_modes
+copying build\lib\prthinker\review_modes\_registry.py -> build\bdist.win-amd64\wheel\.\prthinker\review_modes
+copying build\lib\prthinker\review_modes\__init__.py -> build\bdist.win-amd64\wheel\.\prthinker\review_modes
+copying build\lib\prthinker\review_order.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\review_presets.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\review_rollups.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\risk_score.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\rules.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\sandbox.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\sarif.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\schemas.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\self_consistency.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\self_review.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\signals.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\sonar_report.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\stack_trace.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\steps.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\step_dag.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\step_planner.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\study_cli.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\summary_command.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\supply_chain.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\supply_chain_cli.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\telemetry.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\trajectory.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\undefined_guard.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\verification_tiers.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\verify_cli.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\whitespace_only.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\__init__.py -> build\bdist.win-amd64\wheel\.\prthinker
+copying build\lib\prthinker\__main__.py -> build\bdist.win-amd64\wheel\.\prthinker
+running install_egg_info
+Copying prthinker.egg-info to build\bdist.win-amd64\wheel\.\prthinker-0.1.0-py3.14.egg-info
+running install_scripts
+creating build\bdist.win-amd64\wheel\prthinker-0.1.0.dist-info\WHEEL
+creating 'C:\\Users\\DELL\\Desktop\\Code\\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\\dist\\.tmp-b_79gaoy\\prthinker-0.1.0-py3-none-any.whl' and adding 'build\\bdist.win-amd64\\wheel' to it
+adding 'prthinker/__init__.py'
+adding 'prthinker/__main__.py'
+adding 'prthinker/ablation.py'
+adding 'prthinker/ablation_study.py'
+adding 'prthinker/accepted.py'
+adding 'prthinker/adversarial.py'
+adding 'prthinker/adversarial_benchmark.py'
+adding 'prthinker/adversarial_eval.py'
+adding 'prthinker/api_consistency.py'
+adding 'prthinker/api_surface.py'
+adding 'prthinker/arbitration.py'
+adding 'prthinker/auto_fix.py'
+adding 'prthinker/batch_review.py'
+adding 'prthinker/benchmark.py'
+adding 'prthinker/benchmark_cli.py'
+adding 'prthinker/benchmark_datasets.py'
+adding 'prthinker/benchmark_execution.py'
+adding 'prthinker/benchmark_measurement.py'
+adding 'prthinker/benchmark_scoring.py'
+adding 'prthinker/benchmark_session.py'
+adding 'prthinker/bidi_guard.py'
+adding 'prthinker/binary_changes.py'
+adding 'prthinker/cache.py'
+adding 'prthinker/calibration.py'
+adding 'prthinker/change_map.py'
+adding 'prthinker/change_stats.py'
+adding 'prthinker/checks.py'
+adding 'prthinker/ci_signals.py'
+adding 'prthinker/citation_verify.py'
+adding 'prthinker/cli.py'
+adding 'prthinker/cli_commands.py'
+adding 'prthinker/cli_commands_helpers.py'
+adding 'prthinker/cli_io.py'
+adding 'prthinker/cli_parser.py'
+adding 'prthinker/cli_parser_groups.py'
+adding 'prthinker/cli_parser_provider_groups.py'
+adding 'prthinker/cli_review.py'
+adding 'prthinker/cli_review_autofix.py'
+adding 'prthinker/cli_review_emit.py'
+adding 'prthinker/cli_review_helpers.py'
+adding 'prthinker/cli_review_issues.py'
+adding 'prthinker/cli_review_overall_summary.py'
+adding 'prthinker/cli_triage.py'
+adding 'prthinker/codequality.py'
+adding 'prthinker/commit_review.py'
+adding 'prthinker/confidence.py'
+adding 'prthinker/config.py'
+adding 'prthinker/context_graph.py'
+adding 'prthinker/conventional.py'
+adding 'prthinker/corpora_base.py'
+adding 'prthinker/cost.py'
+adding 'prthinker/counterfactual.py'
+adding 'prthinker/coverage_gap.py'
+adding 'prthinker/coverage_runner.py'
+adding 'prthinker/csv_report.py'
+adding 'prthinker/debug_left.py'
+adding 'prthinker/deleted_files.py'
+adding 'prthinker/dep_upgrade.py'
+adding 'prthinker/depth_eval.py'
+adding 'prthinker/depth_eval_cli.py'
+adding 'prthinker/detector_util.py'
+adding 'prthinker/dialogue.py'
+adding 'prthinker/diff.py'
+adding 'prthinker/diff_entropy.py'
+adding 'prthinker/dismissed.py'
+adding 'prthinker/empty_except.py'
+adding 'prthinker/evidence_binding.py'
+adding 'prthinker/execution_evidence.py'
+adding 'prthinker/execution_retriever.py'
+adding 'prthinker/execution_sandbox.py'
+adding 'prthinker/fault_localization.py'
+adding 'prthinker/finding_clusters.py'
+adding 'prthinker/finding_dedup.py'
+adding 'prthinker/findings.py'
+adding 'prthinker/formatters.py'
+adding 'prthinker/formatters_blocks.py'
+adding 'prthinker/formatters_summary.py'
+adding 'prthinker/gha_annotations.py'
+adding 'prthinker/gitea_harvest.py'
+adding 'prthinker/github_api.py'
+adding 'prthinker/gitlab_ci_signals.py'
+adding 'prthinker/gitlab_harvest.py'
+adding 'prthinker/golden.py'
+adding 'prthinker/gpu_lock.py'
+adding 'prthinker/harvest.py'
+adding 'prthinker/html_report.py'
+adding 'prthinker/hypothesis_retriever.py'
+adding 'prthinker/ide_protocol.py'
+adding 'prthinker/ignore.py'
+adding 'prthinker/impact_map.py'
+adding 'prthinker/incremental_save.py'
+adding 'prthinker/injection_guard.py'
+adding 'prthinker/inline_ignore.py'
+adding 'prthinker/issue_autofile.py'
+adding 'prthinker/issue_autofix.py'
+adding 'prthinker/issue_autofix_cli.py'
+adding 'prthinker/issue_fix.py'
+adding 'prthinker/issue_fix_cli.py'
+adding 'prthinker/issue_tracker.py'
+adding 'prthinker/judge.py'
+adding 'prthinker/junit_report.py'
+adding 'prthinker/kg_visualize.py'
+adding 'prthinker/large_hunk.py'
+adding 'prthinker/lenient_json.py'
+adding 'prthinker/lessons.py'
+adding 'prthinker/localize.py'
+adding 'prthinker/markdown_report.py'
+adding 'prthinker/matrix_enumerate.py'
+adding 'prthinker/mcp_server.py'
+adding 'prthinker/merge_markers.py'
+adding 'prthinker/metrics.py'
+adding 'prthinker/mode_changes.py'
+adding 'prthinker/new_markers.py'
+adding 'prthinker/noise_files.py'
+adding 'prthinker/online_quality.py'
+adding 'prthinker/orientation.py'
+adding 'prthinker/otel.py'
+adding 'prthinker/paired_statistics.py'
+adding 'prthinker/personas.py'
+adding 'prthinker/pipeline.py'
+adding 'prthinker/pipeline_exec.py'
+adding 'prthinker/pipeline_extras.py'
+adding 'prthinker/pipeline_types.py'
+adding 'prthinker/plugins.py'
+adding 'prthinker/polyglot_graph.py'
+adding 'prthinker/pr_classifier.py'
+adding 'prthinker/pr_labels.py'
+adding 'prthinker/pr_overview.py'
+adding 'prthinker/pr_summary.py'
+adding 'prthinker/pricing.py'
+adding 'prthinker/rag.py'
+adding 'prthinker/redaction.py'
+adding 'prthinker/release_gate.py'
+adding 'prthinker/rename_map.py'
+adding 'prthinker/repair_loop.py'
+adding 'prthinker/repair_review.py'
+adding 'prthinker/repo_config.py'
+adding 'prthinker/repo_graph.py'
+adding 'prthinker/repo_kg.py'
+adding 'prthinker/repo_retrieval.py'
+adding 'prthinker/repo_retrieval_factory.py'
+adding 'prthinker/report.py'
+adding 'prthinker/report_formats.py'
+adding 'prthinker/reproducibility.py'
+adding 'prthinker/retrieval_eval.py'
+adding 'prthinker/retrieval_eval_cli.py'
+adding 'prthinker/retrieval_report_cli.py'
+adding 'prthinker/retrieval_scoring.py'
+adding 'prthinker/review_cache.py'
+adding 'prthinker/review_delta.py'
+adding 'prthinker/review_order.py'
+adding 'prthinker/review_presets.py'
+adding 'prthinker/review_rollups.py'
+adding 'prthinker/risk_score.py'
+adding 'prthinker/rules.py'
+adding 'prthinker/sandbox.py'
+adding 'prthinker/sarif.py'
+adding 'prthinker/schemas.py'
+adding 'prthinker/self_consistency.py'
+adding 'prthinker/self_review.py'
+adding 'prthinker/signals.py'
+adding 'prthinker/sonar_report.py'
+adding 'prthinker/stack_trace.py'
+adding 'prthinker/step_dag.py'
+adding 'prthinker/step_planner.py'
+adding 'prthinker/steps.py'
+adding 'prthinker/study_cli.py'
+adding 'prthinker/summary_command.py'
+adding 'prthinker/supply_chain.py'
+adding 'prthinker/supply_chain_cli.py'
+adding 'prthinker/telemetry.py'
+adding 'prthinker/trajectory.py'
+adding 'prthinker/undefined_guard.py'
+adding 'prthinker/verification_tiers.py'
+adding 'prthinker/verify_cli.py'
+adding 'prthinker/whitespace_only.py'
+adding 'prthinker/adversarial_corpus/seed.jsonl'
+adding 'prthinker/adversarial_corpus/v1.jsonl'
+adding 'prthinker/adversarial_corpus/v1.manifest.json'
+adding 'prthinker/backends/__init__.py'
+adding 'prthinker/backends/agent_cli.py'
+adding 'prthinker/backends/anthropic.py'
+adding 'prthinker/backends/base.py'
+adding 'prthinker/backends/claude_cli.py'
+adding 'prthinker/backends/codex_cli.py'
+adding 'prthinker/backends/cohere.py'
+adding 'prthinker/backends/ensemble.py'
+adding 'prthinker/backends/gemini.py'
+adding 'prthinker/backends/local.py'
+adding 'prthinker/backends/mistral.py'
+adding 'prthinker/backends/openai_compat.py'
+adding 'prthinker/backends/remote.py'
+adding 'prthinker/backends/router.py'
+adding 'prthinker/backends/wrappers.py'
+adding 'prthinker/platforms/__init__.py'
+adding 'prthinker/platforms/base.py'
+adding 'prthinker/platforms/gitea.py'
+adding 'prthinker/platforms/github.py'
+adding 'prthinker/platforms/gitlab.py'
+adding 'prthinker/prompts/__init__.py'
+adding 'prthinker/prompts/batch_findings.py'
+adding 'prthinker/prompts/code_smell_detector.py'
+adding 'prthinker/prompts/compact_review.py'
+adding 'prthinker/prompts/counterfactual_review.py'
+adding 'prthinker/prompts/finding_self_review.py'
+adding 'prthinker/prompts/first_code_review.py'
+adding 'prthinker/prompts/first_summary_prompt.py'
+adding 'prthinker/prompts/global_rule.py'
+adding 'prthinker/prompts/inline_findings.py'
+adding 'prthinker/prompts/judge.py'
+adding 'prthinker/prompts/judge_single_review.py'
+adding 'prthinker/prompts/judge_step.py'
+adding 'prthinker/prompts/linter.py'
+adding 'prthinker/prompts/localization_hypothesis.py'
+adding 'prthinker/prompts/review_critic.py'
+adding 'prthinker/prompts/step_by_step_analysis.py'
+adding 'prthinker/prompts/total_summary.py'
+adding 'prthinker/prompts/unified_review.py'
+adding 'prthinker/prompts/walkthrough.py'
+adding 'prthinker/prompts/CRSCORE/__init__.py'
+adding 'prthinker/prompts/CRSCORE/crscore_cot_evaluation.py'
+adding 'prthinker/prompts/CRSCORE/crscore_llm_as_judge.py'
+adding 'prthinker/review_modes/__init__.py'
+adding 'prthinker/review_modes/_registry.py'
+adding 'prthinker/review_modes/accessibility.py'
+adding 'prthinker/review_modes/ai_generated.py'
+adding 'prthinker/review_modes/db_migration.py'
+adding 'prthinker/review_modes/iac.py'
+adding 'prthinker/review_modes/performance.py'
+adding 'prthinker/review_modes/pii.py'
+adding 'prthinker/review_modes/refactoring.py'
+adding 'prthinker/review_modes/secret_scan.py'
+adding 'prthinker/review_modes/security.py'
+adding 'prthinker/review_modes/test_coverage.py'
+adding 'prthinker-0.1.0.dist-info/licenses/LICENSE'
+adding 'prthinker-0.1.0.dist-info/METADATA'
+adding 'prthinker-0.1.0.dist-info/WHEEL'
+adding 'prthinker-0.1.0.dist-info/entry_points.txt'
+adding 'prthinker-0.1.0.dist-info/top_level.txt'
+adding 'prthinker-0.1.0.dist-info/RECORD'
+removing build\bdist.win-amd64\wheel
+Successfully built prthinker-0.1.0.tar.gz and prthinker-0.1.0-py3-none-any.whl

@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "target_version": "1.0.0",
+  "status": "implementation_completed_experiments_deferred",
+  "gates": {
+    "public_benchmark": {
+      "status": "deferred",
+      "reason": "Model experiments deferred by explicit user instruction; implementation is available."
+    },
+    "adversarial_benchmark": {
+      "status": "deferred",
+      "reason": "Model experiments deferred by explicit user instruction; implementation is available."
+    },
+    "ablation_study": {
+      "status": "deferred",
+      "reason": "Model experiments deferred by explicit user instruction; implementation is available."
+    },
+    "python_compatibility": {
+      "status": "completed",
+      "artifact": "implementation-final/checks.json",
+      "sha256": "dd4c59caf4dcd557a284d6e6058357421943e2725ef5a538b0444d13212a4d63"
+    },
+    "pr_summary": {
+      "status": "completed",
+      "artifact": "implementation-final/checks.json",
+      "sha256": "dd4c59caf4dcd557a284d6e6058357421943e2725ef5a538b0444d13212a4d63"
+    },
+    "multilingual_kg": {
+      "status": "completed",
+      "artifact": "implementation-final/checks.json",
+      "sha256": "dd4c59caf4dcd557a284d6e6058357421943e2725ef5a538b0444d13212a4d63"
+    },
+    "autonomous_repair": {
+      "status": "completed",
+      "artifact": "implementation-final/checks.json",
+      "sha256": "dd4c59caf4dcd557a284d6e6058357421943e2725ef5a538b0444d13212a4d63"
+    },
+    "online_quality": {
+      "status": "completed",
+      "artifact": "implementation-final/checks.json",
+      "sha256": "dd4c59caf4dcd557a284d6e6058357421943e2725ef5a538b0444d13212a4d63"
+    },
+    "build_install": {
+      "status": "completed",
+      "artifact": "implementation-final/checks.json",
+      "sha256": "dd4c59caf4dcd557a284d6e6058357421943e2725ef5a538b0444d13212a4d63"
+    },
+    "release_smoke": {
+      "status": "completed",
+      "artifact": "implementation-final/checks.json",
+      "sha256": "dd4c59caf4dcd557a284d6e6058357421943e2725ef5a538b0444d13212a4d63"
+    },
+    "documentation": {
+      "status": "completed",
+      "artifact": "implementation-final/checks.json",
+      "sha256": "dd4c59caf4dcd557a284d6e6058357421943e2725ef5a538b0444d13212a4d63"
+    },
+    "jeditor": {
+      "status": "completed",
+      "artifact": "editor-verification/jeditor.json",
+      "sha256": "4792d6b0d355241b4e800c6e255bae2d726135d34fa81966f99984a87f18677c"
+    },
+    "pybreeze": {
+      "status": "completed",
+      "artifact": "editor-verification/pybreeze.json",
+      "sha256": "a4a67d8c0161e6b543ac5fb4f083f16c273ef861ee8a006f2aaad8c930e0b2ed"
+    }
+  }
+}

@@ -33,3 +33,7 @@ Append one JSON object per line. Required fields:
 
 Markers are matched case-insensitively. See
 `prthinker/adversarial.py:detect_bypass` for the exact decision logic.
+
+## Versioned synthetic benchmark
+
+`v1.jsonl` is a separate 24-case synthetic corpus (three attacks and one benign control for each of six families). `v1.manifest.json` pins its version, MIT license and SHA-256. Run `prthinker adversarial-benchmark run CORPUS OUTPUT` and `score OUTPUT`; outcomes and input are archived in a new directory. Marker labels are explicitly heuristic proxies and require independent adjudication before robustness claims. No empirical scores are bundled; unsafe executed actions remain unknown.

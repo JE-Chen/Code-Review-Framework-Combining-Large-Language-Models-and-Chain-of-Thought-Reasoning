@@ -10,6 +10,11 @@ import argparse
 import logging
 from pathlib import Path
 
+from prthinker.adversarial_benchmark import (
+    add_parser as add_adversarial_benchmark_parser,
+)
+from prthinker.benchmark_cli import add_benchmark_parser
+from prthinker.cli_io import write_stdout
 from prthinker.cli_parser_groups import (
     add_analysis_args,
     add_arbitration_args,
@@ -34,21 +39,35 @@ from prthinker.config import (
     env_path,
     env_str,
 )
+from prthinker.depth_eval_cli import add_parser as add_depth_eval_parser
+from prthinker.ide_protocol import add_parser as add_ide_parser
+from prthinker.issue_autofix_cli import add_parser as add_issue_autofix_parser
+from prthinker.issue_fix_cli import add_parser as add_issue_fix_parser
+from prthinker.online_quality import add_parser as add_quality_parser
+from prthinker.release_gate import add_parser as add_release_check_parser
 from prthinker.repo_config import (
     find_config_file,
     load_repo_config,
     to_argparse_defaults,
 )
-from prthinker.benchmark_cli import add_benchmark_parser
-from prthinker.depth_eval_cli import add_parser as add_depth_eval_parser
-from prthinker.verify_cli import add_verify_parser
 from prthinker.retrieval_eval_cli import add_parser as add_retrieval_eval_parser
 from prthinker.retrieval_report_cli import add_parser as add_retrieval_report_parser
+from prthinker.study_cli import add_parser as add_study_parser
 from prthinker.supply_chain_cli import add_parser as add_attest_parser
-from prthinker.issue_autofix_cli import add_parser as add_issue_autofix_parser
-from prthinker.issue_fix_cli import add_parser as add_issue_fix_parser
+from prthinker.verify_cli import add_verify_parser
 
 log = logging.getLogger("prthinker")
+
+
+class ConsoleArgumentParser(argparse.ArgumentParser):
+    """Print help safely on legacy Windows console encodings."""
+
+    def print_help(self, file=None):
+        text = self.format_help()
+        if file is None:
+            write_stdout(text)
+        else:
+            file.write(text)
 
 _GATE_HELP = (
     "Open a Check Run; conclude as 'failure' when findings of this "
@@ -74,7 +93,7 @@ def _apply_repo_defaults(
     cfg = load_repo_config(resolved)
     defaults = to_argparse_defaults(cfg)
     parser.set_defaults(**defaults)
-    for action in parser._actions:  # noqa: SLF001 — argparse exposes no public iterator
+    for action in parser._actions:
         if isinstance(action, argparse._SubParsersAction):
             for sub in action.choices.values():
                 sub.set_defaults(**defaults)
@@ -97,7 +116,7 @@ def _build_common_parser() -> argparse.ArgumentParser:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="prthinker")
+    parser = ConsoleArgumentParser(prog="prthinker")
     parser.add_argument(
         "--config",
         type=Path,
@@ -156,6 +175,11 @@ def _register_subcommands(sub, common: argparse.ArgumentParser) -> None:
     add_attest_parser(sub)
     add_issue_fix_parser(sub, common)
     add_issue_autofix_parser(sub, common)
+    add_adversarial_benchmark_parser(sub, common)
+    add_quality_parser(sub)
+    add_study_parser(sub, common)
+    add_ide_parser(sub, common)
+    add_release_check_parser(sub)
 
 
 def add_triage_parser(sub) -> None:
@@ -211,6 +235,10 @@ def add_pr_summary_parser(sub, common: argparse.ArgumentParser) -> None:
         ),
     )
     _add_review_pr_platform_args(p_sum)
+    p_sum.add_argument("--input-json", type=Path, help="Local diff/title/body/commits JSON; no forge needed")
+    p_sum.add_argument("--summary-format", choices=["text", "json"], default="text")
+    p_sum.add_argument("--summary-output", type=Path)
+    p_sum.add_argument("--publish-summary", action="store_true", help="Explicitly upsert the summary comment")
 
 
 def _add_review_pr_platform_args(p_pr: argparse.ArgumentParser) -> None:

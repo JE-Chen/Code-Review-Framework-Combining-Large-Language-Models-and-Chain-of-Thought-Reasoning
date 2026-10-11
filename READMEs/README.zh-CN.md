@@ -443,7 +443,7 @@ Code-Review-Framework/
 ├── requirements/         # hash 锁定的 runner／CI 环境（pip-compile --generate-hashes）
 ├── paper/                # 学术论文与幻灯片
 ├── tests/                # 自动化测试
-└── .github/workflows/    # CI（锁定依赖、3.12/3.13）、release（Trusted Publishing）、PR 自动审查
+└── .github/workflows/    # CI（锁定依赖、3.10–3.14）、release（Trusted Publishing）、PR 自动审查
 ```
 
 设计模式视角（Strategy / Factory / Registry / Repository）与运行期数据流
@@ -466,3 +466,8 @@ Code-Review-Framework/
 ## 许可证
 
 MIT──见 [LICENSE](../LICENSE)。
+## 评估与集成
+
+PR #75 的实现已提供：逐案 benchmark 存档、六类对抗语料、17 项配对消融、独立摘要、多语言图谱、隔离修复、假名化质量信号及 JSONL IDE 集成。支持 Python 3.10–3.14。模型实测暂缓，正式 1.0 仍需要完整证据。
+
+[评估与集成](../docs/zh-CN/guide/evaluation-integration.rst).

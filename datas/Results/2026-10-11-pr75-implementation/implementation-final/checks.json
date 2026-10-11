@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "measurement": "offline_implementation_validation",
+  "status": "passed",
+  "checks": [
+    {
+      "command": [
+        "C:\\Users\\DELL\\Desktop\\Code\\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "-q"
+      ],
+      "exit_code": 0,
+      "log": "pytest-current.log",
+      "sha256": "b77d79b61e9e516bbe49aaa85a557e26aa31e121e0d9aec45faa0cb9a8ff56c2"
+    },
+    {
+      "command": [
+        "C:\\Users\\DELL\\Desktop\\Code\\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\\.venv310\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "-q"
+      ],
+      "exit_code": 0,
+      "log": "pytest-minimum.log",
+      "sha256": "358523359e1700022d3f5448d430d56f45c4199b3f5b76c4a04c2acc23ebfe50"
+    },
+    {
+      "command": [
+        "C:\\Users\\DELL\\Desktop\\Code\\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\\.venv\\Scripts\\python.exe",
+        "-m",
+        "bandit",
+        "-c",
+        "pyproject.toml",
+        "-r",
+        "prthinker",
+        "-q"
+      ],
+      "exit_code": 0,
+      "log": "bandit.log",
+      "sha256": "1712b83ab28e8d969d8030833e85e950ebc503a774e3492b8c50c1f6994a8300"
+    },
+    {
+      "command": [
+        "C:\\Users\\DELL\\Desktop\\Code\\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\\.venv\\Scripts\\python.exe",
+        "-m",
+        "sphinx",
+        "-b",
+        "html",
+        "-q",
+        "docs",
+        "docs/_build/html"
+      ],
+      "exit_code": 0,
+      "log": "documentation.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "C:\\Users\\DELL\\Desktop\\Code\\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\\.venv\\Scripts\\python.exe",
+        "-m",
+        "build"
+      ],
+      "exit_code": 0,
+      "log": "build.log",
+      "sha256": "f27edd5317d04d245df2d0d619097fef8b5389a8a8fd5f462268f17b4fc349d7"
+    },
+    {
+      "command": [
+        "C:\\Users\\DELL\\Desktop\\Code\\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\\.venv\\Scripts\\python.exe",
+        "-m",
+        "ruff",
+        "check",
+        "prthinker",
+        "tests",
+        "scripts"
+      ],
+      "exit_code": 0,
+      "log": "ruff-delta.json",
+      "sha256": "f445b46fa903554cb6f05325d679d80ee78c4af2495752ec800564e3069cd5c5"
+    },
+    {
+      "command": [
+        "C:\\Users\\DELL\\Desktop\\Code\\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\\.venv\\Scripts\\python.exe",
+        "-m",
+        "twine",
+        "check",
+        "C:\\Users\\DELL\\Desktop\\Code\\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\\dist\\prthinker-0.1.0-py3-none-any.whl",
+        "C:\\Users\\DELL\\Desktop\\Code\\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\\dist\\prthinker-0.1.0.tar.gz"
+      ],
+      "exit_code": 0,
+      "log": "twine.log",
+      "sha256": "6c29249aa480ae7f5913f7c4cd82a7c0636bc9780b69eeb5b7aeeec9adc602f8"
+    },
+    {
+      "command": [
+        ".venv310/Scripts/python.exe",
+        "-m",
+        "venv",
+        "C:\\Users\\DELL\\AppData\\Local\\Temp\\prthinker-install-zb1rhsdy\\venv"
+      ],
+      "exit_code": 0,
+      "log": "venv.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "C:\\Users\\DELL\\AppData\\Local\\Temp\\prthinker-install-zb1rhsdy\\venv\\Scripts\\python.exe",
+        "-m",
+        "pip",
+        "install",
+        "C:\\Users\\DELL\\Desktop\\Code\\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\\dist\\prthinker-0.1.0-py3-none-any.whl[runner]"
+      ],
+      "exit_code": 0,
+      "log": "install.log",
+      "sha256": "552370e7b0e1f6a3e5d0daea8aff607c1e19242ca69c8b1e2dd32ec9f2857354"
+    },
+    {
+      "command": [
+        "C:\\Users\\DELL\\AppData\\Local\\Temp\\prthinker-install-zb1rhsdy\\venv\\Scripts\\python.exe",
+        "-m",
+        "prthinker",
+        "--help"
+      ],
+      "exit_code": 0,
+      "log": "smoke-root.log",
+      "sha256": "2371c3a98bc1cbd3f46d259525a15e2f776fcc06b156b2389ba9a4d10cc064fd"
+    },
+    {
+      "command": [
+        "C:\\Users\\DELL\\AppData\\Local\\Temp\\prthinker-install-zb1rhsdy\\venv\\Scripts\\python.exe",
+        "-m",
+        "prthinker",
+        "ide",
+        "--help"
+      ],
+      "exit_code": 0,
+      "log": "smoke-ide.log",
+      "sha256": "6a3fe192ae05cd9973133edc739ee353d39cb0704b6bbb5aa69587fa1d87787a"
+    },
+    {
+      "command": [
+        "C:\\Users\\DELL\\AppData\\Local\\Temp\\prthinker-install-zb1rhsdy\\venv\\Scripts\\python.exe",
+        "-m",
+        "prthinker",
+        "pr-summary",
+        "--help"
+      ],
+      "exit_code": 0,
+      "log": "smoke-pr-summary.log",
+      "sha256": "610b526d379fc4e1978452eeca846202fe8871d9c2988b84655f3da45a25e88f"
+    },
+    {
+      "command": [
+        "C:\\Users\\DELL\\AppData\\Local\\Temp\\prthinker-install-zb1rhsdy\\venv\\Scripts\\python.exe",
+        "-m",
+        "prthinker",
+        "ablation-study",
+        "--help"
+      ],
+      "exit_code": 0,
+      "log": "smoke-ablation-study.log",
+      "sha256": "98a8bec07aee219597fbac9c5ea81bed0809f7f5e5f1ab92c898f0c85af7a88a"
+    },
+    {
+      "command": [
+        "C:\\Users\\DELL\\AppData\\Local\\Temp\\prthinker-install-zb1rhsdy\\venv\\Scripts\\python.exe",
+        "-m",
+        "prthinker",
+        "quality",
+        "--help"
+      ],
+      "exit_code": 0,
+      "log": "smoke-quality.log",
+      "sha256": "851b3b67f14110111b5b905bbfa1dd8c09e24705044c04866b8b174b9b3ada25"
+    },
+    {
+      "command": [
+        "C:\\Users\\DELL\\AppData\\Local\\Temp\\prthinker-install-zb1rhsdy\\venv\\Scripts\\python.exe",
+        "-m",
+        "prthinker",
+        "release-check",
+        "--help"
+      ],
+      "exit_code": 0,
+      "log": "smoke-release-check.log",
+      "sha256": "666a6961bbe469955dd9df005042e5317d57b725d790493d7c541393a651111d"
+    },
+    {
+      "command": [
+        "C:\\Users\\DELL\\AppData\\Local\\Temp\\prthinker-install-zb1rhsdy\\venv\\Scripts\\python.exe",
+        "-c",
+        "from importlib.resources import files; p=files('prthinker').joinpath('adversarial_corpus/v1.jsonl'); assert len(p.read_text(encoding='utf-8').splitlines()) == 24"
+      ],
+      "exit_code": 0,
+      "log": "smoke-corpus.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "C:\\Users\\DELL\\Desktop\\Code\\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\\.venv\\Scripts\\python.exe",
+        "-m",
+        "sphinx",
+        "-b",
+        "html",
+        "-q",
+        "docs",
+        "docs/_build/html"
+      ],
+      "exit_code": 0,
+      "log": "documentation-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "C:\\Users\\DELL\\Desktop\\Code\\Code-Review-Framework-Combining-Large-Language-Models-and-Chain-of-Thought-Reasoning\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_workflow_actions.py"
+      ],
+      "exit_code": 0,
+      "log": "workflow-final.log",
+      "sha256": "b34b2d11a4f434ea8c1961c5caa848008d7498430a8ca892c7753248ef458aa3"
+    }
+  ],
+  "distributions": {
+    "prthinker-0.1.0-py3-none-any.whl": "6d605ba79ea962074cdd3accafac9d93ff9368cd4b96c6e3931af0d68a19cdfc",
+    "prthinker-0.1.0.tar.gz": "2077bd87eb8cf7e054d15b5667ad38717459cec0d077a35c229526bf4e3c198a"
+  }
+}

@@ -1,10 +1,11 @@
 """Optional Tree-sitter context extraction with a dependency-free fallback."""
 
 from __future__ import annotations
-from dataclasses import dataclass
+
 import re
+from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 LANGUAGE_BY_SUFFIX = {
     ".py": "python",
@@ -33,6 +34,23 @@ class ContextNode:
     name: str
     start_line: int
     end_line: int
+    parent: str = ""
+
+
+def _node_name(node, source: bytes) -> str:
+    """C-family declarators nest identifiers; declarations may lack a name field."""
+    named = node.child_by_field_name("name")
+    if named is not None:
+        return source[named.start_byte:named.end_byte].decode("utf-8", "replace")
+    declarator = node.child_by_field_name("declarator")
+    candidates = list(declarator.children if declarator is not None else node.children)
+    while candidates:
+        child = candidates.pop(0)
+        if child.type in ("identifier", "type_identifier", "field_identifier", "simple_identifier"):
+            return source[child.start_byte:child.end_byte].decode("utf-8", "replace")
+        if "declarator" in child.type:
+            candidates[0:0] = child.children
+    return ""
 
 
 def parse_tree_sitter(path: Path, language: str) -> list[ContextNode]:
@@ -43,7 +61,8 @@ def parse_tree_sitter(path: Path, language: str) -> list[ContextNode]:
             "install prthinker[tree-sitter] for multi-language AST context"
         ) from exc
     source = path.read_bytes()
-    tree = get_parser(language).parse(source)
+    parser_language = "csharp" if language == "c_sharp" else language
+    tree = get_parser(parser_language).parse(source)
     out = []
     wanted = {
         "function_definition",
@@ -52,6 +71,13 @@ def parse_tree_sitter(path: Path, language: str) -> list[ContextNode]:
         "function_declaration",
         "class_declaration",
         "method_declaration",
+        "function_item",
+        "struct_item",
+        "enum_item",
+        "trait_item",
+        "interface_declaration",
+        "type_spec",
+        "module",
     }
     stack = [tree.root_node]
     while stack:
@@ -59,12 +85,7 @@ def parse_tree_sitter(path: Path, language: str) -> list[ContextNode]:
         stack.extend(reversed(node.children))
         if node.type not in wanted:
             continue
-        name_node = node.child_by_field_name("name")
-        name = (
-            source[name_node.start_byte : name_node.end_byte].decode("utf-8", "replace")
-            if name_node
-            else ""
-        )
+        name = _node_name(node, source)
         out.append(
             ContextNode(
                 path.as_posix(),
@@ -91,7 +112,8 @@ def impact_slice(changed: Iterable[str], edges: Iterable[tuple[str, str]]) -> se
     return impacted
 
 
-_IGNORED_DIRS = {".git", ".venv", "node_modules", "dist", "build", "vendor"}
+_IGNORED_DIRS = {".git", ".venv", "venv", "node_modules", "dist", "build", "vendor",
+                 "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", "_build"}
 
 
 def _language_for_scan(path: Path, max_file_bytes: int) -> str | None:
@@ -114,11 +136,11 @@ def _scan_one_file(
     """Parse one file into workdir-relative context nodes, [] on failure."""
     try:
         parsed = parse_tree_sitter(path, language)
-    except (OSError, RuntimeError, ValueError):
+    except (OSError, RuntimeError, ValueError, LookupError):
         return []
     relative = path.relative_to(workdir).as_posix()
     return [
-        ContextNode(relative, n.kind, n.name, n.start_line, n.end_line)
+        ContextNode(relative, n.kind, n.name, n.start_line, n.end_line, n.parent)
         for n in parsed
     ]
 
@@ -136,16 +158,16 @@ def scan_workdir(
     return nodes
 
 
-_C_INCLUDE_RE = re.compile(r'^\s*#include\s+["<]([^">]+)', re.M)
+_C_INCLUDE_RE = re.compile(r'^\s*#include\s+["<]([^">]+)', re.MULTILINE)
 _IMPORT_PATTERNS = {
-    ".java": re.compile(r"^\s*import\s+(?:static\s+)?([\w.]+)", re.M),
-    ".kt": re.compile(r"^\s*import\s+([\w.]+)", re.M),
-    ".go": re.compile(r'^\s*(?:import\s+)?["`]([^"`]+)["`]', re.M),
-    ".rs": re.compile(r"^\s*use\s+([\w:]+)", re.M),
+    ".java": re.compile(r"^\s*import\s+(?:static\s+)?([\w.]+)", re.MULTILINE),
+    ".kt": re.compile(r"^\s*import\s+([\w.]+)", re.MULTILINE),
+    ".go": re.compile(r'^\s*(?:import\s+)?["`]([^"`]+)["`]', re.MULTILINE),
+    ".rs": re.compile(r"^\s*use\s+([\w:]+)", re.MULTILINE),
     ".c": _C_INCLUDE_RE,
     ".h": _C_INCLUDE_RE,
     ".cpp": _C_INCLUDE_RE,
-    ".cs": re.compile(r"^\s*using\s+([\w.]+)", re.M),
+    ".cs": re.compile(r"^\s*using\s+([\w.]+)", re.MULTILINE),
 }
 
 
@@ -154,7 +176,7 @@ def scan_import_edges(workdir: Path) -> list[tuple[str, str]]:
     edges: list[tuple[str, str]] = []
     for path in workdir.rglob("*"):
         pattern = _IMPORT_PATTERNS.get(path.suffix.lower())
-        if pattern is None or not path.is_file():
+        if pattern is None or _language_for_scan(path, 1_000_000) is None:
             continue
         try:
             text = path.read_text(encoding="utf-8")

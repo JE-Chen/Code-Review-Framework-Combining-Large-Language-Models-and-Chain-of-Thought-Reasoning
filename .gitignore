@@ -1,5 +1,11 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
+.venv310/
+/release/implementation/
+/release/checks-2026-10-11/
+/release/verified-2026-10-11/
+/release/verified-final-2026-10-11/
+/release/lint-delta.json
 *.py[cod]
 *$py.class
 
@@ -237,3 +243,7 @@ paper/_dump_*.txt
 
 # JetBrains IDE settings (per machine)
 .idea/
+!/release/implementation-verified/*.log
+!/release/implementation-final/*.log
+!/release/editor-verification/*.log
+!/datas/Results/2026-10-11-pr75-implementation/**/*.log

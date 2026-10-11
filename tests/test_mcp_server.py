@@ -170,7 +170,10 @@ MCP_TOOLS = {"review_diff", "triage_diff", "evaluate_retrieval", "make_review_at
 
 def test_mcp_extra_allows_both_sdk_lines():
     """``prthinker mcp`` runs on the 1.x ``FastMCP`` and the 2.x ``MCPServer``."""
-    import tomllib
+    try:
+        import tomllib
+    except ImportError:
+        import tomli as tomllib
 
     from packaging.requirements import Requirement
 

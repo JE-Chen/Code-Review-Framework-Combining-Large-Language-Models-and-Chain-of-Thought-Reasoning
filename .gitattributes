@@ -4,3 +4,10 @@
 # Shell scripts must keep LF endings even on Windows checkouts so they
 # run under bash on the Linux GPU host without "bad interpreter" errors.
 *.sh text eol=lf
+
+# Preserve archived evidence bytes so SHA-256 survives every checkout.
+release/** -text -whitespace
+release/**/*.log -whitespace
+datas/Results/2026-10-11-pr75-implementation/** -text -whitespace
+datas/Results/2026-10-11-pr75-implementation/**/*.log -whitespace
+prthinker/adversarial_corpus/*.jsonl text eol=lf

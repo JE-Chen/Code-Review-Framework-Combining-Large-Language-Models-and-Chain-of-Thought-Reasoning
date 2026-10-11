@@ -1,0 +1,78 @@
+usage: prthinker [-h] [--config CONFIG]
+                 [--log-level {DEBUG,INFO,WARNING,ERROR}]
+                 [--otel-endpoint OTEL_ENDPOINT]
+                 {review-pr,pr-summary,review-file,aggregate,post-status,harvest-dismissed,harvest-accepted,stats,review-commits,report,mcp,adversarial-eval,build-kg,visualize-kg,discover-rules,derive-lessons,hook,triage,benchmark,depth-eval,verify,retrieval-eval,retrieval-report,attest,issue-fix,issue-autofix,adversarial-benchmark,quality,ablation-study,ide,release-check}
+                 ...
+
+positional arguments:
+  {review-pr,pr-summary,review-file,aggregate,post-status,harvest-dismissed,harvest-accepted,stats,review-commits,report,mcp,adversarial-eval,build-kg,visualize-kg,discover-rules,derive-lessons,hook,triage,benchmark,depth-eval,verify,retrieval-eval,retrieval-report,attest,issue-fix,issue-autofix,adversarial-benchmark,quality,ablation-study,ide,release-check}
+    pr-summary          Generate a Copilot-style PR summary from the PR title,
+                        description, commit messages, and diff, then upsert it
+                        as a dedicated PR comment. Designed to run before the
+                        per-file review starts (e.g. the enumerate job).
+    aggregate           Merge partial review JSONs (from `review-pr --output-
+                        json` runners in a matrix) and post a single summary +
+                        inline review + gate close to the PR.
+    post-status         Upsert a 'review in progress' placeholder comment so
+                        reviewers see the review has started before the full
+                        result is posted.
+    harvest-dismissed   Scan PR/MR review comments for dismissed findings;
+                        append to JSONL
+    harvest-accepted    Scan PRs/MRs for applied suggestions; append to JSONL
+    stats               Aggregate telemetry: tokens, cost, latency, cache hit
+                        rate
+    review-commits      Review commit-message quality (messages read from
+                        stdin, one per line)
+    report              Cross-store longitudinal report — telemetry + cache +
+                        dismissed + accepted. Renders to markdown / HTML /
+                        JSON.
+    mcp                 Run the Model Context Protocol stdio server (for
+                        Claude Desktop / Cursor / Continue / Cline / Zed
+                        integration). Reads PRTHINKER_* env vars for backend
+                        config.
+    adversarial-eval    Run a corpus of attack diffs through the configured
+                        backend and record per-case bypass outcomes into
+                        SQLite. Does NOT emit aggregate detection-rate numbers
+                        — compute those from the raw output table.
+    build-kg            Walk the repo and persist a {symbol: file:line} table
+                        to SQLite. Run once per repo (or when symbol surface
+                        drifts) before using --kg-ground on review-pr /
+                        review-file.
+    visualize-kg        Render the per-repo knowledge graph as a self-
+                        contained D3 force-directed HTML page. Opens in any
+                        browser; no server. Run `build-kg` first if the store
+                        is empty.
+    discover-rules      Cluster persisted finding fingerprints across PRs and
+                        print the families that recur ≥ N times. Use to
+                        identify candidate rules for --rules-dir.
+    derive-lessons      Batch recent dismissed + accepted examples and ask the
+                        model to distil general review rules; append to
+                        lessons.jsonl. Run weekly via cron or GHA schedule.
+    hook                Read `git diff --cached`, run the pipeline, exit non-
+                        zero on error-severity findings. Intended as a pre-
+                        commit hook.
+    triage              Run all no-model orientation signals over a diff (no
+                        backend, no GPU). Reads stdin by default; or --diff-
+                        file / --staged / --against REF.
+    benchmark           Convert, score, and compare review benchmarks
+    depth-eval          Run a diff corpus at full and adaptive review depth
+                        and report the finding-quality delta next to the
+                        model-call and token savings.
+    verify              Run evidence-producing verification tools
+    retrieval-eval      Score retrieval JSONL records
+    retrieval-report    Summarize content-safe retrieval trajectory JSONL
+    attest              Emit review/SLSA attestations and AI BOM
+    issue-fix           Localise and propose validated edits that resolve an
+                        issue
+    issue-autofix       Fetch tracker issues, propose validated fixes, open
+                        fix PRs
+    ide                 Versioned JSONL review protocol over stdin/stdout
+
+options:
+  -h, --help            show this help message and exit
+  --config CONFIG       Path to a .prthinker.yaml (default: ./.prthinker.yaml
+                        if present)
+  --log-level {DEBUG,INFO,WARNING,ERROR}
+  --otel-endpoint OTEL_ENDPOINT
+                        OTLP/HTTP traces endpoint (requires observability
+                        extra)

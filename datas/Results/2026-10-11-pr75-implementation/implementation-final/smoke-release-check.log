@@ -1,0 +1,8 @@
+usage: prthinker release-check [-h] [--output OUTPUT] manifest
+
+positional arguments:
+  manifest
+
+options:
+  -h, --help       show this help message and exit
+  --output OUTPUT

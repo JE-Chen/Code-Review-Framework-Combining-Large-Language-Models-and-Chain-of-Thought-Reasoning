@@ -9,7 +9,7 @@
 > [`READMEs/CLAUDE.md`](READMEs/CLAUDE.md); user documentation is the Sphinx tree in `docs/`.
 > Where those directory listings disagree with the disk (they predate the Gitea adapter and several
 > backends), trust the disk.
-> Last verified: 2026-09-22 against `525990c` on `dev`.
+> Last verified: 2026-10-11; implementation checked on `fix/benchmark-evidence`.
 
 ## 1. Purpose
 
@@ -178,3 +178,9 @@ Summarised from `CLAUDE.md` (and `AGENTS.md` for thesis work); each bullet names
 - A new backend family, platform adapter, step / review-mode registry or plugin group is introduced.
 - Any cross-project contract in §6 changes (PyBreeze invocation, runner dependency set, schemas, prompt mirror).
 - Update the "Last verified" line with the date and commit whenever this file is revised.
+
+## Evaluation and IDE contracts (2026-10-11)
+
+`benchmark_session` archives inputs and per-case outcomes; `benchmark_execution` and `benchmark_measurement` wrap production review and provider usage. `adversarial_benchmark`, `ablation_study` and `paired_statistics` keep proxy labels and objective paired analysis separate. `release_gate` consumes hash-verified artifacts. `summary_command` provides independent summary generation; `repair_loop` owns disposable worktrees and durable audit/patch output; `online_quality` stores HMAC-linked operational signals.
+
+JEditor and PyBreeze consume `prthinker ide` JSONL protocol version 1 over a persistent subprocess. Unique request IDs identify review/cancel/apply_patch/verify; events include progress/findings/proposals/verification/terminal. Applying a replacement requires explicit approval and original SHA-256. Editors must install the matching shared adapter together; no GPU dependency crosses this boundary.

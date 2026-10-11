@@ -497,7 +497,7 @@ Code-Review-Framework/
 ├── requirements/         # Hash-locked runner/CI environments (pip-compile --generate-hashes)
 ├── paper/                # The academic manuscript and slides
 ├── tests/                # Automated tests
-└── .github/workflows/    # CI (locked deps, 3.12/3.13), release (Trusted Publishing), PR reviews
+└── .github/workflows/    # CI (locked deps, 3.10–3.14), release (Trusted Publishing), PR reviews
 ```
 
 For the design-pattern view (Strategy / Factory / Registry / Repository)
@@ -521,3 +521,9 @@ The Read the Docs site links to the manuscript.
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Evaluation and integration
+
+Implementation for PR #75 is available: durable benchmark archives, six-family adversarial corpus, 17-factor paired studies, standalone summaries, multilingual graphs, isolated repair, privacy-safe quality signals and JSONL IDE integration. Python 3.10–3.14 is supported. Model runs are deferred; final 1.0 remains gated on complete evidence.
+
+[Evaluation and integration](docs/en/guide/evaluation-integration.rst).

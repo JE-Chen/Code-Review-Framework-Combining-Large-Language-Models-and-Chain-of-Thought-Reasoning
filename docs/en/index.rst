@@ -34,6 +34,7 @@ What you get
    :caption: Guide
 
    guide/installation
+   guide/evaluation-integration
    guide/quickstart
    guide/end-to-end-example
    guide/github-actions

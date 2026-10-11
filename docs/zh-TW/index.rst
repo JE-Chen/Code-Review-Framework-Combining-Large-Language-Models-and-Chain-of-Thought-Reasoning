@@ -34,6 +34,7 @@ prompt──並且可以充當合併前的必要狀態檢查。
    :caption: 使用指南
 
    guide/installation
+   guide/evaluation-integration
    guide/quickstart
    guide/end-to-end-example
    guide/github-actions

@@ -58,6 +58,7 @@ In the same commit: delete the item from `progress.md`, add a `#done` entry here
 
 | ID | Date | Title | Tags | Batch |
 |---|---|---|---|---|
+| U-20261011-02 | 2026-10-11 | Complete PR #75 implementation and offline verification | #done #review | [2026-10](2026-10.md) |
 | U-20261011-01 | 2026-10-11 | Protect benchmark run evidence | #done #benchmarks | [2026-10](2026-10.md) |
 | U-20260924-02 | 2026-09-24 | anyio 4.15.1 in the CI and runner locks | #deps #security | [2026-09](2026-09.md) |
 | U-20260924-01 | 2026-09-24 | Workflows: no file names in shell, per-job permissions, pinned actions | #ci #security | [2026-09](2026-09.md) |

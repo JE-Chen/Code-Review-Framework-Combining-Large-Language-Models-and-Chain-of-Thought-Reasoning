@@ -1,0 +1,510 @@
+usage: prthinker pr-summary [-h]
+                            [--backend {local,remote,openai,anthropic,gemini,cohere,mistral,claude-cli,codex-cli}]
+                            [--remote-url REMOTE_URL]
+                            [--remote-api-key REMOTE_API_KEY]
+                            [--remote-timeout REMOTE_TIMEOUT]
+                            [--use-remote-pipeline] [--model-name MODEL_NAME]
+                            [--lora-path LORA_PATH]
+                            [--openai-model OPENAI_MODEL]
+                            [--openai-api-key OPENAI_API_KEY]
+                            [--openai-base-url OPENAI_BASE_URL]
+                            [--openai-organization OPENAI_ORGANIZATION]
+                            [--anthropic-model ANTHROPIC_MODEL]
+                            [--anthropic-api-key ANTHROPIC_API_KEY]
+                            [--anthropic-base-url ANTHROPIC_BASE_URL]
+                            [--anthropic-version ANTHROPIC_VERSION]
+                            [--gemini-model GEMINI_MODEL]
+                            [--gemini-api-key GEMINI_API_KEY]
+                            [--gemini-base-url GEMINI_BASE_URL]
+                            [--cohere-model COHERE_MODEL]
+                            [--cohere-api-key COHERE_API_KEY]
+                            [--cohere-base-url COHERE_BASE_URL]
+                            [--mistral-model MISTRAL_MODEL]
+                            [--mistral-api-key MISTRAL_API_KEY]
+                            [--mistral-base-url MISTRAL_BASE_URL]
+                            [--claude-cli-path CLAUDE_CLI_PATH]
+                            [--claude-cli-model CLAUDE_CLI_MODEL]
+                            [--claude-cli-workdir CLAUDE_CLI_WORKDIR]
+                            [--claude-cli-allowed-tools CLAUDE_CLI_ALLOWED_TOOLS]
+                            [--claude-cli-timeout CLAUDE_CLI_TIMEOUT]
+                            [--codex-cli-path CODEX_CLI_PATH]
+                            [--codex-cli-model CODEX_CLI_MODEL]
+                            [--codex-cli-workdir CODEX_CLI_WORKDIR]
+                            [--codex-cli-sandbox {read-only,workspace-write,danger-full-access}]
+                            [--codex-cli-timeout CODEX_CLI_TIMEOUT]
+                            [--arbitration]
+                            [--arbitration-backends ARBITRATION_BACKENDS]
+                            [--arbitration-strategy {majority,unanimous,any}]
+                            [--arbitration-max-new-tokens ARBITRATION_MAX_NEW_TOKENS]
+                            [--no-rag] [--remote-rag]
+                            [--rag-threshold RAG_THRESHOLD]
+                            [--max-new-tokens MAX_NEW_TOKENS] [--steps STEPS]
+                            [--repo-context-strategy {none,lexical,semantic,structural,graph,rerank,block_rerank,iterative,query_rewrite,hypothesis,execution}]
+                            [--repo-context-workdir REPO_CONTEXT_WORKDIR]
+                            [--repo-context-top-k REPO_CONTEXT_TOP_K]
+                            [--repo-context-keep-ratio REPO_CONTEXT_KEEP_RATIO]
+                            [--repo-context-block-candidates REPO_CONTEXT_BLOCK_CANDIDATES]
+                            [--repo-context-votes REPO_CONTEXT_VOTES]
+                            [--repo-context-rounds REPO_CONTEXT_ROUNDS]
+                            [--repo-context-focus-lines REPO_CONTEXT_FOCUS_LINES]
+                            [--per-file] [--inline-review]
+                            [--parallelism PARALLELISM]
+                            [--step-plan {full,adaptive}] [--findings-only]
+                            [--hide-info] [--pr-overview] [--pr-labels]
+                            [--check-annotations] [--review-delta]
+                            [--delta-state DELTA_STATE]
+                            [--summary-min-confidence SUMMARY_MIN_CONFIDENCE]
+                            [--summary-table]
+                            [--max-findings-per-file MAX_FINDINGS_PER_FILE]
+                            [--exclude-globs EXCLUDE_GLOBS]
+                            [--target-file TARGET_FILE]
+                            [--output-json OUTPUT_JSON]
+                            [--incremental-save-dir INCREMENTAL_SAVE_DIR]
+                            [--aggregate-from AGGREGATE_FROM]
+                            [--step-dag STEP_DAG]
+                            [--trajectory-out TRAJECTORY_OUT]
+                            [--reply-to-author] [--counterfactual]
+                            [--provenance] [--walkthrough] [--kg-ground]
+                            [--kg-store KG_STORE] [--kg-workdir KG_WORKDIR]
+                            [--require-full-scan] [--pr-body-summary]
+                            [--impact-map] [--review-order] [--change-map]
+                            [--lessons] [--lessons-top-k LESSONS_TOP_K]
+                            [--diff-since-last]
+                            [--diff-cache-path DIFF_CACHE_PATH]
+                            [--verify-suggestions] [--verify-cmd VERIFY_CMD]
+                            [--verify-timeout VERIFY_TIMEOUT]
+                            [--verify-workdir VERIFY_WORKDIR]
+                            [--api-consistency] [--pr-classify]
+                            [--reproducibility-check] [--dep-upgrade-check]
+                            [--personas PERSONAS] [--risk-weighted]
+                            [--risk-workdir RISK_WORKDIR] [--diff-entropy]
+                            [--rules-dir RULES_DIR] [--cache]
+                            [--cache-path CACHE_PATH]
+                            [--cache-ttl-days CACHE_TTL_DAYS] [--telemetry]
+                            [--telemetry-path TELEMETRY_PATH] [--stream]
+                            [--judge] [--self-correct] [--redact-secrets]
+                            [--sarif-out SARIF_OUT]
+                            [--html-report HTML_REPORT]
+                            [--codequality-out CODEQUALITY_OUT]
+                            [--junit-out JUNIT_OUT] [--csv-out CSV_OUT]
+                            [--metrics-out METRICS_OUT]
+                            [--markdown-out MARKDOWN_OUT]
+                            [--sonar-out SONAR_OUT] [--report-dir REPORT_DIR]
+                            [--gha-annotations] [--ignore-file IGNORE_FILE]
+                            [--dedupe-findings] [--api-impact]
+                            [--min-confidence MIN_CONFIDENCE]
+                            [--calibration-store CALIBRATION_STORE]
+                            [--calibration-author CALIBRATION_AUTHOR]
+                            [--calibration-category CALIBRATION_CATEGORY]
+                            [--calibration-min-samples CALIBRATION_MIN_SAMPLES]
+                            [--calibration-half-life-days CALIBRATION_HALF_LIFE_DAYS]
+                            [--calibration-gate]
+                            [--review-preset {none,backend,frontend,security,release}]
+                            [--review-modes REVIEW_MODES]
+                            [--platform {github,gitlab,gitea}]
+                            [--platform-base-url PLATFORM_BASE_URL]
+                            [--repo REPO] [--pr-number PR_NUMBER]
+                            [--github-token GITHUB_TOKEN] [--marker MARKER]
+                            [--dry-run] [--input-json INPUT_JSON]
+                            [--summary-format {text,json}]
+                            [--summary-output SUMMARY_OUTPUT]
+                            [--publish-summary]
+
+options:
+  -h, --help            show this help message and exit
+  --backend {local,remote,openai,anthropic,gemini,cohere,mistral,claude-cli,codex-cli}
+  --remote-url REMOTE_URL
+  --remote-api-key REMOTE_API_KEY
+  --remote-timeout REMOTE_TIMEOUT
+  --use-remote-pipeline
+                        Call /review once instead of /ask per step. Implies
+                        --backend remote.
+  --model-name MODEL_NAME
+  --lora-path LORA_PATH
+  --openai-model OPENAI_MODEL
+                        Model id for --backend openai (e.g. gpt-4o-mini, qwen-
+                        coder-30b on vLLM, llama3.1:8b on Ollama)
+  --openai-api-key OPENAI_API_KEY
+  --openai-base-url OPENAI_BASE_URL
+                        Override for OpenAI-compatible servers (vLLM, Ollama
+                        /v1, LM Studio, Together, Groq, ¡K)
+  --openai-organization OPENAI_ORGANIZATION
+  --anthropic-model ANTHROPIC_MODEL
+  --anthropic-api-key ANTHROPIC_API_KEY
+  --anthropic-base-url ANTHROPIC_BASE_URL
+  --anthropic-version ANTHROPIC_VERSION
+  --gemini-model GEMINI_MODEL
+  --gemini-api-key GEMINI_API_KEY
+  --gemini-base-url GEMINI_BASE_URL
+  --cohere-model COHERE_MODEL
+  --cohere-api-key COHERE_API_KEY
+  --cohere-base-url COHERE_BASE_URL
+  --mistral-model MISTRAL_MODEL
+  --mistral-api-key MISTRAL_API_KEY
+  --mistral-base-url MISTRAL_BASE_URL
+  --claude-cli-path CLAUDE_CLI_PATH
+                        Executable for --backend claude-cli (name on PATH or
+                        full path). The CLI runs in non-interactive print mode
+                        (-p).
+  --claude-cli-model CLAUDE_CLI_MODEL
+                        Optional model override passed to the CLI via --model.
+  --claude-cli-workdir CLAUDE_CLI_WORKDIR
+                        Working directory the CLI (and its tools) runs in.
+  --claude-cli-allowed-tools CLAUDE_CLI_ALLOWED_TOOLS
+                        Tool allowlist forwarded as --allowedTools (e.g.
+                        'Read,Grep,Glob'), so the review can consult the
+                        working tree with the full local toolchain. Empty
+                        (default) leaves the CLI's own tool policy in place.
+  --claude-cli-timeout CLAUDE_CLI_TIMEOUT
+                        Seconds before one CLI invocation is killed.
+  --codex-cli-path CODEX_CLI_PATH
+                        Executable for --backend codex-cli (name on PATH or
+                        full path). The CLI runs headless via `codex exec
+                        --json`.
+  --codex-cli-model CODEX_CLI_MODEL
+                        Optional model override passed to the CLI via -m.
+  --codex-cli-workdir CODEX_CLI_WORKDIR
+                        Working directory the CLI (and its tools) runs in
+                        (-C).
+  --codex-cli-sandbox {read-only,workspace-write,danger-full-access}
+                        Sandbox mode forwarded as `-c sandbox_mode=...`. read-
+                        only (default) lets the review consult the working
+                        tree without mutating it.
+  --codex-cli-timeout CODEX_CLI_TIMEOUT
+                        Seconds before one CLI invocation is killed.
+  --arbitration         After the review, have extra model backends vote
+                        confirm/reject on each inline finding and drop the
+                        off-voted ones. Fail-open: arbiter failures keep
+                        findings.
+  --arbitration-backends ARBITRATION_BACKENDS
+                        Comma-separated backend kinds acting as arbiters (e.g.
+                        'openai,anthropic,claude-cli'). Each is configured by
+                        the same flags / env vars as when used as the primary
+                        backend.
+  --arbitration-strategy {majority,unanimous,any}
+                        How votes combine: majority (rejects must outnumber
+                        confirms to drop), unanimous (any reject drops), any
+                        (one confirm keeps).
+  --arbitration-max-new-tokens ARBITRATION_MAX_NEW_TOKENS
+                        Generation budget for each arbiter's vote call.
+  --no-rag
+  --remote-rag          Use /rag instead of loading FAISS locally
+  --rag-threshold RAG_THRESHOLD
+                        Cosine cutoff for RAG rules. Default: the calibrated
+                        value for the local embedding model; 0.7 on remote
+                        calls.
+  --max-new-tokens MAX_NEW_TOKENS
+  --steps STEPS
+  --repo-context-strategy {none,lexical,semantic,structural,graph,rerank,block_rerank,iterative,query_rewrite,hypothesis,execution}
+                        Cross-file repository context strategy for local per-
+                        file review. 'none' preserves the existing prompt; lex
+                        ical/semantic/structural/graph/rerank/block_rerank/ite
+                        rative/query_rewrite inject related files into each
+                        file prompt; 'hypothesis' runs a propose-verify
+                        localization loop; 'execution' re-ranks with stack-
+                        trace and fault-localization signals mined from the
+                        change text.
+  --repo-context-workdir REPO_CONTEXT_WORKDIR
+                        Work tree used by --repo-context-strategy and import-
+                        graph context.
+  --repo-context-top-k REPO_CONTEXT_TOP_K
+                        Maximum files considered by file-level repository
+                        context retrieval.
+  --repo-context-keep-ratio REPO_CONTEXT_KEEP_RATIO
+                        Lexical keep-ratio cutoff for repo-context retrieval;
+                        0 keeps the fixed top-k tail.
+  --repo-context-block-candidates REPO_CONTEXT_BLOCK_CANDIDATES
+                        Candidate blocks per file for block_rerank/iterative
+                        strategies.
+  --repo-context-votes REPO_CONTEXT_VOTES
+                        Self-consistency votes for model-in-the-loop repo
+                        retrieval.
+  --repo-context-rounds REPO_CONTEXT_ROUNDS
+                        Maximum rounds for the iterative repo-context
+                        strategy.
+  --repo-context-focus-lines REPO_CONTEXT_FOCUS_LINES
+                        Optional line-window focus for block context; 0
+                        disables.
+  --per-file            Run the pipeline once per file in the diff
+  --inline-review       Collect JSON findings per file and submit a GitHub
+                        review
+  --parallelism PARALLELISM
+                        Bounded per-file workers; capped by backend
+                        capability.
+  --step-plan {full,adaptive}
+                        Per-file review depth. 'full' runs every configured
+                        step on every file; 'adaptive' scales the CoT chain to
+                        each file ¡X docs/config/tiny diffs skip the analysis
+                        chain, mid-size changes drop the per-file PR summary,
+                        large or high-risk files keep the full sweep.
+  --findings-only       Summary lists only files that have findings; clean
+                        files are collapsed into a count. A PR with zero
+                        findings collapses to a one-line confirmation instead
+                        of a full empty result.
+  --hide-info           Omit info-severity findings from the rendered summary
+                        (display only; the inline review and merge gate still
+                        see them).
+  --pr-overview         Pin a model-free 'what this PR does' overview (built
+                        from the commit messages and changed files) to the top
+                        of the summary.
+  --pr-labels           Apply prthinker-managed PR labels (size bucket +
+                        review status); human-applied labels are left
+                        untouched.
+  --check-annotations   Attach per-line Check Run annotations to the gate ¡X a
+                        robust parallel channel to inline comments (a bad line
+                        cannot 422 the whole batch).
+  --review-delta        Show a 'since last review' new/resolved tally in the
+                        digest, comparing against fingerprints persisted in
+                        the per-PR state.
+  --delta-state DELTA_STATE
+                        Path to the persisted finding-fingerprint file for
+                        --review-delta.
+  --summary-min-confidence SUMMARY_MIN_CONFIDENCE
+                        Drop findings whose model confidence is below this
+                        floor (0¡V1) from the rendered summary; findings
+                        without a score are kept. Display only ¡X the inline
+                        review and gate are unaffected.
+  --summary-table       Render findings as one compact table (severity |
+                        location | finding) instead of per-file collapsible
+                        blocks.
+  --max-findings-per-file MAX_FINDINGS_PER_FILE
+  --exclude-globs EXCLUDE_GLOBS
+                        Comma-separated fnmatch patterns; files in the PR diff
+                        that match any pattern are skipped in --per-file mode.
+                        Useful for noisy paths (IDE config, generated data,
+                        *.md). Example: '.idea/*,datas/*,*.md,*.lock'.
+  --target-file TARGET_FILE
+                        When set, --per-file mode reviews only this exact diff
+                        path and skips every other file. Lets a CI matrix
+                        runner own a single file's review so each file gets
+                        its own job timeout.
+  --output-json OUTPUT_JSON
+                        Write a JSON-encoded partial ReviewResult to this path
+                        and skip posting to GitHub. Lets a matrix runner stash
+                        its findings as an artifact for a later `aggregate`
+                        job to merge.
+  --incremental-save-dir INCREMENTAL_SAVE_DIR
+                        Persist each per-file review to
+                        <dir>/files/<slug>.json as the file finishes, plus a
+                        final <dir>/review.json once the run completes. If the
+                        run is cancelled or crashes mid-PR the files written
+                        so far are still on disk for inspection. Local
+                        pipeline only; takes effect with --per-file.
+  --aggregate-from AGGREGATE_FROM
+                        Directory of partial-review JSONs (produced by
+                        --output-json) to merge and post as a single summary +
+                        inline review. Used by the `aggregate` subcommand
+                        only.
+  --step-dag STEP_DAG   JSON object mapping step names to dependency lists
+  --trajectory-out TRAJECTORY_OUT
+                        Append content-safe review trajectory JSONL
+  --reply-to-author     Fetch author replies to the previous prthinker summary
+                        comment and inject them as 'Prior dialogue' context
+                        into the inline-findings prompt (closed-loop multi-
+                        turn review).
+  --counterfactual      After inline findings, run a counterfactual /
+                        mutation-style step that surfaces competing
+                        alternative implementations and an explicit trade-off
+                        matrix for each design-choice finding. Requires
+                        --inline-review.
+  --provenance          Ask the model to cite the RAG rule / accepted-example
+                        / diff evidence that informed each finding, and
+                        surface those citations as an audit-trail footer under
+                        the finding in the PR comment. Requires --inline-
+                        review.
+  --walkthrough         Generate a short model-written narrative of what each
+                        file change does and why, pinned to the top of that
+                        file's block ¡X the inference-backed counterpart to the
+                        commit-message PR overview. Independent of --inline-
+                        review.
+  --kg-ground           Inject the workdir's Known-symbols table (built via
+                        `prthinker build-kg`) into the inline-findings prompt,
+                        so the model cannot hallucinate symbol names. Read-
+                        only lookup; safe-failure if the store is empty or
+                        missing.
+  --kg-store KG_STORE
+  --kg-workdir KG_WORKDIR
+                        Workdir scope the KG was built against.
+  --require-full-scan   Withhold the report (post only a progress notice)
+                        until every PR file has been reviewed ¡X never publish
+                        a partial result.
+  --pr-body-summary     Upsert the at-a-glance digest into the PR description
+                        (body) between markers, so the verdict shows at the
+                        top of the PR.
+  --impact-map          Add an 'Impacted areas' note to the overview listing
+                        downstream importers of the changed files (from the
+                        repo knowledge graph).
+  --review-order        Add a 'Suggested review order' note that ranks the
+                        changed files most-depended-upon first (from the repo
+                        knowledge graph), so the reviewer reads foundational
+                        changes before their call sites.
+  --change-map          Embed a small Mermaid graph of the import edges
+                        between the changed files (from the repo knowledge
+                        graph) so the shape of the change is visible inline.
+  --lessons             Inject the top-K derived review rules from `--lessons-
+                        path` (default `.prthinker/lessons.jsonl`) into the
+                        inline-findings prompt as 'Repo-derived review
+                        lessons'. Populate the store via `prthinker derive-
+                        lessons`.
+  --lessons-top-k LESSONS_TOP_K
+                        Number of lessons to inject per file (most recent
+                        first).
+  --diff-since-last     Force-push differential review: hash each file's post-
+                        change content and look up cached findings keyed on
+                        (pr_number, repo, file, hash). Cache hits are reused;
+                        only files whose hash changed re-enter the model.
+                        Requires --inline-review.
+  --diff-cache-path DIFF_CACHE_PATH
+                        SQLite file for the differential-review cache.
+  --verify-suggestions  Apply each finding's ``suggestion`` block in a
+                        sandboxed copy of the working tree, run --verify-cmd,
+                        and badge the result (pass/fail/skip/error) in the PR
+                        comment. Requires --inline-review and a clean working
+                        tree.
+  --verify-cmd VERIFY_CMD
+                        Command run inside the sandbox to verify each
+                        suggestion.
+  --verify-timeout VERIFY_TIMEOUT
+                        Seconds before the verify command is killed.
+  --verify-workdir VERIFY_WORKDIR
+                        Source tree the sandbox is cloned from (default: cwd).
+  --api-consistency     When the PR touches both backend (.py) and frontend
+                        (.ts/.tsx/.js/.jsx) files, run an extra cross-language
+                        step that flags request/response shape drift (renamed
+                        fields, removed routes, type changes).
+  --pr-classify         Classify the PR (bugfix / feature / refactor / docs /
+                        chore / unknown) before reviewing, then adapt review
+                        depth + focus to the type. Docs-only PRs skip inline
+                        findings; bugfix PRs use a focused prompt with smaller
+                        budget.
+  --reproducibility-check
+                        Run the inline-findings step twice per file and label
+                        each finding stable / low-reproducibility based on
+                        whether it appeared in both passes. Backend-agnostic
+                        uncertainty proxy; costs one extra backend call per
+                        file.
+  --dep-upgrade-check   Detect dependency version bumps in lock files
+                        (requirements / pyproject / package.json / etc.) and
+                        ask the model whether breaking changes between the old
+                        and new versions affect this codebase's actual usage.
+  --personas PERSONAS   Comma-separated list of review personas to run against
+                        the diff (security, performance, readability,
+                        api_stability, maintainability) ¡X or 'all' for every
+                        persona. After the per-persona passes a conflict-
+                        finder step surfaces disagreements between them. Empty
+                        (default) disables.
+  --risk-weighted       Compute a per-file risk score (churn + complexity +
+                        bug history over the last 90 days) and scale the
+                        inline findings budget proportional to the score.
+                        Requires a git working directory.
+  --risk-workdir RISK_WORKDIR
+                        Git working directory used to compute risk scores
+                        (default: cwd).
+  --diff-entropy        Compute the diff's size + dispersion entropy and
+                        surface a 'split this PR' warning at the top of the
+                        comment when the score crosses the 'bomb' threshold.
+  --rules-dir RULES_DIR
+                        Directory of *.md files containing per-repo coding
+                        rules
+  --cache               Memoize backend.generate() calls by (model, prompt) in
+                        SQLite
+  --cache-path CACHE_PATH
+  --cache-ttl-days CACHE_TTL_DAYS
+                        Drop cache entries older than this many days; set to 0
+                        to disable TTL
+  --telemetry           Record tokens / latency / estimated cost per
+                        generate() call
+  --telemetry-path TELEMETRY_PATH
+  --stream              Stream generated tokens to stderr as they arrive.
+                        Native for OpenAI and Anthropic; local + remote fall
+                        back to a single chunk per step.
+  --judge               Add a per-file judge step that emits a JSON verdict;
+                        review-pr aggregates verdicts into one APPROVE /
+                        REQUEST_CHANGES / COMMENT event on the GitHub review.
+  --self-correct        Add a second-pass noise filter ¡X after inline findings
+                        are parsed and dismissed-filtered, the model is asked
+                        to flag noise / duplicate / over-picky entries which
+                        the runner then drops.
+  --redact-secrets      Scrub well-known secret patterns (AWS / GitHub /
+                        OpenAI / Anthropic / Stripe / Slack / JWT / PEM keys)
+                        from the diff before any backend call. Strongly
+                        recommended for paid backends.
+  --sarif-out SARIF_OUT
+                        Write findings as a SARIF 2.1.0 file to this path (for
+                        GitHub code-scanning or any SARIF viewer).
+  --html-report HTML_REPORT
+                        Write a standalone HTML review report to this path.
+  --codequality-out CODEQUALITY_OUT
+                        Write findings + signals as a GitLab Code Quality
+                        (CodeClimate) JSON report to this path.
+  --junit-out JUNIT_OUT
+                        Write findings + signals as a JUnit XML report to this
+                        path (for CI test-report viewers).
+  --csv-out CSV_OUT     Write findings + signals as a flat CSV to this path
+                        (spreadsheet / awk triage).
+  --metrics-out METRICS_OUT
+                        Write a machine-readable metrics-rollup JSON (counts
+                        by severity / signal, diff totals) to this path.
+  --markdown-out MARKDOWN_OUT
+                        Write a standalone Markdown review report to this
+                        path.
+  --sonar-out SONAR_OUT
+                        Write findings + signals as SonarQube Generic Issue
+                        Data JSON to this path.
+  --report-dir REPORT_DIR
+                        Write every file-based report format (SARIF / HTML /
+                        Markdown / Code Quality / Sonar / JUnit / CSV /
+                        metrics) into this directory with standard filenames.
+  --gha-annotations     Emit findings + signals as GitHub Actions workflow
+                        commands on stdout (inline ::error / ::warning /
+                        ::notice annotations).
+  --ignore-file IGNORE_FILE
+                        Path to a .prthinkerignore file (glob / rule: /
+                        severity: suppression rules). Missing file is a no-op.
+  --dedupe-findings     Collapse near-duplicate findings (same path+line,
+                        equivalent message) before submission.
+  --api-impact          Append a public-API semver-impact line
+                        (major/minor/patch) to the summary comment.
+  --min-confidence MIN_CONFIDENCE
+                        Drop findings whose provenance confidence is below
+                        this threshold (0 keeps all; findings without a
+                        confidence are always kept). Use with --provenance.
+  --calibration-store CALIBRATION_STORE
+                        SQLite feedback calibration store
+  --calibration-author CALIBRATION_AUTHOR
+                        Author key for confidence calibration
+  --calibration-category CALIBRATION_CATEGORY
+                        Finding category key for calibration
+  --calibration-min-samples CALIBRATION_MIN_SAMPLES
+  --calibration-half-life-days CALIBRATION_HALF_LIFE_DAYS
+  --calibration-gate    Apply the calibration store to merge-gate scoring.
+                        Low-confidence findings may still appear in reports,
+                        but calibrated abstentions do not block the gate.
+  --review-preset {none,backend,frontend,security,release}
+                        Enable a focused bundle of review modes and safety
+                        checks.
+  --review-modes REVIEW_MODES
+                        Comma-separated focused review passes to run over the
+                        whole diff (e.g. security,performance,iac). Each
+                        appends its output to the summary. Unknown names are
+                        skipped.
+  --platform {github,gitlab,gitea}
+                        Which forge to talk to. GitHub uses /pulls + Check
+                        Runs; GitLab uses /merge_requests + commit statuses.
+  --platform-base-url PLATFORM_BASE_URL
+                        Override for self-hosted instances (e.g. GitHub
+                        Enterprise or self-hosted GitLab). Default: each
+                        platform's public API.
+  --repo REPO           GitHub `owner/name` or GitLab `group/project`.
+  --pr-number PR_NUMBER
+                        GitHub PR number or GitLab MR iid.
+  --github-token GITHUB_TOKEN
+                        Platform API token. Reads GITHUB_TOKEN for GitHub,
+                        GITLAB_TOKEN for GitLab.
+  --marker MARKER
+  --dry-run
+  --input-json INPUT_JSON
+                        Local diff/title/body/commits JSON; no forge needed
+  --summary-format {text,json}
+  --summary-output SUMMARY_OUTPUT
+  --publish-summary     Explicitly upsert the summary comment

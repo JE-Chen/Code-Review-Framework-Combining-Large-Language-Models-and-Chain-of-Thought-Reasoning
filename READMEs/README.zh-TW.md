@@ -443,7 +443,7 @@ Code-Review-Framework/
 ├── requirements/         # hash 鎖定的 runner／CI 環境（pip-compile --generate-hashes）
 ├── paper/                # 學術論文與投影片
 ├── tests/                # 自動化測試
-└── .github/workflows/    # CI（鎖定依賴、3.12/3.13）、release（Trusted Publishing）、PR 自動審查
+└── .github/workflows/    # CI（鎖定依賴、3.10–3.14）、release（Trusted Publishing）、PR 自動審查
 ```
 
 設計模式視角（Strategy / Factory / Registry / Repository）與執行期資料流
@@ -466,3 +466,8 @@ metadata 收錄於 [`CITATION.cff`](../CITATION.cff)。Read the Docs 站點
 ## 授權
 
 MIT──見 [LICENSE](../LICENSE)。
+## 評估與整合
+
+PR #75 的實作已提供：逐案 benchmark 封存、六類對抗語料、17 項成對消融、獨立摘要、多語圖譜、隔離修復、假名化品質訊號及 JSONL IDE 串接。支援 Python 3.10–3.14。模型實測暫緩，正式 1.0 仍須完整證據。
+
+[評估與整合](../docs/zh-TW/guide/evaluation-integration.rst).

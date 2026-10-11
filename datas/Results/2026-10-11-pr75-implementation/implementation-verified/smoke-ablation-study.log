@@ -1,0 +1,7 @@
+usage: prthinker ablation-study [-h] {plan,run,compare} ...
+
+positional arguments:
+  {plan,run,compare}
+
+options:
+  -h, --help          show this help message and exit

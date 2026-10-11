@@ -22,9 +22,11 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from pathlib import Path
 from collections.abc import Callable
+from pathlib import Path
 
+from prthinker.adversarial_benchmark import command as _cmd_adversarial_benchmark
+from prthinker.benchmark_cli import command as _cmd_benchmark
 from prthinker.cli_commands import (
     _cmd_adversarial_eval,
     _cmd_aggregate,
@@ -44,7 +46,6 @@ from prthinker.cli_commands import (
     merge_partial_reviews,
 )
 from prthinker.cli_parser import _apply_repo_defaults, _build_parser
-from prthinker.plugins import load_plugin_steps
 from prthinker.cli_review import (
     _build_config,
     _cmd_pr_summary,
@@ -52,15 +53,19 @@ from prthinker.cli_review import (
     _cmd_review_pr,
 )
 from prthinker.cli_triage import _cmd_triage
-from prthinker.benchmark_cli import command as _cmd_benchmark
 from prthinker.depth_eval_cli import command as _cmd_depth_eval
-from prthinker.verify_cli import command as _cmd_verify
-from prthinker.otel import configure as configure_otel
-from prthinker.retrieval_eval_cli import command as _cmd_retrieval_eval
-from prthinker.retrieval_report_cli import command as _cmd_retrieval_report
-from prthinker.supply_chain_cli import command as _cmd_attest
+from prthinker.ide_protocol import command as _cmd_ide
 from prthinker.issue_autofix_cli import command as _cmd_issue_autofix
 from prthinker.issue_fix_cli import command as _cmd_issue_fix
+from prthinker.online_quality import command as _cmd_quality
+from prthinker.otel import configure as configure_otel
+from prthinker.plugins import load_plugin_steps
+from prthinker.release_gate import command as _cmd_release_check
+from prthinker.retrieval_eval_cli import command as _cmd_retrieval_eval
+from prthinker.retrieval_report_cli import command as _cmd_retrieval_report
+from prthinker.study_cli import command as _cmd_study
+from prthinker.supply_chain_cli import command as _cmd_attest
+from prthinker.verify_cli import command as _cmd_verify
 
 log = logging.getLogger("prthinker")
 
@@ -74,6 +79,11 @@ _COMMAND_HANDLERS: dict[str, Callable[[argparse.Namespace], int]] = {
     "stats": _cmd_stats,
     "report": _cmd_report,
     "adversarial-eval": _cmd_adversarial_eval,
+    "adversarial-benchmark": _cmd_adversarial_benchmark,
+    "quality": _cmd_quality,
+    "ablation-study": _cmd_study,
+    "ide": _cmd_ide,
+    "release-check": _cmd_release_check,
     "derive-lessons": _cmd_derive_lessons,
     "discover-rules": _cmd_discover_rules,
     "build-kg": _cmd_build_kg,
@@ -128,10 +138,10 @@ def main(argv: list[str] | None = None) -> int:
 
 
 __all__ = [
-    "main",
-    "_build_parser",
     "_apply_repo_defaults",
     "_build_config",
+    "_build_parser",
     "_kg_html_path",
+    "main",
     "merge_partial_reviews",
 ]

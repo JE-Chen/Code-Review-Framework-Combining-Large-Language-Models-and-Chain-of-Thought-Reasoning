@@ -51,3 +51,11 @@ separate derived artifact and must retain both manifest hashes.
 paired F1 delta with wins/ties/losses. Retrieval runs can be evaluated with
 `prthinker retrieval-eval`; each JSONL record carries `retrieved`, `expected`,
 `used`, and `cited_correct` arrays.
+
+## Durable sessions and fixed studies
+
+`benchmark run` now writes schema-version 2 archives with an exact input snapshot, per-case success/failed/unsupported outcomes, interruption state, actual retrieved-document count, and provider-reported usage (unknown values remain null). `benchmark validate DIRECTORY` verifies both hashes, counts and case order. Pass `--dataset-manifest` containing dataset, HTTPS url, revision, license, source_sha256, cases_sha256, and `--control-manifest` for fixed generation settings; `--review-pipeline` runs production per-file review. Without that flag, direct prompting is archived as its own execution condition.
+
+`adversarial-benchmark run` uses the bundled versioned synthetic corpus; `score` reports marker proxies and explicit benign/attack denominators. Unsafe executed actions remain unknown. `ablation-study plan/run/compare` creates exactly 17 single-factor treatments and one control. Controls pin model_revision, adapter_state, precision, steps, decoding_mode, max_new_tokens. Database/workdir fixtures are isolated per condition; missing fixtures are unsupported rather than silently disabled. Objective paired differences use bootstrap intervals, rank effects, Wilcoxon tests and Holm correction.
+
+Full model runs are deferred by request. Offline fixtures are test evidence, never publication results. The final release is blocked until `release-check release/evidence.json` verifies all required evidence. Detailed commands and integration contracts are in the three-language evaluation guide.

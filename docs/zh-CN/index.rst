@@ -34,6 +34,7 @@ standard / deep），把结构化的总结与一键应用的 ``suggestion``
    :caption: 使用指南
 
    guide/installation
+   guide/evaluation-integration
    guide/quickstart
    guide/end-to-end-example
    guide/github-actions

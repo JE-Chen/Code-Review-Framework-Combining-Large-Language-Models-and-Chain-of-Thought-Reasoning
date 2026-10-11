@@ -63,7 +63,7 @@ and image digest are the reproducibility boundary.
 Python version
 --------------
 
-Python ``>=3.12`` is required — the package uses PEP 604 union syntax
+Python ``>=3.10`` is required — the package uses PEP 604 union syntax
 (``str | None``) and ``dataclass(slots=True, kw_only=True)`` patterns.
 
 GPU notes

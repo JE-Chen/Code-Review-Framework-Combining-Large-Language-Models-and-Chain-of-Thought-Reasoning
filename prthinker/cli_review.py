@@ -10,23 +10,33 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from prthinker import pr_summary
 from prthinker.backends import create_backend
 from prthinker.backends.remote import RemotePipelineClient
-from prthinker.config import (
-    SUMMARY_MARKER,
-    BackendKind,
-    Config,
-)
-from prthinker.cli_review_helpers import (
-    BACKEND_CONFIG_BUILDERS,
-    apply_arbitration,
-    build_cache_telemetry,
-    build_dialogue_block,
-    build_platform_adapter,
+from prthinker.ci_signals import format_signals_block
+from prthinker.cli_io import write_stdout
+
+# ``_maybe_autofix`` / ``_maybe_file_issues`` are dispatched from
+# ``_publish_review_result`` below; importing them here also keeps them
+# reachable as ``prthinker.cli_review.<name>``.
+# Re-exported for the test-suite, which drives them via
+# ``prthinker.cli_review``; not called directly in this module.
+from prthinker.cli_review_autofix import (  # noqa: F401  # pylint: disable=unused-import
+    _collect_auto_fix_findings,
+    _maybe_autofix,
+    _maybe_open_auto_fix_mr,
+    _maybe_open_auto_fix_pr,
+    _open_auto_fix_pr_and_report,
+    _report_auto_fix_outcome,
+    _resolve_auto_fix_base_branch,
+    _resolve_mr_base_branch,
 )
 
 # The publish flow below calls these helpers; importing them here also
 # keeps them reachable as ``prthinker.cli_review.<name>``.
+# Not called in this module — re-exported on its own statement (so the
+# suppressions sit on the reported line) because the test-suite imports it
+# via ``prthinker.cli_review``.
 from prthinker.cli_review_emit import (
     _append_api_impact,
     _append_report_links,
@@ -45,32 +55,18 @@ from prthinker.cli_review_emit import (
     _maybe_write_job_summary,
     _postprocess_findings,
     _pr_files_url,
+    _report_links_footer,  # noqa: F401  # pylint: disable=unused-import
     _review_progress,
     _submit_inline_review,
 )
-
-# Not called in this module — re-exported on its own statement (so the
-# suppressions sit on the reported line) because the test-suite imports it
-# via ``prthinker.cli_review``.
-from prthinker.cli_review_emit import _report_links_footer  # noqa: F401  # pylint: disable=unused-import
-
-# ``_maybe_autofix`` / ``_maybe_file_issues`` are dispatched from
-# ``_publish_review_result`` below; importing them here also keeps them
-# reachable as ``prthinker.cli_review.<name>``.
-from prthinker.cli_review_autofix import _maybe_autofix
-from prthinker.cli_review_issues import _maybe_file_issues
-
-# Re-exported for the test-suite, which drives them via
-# ``prthinker.cli_review``; not called directly in this module.
-from prthinker.cli_review_autofix import (  # noqa: F401  # pylint: disable=unused-import
-    _collect_auto_fix_findings,
-    _maybe_open_auto_fix_mr,
-    _maybe_open_auto_fix_pr,
-    _open_auto_fix_pr_and_report,
-    _report_auto_fix_outcome,
-    _resolve_auto_fix_base_branch,
-    _resolve_mr_base_branch,
+from prthinker.cli_review_helpers import (
+    BACKEND_CONFIG_BUILDERS,
+    apply_arbitration,
+    build_cache_telemetry,
+    build_dialogue_block,
+    build_platform_adapter,
 )
+from prthinker.cli_review_issues import _maybe_file_issues
 
 # ``_synthesize_overall_summary`` is imported by ``cli_commands`` (the
 # aggregate job) via ``prthinker.cli_review``; the helpers ride along so the
@@ -82,16 +78,17 @@ from prthinker.cli_review_overall_summary import (  # noqa: F401  # pylint: disa
     _poll_overall_summary,
     _synthesize_overall_summary,
 )
-from prthinker.ci_signals import format_signals_block
+from prthinker.config import (
+    SUMMARY_MARKER,
+    BackendKind,
+    Config,
+)
 from prthinker.diff import parse_unified_diff
-from prthinker.step_planner import TIER_SKIP, classify_depth
 from prthinker.formatters import (
     CommentOptions,
     format_pr_comment,
     format_pr_comment_pages,
 )
-from prthinker import pr_summary
-from prthinker.cli_io import write_stdout
 from prthinker.incremental_save import (
     IncrementalReviewWriter,
     ReviewMeta,
@@ -102,19 +99,20 @@ from prthinker.pipeline import (
     PerFileReviewOptions,
     ReviewResult,
 )
-from prthinker.repo_retrieval import RepoContextRetriever
-from prthinker.repo_retrieval_factory import create_repo_retriever
-from prthinker.review_presets import apply_review_preset
-from prthinker.trajectory import TrajectorySink
 from prthinker.rag import (
     FaissRAGRetriever,
     NoOpRetriever,
     RAGRetriever,
     RemoteRAGRetriever,
 )
+from prthinker.repo_retrieval import RepoContextRetriever
+from prthinker.repo_retrieval_factory import create_repo_retriever
 from prthinker.review_cache import ReviewCache
+from prthinker.review_presets import apply_review_preset
 from prthinker.rules import load_rules_dir
 from prthinker.schemas import InlineFinding, ReviewRequest
+from prthinker.step_planner import TIER_SKIP, classify_depth
+from prthinker.trajectory import TrajectorySink
 
 log = logging.getLogger("prthinker")
 
@@ -718,6 +716,8 @@ def _cmd_review_file(args: argparse.Namespace) -> int:
     config = _build_config(args)
     code = _read_stdin_or_file(args.path)
     result = _run_review(args, config, code, output_dir=args.output_dir)
+    if getattr(args, "output_json", ""):
+        return _emit_partial_json(result, args.output_json)
     write_stdout(format_pr_comment(result, marker=SUMMARY_MARKER))
     if result.inline_findings:
         write_stdout(f"\n[{len(result.inline_findings)} inline findings parsed]\n")
@@ -915,6 +915,14 @@ def _cmd_pr_summary(args: argparse.Namespace) -> int:
     backend or network failure logs a warning and returns 0 so it never
     blocks the review matrix.
     """
+    if (getattr(args, "input_json", None) or getattr(args, "summary_format", "text") == "json"
+            or getattr(args, "summary_output", None) or getattr(args, "publish_summary", False)):
+        from prthinker.summary_command import command
+
+        if not getattr(args, "input_json", None) or getattr(args, "publish_summary", False):
+            _validate_pr_args(args)
+        return command(args, backend_factory=create_backend, config_builder=_build_config,
+                       adapter_builder=build_platform_adapter)
     _validate_pr_args(args)
     adapter = build_platform_adapter(args)
     try:

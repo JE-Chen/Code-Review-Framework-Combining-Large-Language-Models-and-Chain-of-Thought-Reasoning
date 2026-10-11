@@ -21,7 +21,7 @@ import subprocess
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from prthinker.backends.base import InferenceBackend
@@ -183,7 +183,7 @@ def write_run_bundle(
     write_outcomes(outcomes, outcomes_path)
     manifest = {
         "schema_version": 1,
-        "created_at": datetime.now(UTC).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "dataset": {"path": str(source), "sha256": dataset_hash},
         "outcomes": {
             "path": outcomes_path.name,

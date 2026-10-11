@@ -19,11 +19,12 @@ import ast
 import difflib
 from collections.abc import Iterable
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Protocol
 
 from prthinker.execution_sandbox import Executor
 from prthinker.lenient_json import extract_json_array
+from prthinker.redaction import redact
 from prthinker.repo_retrieval import (
     RepoContext,
     RepoContextRetriever,
@@ -36,6 +37,17 @@ _CONTEXT_FILE_CHARS = 4000
 _SPAN_WINDOW_MARGIN = 40
 _VALIDATION_OUTPUT_CAP = 4000
 _DEFAULT_TEST_TIMEOUT = 600.0
+
+
+def _safe_file(workdir: Path, relative: str) -> Path:
+    path = Path(relative)
+    windows = PureWindowsPath(relative)
+    target = workdir / path
+    if (not relative or path.is_absolute() or windows.root or windows.drive
+            or ".." in path.parts or ".git" in path.parts or target.is_symlink()
+            or not target.resolve().is_relative_to(workdir.resolve())):
+        raise ValueError("edit path escapes repository")
+    return target
 
 
 def _distinct(paths: Iterable[str]) -> tuple[str, ...]:
@@ -144,13 +156,13 @@ def apply_file_edits(text: str, edits: list[FixEdit]) -> str:
     return text
 
 
-def build_patch(proposal: "IssueFixProposal", workdir: Path) -> str:
+def build_patch(proposal: IssueFixProposal, workdir: Path) -> str:
     """Build a unified diff (SWE-agent-style model_patch) from the edits."""
     workdir = Path(workdir)
     chunks: list[str] = []
     for rel, edits in _edits_by_file(proposal.edits).items():
         try:
-            original = (workdir / rel).read_text(encoding="utf-8", errors="ignore")
+            original = _safe_file(workdir, rel).read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
         updated = apply_file_edits(original, edits)
@@ -163,12 +175,12 @@ def build_patch(proposal: "IssueFixProposal", workdir: Path) -> str:
     return "".join(chunks)
 
 
-def apply_to_workdir(proposal: "IssueFixProposal", workdir: Path) -> list[str]:
+def apply_to_workdir(proposal: IssueFixProposal, workdir: Path) -> list[str]:
     """Write the proposal's edits to disk; return the changed file paths."""
     workdir = Path(workdir)
     changed: list[str] = []
     for rel, edits in _edits_by_file(proposal.edits).items():
-        path = workdir / rel
+        path = _safe_file(workdir, rel)
         try:
             original = path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
@@ -215,7 +227,7 @@ def _expand_to_blocks(
     return spans, symbols
 
 
-def patch_context(proposal: "IssueFixProposal", workdir: Path) -> RepoContext:
+def patch_context(proposal: IssueFixProposal, workdir: Path) -> RepoContext:
     """Derive files / block spans / symbols from the edits (patch localisation).
 
     The proposed fix pins exactly which lines change and which functions
@@ -228,7 +240,7 @@ def patch_context(proposal: "IssueFixProposal", workdir: Path) -> RepoContext:
     symbols: dict[str, list[str]] = {}
     for rel, edits in _edits_by_file(proposal.edits).items():
         try:
-            text = (workdir / rel).read_text(encoding="utf-8", errors="ignore")
+            text = _safe_file(workdir, rel).read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
         ranges = [r for r in (_edit_line_range(text, e) for e in edits) if r]
@@ -246,7 +258,7 @@ class FixValidation:
 
 
 def validate_fix(
-    proposal: "IssueFixProposal",
+    proposal: IssueFixProposal,
     workdir: Path,
     command: tuple[str, ...],
     executor: Executor,
@@ -304,7 +316,7 @@ class IssueFixProposer:
         edits: tuple[FixEdit, ...] = ()
         reason = "no edits proposed"
         for _ in range(self._max_retries + 1):
-            raw = self._backend.generate(prompt, self._max_new_tokens)
+            raw = self._backend.generate(redact(prompt)[0], self._max_new_tokens)
             edits = tuple(_extract_edits(raw))
             valid, reason = self._validate(edits, workdir)
             if valid:
@@ -318,10 +330,10 @@ class IssueFixProposer:
         if not edits:
             return False, "no edits proposed"
         for edit in edits:
-            path = workdir / edit.file
             try:
+                path = _safe_file(workdir, edit.file)
                 text = path.read_text(encoding="utf-8", errors="ignore")
-            except OSError:
+            except (OSError, ValueError):
                 return False, f"{edit.file}: file not found"
             new_text = _apply_edit(text, edit)
             if new_text is None:
@@ -354,8 +366,8 @@ class IssueFixProposer:
         truncation, falling back to the head only when no span is available.
         """
         try:
-            text = (workdir / rel).read_text(encoding="utf-8", errors="ignore")
-        except OSError:
+            text = _safe_file(workdir, rel).read_text(encoding="utf-8", errors="ignore")
+        except (OSError, ValueError):
             return f"# {rel}\n(unreadable)\n"
         if len(text) <= _CONTEXT_FILE_CHARS or not spans:
             return f"# {rel}\n{text[:_CONTEXT_FILE_CHARS]}\n"

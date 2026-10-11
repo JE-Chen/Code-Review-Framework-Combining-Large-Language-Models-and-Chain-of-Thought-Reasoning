@@ -56,6 +56,7 @@ _POLL_INTERVAL_SECONDS = 5.0
 _MAX_CONSECUTIVE_POLL_FAILURES = 60
 _POLL_BACKOFF_AFTER_FAILURES = 5
 _POLL_MAX_INTERVAL_SECONDS = 30.0
+_CANCEL_TERMINAL_POLLS = 12
 
 _TRANSIENT_POLL_ERRORS = (
     httpx.ReadTimeout,
@@ -89,14 +90,19 @@ class _AsyncJobClient:
         self._client = client
         self._kind = kind
         self._timeout_seconds = timeout_seconds
+        self._pending_jobs = set()
+        self._unsafe_job = None
 
-    def run(self, submit_body: dict, parse_done: Callable[[dict], T]) -> T:
+    def run(self, submit_body: dict, parse_done: Callable[[dict], T], *, cancel_event=None) -> T:
+        if self._unsafe_job:
+            raise RuntimeError("previous remote job has no confirmed terminal state; refusing another submission")
         submit_resp = self._client.post(f"/{self._kind}/submit", json=submit_body)
         submit_resp.raise_for_status()
         job_id = submit_resp.json()["job_id"]
+        self._pending_jobs.add(job_id)
         completed_cleanly = False
         try:
-            result = self._poll_until_done(job_id, parse_done)
+            result = self._poll_until_done(job_id, parse_done, cancel_event=cancel_event)
             completed_cleanly = True
             return result
         finally:
@@ -106,6 +112,8 @@ class _AsyncJobClient:
                 # read. Best-effort: a failure here must not mask the original
                 # exception.
                 self._send_cancel(job_id)
+                if job_id in self._pending_jobs and not self._wait_for_terminal(job_id):
+                    self._unsafe_job = job_id
 
     @staticmethod
     def _poll_sleep_seconds(consecutive_failures: int) -> float:
@@ -120,9 +128,11 @@ class _AsyncJobClient:
 
     def _terminal_result_or_none(
         self, job_id: str, payload: dict, parse_done: Callable[[dict], T]
-    ) -> "T | None":
+    ) -> T | None:
         """Map a poll payload to a result, raise on terminal errors, else None."""
         status = payload.get("status")
+        if status in (_STATUS_DONE, _STATUS_ERROR, _STATUS_CANCELLED):
+            self._pending_jobs.discard(job_id)
         if status == _STATUS_DONE:
             return parse_done(payload)
         if status == _STATUS_ERROR:
@@ -135,10 +145,12 @@ class _AsyncJobClient:
             )
         return None
 
-    def _poll_until_done(self, job_id: str, parse_done: Callable[[dict], T]) -> T:
+    def _poll_until_done(self, job_id: str, parse_done: Callable[[dict], T], *, cancel_event=None) -> T:
         deadline = time.monotonic() + self._timeout_seconds
         consecutive_failures = 0
         while True:
+            if cancel_event is not None and cancel_event.is_set():
+                raise RuntimeError("remote review cancelled by client")
             if time.monotonic() >= deadline:
                 raise TimeoutError(
                     f"Remote {self._kind} job {job_id} did not finish within "
@@ -183,6 +195,20 @@ class _AsyncJobClient:
                 exc,
             )
 
+    def _wait_for_terminal(self, job_id: str) -> bool:
+        """A cancelled submission must drain before another case can start."""
+        for _attempt in range(_CANCEL_TERMINAL_POLLS):
+            try:
+                response = self._client.get(f"/{self._kind}/result/{job_id}")
+                response.raise_for_status()
+                if response.json().get("status") in (_STATUS_DONE, _STATUS_ERROR, _STATUS_CANCELLED):
+                    self._pending_jobs.discard(job_id)
+                    return True
+            except (httpx.HTTPError, ValueError, StopIteration):
+                return False
+            time.sleep(_POLL_INTERVAL_SECONDS)
+        return False
+
     def close(self) -> None:
         self._client.close()
 
@@ -219,15 +245,15 @@ class RemoteHttpBackend(InferenceBackend):
         prompt: str,
         max_new_tokens: int,
         *,
-        cancel_event: "object | None" = None,
+        cancel_event: object | None = None,
     ) -> str:
         # The async job owns cancellation server-side (it cancels on an
-        # abnormal exit); the runner does not stream tokens, so the local
-        # cancel_event is not wired into the poll loop.
-        del cancel_event
+        # abnormal exit); cancellation also interrupts polling and drains
+        # the remote job before another submission may reuse this client.
         return self._job.run(
             {"prompt": prompt, "max_new_tokens": max_new_tokens},
             _parse_ask_done,
+            cancel_event=cancel_event,
         )
 
     def close(self) -> None:

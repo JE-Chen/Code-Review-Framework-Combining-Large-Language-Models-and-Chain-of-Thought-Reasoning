@@ -77,7 +77,7 @@ def test_benchmark_run_writes_bundle(tmp_path: Path, capsys, monkeypatch):
     monkeypatch.setattr("prthinker.backends.create_backend", lambda _config: backend)
     monkeypatch.setattr(
         "prthinker.cli_review._build_config",
-        lambda _args: type("Config", (), {"max_new_tokens": 32})(),
+        lambda _args: type("Config", (), {"max_new_tokens": 32, "steps": ()})(),
     )
     assert main(["benchmark", "run", str(cases), str(tmp_path / "run")]) == 0
     payload = json.loads(capsys.readouterr().out)

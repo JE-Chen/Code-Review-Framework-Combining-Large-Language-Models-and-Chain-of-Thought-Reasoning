@@ -68,7 +68,7 @@ PyTorch / CUDA wheel 依平台而异，它的 Dockerfile 与 image digest
 Python 版本
 -----------
 
-需要 Python ``>=3.12``\ ──包内用了 PEP 604 union 语法（\ ``str | None``\ ）
+需要 Python ``>=3.10``\ ──包内用了 PEP 604 union 语法（\ ``str | None``\ ）
 与 ``dataclass(slots=True, kw_only=True)`` 等较新模式。
 
 GPU 注意事项

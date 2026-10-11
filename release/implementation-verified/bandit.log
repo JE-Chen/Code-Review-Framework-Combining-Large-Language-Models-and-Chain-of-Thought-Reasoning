@@ -1,0 +1,65 @@
+[manager]	WARNING	Test in comment: deterministic is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: bootstrap is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: resampling is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: not is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: security is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: deterministic is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: bootstrap is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: resampling is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: not is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: security is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: container is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: tmpfs is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: mount is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: spec is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: not is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: a is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: host is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: temp is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: path is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: display is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: labels is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: keyed is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: on is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: VerificationStatus is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: literal is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: not is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: credentials is not a test name or id, ignoring
+[tester]	WARNING	nosec encountered (B105), but no failed test on file prthinker\formatters_blocks.py:457
+[tester]	WARNING	nosec encountered (B105), but no failed test on file prthinker\formatters_blocks.py:458
+[tester]	WARNING	nosec encountered (B105), but no failed test on file prthinker\formatters_blocks.py:459
+[tester]	WARNING	nosec encountered (B105), but no failed test on file prthinker\formatters_blocks.py:456
+[tester]	WARNING	nosec encountered (B105), but no failed test on file prthinker\formatters_blocks.py:457
+[tester]	WARNING	nosec encountered (B105), but no failed test on file prthinker\formatters_blocks.py:458
+[tester]	WARNING	nosec encountered (B105), but no failed test on file prthinker\formatters_blocks.py:459
+[manager]	WARNING	Test in comment: git is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: via is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: arg is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: lists is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: shell is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: False is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: fixed is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: git is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: exe is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: arg is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: list is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: no is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: shell is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: deterministic is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: resampling is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: not is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: security is not a test name or id, ignoring
+[_py_warnings]	WARNING	"\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+
+[_py_warnings]	WARNING	"\#" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\#"? A raw string is also an option.
+
+[manager]	WARNING	Test in comment: clause is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: is is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: one is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: of is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: two is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: literal is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: strings is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: the is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: actual is not a test name or id, ignoring
+[tester]	WARNING	nosec encountered (B608), but no failed test on file prthinker\telemetry.py:150

@@ -22,12 +22,13 @@ import logging
 import re
 import sqlite3
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
-from prthinker.context_graph import scan_import_edges
+from prthinker.context_graph import LANGUAGE_BY_SUFFIX, scan_import_edges
 from prthinker.context_graph import scan_workdir as scan_context
+from prthinker.polyglot_graph import language_for, resolve_link
 
 log = logging.getLogger(__name__)
 
@@ -60,6 +61,11 @@ CREATE TABLE IF NOT EXISTS imports (
 );
 CREATE INDEX IF NOT EXISTS idx_imports_from
     ON imports (workdir, from_file);
+CREATE TABLE IF NOT EXISTS relations (
+    workdir TEXT NOT NULL, source_file TEXT NOT NULL, target_file TEXT NOT NULL,
+    kind TEXT NOT NULL, source_language TEXT NOT NULL, target_language TEXT NOT NULL,
+    PRIMARY KEY (workdir, source_file, target_file, kind)
+);
 """
 
 
@@ -72,6 +78,7 @@ class Symbol:
     file_path: str
     line: int
     parent: str = ""  # enclosing class for methods, else ""
+    language: str = ""
 
 
 @dataclass(frozen=True)
@@ -308,7 +315,7 @@ def _scan_base_languages(
 
 def _coarse_symbol_kind(node_kind: str) -> str:
     """Map a Tree-sitter node kind onto the KG's coarse symbol kind."""
-    if "class" in node_kind:
+    if any(kind in node_kind for kind in ("class", "struct", "trait", "interface", "enum", "type_spec")):
         return "class"
     if "method" in node_kind:
         return "method"
@@ -322,7 +329,8 @@ def _augment_context_symbols(workdir: Path, syms: list[Symbol]) -> None:
         kind = _coarse_symbol_kind(node.kind)
         key = (node.path, kind, node.name, node.start_line)
         if node.name and key not in existing:
-            syms.append(Symbol(node.name, kind, node.path, node.start_line))
+            syms.append(Symbol(node.name, kind, node.path, node.start_line,
+                               language=LANGUAGE_BY_SUFFIX.get(Path(node.path).suffix, "")))
             existing.add(key)
 
 
@@ -369,6 +377,9 @@ class KnowledgeGraphStore:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as conn:
             conn.executescript(_SCHEMA)
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(symbols)")}
+            if "language" not in columns:
+                conn.execute("ALTER TABLE symbols ADD COLUMN language TEXT NOT NULL DEFAULT ''")
 
     @contextlib.contextmanager
     def _connect(self):
@@ -395,19 +406,28 @@ class KnowledgeGraphStore:
         wd = str(workdir.resolve())
         now = time.time()
         sym_rows = [
-            (wd, s.file_path, s.symbol, s.kind, s.line, s.parent, now)
+            (wd, s.file_path, s.symbol, s.kind, s.line, s.parent, now, s.language)
             for s in symbols
         ]
         imp_rows = [
             (wd, i.from_file, i.target, i.kind, now)
             for i in (imports or ())
         ]
+        files = {row[1] for row in sym_rows}
+        relation_rows = []
+        for row in imp_rows:
+            target = resolve_link(row[1], row[2], files)
+            if target:
+                relation_rows.append((wd, row[1], target, "imports",
+                                      language_for(row[1]), language_for(target)))
         with self._connect() as conn:
+            conn.execute("BEGIN")
             conn.execute("DELETE FROM symbols WHERE workdir = ?", (wd,))
             conn.execute("DELETE FROM imports WHERE workdir = ?", (wd,))
+            conn.execute("DELETE FROM relations WHERE workdir = ?", (wd,))
             conn.executemany(
                 "INSERT INTO symbols (workdir, file_path, symbol, kind, "
-                "line, parent, ts) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "line, parent, ts, language) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 sym_rows,
             )
             if imp_rows:
@@ -416,20 +436,30 @@ class KnowledgeGraphStore:
                     "kind, ts) VALUES (?, ?, ?, ?, ?)",
                     imp_rows,
                 )
+            conn.executemany("INSERT OR IGNORE INTO relations VALUES (?,?,?,?,?,?)", relation_rows)
+            conn.commit()
         return len(sym_rows)
+
+    def all_relations(self, workdir: Path) -> list[dict]:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "SELECT source_file,target_file,kind,source_language,target_language "
+                "FROM relations WHERE workdir=? ORDER BY source_file,target_file", (str(workdir.resolve()),))
+            keys = [column[0] for column in cursor.description]
+            return [dict(zip(keys, row)) for row in cursor.fetchall()]
 
     def all_symbols(self, workdir: Path) -> list[Symbol]:
         wd = str(workdir.resolve())
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT symbol, kind, file_path, line, parent "
+                "SELECT symbol, kind, file_path, line, parent, language "
                 "FROM symbols WHERE workdir = ? ORDER BY symbol",
                 (wd,),
             ).fetchall()
         return [
             Symbol(
                 symbol=str(r[0]), kind=str(r[1]),
-                file_path=str(r[2]), line=int(r[3]), parent=str(r[4]),
+                file_path=str(r[2]), line=int(r[3]), parent=str(r[4]), language=str(r[5]),
             )
             for r in rows
         ]
