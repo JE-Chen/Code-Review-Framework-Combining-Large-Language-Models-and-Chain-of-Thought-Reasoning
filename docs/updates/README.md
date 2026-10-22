@@ -58,6 +58,7 @@ In the same commit: delete the item from `progress.md`, add a `#done` entry here
 
 | ID | Date | Title | Tags | Batch |
 |---|---|---|---|---|
+| U-20261022-01 | 2026-10-22 | Give roadmap sections unique headings | #bugfix #deps #ci | [2026-10](2026-10.md) |
 | U-20260924-02 | 2026-09-24 | anyio 4.15.1 in the CI and runner locks | #deps #security | [2026-09](2026-09.md) |
 | U-20260924-01 | 2026-09-24 | Workflows: no file names in shell, per-job permissions, pinned actions | #ci #security | [2026-09](2026-09.md) |
 | U-20260923-06 | 2026-09-23 | attest-build-provenance v4 merged; peft 0.21 refused | #done #deps | [2026-09](2026-09.md) |
