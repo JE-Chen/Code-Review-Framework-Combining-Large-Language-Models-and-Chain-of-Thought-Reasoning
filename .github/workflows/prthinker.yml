@@ -303,7 +303,7 @@ jobs:
         if: >-
           ${{ (steps.list.outputs.skipped != '0' && steps.list.outputs.skipped != '') ||
               (steps.list.outputs.plan_skipped != '0' && steps.list.outputs.plan_skipped != '') }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: partial-skipped
           path: ${{ runner.temp }}/skipped/
@@ -314,7 +314,7 @@ jobs:
       # into the aggregate so the comment lists them as skipped (deleted).
       - name: Upload deleted-file partial
         if: steps.list.outputs.deleted != '0' && steps.list.outputs.deleted != ''
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: partial-deleted
           path: ${{ runner.temp }}/deleted/
@@ -453,7 +453,7 @@ jobs:
         # artifact collection — the upload step itself just no-ops if
         # the file is missing.
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: partial-${{ strategy.job-index }}
           path: ${{ runner.temp }}/partial.json
@@ -694,7 +694,7 @@ jobs:
       - name: Upload review reports
         if: ${{ always() }}
         continue-on-error: true
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: prthinker-reports
           path: |
