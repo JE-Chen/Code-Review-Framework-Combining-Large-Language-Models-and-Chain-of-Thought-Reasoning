@@ -649,3 +649,9 @@ The longer architectural overview, prompt-template anatomy, GitHub integration p
 defense-slides build process, and full directory inventory live at `READMEs/CLAUDE.md`. This
 document is the contractual top-level — it codifies what every commit must satisfy. The
 overview answers "how does this codebase fit together".
+
+## Git worktrees: merge and remove
+
+- Every git worktree created for a task must be finished off: merge its branch back into the branch it was started from, then remove the worktree (`git worktree remove <path>`) and delete its branch (`git branch -d <branch>`).
+- Do not leave worktrees behind when the work is done; check `git worktree list` before ending the task.
+- If a worktree cannot be merged yet, say so explicitly instead of leaving it behind silently.
